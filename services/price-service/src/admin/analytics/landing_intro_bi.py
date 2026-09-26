@@ -32,6 +32,14 @@ INTRO_EVENTS = (
 _ALL = INTRO_EVENTS + ("landing_download_click", "landing_store_redirect", "landing_view")
 _BR = ZoneInfo("America/Sao_Paulo")
 
+# Comercial exibido na visita (`properties.commercial`). Eventos anteriores ao revezamento não têm o campo e
+# eram todos o comercial da ração.
+COMMERCIALS = (
+    ("pet-sumido", "Operação Fuga (Pet Sumido)"),
+    ("racao", "A última porção de ração"),
+)
+_LEGACY_COMMERCIAL = "racao"
+
 
 def _props(row: AnalyticsProductEvent) -> dict[str, Any]:
     try:
@@ -91,6 +99,14 @@ def landing_intro_summary(
     clickers_by_group: dict[str, set[str]] = {"shown": set(), "none": set()}
     by_day: dict[str, dict[str, Any]] = {}
     sound_on = 0
+    by_com: dict[str, dict[str, set[str]]] = {
+        cid: {"poster": set(), "watch": set(), "start": set(), "complete": set(), "skip": set(), "clickers": set()}
+        for cid, _ in COMMERCIALS
+    }
+
+    def _com(props: dict[str, Any]) -> Optional[str]:
+        cid = str(props.get("commercial") or _LEGACY_COMMERCIAL)
+        return cid if cid in by_com else None
 
     for r, p in rows:
         anon = r.anonymous_id
@@ -100,9 +116,16 @@ def landing_intro_summary(
 
         if name in INTRO_EVENTS:
             counts[name] += 1
+            cid = _com(p)
             if anon:
                 stage[name].add(anon)
                 intro_visitors.add(anon)
+                if cid:
+                    key = {"landing_intro_poster_view": "poster", "landing_intro_watch_click": "watch",
+                           "landing_intro_video_start": "start", "landing_intro_video_complete": "complete",
+                           "landing_intro_skip": "skip"}.get(name)
+                    if key:
+                        by_com[cid][key].add(anon)
             if day:
                 slot = by_day.setdefault(day, {"date": day, "poster": set(), "watch": set(), "complete": set()})
                 if name == "landing_intro_poster_view" and anon:
@@ -126,6 +149,9 @@ def landing_intro_summary(
         elif name == "landing_download_click":
             if group == "shown" and anon:
                 clickers_by_group["shown"].add(anon)
+                cid = _com(p)
+                if cid:
+                    by_com[cid]["clickers"].add(anon)
             elif group == "none" and anon:
                 clickers_by_group["none"].add(anon)
             if group == "shown":
@@ -153,9 +179,22 @@ def landing_intro_summary(
     def dlsum(b: dict[str, Any]) -> dict[str, Any]:
         return {"clicks": b["clicks"], "clickers": len(b["clickers"]), "apple": b["apple"], "google": b["google"], "auto": b["auto"]}
 
+    by_commercial = [
+        {
+            "id": cid, "label": label,
+            "poster_visitors": len(v["poster"]), "watch_visitors": len(v["watch"]), "start_visitors": len(v["start"]),
+            "complete_visitors": len(v["complete"]), "skip_visitors": len(v["skip"]), "clickers": len(v["clickers"]),
+            "watch_rate": _rate(len(v["watch"]), len(v["poster"])),
+            "complete_rate": _rate(len(v["complete"]), len(v["start"])),
+            "conversion": _rate(len(v["clickers"]), len(v["poster"])),
+        }
+        for (cid, label), v in ((c, by_com[c[0]]) for c in COMMERCIALS)
+    ]
+
     return {
         "period": {"since": since.isoformat() if since else None, "until": until.isoformat() if until else None},
         "filters": {"campaign": campaign, "source": source, "os": os, "instagram_only": instagram_only},
+        "by_commercial": by_commercial,
         "funnel": {
             "poster_visitors": poster, "watch_visitors": watch, "start_visitors": start, "complete_visitors": complete,
             "skip_visitors": skipped,

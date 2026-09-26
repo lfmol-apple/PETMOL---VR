@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { __resetLandingVariantMemo } from '@/lib/landingExperiment';
 import { LandingIntro } from './LandingIntro';
-import { __resetIntroSeen, wasIntroSeen } from '@/lib/landingIntro';
+import { __resetIntroSeen, COMMERCIALS, setIntroMode, wasIntroSeen } from '@/lib/landingIntro';
 
 const fetchMock = vi.fn();
 const sent = () => fetchMock.mock.calls.filter((c) => String(c[0]).includes('/analytics/event')).map((c) => JSON.parse(c[1].body));
@@ -25,7 +25,7 @@ const video = () => document.querySelector('video') as HTMLVideoElement;
 
 describe('introdução em vídeo (celular)', () => {
   it('mostra o pôster com "Assistir com som" e "Pular", sem iniciar o vídeo sozinho', () => {
-    render(<LandingIntro preview={false} onDone={() => undefined} />);
+    render(<LandingIntro commercial={COMMERCIALS.racao} preview={false} onDone={() => undefined} />);
     expect(screen.getByText(/Assistir com som/)).toBeTruthy();
     expect(screen.getByText('Pular e conhecer o PETMOL')).toBeTruthy();
     expect(names()).toEqual(['landing_intro_poster_view']);
@@ -35,7 +35,7 @@ describe('introdução em vídeo (celular)', () => {
 
   it('tocar em "Assistir com som" toca COM áudio (dentro do gesto) e registra o clique', () => {
     const play = vi.spyOn(HTMLMediaElement.prototype, 'play');
-    render(<LandingIntro preview={false} onDone={() => undefined} />);
+    render(<LandingIntro commercial={COMMERCIALS.racao} preview={false} onDone={() => undefined} />);
     fireEvent.click(screen.getByText(/Assistir com som/));
     expect(play).toHaveBeenCalled();
     expect(video().muted).toBe(false);
@@ -44,7 +44,7 @@ describe('introdução em vídeo (celular)', () => {
 
   it('início → fim: registra start/complete e revela a landing (onDone) sem recarregar', () => {
     const onDone = vi.fn();
-    render(<LandingIntro preview={false} onDone={onDone} />);
+    render(<LandingIntro commercial={COMMERCIALS.racao} preview={false} onDone={onDone} />);
     fireEvent.click(screen.getByText(/Assistir com som/));
     act(() => { fireEvent(video(), new Event('playing')); });
     expect(names()).toContain('landing_intro_video_start');
@@ -56,7 +56,7 @@ describe('introdução em vídeo (celular)', () => {
 
   it('Pular durante o vídeo: registra segundos assistidos e revela a landing', () => {
     const onDone = vi.fn();
-    render(<LandingIntro preview={false} onDone={onDone} />);
+    render(<LandingIntro commercial={COMMERCIALS.racao} preview={false} onDone={onDone} />);
     fireEvent.click(screen.getByText(/Assistir com som/));
     Object.defineProperty(video(), 'currentTime', { value: 7.34, configurable: true });
     act(() => { fireEvent(video(), new Event('playing')); });
@@ -69,7 +69,7 @@ describe('introdução em vídeo (celular)', () => {
 
   it('Pular no pôster: entra direto na landing', () => {
     const onDone = vi.fn();
-    render(<LandingIntro preview={false} onDone={onDone} />);
+    render(<LandingIntro commercial={COMMERCIALS.racao} preview={false} onDone={onDone} />);
     fireEvent.click(screen.getByText('Pular e conhecer o PETMOL'));
     act(() => { vi.advanceTimersByTime(400); });
     expect(sent().find((e) => e.event_name === 'landing_intro_skip').properties.reason).toBe('poster');
@@ -81,7 +81,7 @@ describe('introdução em vídeo (celular)', () => {
       cleanup(); fetchMock.mockClear();
       const onDone = vi.fn();
       playImpl = mode === 'reject' ? () => Promise.reject(new Error('NotAllowed')) : () => new Promise(() => undefined);
-      render(<LandingIntro preview={false} onDone={onDone} />);
+      render(<LandingIntro commercial={COMMERCIALS.racao} preview={false} onDone={onDone} />);
       fireEvent.click(screen.getByText(/Assistir com som/));
       if (mode === 'error') act(() => { fireEvent(video(), new Event('error')); });
       if (mode === 'timeout') act(() => { vi.advanceTimersByTime(10100); });
@@ -93,7 +93,7 @@ describe('introdução em vídeo (celular)', () => {
   });
 
   it('durante o vídeo: botão Baixar grátis presente (com loja e UTMs) e som liga/desliga', () => {
-    render(<LandingIntro preview={false} onDone={() => undefined} />);
+    render(<LandingIntro commercial={COMMERCIALS.racao} preview={false} onDone={() => undefined} />);
     fireEvent.click(screen.getByText(/Assistir com som/));
     act(() => { fireEvent(video(), new Event('playing')); });
     const dl = screen.getByText('Baixar grátis') as HTMLAnchorElement;
@@ -108,10 +108,36 @@ describe('introdução em vídeo (celular)', () => {
   });
 
   it('todos os eventos carregam experimento, variante, UTMs e horário de SP', () => {
-    render(<LandingIntro preview onDone={() => undefined} />);
+    render(<LandingIntro commercial={COMMERCIALS.racao} preview onDone={() => undefined} />);
     const e = sent()[0];
     expect(e.properties.sp_time).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
     expect(e.properties.experiment_id).toBeTruthy();
     expect(e.utm_source).toBe('instagram');
+  });
+
+  it('comercial da ração: pôster com "A última porção de ração." e o vídeo da ração', () => {
+    render(<LandingIntro commercial={COMMERCIALS.racao} preview={false} onDone={() => undefined} />);
+    expect(screen.getByText(/Um filme de 27 segundos/)).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('A última porção');
+    expect(video().getAttribute('src')).toBe('/landing/comercial/petmol-comercial-v1.mp4');
+  });
+
+  it('comercial do Pet Sumido: pôster "Operação Fuga." com a frase do filme e o vídeo do Pet Sumido', () => {
+    render(<LandingIntro commercial={COMMERCIALS['pet-sumido']} preview={false} onDone={() => undefined} />);
+    expect(screen.getByText(/Um filme de 45 segundos/)).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Operação');
+    expect(screen.getByText('Biscoito tem um plano.')).toBeTruthy();
+    expect(video().getAttribute('src')).toBe('/landing/comercial/petmol-pet-sumido-v1.mp4');
+    expect(video().getAttribute('poster')).toBe('/landing/comercial/petmol-pet-sumido-poster-v1.webp');
+  });
+
+  it('todo evento leva qual comercial foi exibido (para separar os dois no painel)', () => {
+    setIntroMode('shown', 'pet-sumido');
+    render(<LandingIntro commercial={COMMERCIALS['pet-sumido']} preview={false} onDone={() => undefined} />);
+    fireEvent.click(screen.getByText(/Assistir com som/));
+    const evs = sent();
+    expect(evs.length).toBeGreaterThan(0);
+    for (const e of evs) expect(e.properties.commercial).toBe('pet-sumido');
+    setIntroMode('none');
   });
 });

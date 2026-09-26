@@ -12,7 +12,7 @@ import { getAnalyticsContext } from '@/lib/analytics/session';
 import { getCampaignAttribution } from '@/lib/analytics/campaignAttribution';
 import { detectInAppBrowser, readLandingContext } from '@/lib/landingContext';
 import { EXPERIMENT_ID, getLandingVariant, type VariantInfo } from '@/lib/landingExperiment';
-import { getIntroMode, saoPauloTime } from '@/lib/landingIntro';
+import { getIntroCommercial, getIntroMode, saoPauloTime } from '@/lib/landingIntro';
 
 export type LandingEventName =
   | 'landing_view' | 'landing_download_click' | 'landing_store_redirect'
@@ -70,6 +70,7 @@ export function buildLandingEvent(name: LandingEventName, info: VariantInfo, ext
       ...(typeof extra.muted === 'boolean' ? { muted: extra.muted } : {}),
       ...(extra.reason ? { reason: extra.reason } : {}),
       intro: getIntroMode(),
+      ...(getIntroCommercial() ? { commercial: getIntroCommercial() } : {}),
       sp_time: saoPauloTime(),
       iab: detectInAppBrowser(navigator.userAgent || ''),
       fbclid: url.hasFbclid,
