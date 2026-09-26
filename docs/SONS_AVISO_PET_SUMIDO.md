@@ -1,15 +1,15 @@
 # Sons do aviso "pet sumido perto de você"
 
-Dois sons de escolha do dono, **prontos e DESLIGADOS** (o padrão continua sendo o som do sistema, igual a hoje).
+Dois sons de escolha do dono. **O som do PETMOL está LIGADO por padrão no servidor** (decisão de 26/09/2026, PR #563) e só toca em quem atualizar para a versão que traz os arquivos; quem não atualizou continua ouvindo o som do sistema. **Voltar ao padrão a qualquer momento:** `PUSH_SOUND_STYLE=default` + reiniciar.
 
 | Estilo (`PUSH_SOUND_STYLE`) | Som | iOS | Android |
 |---|---|---|---|
-| `default` | Som do sistema (**hoje**) | — | canal `petmol_default` |
-| `petmol` | Sino curto + voz alegre dizendo "Pétmol!" (1,1 s) | `petmol.caf` | canal `petsumido_petmol` (`res/raw/petmol.wav`) |
+| `default` | Som do sistema (como era antes; **é só para onde voltar**) | — | canal `petmol_default` |
+| `petmol` (**padrão atual**) | Sino curto + voz alegre dizendo "Pétmol!" (1,1 s) | `petmol.caf` | canal `petsumido_petmol` (`res/raw/petmol.wav`) |
 | `latido` | Dois latidos de cão (1,1 s) | `latido.caf` | canal `petsumido_latido` (`res/raw/latido.wav`) |
 
-## Como ligar / desligar (sem nova versão do app)
-1. No `api.env` do servidor: `PUSH_SOUND_STYLE=petmol` (ou `latido`). Para desligar: `default` ou apagar a linha.
+## Como trocar / voltar ao padrão (sem nova versão do app)
+1. No `api.env` do servidor: `PUSH_SOUND_STYLE=default` (volta ao som do sistema), `latido` (troca pelo latido) ou `petmol` (padrão do código; apagar a linha também vale).
 2. Reiniciar o serviço da API.
 3. Vale só para o aviso de Pet Sumido para tutores próximos (tags `missing-pet-*`, exceto `-expired-`).
 - **App que ainda não tem os arquivos** (versões antigas): o iOS toca o som padrão e o Android usa o canal padrão. É seguro ligar antes de todos atualizarem.
