@@ -189,6 +189,17 @@ class Settings(BaseSettings):
     apns_key_id: Optional[str] = None
     apns_team_id: Optional[str] = None
     apns_topic: str = "br.com.petmol.app"  # = bundle id do app
+    # Som de TODAS as notificações nativas (iOS/Android): "petmol" (LIGADO por decisão do
+    # dono, 26/09/2026) | "latido" | "default" = som do sistema, como era antes. PARA VOLTAR AO PADRÃO
+    # SEM NOVO DEPLOY: PUSH_SOUND_STYLE=default no env do servidor + reiniciar. Só toca o som novo no
+    # app que já traz o arquivo (petmol.caf / latido.caf no iOS; canais petmol_som_petmol /
+    # petmol_som_latido no Android); em versão antiga do app, cai sozinho no som padrão.
+    # Ver notifications/push_sound.py e docs/SONS_AVISO_PET_SUMIDO.md.
+    push_sound_style: str = "petmol"
+    # Som do aviso de "novo download/acesso" (push com tag petmol-install, que só o admin e 2 contas recebem):
+    # "download" (padrão) = som próprio, diferente de todos os outros; "same" = toca o mesmo som das demais
+    # notificações (PUSH_SOUND_STYLE). Env: INSTALL_PUSH_SOUND. Só toca no app que traz o arquivo download.caf.
+    install_push_sound: str = "download"
     apns_use_sandbox: bool = False  # True → api.sandbox.push.apple.com (builds dev)
 
     # ── Push nativo Android (FCM) ─────────────────────────────────────────
