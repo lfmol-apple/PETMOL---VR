@@ -61,7 +61,7 @@ Vêm da memória de trabalho e do GitHub. Os marcados ⚠️ podem estar **desat
 - ⚠️ Comercial "Operação Fuga" (Pet Sumido): estado desconhecido (havia teto de 250 créditos e banco isolado).
 
 ## Produto e catálogo
-- ⚠️ **Remover Shopee** (plano de 6 estágios) e ⚠️ **Petz** (lista dos 300 + reordenar painel): conferir o que já foi feito.
+- **Shopee e Petz: nada será removido** (decisão do dono, 26/09/2026). A Shopee segue funcionando como está, **somente na Loja do Pet**; a Petz fica como está. Saíram do checklist.
 - **Expansão para os EUA**: 3 idiomas decididos (pt-BR, en, es); falta a análise avançada e a auditoria de código morto.
 
 ## Adiados de propósito (não cobrar)
