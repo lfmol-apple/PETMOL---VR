@@ -189,12 +189,13 @@ class Settings(BaseSettings):
     apns_key_id: Optional[str] = None
     apns_team_id: Optional[str] = None
     apns_topic: str = "br.com.petmol.app"  # = bundle id do app
-    # Som do aviso de Pet Sumido (só "tem pet sumido perto de você"): "default" = som do sistema,
-    # exatamente como sempre foi. Para trocar SEM nova versão do app: PUSH_SOUND_STYLE=petmol
-    # ou latido no env do servidor + reiniciar. Só vale no app que já traz o arquivo de som
-    # (petmol.caf / latido.caf no iOS; canais petsumido_petmol / petsumido_latido no Android);
-    # em versão antiga do app, cai sozinho no som padrão. Ver notifications/push_sound.py.
-    push_sound_style: str = "default"
+    # Som do aviso de Pet Sumido (só "tem pet sumido perto de você"): "petmol" (LIGADO por decisão do
+    # dono, 26/09/2026) | "latido" | "default" = som do sistema, como era antes. PARA VOLTAR AO PADRÃO
+    # SEM NOVO DEPLOY: PUSH_SOUND_STYLE=default no env do servidor + reiniciar. Só toca o som novo no
+    # app que já traz o arquivo (petmol.caf / latido.caf no iOS; canais petsumido_petmol /
+    # petsumido_latido no Android); em versão antiga do app, cai sozinho no som padrão.
+    # Ver notifications/push_sound.py e docs/SONS_AVISO_PET_SUMIDO.md.
+    push_sound_style: str = "petmol"
     apns_use_sandbox: bool = False  # True → api.sandbox.push.apple.com (builds dev)
 
     # ── Push nativo Android (FCM) ─────────────────────────────────────────

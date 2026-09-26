@@ -10,11 +10,22 @@ EXPIRED = {"title": "t", "body": "b", "tag": "missing-pet-expired-123"}
 OTHER = {"title": "t", "body": "b", "tag": "petmol-install"}
 
 
-def test_padrao_e_o_som_do_sistema_exatamente_como_sempre():
-    assert get_settings().push_sound_style == "default"
-    for p in (NEARBY, RADIUS, EXPIRED, OTHER):
-        assert apns_sound(p) == "default"
-        assert fcm_channel_id(p) is None
+def test_ligado_por_padrao_so_no_aviso_de_pet_sumido_proximo():
+    """Decisão do dono (26/09/2026): o som do PETMOL vem ligado; o resto segue com o som do sistema."""
+    assert get_settings().push_sound_style == "petmol"
+    for p in (NEARBY, RADIUS):
+        assert apns_sound(p) == "petmol.caf" and fcm_channel_id(p) == "petsumido_petmol"
+    for p in (EXPIRED, OTHER):
+        assert apns_sound(p) == "default" and fcm_channel_id(p) is None
+
+
+def test_voltar_ao_padrao_e_so_trocar_o_valor(monkeypatch):
+    """PUSH_SOUND_STYLE=default (ou vazio) = som do sistema, exatamente como antes."""
+    for value in ("default", "", None):
+        monkeypatch.setattr(get_settings(), "push_sound_style", value, raising=False)
+        for p in (NEARBY, RADIUS, EXPIRED, OTHER):
+            assert apns_sound(p) == "default"
+            assert fcm_channel_id(p) is None
 
 
 @pytest.mark.parametrize("style,ios,android", [
@@ -70,6 +81,7 @@ def test_payload_real_do_apns_e_do_fcm(monkeypatch):
     def fcm_android_sent():
         fcm.send_fcm("tok", dict(NEARBY)); return sent["body"]["message"].get("android")
 
+    monkeypatch.setattr(get_settings(), "push_sound_style", "default", raising=False)
     assert apns_sound_sent() == "default" and fcm_android_sent() is None
     monkeypatch.setattr(get_settings(), "push_sound_style", "latido", raising=False)
     assert apns_sound_sent() == "latido.caf"
