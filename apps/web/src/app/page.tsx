@@ -10,7 +10,7 @@ import { DownloadButton, DownloadCta, StickyDownloadBar } from '@/components/lan
 import { AppPreview, HeroPhones } from '@/components/landing/AppPreview';
 import { useLandingContext } from '@/hooks/useLandingContext';
 import { LANDING_COPY, readLandingContext } from '@/lib/landingContext';
-import { getLandingVariant, VARIANT_COPY, type VariantInfo } from '@/lib/landingExperiment';
+import { getLandingVariant, VARIANT_HAS_IMAGE, type VariantInfo } from '@/lib/landingExperiment';
 import { trackLandingEvent } from '@/lib/landingEvents';
 
 export default function LandingPage() {
@@ -55,7 +55,7 @@ export default function LandingPage() {
   if (phase === 'boot' || !exp) {
     return <AppBootSplash />;
   }
-  const b = exp.variant === 'B' ? VARIANT_COPY.B : null;
+  const withImage = VARIANT_HAS_IMAGE[exp.variant];
 
   return (
     <div className="h-svh overflow-hidden overscroll-none touch-pan-x touch-pan-y bg-white flex flex-col md:h-auto md:min-h-dvh md:overflow-visible md:touch-auto">
@@ -76,18 +76,32 @@ export default function LandingPage() {
       {/* Hero — no celular é a página inteira, parada: Home do app + botão + selos, sem rolagem */}
       <section className="flex flex-1 flex-col items-center justify-evenly bg-gradient-to-b from-blue-50 to-white px-5 pb-2 text-center md:flex-none md:justify-start md:pb-3 md:pt-1">
         <h1 className="hidden text-[26px] font-black text-slate-900 leading-[1.12] tracking-tight text-balance md:block">
-          {(b ? [b.title] : copy.title).map((line, i) => (<span key={i}>{i > 0 && <br />}{line}</span>))}
+          {copy.title.map((line, i) => (<span key={i}>{i > 0 && <br />}{line}</span>))}
         </h1>
         {/* Só no celular: o que o PETMOL faz, em texto normal acima do telefone */}
-        {b ? (
-          <div className="md:hidden">
-            <p className="text-[clamp(15px,4.6vw,19px)] font-extrabold leading-tight tracking-tight text-slate-800">{b.title}</p>
-            <p className="mx-auto mt-0.5 max-w-[19rem] text-[12px] font-medium leading-snug text-slate-600">{b.subtitle}</p>
-          </div>
+        {withImage ? (
+          <>
+            {/* Só no celular: o que o PETMOL faz, em texto normal acima do telefone */}
+            <p className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-800 md:hidden">Cuidamos do seu pet.</p>
+            <div className="md:mt-3"><HeroPhones /></div>
+          </>
         ) : (
-          <p className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-800 md:hidden">Cuidamos do seu pet.</p>
+          /* Versão B do teste: SEM imagem do app — texto primeiro (só no celular; o desktop segue com o título e as seções) */
+          <div className="flex w-full max-w-xs flex-col items-center gap-4 md:hidden">
+            <p className="text-[36px] font-black leading-[1.03] tracking-tight text-slate-900">Cuidamos<br />do seu pet.</p>
+            <ul className="w-full space-y-2.5 text-left">
+              {[
+                ['🩺', 'Vacinas e remédios com aviso antes do prazo'],
+                ['🍽️', 'Avisa antes da ração acabar'],
+                ['🚨', 'Pet Sumido: alerta para quem está por perto'],
+              ].map(([icon, text]) => (
+                <li key={text} className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-white px-3.5 py-3 text-[15px] font-bold leading-snug text-slate-800 shadow-sm">
+                  <span className="text-2xl" aria-hidden="true">{icon}</span>{text}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
-        <div className="md:mt-3"><HeroPhones reservePx={b ? 322 : 294} /></div>
         <div className="mx-auto w-full max-w-sm pt-6 md:mt-3 md:pt-0">
           <DownloadCta placement="hero-botao" targetId="lojas-hero" />
           <div className="mt-2.5"><DownloadButton placement="hero" compact /></div>
@@ -104,11 +118,11 @@ export default function LandingPage() {
       {/* Do subtítulo ao rodapé: só no desktop/tablet. No celular a página é uma tela única e fixa. */}
       <div className="hidden md:flex md:flex-1 md:flex-col">
       <p className="px-6 pt-4 pb-6 text-center text-base text-slate-500 leading-relaxed font-medium max-w-sm mx-auto">
-        {b ? b.subtitle : copy.subtitle}
+        {copy.subtitle}
       </p>
 
       {/* O app por dentro */}
-      <AppPreview />
+      {withImage && <AppPreview />}
 
       {/* Como o PETMOL acompanha — benefício → como funciona */}
       <section className="px-5 pb-8 space-y-4">

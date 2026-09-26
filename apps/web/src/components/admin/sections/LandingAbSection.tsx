@@ -17,8 +17,8 @@ import { useAsync, Panel, Loading, ErrorBox, numberFmt } from './sections';
 const pct = (v: number | null | undefined) => (typeof v === 'number' ? `${(v * 100).toFixed(1).replace('.', ',')}%` : '—');
 
 const VARIANT_META = {
-  A: { title: 'Versão A', sub: '“Cuidamos do seu pet.” (atual)', tone: 'blue' as const, color: '#2d6fd8' },
-  B: { title: 'Versão B', sub: '“Tudo para cuidar melhor do seu pet.”', tone: 'violet' as const, color: '#7c3aed' },
+  A: { title: 'Versão A · com imagem', sub: 'Home do app + “Cuidamos do seu pet.” (atual)', tone: 'blue' as const, color: '#2d6fd8' },
+  B: { title: 'Versão B · sem imagem', sub: 'Mesmo texto, sem o telefone: 3 benefícios curtos', tone: 'violet' as const, color: '#7c3aed' },
 };
 
 const dayLabel = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
