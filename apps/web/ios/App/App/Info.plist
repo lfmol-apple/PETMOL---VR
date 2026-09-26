@@ -35,6 +35,31 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- Meta (Facebook) SDK: campanhas de instalação do Meta Ads (iOS 14+). O Client Token é público
+	     por design (vai dentro do app); não é segredo. -->
+	<key>FacebookAppID</key>
+	<string>976747438068822</string>
+	<key>FacebookClientToken</key>
+	<string>c04d35b6e11d36dad855f88bc0acd35e</string>
+	<key>FacebookDisplayName</key>
+	<string>PETMOL</string>
+	<key>FacebookAutoLogAppEventsEnabled</key>
+	<true/>
+	<key>FacebookAdvertiserIDCollectionEnabled</key>
+	<true/>
+	<key>SKAdNetworkItems</key>
+	<array>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>v9wttpbfk9.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>n38lu8286q.skadnetwork</string>
+		</dict>
+	</array>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>Usamos essa permissão para mostrar anúncios mais relevantes para você.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>O PETMOL usa a câmera para fotografar seu pet, escanear produtos, ler carteirinhas de vacinação e gravar o vídeo de prova de quem encontrou um pet perdido.</string>
 	<key>NSMicrophoneUsageDescription</key>
