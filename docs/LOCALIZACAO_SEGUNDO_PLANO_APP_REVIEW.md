@@ -1,6 +1,6 @@
 # Localização em segundo plano (iOS) — justificativa para a App Review
 
-Status: **proposta, nada implementado.** Conflita com o que está publicado hoje (Política de Privacidade §2.4, `APP_STORE_METADATA.md`, manifesto Android: "nunca em segundo plano"). Só entra numa versão depois que o dono aprovar este documento.
+Status: **ARQUIVADO — o dono decidiu em 26/09/2026 NÃO implementar; a localização segue como está (só com o app aberto).** Guardado para o futuro. Proposta, nada implementado. Conflita com o que está publicado hoje (Política de Privacidade §2.4, `APP_STORE_METADATA.md`, manifesto Android: "nunca em segundo plano"). Só entra numa versão depois que o dono aprovar este documento.
 
 ## 1. Por que a Apple reprova e como não cair nisso
 Diretrizes envolvidas (conferir o texto vigente na hora de enviar): **2.5.4** (segundo plano só para o fim declarado), **5.1.1** (pedir só dados relevantes à função principal; consentimento claro) e **5.1.5** (localização só quando diretamente relevante e com finalidade explicada no app).

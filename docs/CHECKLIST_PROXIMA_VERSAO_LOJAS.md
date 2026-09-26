@@ -7,13 +7,14 @@ Atualizado em 26/09/2026. Legenda: ✅ pronto · 🟡 em andamento · ⬜ a faze
 2. **O funcionamento das lojas permanece exatamente como está**: Cobasi como está, Petz como está, Shopee como está **somente na Loja do Pet**. Nenhum PR desta rodada toca em loja, ofertas, afiliados ou links de compra (cada PR lista seus arquivos para conferir).
 3. Eu preparo tudo em PR. **O dono faz o merge, gera o build e envia às lojas.** Eu nunca gero build de loja nem submeto.
 4. Enquanto a versão nova está em análise, **a atual continua no ar**. Reprovação não derruba o app.
-5. iOS mínimo continua **15.0** (o Capacitor 8 exige; baixar não é possível e o ganho seria pequeno). iPad já é suportado.
+5. **Localização em segundo plano NÃO entra** (decisão do dono, 26/09/2026): a localização segue como está hoje, só com o app aberto e renovando a cada 6 h. O dossiê ficou arquivado para o futuro.
+6. iOS mínimo continua **15.0** (o Capacitor 8 exige; baixar não é possível e o ganho seria pequeno). iPad já é suportado.
 
 ## A. Decisões suas (travam o resto)
 | # | Decisão | Minha recomendação |
 |---|---|---|
-| D1 | **Uma versão ou duas?** | **1.1 = só SDK da Meta (iOS)**; **1.2 = segundo plano + sons + resto**. Uma reprovação da localização prenderia a Meta. Tudo junto também é possível. |
-| D2 | **Aprovar a justificativa** da localização em segundo plano (`LOCALIZACAO_SEGUNDO_PLANO_APP_REVIEW.md`) | Aprovar; usa só "mudança significativa" (~500 m), sem trilha |
+| D1 | **Uma versão ou duas?** | Com o segundo plano fora, o risco de reprovação caiu: **uma versão só (1.1)** com SDK da Meta (iOS) + arquivos de som e canais. Se os sons não estiverem prontos, a 1.1 sai só com a Meta e os sons vão depois. |
+| D2 | ~~Justificativa do segundo plano~~ | **Cancelada** — o segundo plano não entra |
 | D3 | **Sons**: arquivo do **latido** livre de direitos e o **som de marca** do PETMOL | Você envia, ou eu procuro um de uso comercial |
 | D4 | **Conta de revisor** (Apple e Google) | Criar uma dedicada; a senha da 1.0 foi um chute |
 | D5 | **Mac com chip Apple e Vision Pro**: manter o app disponível ou desmarcar no App Store Connect | Conferir no painel |
@@ -29,13 +30,13 @@ Atualizado em 26/09/2026. Legenda: ✅ pronto · 🟡 em andamento · ⬜ a faze
 | # | Item | iOS | Android | Quem | Estado |
 |---|---|---|---|---|---|
 | 1 | SDK da Meta + rastreamento (ATT) | Feito | **Não se aplica** | Eu; dono testa no iPhone real | ✅ código · ⬜ teste real |
-| 2 | Localização em segundo plano (Pet Sumido): mudança significativa, sem trilha, 2 etapas, desligar em 1 toque | `UIBackgroundModes=location` + textos + plugin Swift | `ACCESS_BACKGROUND_LOCATION` (Android 11+: "sempre" nas Configurações, com aviso em destaque no app) + serviço | Eu | ❓ D1/D2 |
-| 3 | Estilo do aviso do Pet Sumido: **sistema / som do PETMOL / latido** | Arquivos `.caf` no app + som por usuário no envio | Um canal de notificação **por som** (não muda depois de criado) | Eu | ❓ D3 |
+| 2 | ~~Localização em segundo plano~~ | **Não entra** — fica como está | **Não entra** | — | ⛔ decidido 26/09 |
+| 3 | Estilo do aviso do Pet Sumido: **sistema / som do PETMOL / latido** — **pronto e DESLIGADO** (padrão = som do sistema, igual a hoje). Servidor: `PUSH_SOUND_STYLE` (PR #563). Ligar = trocar o valor e reiniciar, sem nova versão | Falta trazer no app os arquivos `petmol.caf` / `latido.caf` | Falta trazer os canais `petsumido_petmol` / `petsumido_latido` e os sons | Eu | 🟡 servidor pronto · ❓ D3 (arquivos) |
 | 4 | Aviso animado com som **com o app aberto** | Web | Web | Eu — **pode sair por deploy antes das lojas** | ⬜ |
 | 5 | Preferência do tutor (Perfil ▸ Notificações) + backend envia o som certo | Web + backend | Web + backend | Eu | ⬜ |
-| 6 | Rótulos de privacidade: localização vinculada à conta, sem rastreamento; ID de publicidade só no iOS | App Store Connect | Play Console (Segurança dos dados) | Dono no painel; eu redijo | ⬜ |
-| 7 | Política de Privacidade (`/legal/privacy` §2.4) e `APP_STORE_METADATA.md`: trocar "nunca em segundo plano"; citar SDK da Meta | Web | Web | Eu, por deploy — **só junto com a versão que ativa o recurso** | ⬜ |
-| 8 | Notas para o revisor + vídeo de tela (30–60 s) do fluxo de localização | Notas em inglês (prontas no dossiê) | Declaração de permissão sensível + vídeo | Dono grava; eu escrevo | 🟡 |
+| 6 | Rótulos de privacidade: **iOS** — declarar rastreamento e ID do dispositivo (Meta). **Android** — sem mudança | App Store Connect | Play Console (Segurança dos dados) | Dono no painel; eu redijo | ⬜ |
+| 7 | Política de Privacidade e `APP_STORE_METADATA.md`: **só** citar o SDK da Meta e o ID de publicidade (§2.4 da localização não muda) | Web | Web | Eu, por deploy — **só junto com a versão que ativa o recurso** | ⬜ |
+| 8 | ~~Notas do revisor e vídeo da localização~~ | Não é mais necessário | Não é mais necessário | — | ⛔ |
 | 9 | Screenshots (ver seção D) | iPhone 6,9" + iPad 13" | Telefone + gráfico 1024×500 | Dono navega; eu capturo | 🟡 |
 | 10 | Versão/build | 1.1 build 8 feito (1.2 build 9 se dividir) | `versionCode` 4 → 5 e `versionName` | Eu (PR) | 🟡 |
 | 11 | Build e envio | Xcode: Archive ▸ Upload ▸ nova versão ▸ enviar (`META_SDK_IOS.md`) | AAB assinado ▸ Play Console | Dono | ⬜ |
@@ -60,8 +61,7 @@ Atualizado em 26/09/2026. Legenda: ✅ pronto · 🟡 em andamento · ⬜ a faze
 
 ## E. Testes reais antes de enviar
 - **iPhone**: aviso de rastreamento; Gerenciador de Eventos ▸ Testar eventos (`fb_mobile_activate_app`); depois de publicado, a campanha iOS 14+ deixa de mostrar o bloqueio (até 24 h).
-- **Segundo plano** (1.2): andar ≥ 500 m com o app fechado e ver a posição atualizar; recusar "Sempre" e conferir que o app segue normal; "parar de compartilhar".
-- **Sons** (1.2): ouvir cada opção; conferir modo silencioso; no Android, um canal por som.
+- **Sons:** com o servidor ligado num valor de teste, ouvir cada opção; conferir modo silencioso e que o app antigo toca o som padrão.
 
 ## F. Ações suas fora da versão
 - **Cadastrar `gerenciamento@petmol.com.br` no app** e ativar notificações (sem isso o push do #560 não chega).
@@ -88,3 +88,4 @@ Atualizado em 26/09/2026. Legenda: ✅ pronto · 🟡 em andamento · ⬜ a faze
 - O app carrega o site de produção ao vivo: **todo deploy vale na hora também para quem está na versão antiga**. O site checa se o recurso nativo existe e, se não, segue como hoje.
 - Itens 5 e 7 só vão ao ar **junto** com a versão da loja que os ativa. O aviso animado com o app aberto (item 4) é seguro antes.
 - Se a Apple ou o Google reprovar, a versão atual segue no ar.
+- Com o segundo plano fora, o principal risco de revisão é a permissão de rastreamento: os rótulos de privacidade e a Política precisam estar atualizados antes de enviar.
