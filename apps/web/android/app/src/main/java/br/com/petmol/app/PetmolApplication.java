@@ -21,12 +21,12 @@ public class PetmolApplication extends Application {
     // "Missing Default Notification Channel metadata in AndroidManifest").
     public static final String DEFAULT_NOTIFICATION_CHANNEL_ID = "petmol_default";
 
-    // Canais com som próprio do aviso "pet sumido perto de você". Ficam SEM USO até o servidor
-    // ligar PUSH_SOUND_STYLE (petmol | latido): o backend só passa a mandar channel_id destes
+    // Canais com som próprio de TODAS as notificações do app. Ficam SEM USO até o servidor
+    // ligar PUSH_SOUND_STYLE (petmol | latido; hoje o padrão do servidor é petmol): o backend só passa a mandar channel_id destes
     // ids nesse momento. Sons em res/raw/petmol.wav e res/raw/latido.wav. Um canal não muda de
     // som depois de criado — para trocar o som no futuro, crie um canal novo com id novo.
-    public static final String PETSUMIDO_CHANNEL_PETMOL = "petsumido_petmol";
-    public static final String PETSUMIDO_CHANNEL_LATIDO = "petsumido_latido";
+    public static final String SOUND_CHANNEL_PETMOL = "petmol_som_petmol";
+    public static final String SOUND_CHANNEL_LATIDO = "petmol_som_latido";
 
     @Override
     public void onCreate() {
@@ -42,8 +42,8 @@ public class PetmolApplication extends Application {
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
                 manager.createNotificationChannel(channel);
-                createSoundChannel(manager, PETSUMIDO_CHANNEL_PETMOL, "Pet Sumido (som PETMOL)", "petmol");
-                createSoundChannel(manager, PETSUMIDO_CHANNEL_LATIDO, "Pet Sumido (latido)", "latido");
+                createSoundChannel(manager, SOUND_CHANNEL_PETMOL, "PETMOL (som PETMOL)", "petmol");
+                createSoundChannel(manager, SOUND_CHANNEL_LATIDO, "PETMOL (latido)", "latido");
             }
         }
 
@@ -70,7 +70,7 @@ public class PetmolApplication extends Application {
 
     private void createSoundChannel(NotificationManager manager, String id, String name, String rawName) {
         NotificationChannel channel = new NotificationChannel(id, name, NotificationManager.IMPORTANCE_HIGH);
-        channel.setDescription("Aviso de pet sumido perto de você, com som próprio do PETMOL");
+        channel.setDescription("Avisos do PETMOL com som próprio");
         AudioAttributes attrs = new AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_NOTIFICATION)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)

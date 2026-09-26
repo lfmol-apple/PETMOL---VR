@@ -1,17 +1,17 @@
-# Sons do aviso "pet sumido perto de você"
+# Sons das notificações do PETMOL (todas as nativas)
 
 Dois sons de escolha do dono. **O som do PETMOL está LIGADO por padrão no servidor** (decisão de 26/09/2026, PR #563) e só toca em quem atualizar para a versão que traz os arquivos; quem não atualizou continua ouvindo o som do sistema. **Voltar ao padrão a qualquer momento:** `PUSH_SOUND_STYLE=default` + reiniciar.
 
 | Estilo (`PUSH_SOUND_STYLE`) | Som | iOS | Android |
 |---|---|---|---|
 | `default` | Som do sistema (como era antes; **é só para onde voltar**) | — | canal `petmol_default` |
-| `petmol` (**padrão atual**) | Sino curto + voz alegre dizendo "Pétmol!" (1,1 s) | `petmol.caf` | canal `petsumido_petmol` (`res/raw/petmol.wav`) |
-| `latido` | Dois latidos de cão (1,1 s) | `latido.caf` | canal `petsumido_latido` (`res/raw/latido.wav`) |
+| `petmol` (**padrão atual**) | Sino curto + voz alegre dizendo "Pétmol!" (1,1 s) | `petmol.caf` | canal `petmol_som_petmol` (`res/raw/petmol.wav`) |
+| `latido` | Dois latidos de cão (1,1 s) | `latido.caf` | canal `petmol_som_latido` (`res/raw/latido.wav`) |
 
 ## Como trocar / voltar ao padrão (sem nova versão do app)
 1. No `api.env` do servidor: `PUSH_SOUND_STYLE=default` (volta ao som do sistema), `latido` (troca pelo latido) ou `petmol` (padrão do código; apagar a linha também vale).
 2. Reiniciar o serviço da API.
-3. Vale só para o aviso de Pet Sumido para tutores próximos (tags `missing-pet-*`, exceto `-expired-`).
+3. Vale para **todas** as notificações nativas (iOS e Android): lembretes, vacinas, Pet Sumido, avisos ao admin etc. Web push de navegador não permite som próprio (o navegador decide).
 - **App que ainda não tem os arquivos** (versões antigas): o iOS toca o som padrão e o Android usa o canal padrão. É seguro ligar antes de todos atualizarem.
 - Só chega o som novo em quem **atualizou para a versão que traz os arquivos** (iOS 1.1 build 8 / Android versionCode 5).
 - Silencioso/"Não perturbe": o som próprio respeita o modo silencioso do celular.
