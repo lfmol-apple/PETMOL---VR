@@ -12,6 +12,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Meta (Facebook) SDK: inicializa na abertura (campanhas de instalação do Meta Ads, iOS 14+).
         // Os IDs vêm do Info.plist (FacebookAppID / FacebookClientToken).
         ApplicationDelegate.shared.application(application, didFinishLaunchingWithOptions: launchOptions)
+        // Este app usa cenas (SceneDelegate): com cenas o iOS NÃO chama applicationDidBecomeActive do
+        // AppDelegate, então o "app ficou ativo" vem pela notificação do sistema, que segue valendo.
+        NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification,
+                                               object: nil, queue: .main) { [weak self] _ in
+            self?.requestTrackingAndActivateMeta()
+        }
         return true
     }
 
@@ -31,7 +37,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func applicationDidBecomeActive(_ application: UIApplication) {
         // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
-        requestTrackingAndActivateMeta()
     }
 
     func applicationWillTerminate(_ application: UIApplication) {

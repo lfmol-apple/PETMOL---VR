@@ -9,11 +9,11 @@ Versão desta atualização: **1.1 (build 8)** (antes: 1.0 build 7).
 | `apps/web/ios/App/App.xcodeproj/project.pbxproj` | Facebook iOS SDK 18.1.1 (SPM, produto `FacebookCore`) ligado direto ao alvo `App` (não ao `CapApp-SPM`, que o Capacitor regenera). `MARKETING_VERSION` 1.0→1.1, `CURRENT_PROJECT_VERSION` 7→8 (Debug e Release). |
 | `.../xcshareddata/swiftpm/Package.resolved` | Fixa o SDK da Meta em 18.1.1 (rev `80d0ee8`). |
 | `apps/web/ios/App/App/Info.plist` | `FacebookAppID`, `FacebookClientToken`, `FacebookDisplayName`=PETMOL, `FacebookAutoLogAppEventsEnabled`=true, `FacebookAdvertiserIDCollectionEnabled`=true, `SKAdNetworkItems` (`v9wttpbfk9.skadnetwork`, `n38lu8286q.skadnetwork`), `NSUserTrackingUsageDescription` (pt-BR). |
-| `apps/web/ios/App/App/AppDelegate.swift` | Inicializa o SDK em `didFinishLaunching`; em `applicationDidBecomeActive` pede o ATT (com pequeno atraso, só uma vez por vez) e depois chama `AppEvents.shared.activateApp()`; no iOS < 17 repassa o status do ATT ao SDK (no 17+ o SDK lê sozinho). Nada do que já existia (push APNs, cenas) foi alterado. |
+| `apps/web/ios/App/App/AppDelegate.swift` | Inicializa o SDK em `didFinishLaunching`; ao ficar ativo (notificação `UIApplication.didBecomeActiveNotification`, porque o app usa cenas e o iOS não chama `applicationDidBecomeActive` do AppDelegate) pede o ATT (com pequeno atraso, só uma vez por vez) e depois chama `AppEvents.shared.activateApp()`; no iOS < 17 repassa o status do ATT ao SDK (no 17+ o SDK lê sozinho). Nada do que já existia (push APNs, cenas) foi alterado. |
 | `apps/web/ios/App/App/PrivacyInfo.xcprivacy` | `NSPrivacyTracking`=true, domínio `ep1.facebook.com` (o mesmo do manifesto do SDK) e dado coletado "ID do dispositivo" (rastreamento/publicidade/analytics). |
 
 > O Client Token é público por design (vai dentro do app). Não é segredo.
-> **Não foi compilado nem testado no Xcode/iPhone** — é o passo 1 abaixo.
+> **Compilado e rodado no simulador (iPad Pro 13") em 26/09/2026**: build OK, aviso do ATT aparece com o texto em pt-BR e o SDK envia a ativação ao App ID. **Não testado ainda no iPhone real** (IDFA, "Testar eventos") — é o passo 1 abaixo.
 
 ## Testar antes de enviar
 1. Abra `apps/web/ios/App/App.xcodeproj` no Xcode, deixe o Xcode baixar o pacote da Meta (Product ▸ Resolve Package Versions) e rode no **iPhone real** (o ATT não aparece direito no simulador).
