@@ -3,6 +3,8 @@ package br.com.petmol.app;
 import android.app.Application;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.media.AudioAttributes;
+import android.net.Uri;
 import android.os.Build;
 import android.util.Log;
 
@@ -19,6 +21,13 @@ public class PetmolApplication extends Application {
     // "Missing Default Notification Channel metadata in AndroidManifest").
     public static final String DEFAULT_NOTIFICATION_CHANNEL_ID = "petmol_default";
 
+    // Canais com som próprio de TODAS as notificações do app. Ficam SEM USO até o servidor
+    // ligar PUSH_SOUND_STYLE (petmol | latido; hoje o padrão do servidor é petmol): o backend só passa a mandar channel_id destes
+    // ids nesse momento. Sons em res/raw/petmol.wav e res/raw/latido.wav. Um canal não muda de
+    // som depois de criado — para trocar o som no futuro, crie um canal novo com id novo.
+    public static final String SOUND_CHANNEL_PETMOL = "petmol_som_petmol";
+    public static final String SOUND_CHANNEL_LATIDO = "petmol_som_latido";
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -33,6 +42,8 @@ public class PetmolApplication extends Application {
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
                 manager.createNotificationChannel(channel);
+                createSoundChannel(manager, SOUND_CHANNEL_PETMOL, "PETMOL (som PETMOL)", "petmol");
+                createSoundChannel(manager, SOUND_CHANNEL_LATIDO, "PETMOL (latido)", "latido");
             }
         }
 
@@ -55,6 +66,17 @@ public class PetmolApplication extends Application {
                 defaultHandler.uncaughtException(thread, throwable);
             }
         });
+    }
+
+    private void createSoundChannel(NotificationManager manager, String id, String name, String rawName) {
+        NotificationChannel channel = new NotificationChannel(id, name, NotificationManager.IMPORTANCE_HIGH);
+        channel.setDescription("Avisos do PETMOL com som próprio");
+        AudioAttributes attrs = new AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build();
+        channel.setSound(Uri.parse("android.resource://" + getPackageName() + "/raw/" + rawName), attrs);
+        manager.createNotificationChannel(channel);
     }
 
     private boolean isMissingFirebaseInit(Throwable throwable) {
