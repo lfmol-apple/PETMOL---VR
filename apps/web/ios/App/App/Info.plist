@@ -93,6 +93,10 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<!-- iPad: o app só usa retrato, então declara tela cheia (sem Split View/Slide Over). Sem isto o
+	     App Store Connect recusa o upload: exige as 4 orientações para suportar multitarefa no iPad. -->
+	<key>UIRequiresFullScreen</key>
+	<true/>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
