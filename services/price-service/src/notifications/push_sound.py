@@ -10,18 +10,11 @@ from ..config import get_settings
 
 STYLES = {"default", "petmol", "latido"}
 _IOS_FILES = {"petmol": "petmol.caf", "latido": "latido.caf"}
-_ANDROID_CHANNELS = {"petmol": "petsumido_petmol", "latido": "petsumido_latido"}
-
-
-def _is_nearby_alert(payload: dict) -> bool:
-    tag = str(payload.get("tag") or "")
-    return tag.startswith("missing-pet-") and not tag.startswith("missing-pet-expired-")
+_ANDROID_CHANNELS = {"petmol": "petmol_som_petmol", "latido": "petmol_som_latido"}
 
 
 def push_sound_style(payload: dict) -> str:
-    """'default' | 'petmol' | 'latido' para ESTE aviso. Valor inválido no env vira 'default'."""
-    if not _is_nearby_alert(payload):
-        return "default"
+    """'default' | 'petmol' | 'latido'. Valor inválido ou vazio no env vira 'default'."""
     style = str(get_settings().push_sound_style or "default").strip().lower()
     return style if style in STYLES else "default"
 

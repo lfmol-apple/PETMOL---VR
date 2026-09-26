@@ -1,4 +1,4 @@
-"""Som do aviso de Pet Sumido: desligado por padrão; ligar é só trocar o env (ver push_sound.py)."""
+"""Som das notificações: LIGADO (petmol) por padrão em TODAS; voltar é só trocar o env (ver push_sound.py)."""
 import pytest
 
 from src.config import get_settings
@@ -10,13 +10,11 @@ EXPIRED = {"title": "t", "body": "b", "tag": "missing-pet-expired-123"}
 OTHER = {"title": "t", "body": "b", "tag": "petmol-install"}
 
 
-def test_ligado_por_padrao_so_no_aviso_de_pet_sumido_proximo():
-    """Decisão do dono (26/09/2026): o som do PETMOL vem ligado; o resto segue com o som do sistema."""
+def test_ligado_por_padrao_em_todas_as_notificacoes():
+    """Decisão do dono (26/09/2026): o som do PETMOL vale para TODAS as notificações nativas."""
     assert get_settings().push_sound_style == "petmol"
-    for p in (NEARBY, RADIUS):
-        assert apns_sound(p) == "petmol.caf" and fcm_channel_id(p) == "petsumido_petmol"
-    for p in (EXPIRED, OTHER):
-        assert apns_sound(p) == "default" and fcm_channel_id(p) is None
+    for p in (NEARBY, RADIUS, EXPIRED, OTHER, {"title": "t", "body": "b"}):
+        assert apns_sound(p) == "petmol.caf" and fcm_channel_id(p) == "petmol_som_petmol"
 
 
 def test_voltar_ao_padrao_e_so_trocar_o_valor(monkeypatch):
@@ -29,18 +27,15 @@ def test_voltar_ao_padrao_e_so_trocar_o_valor(monkeypatch):
 
 
 @pytest.mark.parametrize("style,ios,android", [
-    ("petmol", "petmol.caf", "petsumido_petmol"),
-    ("latido", "latido.caf", "petsumido_latido"),
-    (" LATIDO ", "latido.caf", "petsumido_latido"),
+    ("petmol", "petmol.caf", "petmol_som_petmol"),
+    ("latido", "latido.caf", "petmol_som_latido"),
+    (" LATIDO ", "latido.caf", "petmol_som_latido"),
 ])
-def test_ligado_so_muda_o_aviso_de_pet_sumido_proximo(monkeypatch, style, ios, android):
+def test_estilo_escolhido_vale_para_todas(monkeypatch, style, ios, android):
     monkeypatch.setattr(get_settings(), "push_sound_style", style, raising=False)
-    for p in (NEARBY, RADIUS):
+    for p in (NEARBY, RADIUS, EXPIRED, OTHER):
         assert apns_sound(p) == ios
         assert fcm_channel_id(p) == android
-    for p in (EXPIRED, OTHER):  # vencido e qualquer outra notificação: som do sistema
-        assert apns_sound(p) == "default"
-        assert fcm_channel_id(p) is None
 
 
 def test_valor_invalido_no_env_vira_default(monkeypatch):
@@ -85,4 +80,4 @@ def test_payload_real_do_apns_e_do_fcm(monkeypatch):
     assert apns_sound_sent() == "default" and fcm_android_sent() is None
     monkeypatch.setattr(get_settings(), "push_sound_style", "latido", raising=False)
     assert apns_sound_sent() == "latido.caf"
-    assert fcm_android_sent() == {"notification": {"channel_id": "petsumido_latido"}}
+    assert fcm_android_sent() == {"notification": {"channel_id": "petmol_som_latido"}}
