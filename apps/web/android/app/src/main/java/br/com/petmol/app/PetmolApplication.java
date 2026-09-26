@@ -27,6 +27,8 @@ public class PetmolApplication extends Application {
     // som depois de criado — para trocar o som no futuro, crie um canal novo com id novo.
     public static final String SOUND_CHANNEL_PETMOL = "petmol_som_petmol";
     public static final String SOUND_CHANNEL_LATIDO = "petmol_som_latido";
+    // Aviso de "novo download/acesso" (só o dono e 2 contas recebem): som próprio, diferente de todos os outros.
+    public static final String SOUND_CHANNEL_DOWNLOAD = "petmol_som_download";
 
     @Override
     public void onCreate() {
@@ -44,6 +46,7 @@ public class PetmolApplication extends Application {
                 manager.createNotificationChannel(channel);
                 createSoundChannel(manager, SOUND_CHANNEL_PETMOL, "PETMOL (som PETMOL)", "petmol");
                 createSoundChannel(manager, SOUND_CHANNEL_LATIDO, "PETMOL (latido)", "latido");
+                createSoundChannel(manager, SOUND_CHANNEL_DOWNLOAD, "PETMOL (aviso de download)", "download");
             }
         }
 
