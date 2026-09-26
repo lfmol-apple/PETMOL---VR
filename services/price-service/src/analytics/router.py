@@ -148,6 +148,14 @@ _SAFE_EVENT_NAMES = {
     "landing_view",
     "landing_download_click",
     "landing_store_redirect",
+    # Introdução em vídeo da landing (mobile) — ver admin/analytics/landing_intro_bi.py. "landing_intro_poster_view"
+    # termina em "_view": sem estar aqui seria renomeado para "screen_view".
+    "landing_intro_poster_view",
+    "landing_intro_watch_click",
+    "landing_intro_video_start",
+    "landing_intro_video_complete",
+    "landing_intro_skip",
+    "landing_intro_video_error",
 }
 
 # Eventos-âncora de sessão: só nestes vale a pena gastar um lookup de geo-IP

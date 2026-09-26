@@ -243,11 +243,28 @@ export interface LandingAbVariant extends LandingAbCounts {
 export interface LandingAbResponse {
   experiment_id: string;
   period: { since: string | null; until: string | null };
-  filters: { campaign: string | null; source: string | null; os: string | null; instagram_only: boolean };
+  filters: { campaign: string | null; source: string | null; os: string | null; instagram_only: boolean; intro?: string | null };
   options: { campaigns: string[]; sources: string[]; os: string[] };
   variants: { A: LandingAbVariant; B: LandingAbVariant };
   verdict: { status: 'insufficient' | 'no_difference' | 'significant'; leader: 'A' | 'B' | null; p_value: number | null; min_sample: number };
   quality: { cross_variant_visitors: number; note: string };
   installs: { total: number; by_campaign: { name: string; installs: number }[]; attributable_to_variant: boolean; reason: string };
   signups_note: string;
+}
+
+// ── Introdução em vídeo da landing (mobile) ───────────────────────────────
+export interface LandingIntroDl { clicks: number; clickers: number; apple: number; google: number; auto: number }
+export interface LandingIntroResponse {
+  period: { since: string | null; until: string | null };
+  filters: { campaign: string | null; source: string | null; os: string | null; instagram_only: boolean };
+  funnel: {
+    poster_visitors: number; watch_visitors: number; start_visitors: number; complete_visitors: number; skip_visitors: number;
+    watch_rate: number | null; start_rate: number | null; complete_rate: number | null; skip_rate: number | null; started_with_sound: number;
+  };
+  skips: { at_poster: number; during_video: number; median_watched_s: number | null };
+  errors: { total: number; visitors: number; by_reason: { reason: string; count: number }[] };
+  downloads: { during_video: LandingIntroDl; after_video: LandingIntroDl; clickers_total: number; conversion_of_poster_viewers: number | null };
+  without_intro: { visitors: number; clickers: number; conversion: number | null; note: string };
+  daily: { date: string; poster: number; watch: number; complete: number }[];
+  installs_note: string;
 }

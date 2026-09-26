@@ -123,7 +123,9 @@ export function HeroPhones({ reservePx = 294 }: { reservePx?: number } = {}) {
     if (!window.matchMedia('(max-width: 767px)').matches) return;
     let startDist = 0;
     const dist = (e: TouchEvent) => Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-    const onStart = (e: TouchEvent) => { startDist = e.touches.length === 2 ? dist(e) : 0; };
+    // Com a introdução em vídeo aberta, a pinça não abre o zoom da landing que está por baixo.
+    const introOpen = () => !!document.querySelector('[data-landing-intro]');
+    const onStart = (e: TouchEvent) => { startDist = e.touches.length === 2 && !introOpen() ? dist(e) : 0; };
     const onMove = (e: TouchEvent) => {
       if (!startDist || e.touches.length !== 2) return;
       if (dist(e) > startDist * 1.18) {

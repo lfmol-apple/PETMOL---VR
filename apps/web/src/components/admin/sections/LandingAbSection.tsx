@@ -146,13 +146,14 @@ export function LandingAbSection({ filter }: { filter: GlobalFilter }) {
   const [source, setSource] = useState('');
   const [os, setOs] = useState('');
   const [instagram, setInstagram] = useState(false);
+  const [intro, setIntro] = useState('');
 
   const { data, error, loading } = useAsync<LandingAbResponse>(
     () => adminGet('/landing-ab', {
       period_days: filterParams(filter).period_days, since: filter.since, until: filter.until,
-      campaign, source, os, instagram: instagram ? 'true' : undefined,
+      campaign, source, os, instagram: instagram ? 'true' : undefined, intro,
     }),
-    [filter.period_days, filter.since, filter.until, campaign, source, os, instagram],
+    [filter.period_days, filter.since, filter.until, campaign, source, os, instagram, intro],
   );
 
   return (
@@ -170,6 +171,11 @@ export function LandingAbSection({ filter }: { filter: GlobalFilter }) {
         <select aria-label="Sistema operacional" className={selectCls} value={os} onChange={(e) => setOs(e.target.value)}>
           <option value="">Todos os sistemas</option>
           {(data?.options.os ?? []).map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select aria-label="Introdução em vídeo" className={selectCls} value={intro} onChange={(e) => setIntro(e.target.value)}>
+          <option value="">Com e sem introdução</option>
+          <option value="shown">Só quem viu a introdução</option>
+          <option value="none">Só quem não viu a introdução</option>
         </select>
         <button type="button" onClick={() => setInstagram((v) => !v)} aria-pressed={instagram}
           className={`rounded-lg border px-3 py-1.5 text-[12px] font-bold transition-colors ${instagram ? 'border-fuchsia-500 bg-fuchsia-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-fuchsia-300'}`}>

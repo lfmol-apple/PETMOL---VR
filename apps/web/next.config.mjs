@@ -56,12 +56,17 @@ const nextConfig = {
     return [
       // Evita que mobile/browsers cacheiem o HTML das páginas
       {
-        source: '/((?!_next/static|_next/image|icons|images|favicon).*)',
+        source: '/((?!_next/static|_next/image|icons|images|favicon|landing/comercial).*)',
         headers: [
           { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
           { key: 'Pragma', value: 'no-cache' },
           { key: 'Expires', value: '0' },
         ],
+      },
+      // Comercial da entrada (mobile): nome com versão (-v1) → cache longo, imutável; ao trocar o vídeo, muda o sufixo.
+      {
+        source: '/landing/comercial/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
       },
       // CORS para proxy do backend local
       {

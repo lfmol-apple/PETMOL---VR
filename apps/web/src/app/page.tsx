@@ -12,6 +12,8 @@ import { useLandingContext } from '@/hooks/useLandingContext';
 import { LANDING_COPY, readLandingContext } from '@/lib/landingContext';
 import { getLandingVariant, VARIANT_HAS_IMAGE, type VariantInfo } from '@/lib/landingExperiment';
 import { trackLandingEvent } from '@/lib/landingEvents';
+import { LandingIntro } from '@/components/landing/LandingIntro';
+import { decideIntro, isMobileVisitor, setIntroMode, wasIntroSeen } from '@/lib/landingIntro';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -27,6 +29,11 @@ export default function LandingPage() {
   // então nunca aparece uma versão e troca para outra.
   const [exp, setExp] = useState<VariantInfo | null>(null);
   const viewSent = useRef(false);
+  // Introdução em vídeo (só celular): decidida no mesmo instante em que a landing é liberada, então nunca
+  // aparece a landing e depois a introdução por cima.
+  const [intro, setIntro] = useState<{ show: boolean; preview: boolean }>({ show: false, preview: false });
+  const [introDone, setIntroDone] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isNativeAppClient()) {
@@ -37,8 +44,11 @@ export default function LandingPage() {
       router.replace('/home');
     } else {
       const ctx = readLandingContext(window.location.search, navigator.userAgent || '');
-      // Mensagem por anúncio (?c=) é uma 3ª versão: fica fora da estatística do A/B.
-      const info = getLandingVariant({ search: window.location.search, forcePreview: ctx.variant !== 'default' });
+      const decision = decideIntro({ search: window.location.search, isMobile: isMobileVisitor(), isNative: false, seen: wasIntroSeen() });
+      setIntroMode(decision.show ? 'shown' : 'none');
+      setIntro({ show: decision.show, preview: decision.preview });
+      // Mensagem por anúncio (?c=) é uma 3ª versão e a introdução em modo de teste também: ficam fora da estatística do A/B.
+      const info = getLandingVariant({ search: window.location.search, forcePreview: ctx.variant !== 'default' || decision.preview });
       setExp(info);
       setPhase('guest');
       if (!viewSent.current) {
@@ -52,13 +62,20 @@ export default function LandingPage() {
     setHideAmazonPicks(isNativeAppClient());
   }, []);
 
+  const introOpen = intro.show && !introDone;
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    if (introOpen) el.setAttribute('inert', ''); else el.removeAttribute('inert');
+  }, [introOpen, phase]);
+
   if (phase === 'boot' || !exp) {
     return <AppBootSplash />;
   }
   const withImage = VARIANT_HAS_IMAGE[exp.variant];
 
   return (
-    <div className="h-svh overflow-hidden overscroll-none touch-pan-x touch-pan-y bg-white flex flex-col md:h-auto md:min-h-dvh md:overflow-visible md:touch-auto">
+    <div ref={rootRef} className="h-svh overflow-hidden overscroll-none touch-pan-x touch-pan-y bg-white flex flex-col md:h-auto md:min-h-dvh md:overflow-visible md:touch-auto">
 
       {/* Cabeçalho: a marca "Petmol 🐾" (mesma identidade do app) bem visível; sem nada que roube espaço */}
       <header
@@ -209,6 +226,7 @@ export default function LandingPage() {
       </footer>
 
       </div>
+      {introOpen && <LandingIntro preview={intro.preview} onDone={() => setIntroDone(true)} />}
     </div>
   );
 }
