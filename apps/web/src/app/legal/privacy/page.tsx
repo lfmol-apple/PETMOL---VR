@@ -8,7 +8,7 @@ export default function PrivacyPage() {
       backHref="/"
     >
       <PremiumCard>
-        <p className="text-slate-500 text-xs mb-6">Última atualização: 7 de setembro de 2026</p>
+        <p className="text-slate-500 text-xs mb-6">Última atualização: 26 de setembro de 2026</p>
         <div className="prose prose-sm prose-slate max-w-none">
           <h2>1. Introdução</h2>
           <p>
@@ -53,6 +53,11 @@ export default function PrivacyPage() {
             </li>
             <li>Endereço e/ou CEP informados por você no cadastro ou no perfil</li>
           </ul>
+
+          <h3>2.5. Publicidade e Medição de Campanhas (app para iPhone e iPad)</h3>
+          <p>
+            No app para iPhone e iPad usamos o <strong>SDK da Meta (Facebook)</strong> apenas para medir se os anúncios de instalação do PETMOL funcionam. Ele recebe eventos básicos de uso do app (como instalação e abertura), informações do aparelho (modelo, versão do sistema e idioma) e, <strong>somente se você permitir o rastreamento</strong> no aviso do sistema, o identificador de publicidade do aparelho. Não enviamos à Meta dados dos seus pets, dados de saúde, sua localização, fotos ou o conteúdo que você cadastra. Se você tocar em &quot;Pedir ao App para Não Rastrear&quot;, o identificador de publicidade não é coletado. Você pode mudar isso a qualquer momento em Ajustes &gt; Privacidade e Segurança &gt; Rastreamento.
+          </p>
 
           <h2>3. Finalidade do Tratamento de Dados</h2>
           <p>Utilizamos seus dados para:</p>
@@ -108,6 +113,7 @@ export default function PrivacyPage() {
           <p>Podemos compartilhar seus dados apenas com:</p>
           <ul>
             <li><strong>Provedores de serviço:</strong> Hospedagem, e-mail, notificações push (sob contrato de confidencialidade)</li>
+            <li><strong>Medição de anúncios (app para iPhone e iPad):</strong> Meta Platforms (SDK da Meta), conforme descrito na seção 2.5 e somente com a sua permissão de rastreamento para o identificador de publicidade</li>
             <li><strong>APIs externas:</strong> Google Maps/Places (busca de estabelecimentos), Google Gemini (leitura automática de carteirinha de vacinação e identificação de produtos por foto, sempre com consentimento prévio por usuário), Cosmos Bluesoft e GTIN (consulta de código de barras de produtos)</li>
             <li><strong>Autoridades:</strong> Quando exigido por lei ou ordem judicial</li>
             <li><strong>Estabelecimentos:</strong> Apenas se você optar por compartilhar informações específicas (ex: carteirinha digital)</li>
