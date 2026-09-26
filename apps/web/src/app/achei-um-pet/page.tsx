@@ -1169,7 +1169,11 @@ function AcheiUmPetInner() {
                     {pet.visual_distance != null && (
                       <p className="mt-1 text-[11px] font-semibold text-emerald-200/50">Pré-filtro visual aplicado</p>
                     )}
-                    <p className="mt-1 text-[11px] font-semibold text-white/35">Não confirma sozinho. Toque e envie para o tutor revisar.</p>
+                    <p className="mt-1 text-[11px] font-semibold text-white/35">
+                      {pet.confidence_level === 'unlikely' || pet.confidence_level === 'unknown' || pet.confidence_level === 'weak_candidate'
+                        ? 'Pouca semelhança, mas você pode enviar mesmo assim: o tutor decide.'
+                        : 'Não confirma sozinho. Toque e envie para o tutor revisar.'}
+                    </p>
                   </div>
                 </Link>
               ))}
