@@ -481,7 +481,8 @@ def test_app_install_push_titulo_diferente_pra_quem_veio_do_go_instalar(monkeypa
         db.close()
 
     _enrich_and_notify_install(row_id, None, "web")
-    assert sent[0]["title"] == "🎯 Anúncio → foi direto pra loja"
+    assert sent[0]["title"] == "🏪 Push de loja"
+    assert "Clicou no anúncio e foi direto pra loja" in sent[0]["body"]
     assert "campanha 120249292667370423" in sent[0]["body"]
 
     # acesso comum (sem vir do /go/instalar) continua com o título de sempre, sem campanha no corpo
@@ -497,3 +498,44 @@ def test_app_install_push_titulo_diferente_pra_quem_veio_do_go_instalar(monkeypa
     _enrich_and_notify_install(row2_id, None, "web")
     assert sent[0]["title"] == "🌐 Novo acesso ao PETMOL"
     assert "campanha 120249292667370423" not in sent[0]["body"]  # "X campanha" do total continua, só não a UTM
+
+
+def test_admin_app_installs_expoe_landing_path(client):
+    """O painel /v1/admin/app-installs precisa mostrar de onde veio a 1ª visita
+    (landing_path) — sem isso não dá pra confirmar se um push realmente veio
+    de /go/instalar (o anúncio) ou de acesso espontâneo (27/09/2026)."""
+    from uuid import uuid4
+
+    from src.admin.models import AdminUser
+    from src.analytics.install_models import AppInstall
+    from src.config import get_settings
+    from src.db import SessionLocal
+    from src.user_auth.models import User
+    from src.user_auth.security import create_access_token, hash_password
+
+    db = SessionLocal()
+    try:
+        admin_email = get_settings().admin_master_email
+        u = db.query(User).filter(User.email == admin_email).first()
+        if not u:
+            u = User(email=admin_email, password_hash=hash_password("x"), name="Admin")
+            db.add(u)
+            db.commit()
+        if not db.query(AdminUser).filter(AdminUser.user_id == u.id).first():
+            db.add(AdminUser(user_id=u.id, role="master"))
+            db.commit()
+        headers = {"Authorization": f"Bearer {create_access_token(u.id)}"}
+
+        row = AppInstall(platform="web", ip_hash=f"t{uuid4().hex[:12]}", landing_path="/go/instalar",
+                          utm_campaign="120249292667370423")
+        db.add(row)
+        db.commit()
+        row_id = row.id
+    finally:
+        db.close()
+
+    r = client.get("/v1/admin/app-installs", headers=headers)
+    assert r.status_code == 200
+    found = next(item for item in r.json()["data"] if item["id"] == row_id)
+    assert found["landing_path"] == "/go/instalar"
+    assert found["utm_campaign"] == "120249292667370423"
