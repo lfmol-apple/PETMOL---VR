@@ -1,39 +1,84 @@
 'use client';
 
+/**
+ * Home pública (www.petmol.com.br) — versão oficial, sem alternância (dono, 27/09/2026: "vamos parar
+ * com este teste A/B. Criar a home oficial assim").
+ *
+ * Substitui de vez o teste A/B (imagem × sem imagem, `landing_imagem_2026_09`) e a introdução em vídeo
+ * comercial: as duas eram só desta página, e nenhuma das duas roda mais aqui. Critério: mostrar a
+ * utilidade do PETMOL (o que ele faz de verdade, com telas reais) antes da aparência — cinco blocos de
+ * funcionalidade confirmadas no código (Alimentação, Vacinas, Pet Sumido, Loja do Pet, Perfil), cada um
+ * com a captura oficial da própria App Store. Nada de telefone gigante isolado, nada de "grátis" como
+ * argumento principal, nada de vídeo obrigatório.
+ *
+ * Quem clica em "Baixar" no anúncio do Instagram nunca passa por aqui — vai direto pra loja por
+ * /go/instalar (ver aquela rota). Esta Home é só para quem chega espontaneamente ao domínio.
+ */
 import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getToken } from '@/lib/auth-token';
 import { AppBootSplash } from '@/components/AppBootSplash';
 import { isNativeAppClient } from '@/lib/nativeApp';
-import { DownloadButton, DownloadCta, StickyDownloadBar } from '@/components/landing/DownloadButton';
-import { AppPreview, HeroPhones } from '@/components/landing/AppPreview';
-import { useLandingContext } from '@/hooks/useLandingContext';
-import { LANDING_COPY, readLandingContext } from '@/lib/landingContext';
-import { getLandingVariant, VARIANT_HAS_IMAGE, type VariantInfo } from '@/lib/landingExperiment';
+import { DownloadButton, DownloadCta } from '@/components/landing/DownloadButton';
 import { trackLandingEvent } from '@/lib/landingEvents';
-import { LandingIntro } from '@/components/landing/LandingIntro';
-import { decideIntro, isMobileVisitor, pickCommercial, setIntroMode, wasIntroSeen, type Commercial } from '@/lib/landingIntro';
+import type { VariantInfo } from '@/lib/landingExperiment';
+
+// Evento de visita sem passar pelo teste A/B: nenhuma variante é sorteada nem gravada — o experimento
+// `landing_imagem_2026_09` para de receber visitas novas a partir desta versão (fica só o histórico).
+const NO_EXPERIMENT: VariantInfo = { variant: 'A', preview: false, persisted: false };
+
+interface Feature {
+  tag: string;
+  icon: string;
+  color: string;
+  title: string;
+  body: string;
+  img: string;
+  alt: string;
+}
+
+/** As cinco funcionalidades confirmadas no código do app publicado — nada planejado, nada "Em breve". */
+const FEATURES: Feature[] = [
+  {
+    tag: 'Alimentação', icon: '🍽️', color: '#F59E0B',
+    title: 'Avisa antes da ração acabar',
+    body: 'Você registra o pacote. O PETMOL acompanha o consumo, mostra quantos dias restam e deixa "Comprar novamente" sempre à mão.',
+    img: '/landing/app-alimentacao.webp', alt: 'Tela de Alimentação com os dias restantes de ração',
+  },
+  {
+    tag: 'Vacinas', icon: '💉', color: '#7C3AED',
+    title: 'Vacinas com data e lembrete',
+    body: 'Registro rápido ou completo, histórico de tudo o que já foi aplicado e lembrete antes do prazo — sem duplicar.',
+    img: '/landing/app-vacinas.webp', alt: 'Tela de Vacinas com o histórico e as próximas doses',
+  },
+  {
+    tag: 'Pet Sumido', icon: '🚨', color: '#DC2626',
+    title: 'Se sumir, a região é avisada na hora',
+    body: 'Um toque gera um alerta com card pra Instagram e WhatsApp e um aviso push pra quem está na região — a comunidade PETMOL ajuda a procurar.',
+    img: '/landing/app-pet-sumido.webp', alt: 'Tela do alerta Pet Sumido',
+  },
+  {
+    tag: 'Loja do Pet', icon: '🛒', color: '#0EA5E9',
+    title: 'Compare ofertas do que seu pet já usa',
+    body: 'Ração, antipulgas e mais, com preços de lojas parceiras lado a lado — pra você comparar antes de repor, sem sair procurando do zero.',
+    img: '/landing/app-loja.webp', alt: 'Tela da Loja do Pet com as ofertas',
+  },
+  {
+    tag: 'Perfil', icon: '🐾', color: '#0056D2',
+    title: 'As informações do seu pet, organizadas',
+    body: 'Espécie, raça, idade e peso num lugar só — a base que todo o resto do PETMOL usa pra te avisar na hora certa.',
+    img: '/landing/app-home.webp', alt: 'Perfil do pet na tela inicial do PETMOL',
+  },
+];
 
 export default function LandingPage() {
   const router = useRouter();
-  // "Recommendations" (Amazon US) é conteúdo editorial só web — deixado
-  // no rodapé, nunca competindo com a proposta PETMOL. Escondido no app.
   const [hideAmazonPicks, setHideAmazonPicks] = useState(false);
-  // 'boot' = ainda não sei se está logado → mostra o splash (nunca a landing).
-  // Usuário logado abrindo o app cai direto no /home sem piscar esta tela.
   const [phase, setPhase] = useState<'boot' | 'guest'>('boot');
-  const { variant } = useLandingContext();
-  const copy = LANDING_COPY[variant];
-  // Teste A/B: a variante é definida ANTES da 1ª renderização da landing (no mesmo efeito que tira o splash),
-  // então nunca aparece uma versão e troca para outra.
-  const [exp, setExp] = useState<VariantInfo | null>(null);
-  const viewSent = useRef(false);
-  // Introdução em vídeo (só celular): decidida no mesmo instante em que a landing é liberada, então nunca
-  // aparece a landing e depois a introdução por cima.
-  const [intro, setIntro] = useState<{ show: boolean; preview: boolean; commercial: Commercial | null }>({ show: false, preview: false, commercial: null });
-  const [introDone, setIntroDone] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const viewSent = useRef(false);
 
   useEffect(() => {
     if (isNativeAppClient()) {
@@ -43,18 +88,10 @@ export default function LandingPage() {
     if (getToken()) {
       router.replace('/home');
     } else {
-      const ctx = readLandingContext(window.location.search, navigator.userAgent || '');
-      const decision = decideIntro({ search: window.location.search, isMobile: isMobileVisitor(), isNative: false, seen: wasIntroSeen() });
-      const commercial = decision.show ? pickCommercial(window.location.search, decision.preview) : null;
-      setIntroMode(decision.show ? 'shown' : 'none', commercial?.id ?? null);
-      setIntro({ show: decision.show, preview: decision.preview, commercial });
-      // Mensagem por anúncio (?c=) é uma 3ª versão e a introdução em modo de teste também: ficam fora da estatística do A/B.
-      const info = getLandingVariant({ search: window.location.search, forcePreview: ctx.variant !== 'default' || decision.preview });
-      setExp(info);
       setPhase('guest');
       if (!viewSent.current) {
         viewSent.current = true;
-        trackLandingEvent('landing_view', {}, info);
+        trackLandingEvent('landing_view', {}, NO_EXPERIMENT);
       }
     }
   }, [router]);
@@ -63,156 +100,93 @@ export default function LandingPage() {
     setHideAmazonPicks(isNativeAppClient());
   }, []);
 
-  const introOpen = intro.show && !!intro.commercial && !introDone;
-  useEffect(() => {
-    const el = rootRef.current;
-    if (!el) return;
-    if (introOpen) el.setAttribute('inert', ''); else el.removeAttribute('inert');
-  }, [introOpen, phase]);
-
-  if (phase === 'boot' || !exp) {
+  if (phase === 'boot') {
     return <AppBootSplash />;
   }
-  const withImage = VARIANT_HAS_IMAGE[exp.variant];
 
   return (
-    <div ref={rootRef} className="h-svh overflow-hidden overscroll-none touch-pan-x touch-pan-y bg-white flex flex-col md:h-auto md:min-h-dvh md:overflow-visible md:touch-auto">
-
-      {/* Cabeçalho: a marca "Petmol 🐾" (mesma identidade do app) bem visível; sem nada que roube espaço */}
+    <div ref={rootRef} className="min-h-dvh bg-white">
+      {/* Cabeçalho: a marca "Petmol 🐾" (mesma identidade do app) */}
       <header
-        className="flex shrink-0 items-center justify-between bg-blue-50 px-5 pb-1"
-        style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
+        className="flex items-center justify-between bg-blue-50 px-5 pb-3"
+        style={{ paddingTop: 'calc(0.9rem + env(safe-area-inset-top))' }}
       >
-        <span className="flex items-center text-[38px] font-black leading-none tracking-tight text-[#0056D2]" aria-label="Petmol">
-          Petmol<span className="ml-1.5 text-[34px]" aria-hidden="true">🐾</span>
+        <span className="flex items-center text-[32px] font-black leading-none tracking-tight text-[#0056D2]" aria-label="Petmol">
+          Petmol<span className="ml-1.5 text-[28px]" aria-hidden="true">🐾</span>
         </span>
         <Link href="/login" className="px-2 py-1.5 text-[13px] font-bold text-[#0056D2]/80 active:opacity-60">
           Já tenho conta
         </Link>
       </header>
 
-      {/* Hero — no celular é a página inteira, parada: Home do app + botão + selos, sem rolagem */}
-      <section className="flex flex-1 flex-col items-center justify-evenly bg-gradient-to-b from-blue-50 to-white px-5 pb-2 text-center md:flex-none md:justify-start md:pb-3 md:pt-1">
-        <h1 className="hidden text-[26px] font-black text-slate-900 leading-[1.12] tracking-tight text-balance md:block">
-          {copy.title.map((line, i) => (<span key={i}>{i > 0 && <br />}{line}</span>))}
+      {/* Hero — 1ª dobra: marca, benefício, os 4 principais reconhecíveis, CTA e as duas lojas */}
+      <section className="bg-gradient-to-b from-blue-50 to-white px-5 pb-8 pt-6 text-center">
+        <h1 className="mx-auto max-w-sm text-balance text-[27px] font-black leading-[1.18] tracking-tight text-slate-900 md:text-[32px]">
+          Seu pet tem uma rotina.<br />O PETMOL ajuda você a cuidar dela.
         </h1>
-        {/* Só no celular: o que o PETMOL faz, em texto normal acima do telefone */}
-        {withImage ? (
-          <>
-            {/* Só no celular: o que o PETMOL faz, em texto normal acima do telefone */}
-            <p className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-800 md:hidden">Cuidamos do seu pet.</p>
-            <div className="md:mt-3"><HeroPhones /></div>
-          </>
-        ) : (
-          /* Versão B do teste: SEM imagem do app — texto primeiro (só no celular; o desktop segue com o título e as seções) */
-          <div className="flex w-full max-w-xs flex-col items-center gap-4 md:hidden">
-            <p className="text-[36px] font-black leading-[1.03] tracking-tight text-slate-900">Cuidamos<br />do seu pet.</p>
-            <ul className="w-full space-y-2.5 text-left">
-              {[
-                ['🩺', 'Vacinas e remédios com aviso antes do prazo'],
-                ['🍽️', 'Avisa antes da ração acabar'],
-                ['🚨', 'Pet Sumido: alerta para quem está por perto'],
-              ].map(([icon, text]) => (
-                <li key={text} className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-white px-3.5 py-3 text-[15px] font-bold leading-snug text-slate-800 shadow-sm">
-                  <span className="text-2xl" aria-hidden="true">{icon}</span>{text}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        <div className="mx-auto w-full max-w-sm pt-6 md:mt-3 md:pt-0">
-          <DownloadCta placement="hero-botao" targetId="lojas-hero" />
-          <div className="mt-2.5"><DownloadButton placement="hero" compact /></div>
-          <p className="mt-2 text-[13px] font-semibold text-slate-700 md:text-xs md:text-slate-400">
-            <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[12px] font-black uppercase tracking-wide text-emerald-800 md:bg-transparent md:p-0 md:text-xs md:font-semibold md:normal-case md:tracking-normal md:text-slate-400">Grátis</span>
-            {' '}· sem anúncios · leva menos de 1 minuto
-          </p>
-        </div>
-        <p className="text-[12px] font-medium text-slate-600 md:hidden">
-          <Link href="/legal/privacy" className="underline underline-offset-2">Privacidade</Link> · <Link href="/legal/terms" className="underline underline-offset-2">Termos de Uso</Link>
+        <p className="mx-auto mt-3 max-w-xs text-[15px] font-medium leading-snug text-slate-600 md:max-w-sm">
+          Alimentação, vacinas, alertas de pets desaparecidos e muito mais em um só lugar.
         </p>
-      </section>
 
-      {/* Do subtítulo ao rodapé: só no desktop/tablet. No celular a página é uma tela única e fixa. */}
-      <div className="hidden md:flex md:flex-1 md:flex-col">
-      <p className="px-6 pt-4 pb-6 text-center text-base text-slate-500 leading-relaxed font-medium max-w-sm mx-auto">
-        {copy.subtitle}
-      </p>
+        <ul className="mx-auto mt-6 grid max-w-sm grid-cols-2 gap-2.5 md:max-w-md">
+          {FEATURES.slice(0, 4).map((f) => (
+            <li key={f.tag} className="flex items-center gap-2 rounded-2xl border border-slate-100 bg-white px-3 py-2.5 text-left shadow-sm">
+              <span className="text-xl" aria-hidden="true">{f.icon}</span>
+              <span className="text-[13px] font-bold leading-tight text-slate-800">{f.tag}</span>
+            </li>
+          ))}
+        </ul>
 
-      {/* O app por dentro */}
-      {withImage && <AppPreview />}
-
-      {/* Como o PETMOL acompanha — benefício → como funciona */}
-      <section className="px-5 pb-8 space-y-4">
-        <FeatureCard
-          icon="🩺"
-          color="bg-purple-50 border-purple-100"
-          iconBg="bg-purple-500"
-          tag="Saúde e proteção"
-          title="Sabe o que já foi feito e o que está perto"
-          body="Vacinas, vermífugo, antipulgas e remédios num lugar só. O PETMOL guarda cada data e avisa antes do prazo — você não precisa ficar de olho."
-        />
-        <FeatureCard
-          icon="🍽️"
-          color="bg-amber-50 border-amber-100"
-          iconBg="bg-amber-500"
-          tag="Alimentação"
-          title="Avisa antes da ração acabar"
-          body="Você diz quanto tem em casa. O PETMOL calcula quanto dura pelo consumo do seu pet e lembra a tempo de repor."
-        />
-        <FeatureCard
-          icon="🗓️"
-          color="bg-blue-50 border-blue-100"
-          iconBg="bg-blue-500"
-          tag="Rotina no lugar"
-          body="Cada cuidado tem uma data. O PETMOL organiza tudo, prioriza o que vem primeiro e, quando for hora de repor, ajuda a comprar o produto que o seu pet já usa."
-          title="O próximo cuidado, sempre à vista"
-        />
-        <FeatureCard
-          icon="🚨"
-          color="bg-red-50 border-red-100"
-          iconBg="bg-red-500"
-          tag="Pet Sumido"
-          title="Se sumir, a comunidade ajuda a procurar"
-          body="Um alerta geolocalizado avisa quem está por perto na hora — sem precisar sair procurando sozinho."
-        />
-      </section>
-
-      {/* Download no meio da página, logo depois dos benefícios */}
-      <section className="px-5 pb-10">
-        <div className="mx-auto max-w-xs rounded-3xl bg-[#0056D2] p-6 text-center text-white">
-          <p className="text-lg font-black leading-snug">Tenha os avisos do seu pet no bolso.</p>
-          <p className="mt-1 text-sm text-blue-100">Notificação na hora certa, mesmo com o app fechado.</p>
-          <div className="mt-4"><DownloadButton placement="meio" className="!bg-white !text-[#0056D2] !shadow-none" /></div>
+        <div className="mx-auto mt-6 w-full max-w-sm">
+          <DownloadCta placement="hero-botao" targetId="lojas-hero" label="Baixar o PETMOL" />
+          <div className="mt-2.5"><DownloadButton placement="hero" compact /></div>
+          <p className="mt-2 text-[12px] font-medium text-slate-500">Grátis · para iPhone e Android</p>
         </div>
       </section>
 
-      {/* Fechamento — sem depoimento fabricado */}
-      <section className="px-5 pb-10">
-        <div className="rounded-3xl bg-slate-50 border border-slate-100 p-6 text-center">
-          <p className="text-[17px] font-black text-slate-900 leading-snug">
-            Cuidar do pet deixa de ser<br />uma coisa a mais pra lembrar.
-          </p>
-          <p className="mt-2 text-sm text-slate-500 leading-relaxed">
-            O PETMOL acompanha a rotina do seu pet e te avisa quando algo precisa de atenção.
-          </p>
-        </div>
-      </section>
+      {/* As 5 funcionalidades — cada uma com a captura oficial da própria App Store, alternando o lado */}
+      <div className="mx-auto max-w-3xl px-5 py-6 md:py-10">
+        {FEATURES.map((f, i) => (
+          <section
+            key={f.tag}
+            className={`flex flex-col items-center gap-6 py-8 md:flex-row md:items-start md:gap-12 md:py-12 ${i % 2 === 1 ? 'md:flex-row-reverse' : ''} ${i > 0 ? 'border-t border-slate-100' : ''}`}
+          >
+            <div className="flex-1 text-center md:text-left">
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-black uppercase tracking-wide"
+                style={{ backgroundColor: `${f.color}1A`, color: f.color }}
+              >
+                <span aria-hidden="true">{f.icon}</span>{f.tag}
+              </span>
+              <h2 className="mt-3 text-[22px] font-black leading-tight tracking-tight text-slate-900 md:text-[26px]">
+                {f.title}
+              </h2>
+              <p className="mx-auto mt-2 max-w-sm text-[15px] leading-relaxed text-slate-600 md:mx-0">
+                {f.body}
+              </p>
+            </div>
+            <div className="shrink-0">
+              <Image
+                src={f.img} alt={f.alt} width={480} height={1039} priority={i === 0}
+                className="h-auto w-[220px] rounded-[22px] shadow-xl ring-1 ring-slate-900/5 md:w-[250px]"
+              />
+            </div>
+          </section>
+        ))}
+      </div>
 
-      {/* CTA final */}
-      <section className="px-5 pb-12 flex flex-col items-center text-center">
+      {/* CTA de fechamento */}
+      <section className="flex flex-col items-center gap-3 border-t border-slate-100 bg-slate-50 px-5 py-12 text-center">
         <h2 className="text-2xl font-black text-slate-900">Baixe o PETMOL e comece agora.</h2>
-        <p className="mt-2 text-sm text-slate-500 font-medium">Adicione o seu pet em menos de 1 minuto.</p>
-        <div className="mt-6 w-full max-w-xs"><div className="space-y-3"><DownloadCta placement="final-botao" targetId="lojas-final" /><DownloadButton placement="final" withWebLink /></div></div>
-        <Link href="/login" className="mt-3 text-sm text-slate-400 font-semibold">
-          Já tenho conta
-        </Link>
+        <p className="text-sm font-medium text-slate-500">Adicione o seu pet em menos de 1 minuto.</p>
+        <div className="mt-3 w-full max-w-xs" id="lojas-final">
+          <DownloadCta placement="final-botao" targetId="lojas-final" label="Baixar o PETMOL" />
+          <div className="mt-2.5"><DownloadButton placement="final" withWebLink compact /></div>
+        </div>
       </section>
-
-      <StickyDownloadBar />
 
       {/* Footer */}
-      <footer className="mt-auto border-t border-slate-100 px-5 py-5 text-center">
+      <footer className="border-t border-slate-100 px-5 py-5 text-center">
         <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-slate-400">
           {!hideAmazonPicks && (
             <Link href="/recommendations" className="hover:text-slate-600">Recommendations</Link>
@@ -225,33 +199,6 @@ export default function LandingPage() {
         </div>
         <p className="mt-2 text-xs text-slate-400">© 2026 PETMOL</p>
       </footer>
-
-      </div>
-      {introOpen && intro.commercial && <LandingIntro commercial={intro.commercial} preview={intro.preview} onDone={() => setIntroDone(true)} />}
-    </div>
-  );
-}
-
-function FeatureCard({ icon, color, iconBg, tag, title, body }: {
-  icon: string;
-  color: string;
-  iconBg: string;
-  tag: string;
-  title: string;
-  body: string;
-}) {
-  return (
-    <div className={`rounded-3xl border p-6 ${color}`}>
-      <div className="flex items-center gap-3 mb-3">
-        <div className={`w-11 h-11 rounded-xl ${iconBg} flex items-center justify-center text-xl flex-shrink-0`}>
-          {icon}
-        </div>
-        <div>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{tag}</p>
-          <h3 className="text-[16px] font-black text-slate-900 leading-tight">{title}</h3>
-        </div>
-      </div>
-      <p className="text-sm text-slate-600 leading-relaxed">{body}</p>
     </div>
   );
 }
