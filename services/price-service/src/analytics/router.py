@@ -586,15 +586,23 @@ def _enrich_and_notify_install(row_id: str, ip: Optional[str], platform: str) ->
             # /go/instalar (27/09/2026): quem chega aqui clicou num anúncio e foi encaminhado direto
             # pra loja, sem ver o site — sinal de intenção bem maior que um acesso qualquer, por isso
             # ganha aviso e corpo próprios (com a campanha, quando ela vier na URL do anúncio).
+            # Título "🏪 Push de loja" (pedido do dono, 27/09/2026): precisa ser reconhecível de
+            # relance na notificação, sem depender de abrir o painel pra saber a origem.
             veio_do_anuncio = (row.landing_path or "").startswith("/go/instalar")
             if is_download:
                 title = "📲 Novo download do PETMOL"
             elif veio_do_anuncio:
-                title = "🎯 Anúncio → foi direto pra loja"
+                title = "🏪 Push de loja"
             else:
-                title = "🌐 Novo acesso ao PETMOL"
+                # Acesso espontâneo ao site (Home ou outra rota pública) — nunca é o app
+                # instalado nem o clique no anúncio. "Home" porque é por onde quase todo
+                # mundo entra (pedido do dono, 27/09/2026).
+                title = "🏠 Push de home"
             campanha_bit = f" · campanha {row.utm_campaign}" if veio_do_anuncio and row.utm_campaign else ""
-            body = f"{where} — {_install_platform_label(platform, row.user_agent)}{campanha_bit} · {acumulado} no total ({base} base + {camp} campanha)"
+            # O título "🏪 Push de loja" já é curto de propósito — o corpo é quem explica que
+            # veio do anúncio, pra não perder o contexto que antes vivia só no título.
+            anuncio_bit = "Clicou no anúncio e foi direto pra loja — " if veio_do_anuncio else ""
+            body = f"{anuncio_bit}{where} — {_install_platform_label(platform, row.user_agent)}{campanha_bit} · {acumulado} no total ({base} base + {camp} campanha)"
             try:
                 from ..notifications import push_to_user
                 push_to_user(str(admin.id), {
