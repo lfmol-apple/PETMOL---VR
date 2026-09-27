@@ -480,6 +480,11 @@ def admin_app_installs(
                 "region": r.region,
                 "country": r.country,
                 "created_at": r.created_at,
+                # De onde veio a 1ª visita que gerou este registro — "/go/instalar" é
+                # quem clicou no anúncio (Meta/Instagram) e foi encaminhado direto pra
+                # loja; qualquer outro valor (ou None) é acesso espontâneo ao site.
+                "landing_path": r.landing_path,
+                "utm_campaign": r.utm_campaign,
             }
             for r in rows
         ],
