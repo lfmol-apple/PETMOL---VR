@@ -45,7 +45,7 @@ function GooglePlayBadge({ placement, heightPx }: { placement: string; heightPx:
  * Google Play no Android); no computador leva aos selos. Tem pulso e brilho — efeito que os selos oficiais
  * NÃO podem ter, por isso o botão é separado deles.
  */
-export function DownloadCta({ placement, targetId }: { placement: string; targetId?: string }) {
+export function DownloadCta({ placement, targetId, label: labelText = 'Baixar grátis' }: { placement: string; targetId?: string; label?: string }) {
   const platform = usePlatform();
   const ctx = useLandingContext();
   const track = () => trackDownloadClick({ button: 'cta', placement, store: platform === 'android' ? 'google' : platform === 'ios' ? 'apple' : 'auto' });
@@ -55,7 +55,7 @@ export function DownloadCta({ placement, targetId }: { placement: string; target
       <svg className="landing-cue-arrow" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M12 4v11M6.5 10.5L12 16l5.5-5.5M5 20h14" />
       </svg>
-      Baixar grátis
+      {labelText}
     </>
   );
   if (platform === 'desktop') {
