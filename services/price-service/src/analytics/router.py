@@ -583,8 +583,18 @@ def _enrich_and_notify_install(row_id: str, ip: Optional[str], platform: str) ->
             from ..analytics.install_models import campaign_total
             acumulado, base, camp = campaign_total(db)
             is_download = _is_real_download(platform)
-            title = "📲 Novo download do PETMOL" if is_download else "🌐 Novo acesso ao PETMOL"
-            body = f"{where} — {_install_platform_label(platform, row.user_agent)} · {acumulado} no total ({base} base + {camp} campanha)"
+            # /go/instalar (27/09/2026): quem chega aqui clicou num anúncio e foi encaminhado direto
+            # pra loja, sem ver o site — sinal de intenção bem maior que um acesso qualquer, por isso
+            # ganha aviso e corpo próprios (com a campanha, quando ela vier na URL do anúncio).
+            veio_do_anuncio = (row.landing_path or "").startswith("/go/instalar")
+            if is_download:
+                title = "📲 Novo download do PETMOL"
+            elif veio_do_anuncio:
+                title = "🎯 Anúncio → foi direto pra loja"
+            else:
+                title = "🌐 Novo acesso ao PETMOL"
+            campanha_bit = f" · campanha {row.utm_campaign}" if veio_do_anuncio and row.utm_campaign else ""
+            body = f"{where} — {_install_platform_label(platform, row.user_agent)}{campanha_bit} · {acumulado} no total ({base} base + {camp} campanha)"
             try:
                 from ..notifications import push_to_user
                 push_to_user(str(admin.id), {
