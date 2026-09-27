@@ -31,27 +31,11 @@ from . import permission_snapshots
 from . import permissions_bi
 from . import queries as q
 from . import tactical_bi
-from . import test_traffic_cleanup
 from .filters import AnalyticsFilters
 
 router = APIRouter(prefix="/v1/admin/analytics", tags=["Admin Analytics"])
 
 _Auth = Depends(get_current_admin_or_readonly_key)
-
-@router.get("/test-traffic-audit")
-def audit_test_traffic(admin=Depends(get_current_admin), db: Session = Depends(get_db)) -> dict:
-    """Pré-visualiza (sem apagar) eventos de landing que batem na assinatura de teste automatizado
-    (vídeo 'concluído' menos de 3s depois de 'começado' — impossível para um visitante de verdade).
-    Ver src/admin/analytics/test_traffic_cleanup.py. Rota de uso único, remover depois."""
-    return test_traffic_cleanup.run(db, dry_run=True)
-
-
-@router.delete("/test-traffic-audit")
-def delete_test_traffic(admin=Depends(get_current_admin), db: Session = Depends(get_db)) -> dict:
-    """Apaga os eventos identificados por audit_test_traffic. Só landing_*/app_open/session_start —
-    nunca conta, pet, vacina ou qualquer dado operacional. Rota de uso único, remover depois."""
-    return test_traffic_cleanup.run(db, dry_run=False)
-
 
 
 def _filters(
