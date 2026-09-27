@@ -14,6 +14,7 @@ const PUBLIC_PATHS = [
   '/excluir-conta',
   '/coverage',
   '/go',
+  '/preview',
   '/portal',
   '/handoff',
   '/auth/',
