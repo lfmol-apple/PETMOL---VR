@@ -214,7 +214,7 @@ def test_app_install_push_includes_device_hint_for_web(monkeypatch):
     assert len(sent) == 1
     assert "navegador (iPhone)" in sent[0]["body"]
     # web = só acessou o site, não instalou nada — não é "download"
-    assert sent[0]["title"] == "🌐 Novo acesso ao PETMOL"
+    assert sent[0]["title"] == "🏠 Push de home"
 
 
 def test_app_install_push_title_distinguishes_acesso_from_download(monkeypatch):
@@ -255,7 +255,7 @@ def test_app_install_push_title_distinguishes_acesso_from_download(monkeypatch):
         _enrich_and_notify_install(row_id, None, platform)
         titles[platform] = sent[0]["title"]
 
-    assert titles["web"] == "🌐 Novo acesso ao PETMOL"
+    assert titles["web"] == "🏠 Push de home"
     assert titles["pwa"] == "📲 Novo download do PETMOL"
     assert titles["ios"] == "📲 Novo download do PETMOL"
     assert titles["android"] == "📲 Novo download do PETMOL"
@@ -496,7 +496,7 @@ def test_app_install_push_titulo_diferente_pra_quem_veio_do_go_instalar(monkeypa
     finally:
         db.close()
     _enrich_and_notify_install(row2_id, None, "web")
-    assert sent[0]["title"] == "🌐 Novo acesso ao PETMOL"
+    assert sent[0]["title"] == "🏠 Push de home"
     assert "campanha 120249292667370423" not in sent[0]["body"]  # "X campanha" do total continua, só não a UTM
 
 

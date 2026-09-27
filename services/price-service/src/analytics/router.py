@@ -594,7 +594,10 @@ def _enrich_and_notify_install(row_id: str, ip: Optional[str], platform: str) ->
             elif veio_do_anuncio:
                 title = "🏪 Push de loja"
             else:
-                title = "🌐 Novo acesso ao PETMOL"
+                # Acesso espontâneo ao site (Home ou outra rota pública) — nunca é o app
+                # instalado nem o clique no anúncio. "Home" porque é por onde quase todo
+                # mundo entra (pedido do dono, 27/09/2026).
+                title = "🏠 Push de home"
             campanha_bit = f" · campanha {row.utm_campaign}" if veio_do_anuncio and row.utm_campaign else ""
             # O título "🏪 Push de loja" já é curto de propósito — o corpo é quem explica que
             # veio do anúncio, pra não perder o contexto que antes vivia só no título.
