@@ -444,3 +444,56 @@ def test_gerenciamento_nao_recebe_os_avisos_de_download_por_padrao():
     s = Settings()
     assert (s.extra_install_push_emails or "") == ""
     assert "gerenciamento@petmol.com.br" not in _extra_push_recipients(s, s.admin_master_email)
+
+
+def test_app_install_push_titulo_diferente_pra_quem_veio_do_go_instalar(monkeypatch):
+    """/go/instalar (27/09/2026): clicou no anúncio e foi direto pra loja — aviso e corpo próprios,
+    com a campanha, em vez do genérico 'Novo acesso'."""
+    from uuid import uuid4
+
+    from src.config import get_settings
+    from src.db import SessionLocal
+    from src.user_auth.models import User
+
+    db = SessionLocal()
+    try:
+        admin_email = get_settings().admin_master_email.lower()
+        if not db.query(User).filter(User.email == admin_email).first():
+            db.add(User(email=admin_email, password_hash="x", name="Admin"))
+            db.commit()
+    finally:
+        db.close()
+
+    sent = []
+    monkeypatch.setattr("src.notifications.push_to_user", lambda uid, payload: sent.append(payload))
+
+    from src.analytics.router import _enrich_and_notify_install
+    from src.analytics.install_models import AppInstall
+
+    db = SessionLocal()
+    try:
+        row = AppInstall(platform="web", ip_hash=f"t{uuid4().hex[:12]}", landing_path="/go/instalar",
+                          utm_campaign="120249292667370423")
+        db.add(row)
+        db.commit()
+        row_id = row.id
+    finally:
+        db.close()
+
+    _enrich_and_notify_install(row_id, None, "web")
+    assert sent[0]["title"] == "🎯 Anúncio → foi direto pra loja"
+    assert "campanha 120249292667370423" in sent[0]["body"]
+
+    # acesso comum (sem vir do /go/instalar) continua com o título de sempre, sem campanha no corpo
+    sent.clear()
+    db = SessionLocal()
+    try:
+        row2 = AppInstall(platform="web", ip_hash=f"t{uuid4().hex[:12]}", landing_path="/", utm_campaign="120249292667370423")
+        db.add(row2)
+        db.commit()
+        row2_id = row2.id
+    finally:
+        db.close()
+    _enrich_and_notify_install(row2_id, None, "web")
+    assert sent[0]["title"] == "🌐 Novo acesso ao PETMOL"
+    assert "campanha 120249292667370423" not in sent[0]["body"]  # "X campanha" do total continua, só não a UTM
