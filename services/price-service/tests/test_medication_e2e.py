@@ -166,3 +166,25 @@ def test_deleting_medication_event_purges_its_pending_reminders(ctx):
     _due_now(c)
     notif.send_due_reminders()
     assert c.sent == []
+
+
+def test_list_events_order_is_stable_when_scheduled_at_ties(ctx):
+    """Achado real (28/09/2026): duas medicações cadastradas juntas caem no
+    mesmo scheduled_at (`_create` usa meia-noite do dia atual) — sem um 2º
+    critério de ordenação, o Postgres não garante a mesma ordem entre uma
+    consulta e outra, e os cartões de "Medicamentos Ativos"/"Tratamento em
+    Andamento" trocavam de posição na tela sem nenhuma mudança de dados."""
+    c = ctx
+    id_a = _create(c, "Prediderm 5mg", {"frequency_mode": "vezes_dia", "times_per_day": 1, "treatment_days": 3})
+    id_b = _create(c, "Analgésico Cronidor", {"frequency_mode": "vezes_dia", "times_per_day": 3, "treatment_days": 5})
+    id_c = _create(c, "Dipirona Gotas", {"frequency_mode": "vezes_dia", "times_per_day": 3, "treatment_days": 5})
+
+    orders = set()
+    for _ in range(5):
+        r = c.client.get("/events", headers=c.h, params={"pet_id": c.pid})
+        assert r.status_code == 200, r.text
+        ids = [ev["id"] for ev in r.json() if ev["id"] in (id_a, id_b, id_c)]
+        assert len(ids) == 3
+        orders.add(tuple(ids))
+
+    assert len(orders) == 1, f"ordem instável entre chamadas: {orders}"

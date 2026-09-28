@@ -155,7 +155,17 @@ def list_events(
             )
         )
     
-    events = query.order_by(Event.scheduled_at.desc()).all()
+    # Desempate por created_at (e por fim id, caso os dois batam no mesmo
+    # milissegundo): sem 2º critério, empates em scheduled_at (comum quando
+    # duas medicações são cadastradas juntas com a mesma data/hora) não têm
+    # ordem garantida entre uma consulta e outra — o Postgres pode devolver
+    # em ordem diferente a cada vez, fazendo os cartões trocarem de posição
+    # na tela sem nenhuma mudança real de dados (relatado 28/09/2026: tela
+    # de Medicação embaralhando "Medicamentos Ativos"/"Tratamento em
+    # Andamento" entre uma abertura e outra).
+    events = query.order_by(
+        Event.scheduled_at.desc(), Event.created_at.desc(), Event.id.asc()
+    ).all()
     return events
 
 
