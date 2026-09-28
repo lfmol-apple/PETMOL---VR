@@ -25,19 +25,43 @@ export function getDeviceId(): string {
   }
 }
 
-async function _getLocSilently(): Promise<{ lat: number; lng: number } | null> {
+/**
+ * Pede localização de verdade (dispara o diálogo nativo se ainda não foi
+ * decidido) em vez de só checar se já tinha sido concedida em outro lugar.
+ *
+ * Antes disso, ativar o push por QUALQUER caminho que não passasse pelo
+ * card de nudge da Home (ex.: salvar vacina/ração/remédio, que chamam
+ * `subscribeToPush` direto) deixava o assinante sem localização pra
+ * sempre — e é esse grupo que cai no escape de até 15 usuários por alerta
+ * que ignora o raio inteiro no broadcast de Pet Sumido (achado real,
+ * 28/09/2026: "notificação vazando pra gente fora da região"). Pedir aqui,
+ * na função central de subscribe, fecha o buraco em qualquer caminho de
+ * ativação, não só no card.
+ */
+async function _getLocActive(): Promise<{ lat: number; lng: number } | null> {
   try {
     if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return null;
-    const perm = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
-    if (perm.state !== 'granted') return null;
     return await new Promise((resolve) => {
       navigator.geolocation.getCurrentPosition(
         (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
         () => resolve(null),
-        { timeout: 5000, maximumAge: 300_000 },
+        { timeout: 8000, maximumAge: 300_000 },
       );
     });
   } catch { return null; }
+}
+
+/** Mantém o perfil (`User.lat/lng`) sincronizado com a mesma coordenada —
+ * é o fallback que o broadcast de Pet Sumido usa quando o dispositivo (ex.:
+ * token nativo) não manda coordenada própria. Best-effort, nunca bloqueia
+ * o fluxo de subscribe. */
+function _persistLocToProfile(token: string, loc: { lat: number; lng: number } | null): void {
+  if (!loc) return;
+  fetch(`${API_BASE}/auth/me`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(loc),
+  }).catch(() => {});
 }
 
 // ── Subscription ────────────────────────────────────────────────────────────
@@ -66,7 +90,7 @@ export async function subscribeToPush(token: string): Promise<boolean> {
     applicationServerKey: _urlBase64ToUint8Array(publicKey) as unknown as BufferSource,
   });
 
-  const loc = await _getLocSilently();
+  const loc = await _getLocActive();
   await fetch(`${API_BASE}/notifications/subscribe`, {
     method: "POST",
     headers: {
@@ -75,6 +99,7 @@ export async function subscribeToPush(token: string): Promise<boolean> {
     },
     body: JSON.stringify({ subscription: subscription.toJSON(), device_id: getDeviceId(), ...loc }),
   });
+  _persistLocToProfile(token, loc);
 
   return true;
 }
@@ -139,12 +164,13 @@ export async function refreshSubscription(token: string): Promise<boolean> {
     applicationServerKey: _urlBase64ToUint8Array(publicKey) as unknown as BufferSource,
   });
 
-  const loc = await _getLocSilently();
+  const loc = await _getLocActive();
   await fetch(`${API_BASE}/notifications/subscribe`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify({ subscription: subscription.toJSON(), device_id: getDeviceId(), ...loc }),
   });
+  _persistLocToProfile(token, loc);
 
   return true;
 }
