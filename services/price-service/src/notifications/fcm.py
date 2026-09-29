@@ -21,6 +21,8 @@ from typing import Optional, Tuple
 
 from ..config import get_settings
 
+from .push_sound import fcm_channel_id
+
 logger = logging.getLogger(__name__)
 
 _TOKEN_URI = "https://oauth2.googleapis.com/token"
@@ -187,6 +189,9 @@ def send_fcm(device_token: str, payload: dict) -> Tuple[bool, bool]:
             data[k] = v if isinstance(v, str) else json.dumps(v)
 
     message: dict = {"token": device_token, "notification": notification}
+    channel_id = fcm_channel_id(payload)  # None = canal padrão (comportamento de sempre)
+    if channel_id:
+        message["android"] = {"notification": {"channel_id": channel_id}}
     if data:
         message["data"] = data
 

@@ -15,6 +15,8 @@ from typing import Optional, Tuple
 
 from ..config import get_settings
 
+from .push_sound import apns_sound
+
 logger = logging.getLogger(__name__)
 
 _PROD_HOST = "api.push.apple.com"
@@ -150,7 +152,7 @@ def send_apns(device_token: str, payload: dict, *, host_override: Optional[str] 
 
     aps: dict = {
         "alert": {"title": payload.get("title") or "PETMOL", "body": payload.get("body") or ""},
-        "sound": "default",
+        "sound": apns_sound(payload),
     }
     # APNs badge é NÚMERO — o payload do Web Push usa "badge" pra um caminho
     # de imagem, então só passamos adiante se for int.
