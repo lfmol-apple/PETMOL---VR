@@ -431,16 +431,19 @@ class Settings(BaseSettings):
     # este endpoint grava MarketplaceOffer, então nunca reaproveita a
     # chave read-only). None por padrão: sem isto configurado, o endpoint
     # sempre responde 401, mesmo com qualquer header enviado.
+    # NÃO mexer neste — arquivo de loja/comércio, fora de escopo por
+    # decisão do dono (29/09/2026 de madrugada: "sem mexer em lojas").
     shopee_sync_trigger_token: Optional[str] = None
 
-    # Token dedicado pra disparar campanhas de ativação por push/e-mail
-    # (admin/activation_campaign_router.py) — mesma classe de acesso do
-    # token acima (write-only, nunca ADMIN_OPS_API_KEY), mas com nome
-    # próprio: reusar o token da Shopee pra algo sem nenhuma relação
-    # confundiu quem precisava achar o valor pra disparar (achado real,
-    # 28/09/2026). None por padrão: sem isto configurado, o endpoint
-    # sempre responde 401.
-    activation_campaign_trigger_token: Optional[str] = None
+    # Token do domínio de COMUNICAÇÃO com o usuário — campanhas de ativação
+    # por push/e-mail (activation_campaign_router.py) + testes reais de
+    # push (apns-test/fcm-test em debug_router.py). Deliberadamente
+    # SEPARADO do token de comércio acima: achado real, 28/09/2026, foi
+    # reaproveitar o token da Shopee (loja monetizada) pra mandar e-mail/
+    # push — "o que a Shopee tem a ver com notificação?". Domínios com dono
+    # e risco diferentes, tokens diferentes. None por padrão: sem
+    # configurar, o endpoint sempre responde 401.
+    comms_ops_trigger_token: Optional[str] = None
 
     # ── Petz (aprendizado por produto) ──────────────────────────────────
     # Master gate — mesmo papel de shopee_affiliate_enabled/

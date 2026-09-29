@@ -11,12 +11,13 @@ a MESMA definição de segmento do painel /admin/dashboard#pessoas
 (`_feeding_configured_pet_ids` + `has_any_push`) — os números batem com o
 que o dono já vê lá.
 
-Autenticação — mesma FAMÍLIA de padrão do shopee-sync/commerce-identity
-router (token write-only dedicado, nunca a chave admin read-only), mas com
-token PRÓPRIO — reusar o da Shopee pra algo sem nenhuma relação com preço/
-marketplace confundiu quem ia disparar (achado real, 28/09/2026):
-  - POST /food-activation/run    → ACTIVATION_CAMPAIGN_TRIGGER_TOKEN (envia
-                                    e-mail/push de verdade quando dry_run=false).
+Autenticação: token do domínio de COMUNICAÇÃO (COMMS_OPS_TRIGGER_TOKEN) —
+nunca a chave admin read-only (isto manda e-mail/push de verdade), e nunca
+o token de comércio/Shopee (domínio diferente: aquele mexe em preço/oferta
+de loja parceira, este manda mensagem pra pessoa real — reusar um pro outro
+foi o achado real de 28/09/2026 que motivou separar por domínio):
+  - POST /food-activation/run    → COMMS_OPS_TRIGGER_TOKEN (envia e-mail/
+                                    push de verdade quando dry_run=false).
   - GET  /food-activation/status → chave admin read-only.
 """
 from __future__ import annotations
@@ -53,7 +54,7 @@ class RunRequest(BaseModel):
 
 
 def _authorize(x_sync_token: Optional[str]) -> None:
-    token = get_settings().activation_campaign_trigger_token
+    token = get_settings().comms_ops_trigger_token
     if not token or not x_sync_token or not hmac.compare_digest(x_sync_token, token):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="token inválido")
 
