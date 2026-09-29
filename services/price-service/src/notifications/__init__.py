@@ -579,8 +579,14 @@ def send_due_reminders() -> None:
         # Dedup: envia UM push por grupo, marca o resto como enviado (consome
         # os duplicados sem notificar). Para os tipos em que o `type` já é a
         # identidade por pet (ração/vermífugo/antipulgas/coleira/banho-tosa),
-        # a chave ignora `remind_at` — assim um lembrete ANTIGO herdado (título
-        # ou deep-link em formato velho) não vira um 2º push junto do novo.
+        # a chave ignora `remind_at` E `user_id` — não só um lembrete ANTIGO
+        # herdado (título/deep-link em formato velho) não pode virar um 2º
+        # push junto do novo, como dois lembretes criados por PESSOAS
+        # diferentes pro mesmo pet (dono abriu a tela, depois um cuidador
+        # também abriu) também não podem. O envio já recalcula os
+        # destinatários (dono+cuidadores+família) a partir do pet, então
+        # ninguém deixa de ser avisado por causa disso — só evita o mesmo
+        # aviso chegando em dobro pra todo mundo.
         # Como `due` vem ordenado por created_at desc, o primeiro visto (=mais
         # recente) é o que dispara.
         _UNIQUE_PER_PET_TYPES = {"food", "dewormer", "flea", "collar", "grooming"}
@@ -604,7 +610,7 @@ def send_due_reminders() -> None:
             if not medications_enabled and reminder.type in ("medication", "medicacao"):
                 continue
             if reminder.type in _UNIQUE_PER_PET_TYPES:
-                dedup_key = (reminder.user_id, reminder.pet_id or "", reminder.type)
+                dedup_key = (reminder.pet_id or "", reminder.type)
             elif reminder.type in _MED_TYPES:
                 dedup_key = (reminder.user_id, reminder.pet_id or "", reminder.type, _reminder_minute(reminder.remind_at))
             else:

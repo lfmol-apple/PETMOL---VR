@@ -83,6 +83,39 @@ def test_native_user_gets_only_apns_not_web(_iso, monkeypatch):
     assert sent_web == []              # NÃO foi por Web Push
 
 
+def test_food_reminders_from_two_caretakers_send_once_but_reach_both(_iso):
+    """Achado real (29/09/2026): dono e cuidador cada um mexeu na tela de
+    Ração do mesmo pet, cada um gerou seu próprio lembrete (`user_id`
+    diferente) — e os dois chegavam separados pra família toda, em dobro.
+    A dedup de tipos 'único por pet' agora ignora o `user_id` do criador,
+    mas o envio ainda tem que alcançar TODOS os que têm acesso ao pet."""
+    from src.pets.models import Pet
+    from src.pets.caretaker_models import PetCaretaker
+
+    sent = _iso
+    owner_id, caretaker_id, pid = str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+    with SessionLocal() as db:
+        db.add(Pet(id=pid, user_id=owner_id, name="Rex", species="dog"))
+        db.add(PetCaretaker(id=str(uuid.uuid4()), pet_id=pid, user_id=caretaker_id))
+        db.commit()
+        _sub(db, owner_id)
+        _sub(db, caretaker_id)
+        # dono mexeu na tela de Ração primeiro
+        _rem(db, owner_id, pid, "food", "🛒 Comprar ração de Rex",
+             now - timedelta(minutes=5), now - timedelta(minutes=5))
+        # cuidador mexeu depois — lembrete próprio, mesmo pet/tipo
+        _rem(db, caretaker_id, pid, "food", "🛒 Comprar ração de Rex",
+             now - timedelta(minutes=1), now)
+
+    notif.send_due_reminders()
+
+    assert len(sent) == 2  # um push por destinatário (dono + cuidador), não 4
+    with SessionLocal() as db:
+        rows = db.query(Reminder).filter(Reminder.pet_id == pid, Reminder.type == "food").all()
+        assert all(r.sent is True for r in rows)  # ambos consumidos, nenhum sobra pendente
+
+
 def test_two_vaccines_different_dates_both_send(_iso):
     """vacina NÃO colapsa por (user,pet,type) — datas diferentes = eventos diferentes."""
     sent = _iso
