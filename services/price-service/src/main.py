@@ -54,6 +54,7 @@ from .admin import commerce_identity_admin_router
 from .admin import shopee_coverage_admin_router
 from .admin import admin_debug_router
 from .admin import admin_analytics_router
+from .admin import activation_campaign_admin_router
 from .admin import models as _admin_models
 from .moderation.models import PhotoModerationDecision as _photo_moderation_decision_model  # noqa: F401 — register with Base
 from .admin.analytics.permission_snapshots import PermissionSnapshot as _permission_snapshot_model  # noqa: F401 — register with Base
@@ -280,6 +281,7 @@ app.include_router(commerce_identity_admin_router)
 app.include_router(shopee_coverage_admin_router)
 app.include_router(admin_debug_router)
 app.include_router(admin_analytics_router)
+app.include_router(activation_campaign_admin_router)
 app.include_router(moderation_admin_router)
 app.include_router(vaccine_date_notice_router)
 # Some deployments forward /api/* without stripping the prefix.
@@ -293,6 +295,7 @@ app.include_router(monetization_coverage_admin_router, prefix="/api")
 app.include_router(commerce_identity_admin_router, prefix="/api")
 app.include_router(shopee_coverage_admin_router, prefix="/api")
 app.include_router(admin_analytics_router, prefix="/api")
+app.include_router(activation_campaign_admin_router, prefix="/api")
 app.include_router(moderation_admin_router, prefix="/api")
 app.include_router(vaccine_date_notice_router, prefix="/api")
 
