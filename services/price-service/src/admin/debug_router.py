@@ -6,21 +6,28 @@ support can pull the full picture of one account's health records — vaccines,
 antiparasitics, grooming, feeding, reminders — without a DB shell.
 
 Never add a route that mutates or deletes a user's data here: the API key has
-no per-action audit trail. The exceptions are ``/apns-test`` and ``/fcm-test``
-— they send a push notification (an outbound side effect, not a data
-mutation) to help diagnose native-push delivery without SSH access to
-server logs.
+no per-action audit trail. ``/apns-test`` and ``/fcm-test`` send a push
+notification (an outbound side effect, not a data mutation) to help diagnose
+native-push delivery without SSH access to server logs — but that's still
+sending a real message to a real person's device, so those two routes do NOT
+use the read-only key: they require ``COMMS_OPS_TRIGGER_TOKEN``, the same
+communication-domain token as the activation-campaign router (never the
+commerce/Shopee one — different domain, different risk). Found real,
+28/09/2026: this file used to guard them with the read-only key, which its
+own rule above says should never happen on a route with a side effect.
 """
 
 from __future__ import annotations
 
+import hmac
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Session
 
+from ..config import get_settings
 from ..db import get_db
 from ..user_auth.models import User
 from ..pets.models import Pet
@@ -40,6 +47,12 @@ from ..notifications.fcm import fcm_configured, get_recent_fcm_attempts, send_fc
 from .deps import get_current_admin_or_readonly_key
 
 router = APIRouter(prefix="/v1/admin/debug", tags=["Admin Debug"])
+
+
+def _require_comms_token(x_comms_token: Optional[str]) -> None:
+    token = get_settings().comms_ops_trigger_token
+    if not token or not x_comms_token or not hmac.compare_digest(x_comms_token, token):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="token inválido")
 
 
 def _norm(value: Any) -> Any:
@@ -177,7 +190,7 @@ def apns_test(
     deep_url: Optional[str] = Query(default=None, description="Ex.: /home?modal=parasites&petId=X&subtype=flea_tick — testa o toque abrindo a sheet certa, não só se o push chega."),
     action_id: str = Query(default="open"),
     db: Session = Depends(get_db),
-    _auth=Depends(get_current_admin_or_readonly_key),
+    x_comms_token: Optional[str] = Header(default=None, alias="X-Comms-Token"),
 ):
     """Manda um push de teste pro(s) token(s) iOS ativo(s) do usuário, uma vez
     via host de PRODUÇÃO e uma vez via SANDBOX. Existe pra distinguir "a Apple
@@ -190,6 +203,7 @@ def apns_test(
     (mesma estrutura de `data`/`action_urls` que send_due_reminders monta) —
     dá pra testar se o toque na notificação abre a sheet certa sem esperar
     o scheduler nem criar um Reminder de verdade."""
+    _require_comms_token(x_comms_token)
     user = db.query(User).filter(User.email == email.strip().lower()).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="usuário não encontrado")
@@ -246,11 +260,12 @@ def fcm_test(
     deep_url: Optional[str] = Query(default=None, description="Ex.: /home?modal=parasites&petId=X&subtype=flea_tick — testa o toque abrindo a sheet certa, não só se o push chega."),
     action_id: str = Query(default="open"),
     db: Session = Depends(get_db),
-    _auth=Depends(get_current_admin_or_readonly_key),
+    x_comms_token: Optional[str] = Header(default=None, alias="X-Comms-Token"),
 ):
     """Manda um push de teste pro(s) token(s) Android ativo(s) do usuário via
     FCM. Mesma ideia do /apns-test, sem a distinção sandbox/produção (a API
     v1 do FCM não tem esse conceito — o mesmo token funciona pros dois)."""
+    _require_comms_token(x_comms_token)
     user = db.query(User).filter(User.email == email.strip().lower()).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="usuário não encontrado")
