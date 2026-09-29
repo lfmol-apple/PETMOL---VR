@@ -50,6 +50,37 @@ def _percentile(values: list[float], pct: float) -> Optional[float]:
     return round(ordered[index], 1)
 
 
+def request_metrics_by_path(window_minutes: int = 60, min_requests: int = 3) -> list[dict]:
+    """Quebra o mesmo agregado de `request_metrics_summary` POR ROTA — o
+    resumo geral (ex.: "p95 de 1517ms") não diz qual endpoint é o culpado.
+    Rotas com poucas amostras (`< min_requests`) ficam de fora: p95 de 1-2
+    pontos é ruído, não sinal. Ordenado do pior p95 pro melhor."""
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
+    with _lock:
+        rows = [item for item in _metrics if item.at >= cutoff]
+
+    by_path: dict[tuple[str, str], list[RequestMetric]] = {}
+    for item in rows:
+        by_path.setdefault((item.method, item.path), []).append(item)
+
+    out = []
+    for (method, path), items in by_path.items():
+        latencies = [i.latency_ms for i in items]
+        if len(latencies) < min_requests:
+            continue
+        out.append({
+            "method": method,
+            "path": path,
+            "requests": len(items),
+            "p50_ms": _percentile(latencies, 0.50),
+            "p95_ms": _percentile(latencies, 0.95),
+            "max_ms": round(max(latencies), 1),
+            "errors_5xx": sum(1 for i in items if i.status >= 500),
+        })
+    out.sort(key=lambda r: r["p95_ms"] or 0, reverse=True)
+    return out
+
+
 def request_metrics_summary(window_minutes: int = 60) -> dict:
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
     with _lock:

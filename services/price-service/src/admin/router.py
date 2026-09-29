@@ -18,7 +18,7 @@ from ..config import get_settings
 from ..db import get_db
 from ..affiliate_links import MarketplaceOffer
 from ..analytics.models import AnalyticsProductEvent
-from ..runtime_metrics import request_metrics_summary
+from ..runtime_metrics import request_metrics_by_path, request_metrics_summary
 from ..user_auth.models import User
 from ..user_auth.security import hash_password
 from ..user_auth.router import COOKIE_NAME
@@ -343,6 +343,18 @@ def admin_stats(db: Session = Depends(get_db), current=Depends(get_current_admin
             cities_count=int(cities_count),
         ),
     )
+
+
+@router.get("/api-latency-by-path")
+def api_latency_by_path(
+    window_minutes: int = 60,
+    current=Depends(get_current_admin_or_readonly_key),
+):
+    """Achado real, 29/09/2026: o alerta "API lenta: p95 de Xms" do Mission
+    Control é agregado — soma TODAS as rotas num p95 só, então não diz qual
+    endpoint é o culpado. Isto quebra por rota (método+path), pra achar o
+    problema de verdade em vez de adivinhar."""
+    return {"routes": request_metrics_by_path(window_minutes=window_minutes)}
 
 
 @router.get("/mission-control")
