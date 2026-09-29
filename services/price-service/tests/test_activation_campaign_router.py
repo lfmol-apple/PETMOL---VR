@@ -20,7 +20,7 @@ READONLY_KEY = "campanha-teste-readonly"
 
 
 def _enable_token(monkeypatch, token: str = TOKEN) -> None:
-    monkeypatch.setenv("SHOPEE_SYNC_TRIGGER_TOKEN", token)
+    monkeypatch.setenv("ACTIVATION_CAMPAIGN_TRIGGER_TOKEN", token)
     monkeypatch.setenv("ADMIN_OPS_API_KEY", READONLY_KEY)
     get_settings.cache_clear()
 

@@ -433,6 +433,15 @@ class Settings(BaseSettings):
     # sempre responde 401, mesmo com qualquer header enviado.
     shopee_sync_trigger_token: Optional[str] = None
 
+    # Token dedicado pra disparar campanhas de ativação por push/e-mail
+    # (admin/activation_campaign_router.py) — mesma classe de acesso do
+    # token acima (write-only, nunca ADMIN_OPS_API_KEY), mas com nome
+    # próprio: reusar o token da Shopee pra algo sem nenhuma relação
+    # confundiu quem precisava achar o valor pra disparar (achado real,
+    # 28/09/2026). None por padrão: sem isto configurado, o endpoint
+    # sempre responde 401.
+    activation_campaign_trigger_token: Optional[str] = None
+
     # ── Petz (aprendizado por produto) ──────────────────────────────────
     # Master gate — mesmo papel de shopee_affiliate_enabled/
     # mercadolivre_affiliate_enabled. Ligado por padrão desde 04/09/2026
