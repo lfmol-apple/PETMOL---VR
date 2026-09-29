@@ -557,6 +557,22 @@ def _mp_to_dict(p: MissingPet) -> dict:
     }
 
 
+# Campos que só o dono (e quem ele autorizou) pode ver. `characteristics` é o
+# "Características únicas — só você sabe" do formulário do Pet Sumido: o tutor
+# pode escrever ali um detalhe secreto pra conferir se quem diz ter achado o
+# pet está falando a verdade. Se vazasse (cartaz, página pública, banner de
+# quem está no raio), golpista leria e "confirmaria" o detalhe. Decisão do
+# dono (26/09/2026): privado de verdade — continua indo pra IA que compara
+# fotos, nunca pra quem não é dono do alerta.
+OWNER_ONLY_FIELDS = ("characteristics",)
+
+
+def _strip_owner_only(data: dict) -> dict:
+    for field in OWNER_ONLY_FIELDS:
+        data.pop(field, None)
+    return data
+
+
 def _mp_to_public_dict(p: MissingPet) -> dict:
     # lat/lng exatos nunca saem daqui — nenhum consumidor (lista de alertas,
     # resultado de match-photo) usa coordenada crua, só `last_seen_location`
@@ -569,7 +585,7 @@ def _mp_to_public_dict(p: MissingPet) -> dict:
     data.pop("user_id", None)
     data.pop("lat", None)
     data.pop("lng", None)
-    return data
+    return _strip_owner_only(data)
 
 
 def _compatibility_level(score: int | None) -> str:
@@ -651,7 +667,6 @@ def _public_missing_pet_dict(p: MissingPet) -> dict:
         "pet_name": p.pet_name,
         "species": p.species,
         "breed": p.breed,
-        "characteristics": p.characteristics,
         "region": _public_region(p.last_seen_location),
         "missing_date": p.missing_date,
         "missing_time": p.missing_time,
@@ -1719,7 +1734,8 @@ def public_missing_pet_status(token: str, db: Session = Depends(get_db)):
         .all()
     )
     return {
-        "missing_pet": _public_missing_pet_dict(mp),
+        # Quem tem o token é quem registrou o alerta — vê o próprio texto.
+        "missing_pet": {**_public_missing_pet_dict(mp), "characteristics": mp.characteristics},
         "status": mp.status,
         "public_url": f"/pet-perdido/{mp.public_slug}" if mp.public_slug else None,
         "reports": [
@@ -2179,7 +2195,9 @@ def my_alerts(db: Session = Depends(get_db), current_user=Depends(get_current_us
         .order_by(MissingPet.created_at.desc())
         .all()
     )
-    return [_mp_to_dict(p) for p in pets]
+    # São alertas de OUTRAS pessoas (quem está no raio): o contato fica, as
+    # características únicas do tutor não.
+    return [_strip_owner_only(_mp_to_dict(p)) for p in pets]
 
 
 @router.get("/history")
@@ -3010,7 +3028,10 @@ def _pet_match_prompt(n_finder_photos: int, characteristics: str | None) -> str:
         characteristics_text = (
             " O tutor descreveu estas características adicionais do pet: "
             f"{characteristics.strip()}. Considere isso na comparação, mas não ignore "
-            "o que vir das fotos se o texto divergir muito do que é visível."
+            "o que vir das fotos se o texto divergir muito do que é visível. "
+            "Esse texto é SIGILOSO: a sua resposta é mostrada a quem diz ter achado "
+            "o pet, então NUNCA cite, repita, parafraseie nem confirme/negue "
+            "nenhum detalhe desse texto no campo analysis — fale só do que é visível nas fotos."
         )
     return (
         f"Você recebeu {n_finder_photos + 1} fotos. A primeira é foto de referência "

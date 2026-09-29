@@ -24,7 +24,6 @@ type RegionAlert = {
   pet_name: string;
   species: string | null;
   breed: string | null;
-  characteristics: string | null;
   last_seen_location: string | null;
   missing_date: string | null;
   missing_time: string | null;
@@ -99,7 +98,7 @@ export default function PetsDesaparecidosPage() {
             <div className="space-y-2.5">
               {active.map((a) => {
                 const photo = resolvePetPhotoUrl(a.photo_url);
-                const descricao = [a.breed, a.characteristics].filter(Boolean).join(' · ');
+                const descricao = a.breed ?? '';
                 return (
                   <div key={a.id} className="overflow-hidden rounded-2xl border border-rose-200 bg-white shadow-sm">
                   <button

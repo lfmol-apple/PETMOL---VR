@@ -61,28 +61,6 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath();
 }
 
-function wrapText(
-  ctx: CanvasRenderingContext2D,
-  text: string, x: number, y: number,
-  maxWidth: number, lineHeight: number,
-): number {
-  const words = text.split(' ');
-  let line = '';
-  let curY = y;
-  for (const word of words) {
-    const test = line ? `${line} ${word}` : word;
-    if (ctx.measureText(test).width > maxWidth && line) {
-      ctx.fillText(line, x, curY);
-      line = word;
-      curY += lineHeight;
-    } else {
-      line = test;
-    }
-  }
-  if (line) { ctx.fillText(line, x, curY); curY += lineHeight; }
-  return curY;
-}
-
 // Espelha o backend (services/price-service/src/missing_pets/__init__.py,
 // _effective_radius_km/_species_radius_cap_km): cresce com sqrt(horas) desde
 // o desaparecimento — não linear — e trava num teto por espécie por volta de
@@ -538,16 +516,10 @@ export function PetSumidoSheet({
     const breedVal = (pet as unknown as { breed?: string }).breed || '';
     ctx.fillText(`${speciesLabel}${breedVal ? ` · ${breedVal.toUpperCase()}` : ''}`, 56, infoY + 136);
 
-    if (characteristics.trim()) {
-      ctx.letterSpacing = '1px';
-      ctx.font = '700 34px Arial, sans-serif';
-      ctx.fillStyle = '#F5EFE6';
-      wrapText(ctx, characteristics.trim().toUpperCase(), 56, infoY + 186, W - 112, 48);
-    }
-
-    const hasChar = characteristics.trim().length > 0;
-    const charLines = hasChar ? Math.min(Math.ceil(characteristics.length / 38), 4) : 0;
-    const contactY = infoY + 196 + charLines * 44;
+    // "Características únicas" NUNCA vão pro cartaz: o campo é "só você sabe"
+    // (o tutor pode guardar ali um detalhe pra conferir quem diz ter achado o
+    // pet). Só o backend usa, na comparação de fotos por IA.
+    const contactY = infoY + 196;
     ctx.letterSpacing = '0px';
     ctx.fillStyle = 'rgba(192,57,43,0.14)';
     roundRect(ctx, 56, contactY, W - 112, 90, 14);
@@ -585,7 +557,7 @@ export function PetSumidoSheet({
 
     // O cartaz já está na tela — cria/atualiza o alerta em background.
     void submitAlert(photoUrlForAlert, pendingNotice);
-  }, [pet, petPhotoUrl, photoPreview, moderatePhoto, applyPhotoRejection, lastSeenLocation, characteristics, missingDate, missingTime, contact, submitAlert]);
+  }, [pet, petPhotoUrl, photoPreview, moderatePhoto, applyPhotoRejection, lastSeenLocation, missingDate, missingTime, contact, submitAlert]);
 
   const handleShare = useCallback(async (target: 'native' | 'download') => {
     if (!cardDataUrl) return;
@@ -872,6 +844,9 @@ export function PetSumidoSheet({
                   onBlur={() => setFocusedField(null)}
                   className="w-full border-2 border-slate-400 rounded-2xl px-4 py-2.5 text-[15px] text-gray-900 placeholder-slate-500 outline-none focus:border-red-400 transition-colors resize-none leading-relaxed"
                 />
+                <p className="mt-1 text-[11px] text-slate-400 leading-snug">
+                  🔒 Não aparece no cartaz nem para outras pessoas — só ajuda a comparar as fotos de quem achar {pet.pet_name}.
+                </p>
               </div>
 
               {/* Info */}
