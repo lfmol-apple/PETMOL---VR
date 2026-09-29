@@ -317,6 +317,13 @@ export interface MedicationItemSheetProps {
   petSpecies?: string;
   petPhotoUrl?: string | null;
   petEvents: PetEventRecord[];
+  /** Achado real (29/09/2026): sem isto, a tela mostrava "Nenhum remédio em
+   * andamento" por um instante — antes do fetch de petEvents terminar —
+   * mesmo quando o pet TEM medicação cadastrada, e só depois trocava pro
+   * conteúdo certo. `petEvents` começa vazio até o primeiro fetch resolver;
+   * sem saber que ainda está carregando, a tela não tinha como distinguir
+   * "carregando" de "realmente vazio". */
+  eventsLoading?: boolean;
   onClose: () => void;
   onRefresh: () => Promise<void>;
   onGoHome?: () => void;
@@ -339,6 +346,7 @@ export function MedicationItemSheet({
   petSpecies,
   petPhotoUrl,
   petEvents,
+  eventsLoading = false,
   onClose,
   onRefresh,
   onGoHome,
@@ -746,7 +754,13 @@ export function MedicationItemSheet({
   }
 
   // ── Status badge ──────────────────────────────────────────────────────────
-  const statusLabel = active.length > 0
+  // Enquanto o 1º fetch não termina, `medications` está vazio só por causa
+  // do carregamento — não é a mesma coisa que "não tem medicação de
+  // verdade". Sem essa checagem, o badge (e a lista abaixo) diziam
+  // "Nenhuma medicação" por um instante mesmo pra pet com remédio cadastrado.
+  const statusLabel = eventsLoading
+    ? 'Carregando…'
+    : active.length > 0
     ? `${active.length} em tratamento`
     : expiredUnconfirmed.length > 0
       ? EXPIRED_UNCONFIRMED_LABEL
@@ -824,8 +838,19 @@ export function MedicationItemSheet({
                 </div>
               )}
 
+              {/* Enquanto carrega, nunca mostra "vazio" — só depois de saber
+                  de verdade que não tem nada (achado real, 29/09/2026: tela
+                  piscava "Nenhum remédio" pra pet que já tinha medicação
+                  cadastrada, só porque o fetch ainda não tinha voltado). */}
+              {eventsLoading && medications.length === 0 && (
+                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-6 text-center animate-pulse">
+                  <div className="mx-auto mb-3 h-8 w-8 rounded-full bg-gray-200" />
+                  <div className="mx-auto h-3 w-40 rounded bg-gray-200" />
+                </div>
+              )}
+
               {/* Empty state — o que é, por que preencher, o que fazer */}
-              {medications.length === 0 && (
+              {!eventsLoading && medications.length === 0 && (
                 <div className="rounded-2xl border border-gray-100 bg-gray-50 p-6 text-center">
                   <p className="text-4xl mb-3">💊</p>
                   <p className="text-sm font-semibold text-gray-700">Nenhum remédio em andamento</p>

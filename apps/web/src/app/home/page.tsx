@@ -2857,6 +2857,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           petSpecies={currentPet?.species}
           petPhotoUrl={currentPet?.photo}
           petEvents={petEvents}
+          eventsLoading={eventsLoading}
           initialMode={medicationSheetInitialMode}
           focusEventIds={medicationFocusIds}
           onClose={() => { setMedicationSheetInitialMode('view'); setMedicationFocusIds([]); closeMedicationSheet(); }}
