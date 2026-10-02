@@ -53,7 +53,10 @@ export function Header() {
               <span className="text-2xl font-black text-[#0056D2] tracking-tight flex items-center gap-1.5">
                 Petmol<span className="ml-1">🐾</span>
               </span>
-              <span className="mt-0.5 hidden min-[480px]:block whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.24em] text-[#0056D2]/65">
+              {/* Já existia, mas só aparecia em telas ≥480px — no celular
+                  (a maioria < 480px) nunca aparecia, e ninguém sabia que
+                  tocar na marca volta pra home. Achado real, 02/10/2026. */}
+              <span className="mt-0.5 block whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.24em] text-[#0056D2]/65">
                 {brandCaption}
               </span>
             </span>
