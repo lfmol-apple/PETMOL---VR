@@ -156,6 +156,98 @@ def test_send_de_verdade_manda_push_e_email_pro_grupo_certo(monkeypatch, client)
     assert "Thor" in thor_email["body_text"]
 
 
+def _mk_event(db, *, user_id: str, days_ago: float):
+    from datetime import datetime, timedelta, timezone
+    from src.analytics.models import AnalyticsProductEvent
+    db.add(AnalyticsProductEvent(
+        event_id=str(uuid.uuid4()), user_id=user_id, anonymous_id=str(uuid.uuid4()),
+        session_id=str(uuid.uuid4()), event_name="app_open", platform="web",
+        received_at=datetime.now(timezone.utc) - timedelta(days=days_ago),
+    ))
+    db.commit()
+
+
+def _wait_done_push_location(client, timeout=5.0):
+    status_headers = {"X-Admin-Api-Key": READONLY_KEY}
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        r = client.get("/v1/admin/campaigns/push-location-activation/status", headers=status_headers)
+        assert r.status_code == 200, r.text
+        if r.json()["phase"] in ("done", "error"):
+            return r.json()
+        time.sleep(0.05)
+    raise AssertionError("campanha não terminou a tempo")
+
+
+def test_push_location_dry_run_so_conta_dormente_sem_push_sem_localizacao(monkeypatch, client):
+    """4 tutores: dormente sem nada (entra), ativo sem nada (fica de fora —
+    pedidos contextuais em tela já cobrem), com push (fora), com localização
+    (fora)."""
+    _enable_token(monkeypatch)
+    sent = {"email": []}
+    monkeypatch.setattr("src.admin.activation_campaign_router.send_mail",
+                        lambda **kw: sent["email"].append(kw) or True)
+
+    db = SessionLocal()
+    try:
+        uid_dormant = _mk_user(db, email=f"dormant.{uuid.uuid4().hex[:6]}@example.com", name="Tutor Dormente")
+        _mk_pet(db, user_id=uid_dormant, name="Nina")
+        _mk_event(db, user_id=uid_dormant, days_ago=90)
+
+        uid_active = _mk_user(db, email=f"ativo.{uuid.uuid4().hex[:6]}@example.com", name="Tutor Ativo")
+        _mk_pet(db, user_id=uid_active, name="Thor")
+        _mk_event(db, user_id=uid_active, days_ago=1)
+
+        uid_push = _mk_user(db, email=f"push3.{uuid.uuid4().hex[:6]}@example.com", name="Tutor Com Push")
+        _mk_pet(db, user_id=uid_push, name="Mel")
+        _mk_push_subscription(db, user_id=uid_push)
+        _mk_event(db, user_id=uid_push, days_ago=90)
+
+        uid_gps = _mk_user(db, email=f"gps.{uuid.uuid4().hex[:6]}@example.com", name="Tutor Com GPS")
+        db.query(User).filter(User.id == uid_gps).update(
+            {"location_source": "gps", "lat": -19.9, "lng": -43.9}
+        )
+        db.commit()
+        _mk_event(db, user_id=uid_gps, days_ago=90)
+    finally:
+        db.close()
+
+    headers = {"X-Sync-Token": TOKEN}
+    r = client.post("/v1/admin/campaigns/push-location-activation/run", json={"dry_run": True}, headers=headers)
+    assert r.status_code == 200, r.text
+
+    status = _wait_done_push_location(client)
+    result = status["result"]
+    assert result["dry_run"] is True
+    assert result["total"] == 1  # só o dormente sem push/localização
+    assert sent["email"] == []  # dry run não envia nada
+
+
+def test_push_location_send_de_verdade_manda_so_email_com_nome_do_pet(monkeypatch, client):
+    _enable_token(monkeypatch)
+    sent = {"email": []}
+    monkeypatch.setattr("src.admin.activation_campaign_router.send_mail",
+                        lambda **kw: sent["email"].append(kw) or True)
+
+    db = SessionLocal()
+    try:
+        uid = _mk_user(db, email=f"sumido.{uuid.uuid4().hex[:6]}@example.com", name="Tutor Sumido")
+        _mk_pet(db, user_id=uid, name="Bolinha")
+        _mk_event(db, user_id=uid, days_ago=60)
+    finally:
+        db.close()
+
+    headers = {"X-Sync-Token": TOKEN}
+    r = client.post("/v1/admin/campaigns/push-location-activation/run", json={"dry_run": False}, headers=headers)
+    assert r.status_code == 200, r.text
+
+    status = _wait_done_push_location(client)
+    assert status["result"]["dry_run"] is False
+    assert status["result"]["sent_email"] == 1
+    assert len(sent["email"]) == 1
+    assert "Bolinha" in sent["email"][0]["body_text"]
+
+
 def test_pet_com_alimentacao_configurada_nao_entra_na_campanha(monkeypatch, client):
     _enable_token(monkeypatch)
     sent_emails = []
