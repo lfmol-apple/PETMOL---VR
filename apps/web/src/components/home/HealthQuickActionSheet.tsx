@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Bath, Bug, CalendarDays, Check, Pill, ShieldCheck, Syringe, UtensilsCrossed, type LucideIcon } from 'lucide-react';
 import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
+import { DateField } from '@/components/ui/DateField';
 import type { PetEventRecord } from '@/lib/petEvents';
 import { localTodayISO } from '@/lib/localDate';
 import { getToken } from '@/lib/auth-token';
@@ -261,12 +262,11 @@ export function HealthQuickActionSheet({
             {!isVaccine && showDatePicker && (
               <>
                 <p className="text-[13px] font-semibold text-gray-500 -mb-1">Quando foi aplicado?</p>
-                <input
-                  type="date"
+                <DateField
                   value={pickedDate}
                   max={localTodayISO()}
-                  onChange={(e) => setPickedDate(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+                  onChange={setPickedDate}
+                  inputClassName="w-full rounded-xl border border-gray-200 px-3 py-2.5 pr-10 text-sm tabular-nums"
                 />
                 <button
                   type="button"
@@ -290,12 +290,11 @@ export function HealthQuickActionSheet({
             {isVaccine && showDatePicker && (
               <>
                 <p className="text-[13px] font-semibold text-gray-500 -mb-1">Quando foi vacinado?</p>
-                <input
-                  type="date"
+                <DateField
                   value={pickedDate}
                   max={localTodayISO()}
-                  onChange={(e) => setPickedDate(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+                  onChange={setPickedDate}
+                  inputClassName="w-full rounded-xl border border-gray-200 px-3 py-2.5 pr-10 text-sm tabular-nums"
                 />
                 <button
                   type="button"

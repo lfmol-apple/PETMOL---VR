@@ -13,6 +13,7 @@ import { CARE_STATE } from '@/lib/careState';
 import { CARE_AREA_THEME } from '@/lib/careAreaTheme';
 import { listReminders, deleteReminder, createReminder, refreshSubscription } from '@/features/notifications/pushService';
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
+import { DateField } from '@/components/ui/DateField';
 import type { ScannedProduct } from '@/lib/productScanner';
 import { requestUserDecision } from '@/features/interactions/userPromptChannel';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
@@ -1307,11 +1308,10 @@ export function MedicationItemSheet({
                     fica sozinha na própria linha. */}
                 <div>
                   <label className={labelCls}>Data de início *</label>
-                  <input
-                    type="date"
-                    className={`${inputCls} px-2`}
+                  <DateField
+                    inputClassName={`${inputCls} px-2 pr-10 tabular-nums`}
                     value={form.scheduled_date}
-                    onChange={e => setForm(f => ({ ...f, scheduled_date: e.target.value }))}
+                    onChange={(iso) => setForm(f => ({ ...f, scheduled_date: iso }))}
                   />
                 </div>
 

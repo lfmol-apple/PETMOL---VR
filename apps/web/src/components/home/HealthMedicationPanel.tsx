@@ -8,6 +8,7 @@ import type { EventFormState } from '@/hooks/usePetEventManagement';
 import { localTodayISO } from '@/lib/localDate';
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
 import type { ScannedProduct } from '@/lib/productScanner';
+import { DateField } from '@/components/ui/DateField';
 
 interface HealthMedicationPanelProps {
   petName: string | undefined;
@@ -246,13 +247,12 @@ export function HealthMedicationPanel({
                 <label className="text-xs text-gray-500 font-medium block mb-1">
                   📅 Data do 1º lembrete
                 </label>
-                <input
-                  type="date"
+                <DateField
                   value={eventFormData.reminder_date}
-                  onChange={e =>
-                    setEventFormData(prev => ({ ...prev, reminder_date: e.target.value }))
+                  onChange={(iso) =>
+                    setEventFormData(prev => ({ ...prev, reminder_date: iso }))
                   }
-                  className="w-full border border-amber-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
+                  inputClassName="w-full border border-amber-200 rounded-xl px-3 py-2 pr-10 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
                 />
               </div>
 
@@ -399,13 +399,12 @@ export function HealthMedicationPanel({
                 <label className="text-xs text-gray-500 font-medium block mb-1">
                   Re-avaliação / revisão
                 </label>
-                <input
-                  type="date"
+                <DateField
                   value={eventFormData.next_due_date}
-                  onChange={e =>
-                    setEventFormData(prev => ({ ...prev, next_due_date: e.target.value }))
+                  onChange={(iso) =>
+                    setEventFormData(prev => ({ ...prev, next_due_date: iso }))
                   }
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+                  inputClassName="w-full border border-gray-200 rounded-xl px-3 py-2 pr-10 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-purple-300"
                 />
               </div>
             )}

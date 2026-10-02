@@ -10,6 +10,7 @@ import type { VaccineCardOcrRecord, VaccineCardOcrResponse } from '@/lib/vaccine
 import type { PetHealthProfile, VaccineRecord, VaccineType } from '@/lib/petHealth';
 import type { VaccineFormData } from '@/lib/types/homeForms';
 import { ReminderPicker } from '@/components/ReminderPicker';
+import { DateField } from '@/components/ui/DateField';
 
 type VaccineCardAnalysis = (VaccineCardOcrResponse & { processed_images: number }) | null;
 
@@ -231,11 +232,10 @@ export function VaccineWorkflowModals({
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   {t('vaccine_form.application_date')} *
                 </label>
-                <input
-                  type="date"
+                <DateField
                   value={vaccineFormData.date_administered}
-                  onChange={(e) => setVaccineFormData((prev: VaccineFormData) => ({ ...prev, date_administered: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056D2] focus:border-transparent"
+                  onChange={(iso) => setVaccineFormData((prev: VaccineFormData) => ({ ...prev, date_administered: iso }))}
+                  inputClassName="w-full px-3 py-2 pr-11 border border-gray-300 rounded-lg tabular-nums focus:ring-2 focus:ring-[#0056D2] focus:border-transparent"
                 />
                 <label className="mt-2 flex items-center gap-2 text-sm text-gray-700">
                   <input
@@ -316,11 +316,10 @@ export function VaccineWorkflowModals({
                       <label className="block text-xs font-medium text-green-900 mb-1">
                         Data da próxima dose — só se o veterinário informou
                       </label>
-                      <input
-                        type="date"
+                      <DateField
                         value={vaccineFormData.next_dose_date}
-                        onChange={(e) => setVaccineFormData(prev => ({ ...prev, next_dose_date: e.target.value }))}
-                        className="w-full px-3 py-2 border border-green-300 bg-white rounded-lg focus:ring-2 focus:ring-[#0056D2] focus:border-transparent"
+                        onChange={(iso) => setVaccineFormData(prev => ({ ...prev, next_dose_date: iso }))}
+                        inputClassName="w-full px-3 py-2 pr-10 border border-green-300 bg-white rounded-lg tabular-nums focus:ring-2 focus:ring-[#0056D2] focus:border-transparent"
                       />
                       <p className="mt-1 text-[11px] text-green-700">Em branco, o PETMOL calcula pelo protocolo da vacina.</p>
                     </div>
@@ -660,14 +659,13 @@ export function VaccineWorkflowModals({
                           </div>
                           <div className="col-span-2">
                             <div className="text-xs font-semibold text-slate-600 mb-1">Data da aplicação — confira com a carteirinha</div>
-                            <input
-                              type="date"
+                            <DateField
                               value={record.data_aplicacao || ''}
-                              onChange={(e) => {
-                                updateReviewRegistro(index, { data_aplicacao: e.target.value || null });
+                              onChange={(iso) => {
+                                updateReviewRegistro(index, { data_aplicacao: iso || null });
                                 setReviewConfirmed(false);
                               }}
-                              className={`w-full border rounded px-2 py-2 text-base ${
+                              inputClassName={`w-full border rounded px-2 py-2 pr-10 text-base tabular-nums ${
                                 isDateMissing ? 'border-yellow-300 bg-yellow-50' : 'border-slate-300'
                               }`}
                             />
@@ -680,15 +678,14 @@ export function VaccineWorkflowModals({
                             <div className="mt-2 space-y-2">
                               <div>
                                 <div className="text-xs text-slate-500 mb-1">Próxima dose (revacina)</div>
-                                <input
-                                  type="date"
+                                <DateField
                                   value={record.data_revacina || ''}
-                                  onChange={(e) => {
-                                    updateReviewRegistro(index, { data_revacina: e.target.value || null });
+                                  onChange={(iso) => {
+                                    updateReviewRegistro(index, { data_revacina: iso || null });
                                     setReviewConfirmed(false);
                                   }}
-                                  className="w-full border border-slate-200 rounded px-2 py-1"
-                                  placeholder="Opcional — o PETMOL calcula pelo protocolo"
+                                  placeholder="Opcional — o PETMOL calcula"
+                                  inputClassName="w-full border border-slate-200 rounded px-2 py-1 pr-9 tabular-nums"
                                 />
                               </div>
                               <div>

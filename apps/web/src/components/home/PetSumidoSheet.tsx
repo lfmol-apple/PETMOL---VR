@@ -11,6 +11,7 @@ import { classifyPhotoUpload, notAPetPhotoMessage, unusablePhotoMessage, type Ph
 import { ActivationAskSheet } from './ActivationAskSheet';
 import { useOneTimeAsk } from '@/features/interactions/useOneTimeAsk';
 import { requestLocationAndPersist } from '@/features/interactions/requestCorePermissions';
+import { DateField } from '@/components/ui/DateField';
 
 interface PetSumidoSheetProps {
   pet: PetHealthProfile;
@@ -797,13 +798,12 @@ export function PetSumidoSheet({
                   Quando desapareceu
                 </label>
                 <div className="flex gap-2">
-                  <input
-                    type="date"
+                  <DateField
                     value={missingDate}
                     max={todayISO()}
-                    onChange={e => { setMissingDate(e.target.value); setLiveRadius(calcAutoRadius(e.target.value, missingTime, pet.species || 'dog')); }}
-                    className="flex-1 border-2 border-slate-400 rounded-2xl px-4 py-2.5 text-[15px] text-gray-900 outline-none focus:border-red-400 transition-colors"
-                    style={{ colorScheme: 'light' }}
+                    onChange={(iso) => { setMissingDate(iso); setLiveRadius(calcAutoRadius(iso, missingTime, pet.species || 'dog')); }}
+                    className="flex-1"
+                    inputClassName="w-full border-2 border-slate-400 rounded-2xl px-4 py-2.5 pr-11 text-[15px] text-gray-900 tabular-nums outline-none focus:border-red-400 transition-colors"
                   />
                   <input
                     type="time"

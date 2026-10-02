@@ -6,6 +6,7 @@ import { PremiumPanelShell } from '@/components/premium';
 import { IosSwitch } from '@/components/ui/IosSwitch';
 import type { GroomingRecord, PlaceDetails } from '@/lib/types/home';
 import type { GroomingFormData } from '@/lib/types/homeForms';
+import { DateField } from '@/components/ui/DateField';
 
 interface HealthGroomingPanelProps {
   petName?: string;
@@ -157,11 +158,10 @@ export function HealthGroomingPanel({
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   {t('grooming.service_date_label')} *
                 </label>
-                <input
-                  type="date"
+                <DateField
                   value={groomingFormData.date}
-                  onChange={(e) => setGroomingFormData((prev) => ({ ...prev, date: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056D2] text-sm"
+                  onChange={(iso) => setGroomingFormData((prev) => ({ ...prev, date: iso }))}
+                  inputClassName="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg tabular-nums focus:ring-2 focus:ring-[#0056D2] text-sm"
                 />
               </div>
               <div>

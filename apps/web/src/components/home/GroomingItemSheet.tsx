@@ -12,6 +12,7 @@ import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { CARE_STATE, careStateFromDaysUntilDue } from '@/lib/careState';
 import { CARE_AREA_THEME } from '@/lib/careAreaTheme';
 import { scheduleUniqueReminder, buildRemindAt, subtractDays } from '@/features/notifications/pushService';
+import { DateField } from '@/components/ui/DateField';
 
 const PRIMARY_BTN = 'bg-[#0056D2] hover:bg-[#004ab8] active:bg-[#003f9e] text-white shadow-lg shadow-blue-500/25';
 
@@ -607,14 +608,13 @@ export function GroomingItemSheet({
 
               <div>
                 <label className={labelCls}>Data *</label>
-                <input
-                  type="date"
-                  className={inputCls}
+                <DateField
+                  inputClassName={`${inputCls} pr-11 tabular-nums`}
                   value={addForm.date}
-                  onChange={e => setAddForm(f => ({
+                  onChange={(iso) => setAddForm(f => ({
                     ...f,
-                    date: e.target.value,
-                  }))}  
+                    date: iso,
+                  }))}
                 />
               </div>
 
@@ -719,11 +719,10 @@ export function GroomingItemSheet({
                     pra reduzir rolagem (18/09/2026). */}
                 <div>
                   <label className={labelCls}>Data *</label>
-                  <input
-                    type="date"
-                    className={`${inputCls} w-full`}
+                  <DateField
+                    inputClassName={`${inputCls} w-full pr-11 tabular-nums`}
                     value={editForm.date}
-                    onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))}
+                    onChange={(iso) => setEditForm(f => ({ ...f, date: iso }))}
                   />
                 </div>
 

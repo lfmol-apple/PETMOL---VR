@@ -66,6 +66,12 @@ export function DateField({
   const handleTextChange = (raw: string) => {
     const digits = raw.replace(/\D/g, '').slice(0, 8);
     setText(formatDigits(digits));
+    if (digits.length === 0) {
+      // Campo opcional apagado de propósito (ex: "revacina" sem data
+      // definida) — avisa o formulário que esvaziou, não só ignora.
+      onChange('');
+      return;
+    }
     const iso = digitsToIso(digits);
     if (iso) onChange(iso);
   };

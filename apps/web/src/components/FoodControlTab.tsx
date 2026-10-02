@@ -13,6 +13,7 @@ import { resolveFoodCommerceSnapshot } from '@/features/commerce/homeContextualC
 import { AFFILIATE_ONLY_COMMERCE } from '@/features/commerce/homeShoppingPartners';
 import { requestUserDecision } from '@/features/interactions/userPromptChannel';
 import { scheduleFoodReminder, buildRemindAt } from '@/features/notifications/pushService';
+import { DateField } from '@/components/ui/DateField';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1140,11 +1141,10 @@ export function FoodControlTab({
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="block text-xs font-semibold text-gray-600 mb-1">Data início</label>
-                        <input
-                          type="date"
+                        <DateField
                           value={item.startDate}
-                          onChange={e => updateItem(item.id, (current) => ({ ...current, trackingMethod: 'duration', startDate: e.target.value, dailyConsumptionG: '' }))}
-                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
+                          onChange={iso => updateItem(item.id, (current) => ({ ...current, trackingMethod: 'duration', startDate: iso, dailyConsumptionG: '' }))}
+                          inputClassName="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-10 text-base tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
                         />
                       </div>
                       <div>
@@ -1190,11 +1190,10 @@ export function FoodControlTab({
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-gray-600 mb-1">Data início</label>
-                        <input
-                          type="date"
+                        <DateField
                           value={item.startDate}
-                          onChange={e => updateItem(item.id, (current) => ({ ...current, startDate: e.target.value }))}
-                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
+                          onChange={iso => updateItem(item.id, (current) => ({ ...current, startDate: iso }))}
+                          inputClassName="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-10 text-base tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
                         />
                       </div>
                     </>
@@ -1214,11 +1213,10 @@ export function FoodControlTab({
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-gray-600 mb-1">Data início</label>
-                        <input
-                          type="date"
+                        <DateField
                           value={item.startDate}
-                          onChange={e => updateItem(item.id, (current) => ({ ...current, startDate: e.target.value }))}
-                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
+                          onChange={iso => updateItem(item.id, (current) => ({ ...current, startDate: iso }))}
+                          inputClassName="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-10 text-base tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
                         />
                       </div>
                     </div>

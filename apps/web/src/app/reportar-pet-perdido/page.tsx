@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { API_BASE_URL } from '@/lib/api';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
+import { DateField } from '@/components/ui/DateField';
 
 type PublicStatus = {
   missing_pet: {
@@ -258,7 +259,7 @@ export default function ReportarPetPerdidoPage() {
             <textarea value={characteristics} onChange={(e) => setCharacteristics(e.target.value)} placeholder="Características visíveis: cor, manchas, coleira, comportamento" className="min-h-28 rounded-2xl border border-slate-200 px-4 py-4 text-base outline-none focus:border-blue-500" />
             <input value={lastSeenLocation} onChange={(e) => setLastSeenLocation(e.target.value)} placeholder="Última região vista, sem endereço sensível" className="rounded-2xl border border-slate-200 px-4 py-4 text-base outline-none focus:border-blue-500" />
             <div className="grid grid-cols-2 gap-3">
-              <input value={missingDate} onChange={(e) => setMissingDate(e.target.value)} type="date" className="rounded-2xl border border-slate-200 px-4 py-4 text-base outline-none focus:border-blue-500" />
+              <DateField value={missingDate} onChange={setMissingDate} inputClassName="w-full rounded-2xl border border-slate-200 px-4 py-4 pr-11 text-base tabular-nums outline-none focus:border-blue-500" />
               <input value={missingTime} onChange={(e) => setMissingTime(e.target.value)} type="time" className="rounded-2xl border border-slate-200 px-4 py-4 text-base outline-none focus:border-blue-500" />
             </div>
             <input value={reporterContact} onChange={(e) => setReporterContact(e.target.value)} placeholder="Seu contato para acompanhar" className="rounded-2xl border border-slate-200 px-4 py-4 text-base outline-none focus:border-blue-500" />
