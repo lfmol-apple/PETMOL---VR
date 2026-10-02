@@ -2922,6 +2922,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           nearbyContent={regionalMissingPetsBanner}
           nearbyCount={nearbyMissingCount}
           initialSection={petSumidoInitialTab}
+          userSharesLocation={tutor?.location_source === 'gps'}
         />
       )}
 
