@@ -25,7 +25,7 @@ from typing import List, Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlalchemy import Column, Integer, String, DateTime, Text, Float
+from sqlalchemy import Column, Integer, String, DateTime, Text, Float, UniqueConstraint, func
 from sqlalchemy.orm import Session
 
 from ..db import Base, get_db, SessionLocal
@@ -83,63 +83,52 @@ def _finder_identity_payload(finder_user_id: str | None) -> dict:
     return {"finder_identity": "unverified", "finder_identity_label": "Relato não verificado"}
 
 # ── Notified tracking (evita renotificar quem já recebeu) ────────────────────
-
-_MP_NOTIFIED_FILE = os.environ.get(
-    "MP_NOTIFIED_FILE",
-    os.path.join(os.path.dirname(__file__), "mp_notified.json"),
-)
-
-
-def _load_mp_notified() -> dict:
-    try:
-        with open(_MP_NOTIFIED_FILE) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
+# Era um arquivo JSON solto (mp_notified.json) fora de qualquer migração —
+# não sobrevivia a deploy (cada release extrai um diretório novo do zero) e
+# não dava pra consultar "quem recebeu o alerta X" depois do fato. Agora é
+# a tabela MissingPetNotification (durável) + a coluna
+# MissingPet.last_sighting_broadcast_at.
 
 
-def _save_mp_notified(data: dict) -> None:
-    tmp = _MP_NOTIFIED_FILE + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(data, f)
-    os.replace(tmp, _MP_NOTIFIED_FILE)
-
-
-def _get_excluded_user_ids(mp_id: str, owner_id: str) -> set:
-    rec = _load_mp_notified().get(mp_id, {})
-    excluded = set(rec.get("notified", []))
+def _get_excluded_user_ids(db: Session, mp_id: str, owner_id: Optional[str]) -> set:
+    rows = db.query(MissingPetNotification.user_id).filter(MissingPetNotification.missing_pet_id == mp_id).all()
+    excluded = {r[0] for r in rows}
     if owner_id:
         excluded.add(str(owner_id))
     return excluded
 
 
-def _mark_notified(mp_id: str, user_ids: list) -> None:
-    data = _load_mp_notified()
-    rec = data.get(mp_id, {"notified": []})
-    rec["notified"] = list(set(rec.get("notified", []) + user_ids))
-    data[mp_id] = rec
-    _save_mp_notified(data)
+def _mark_notified(db: Session, mp_id: str, user_ids: list, reason: str) -> None:
+    if not user_ids:
+        return
+    already = {
+        r[0] for r in db.query(MissingPetNotification.user_id).filter(
+            MissingPetNotification.missing_pet_id == mp_id,
+            MissingPetNotification.user_id.in_(list(set(user_ids))),
+        ).all()
+    }
+    for uid in set(user_ids):
+        if uid in already:
+            continue
+        db.add(MissingPetNotification(missing_pet_id=mp_id, user_id=uid, reason=reason))
+    db.commit()
 
 
-def _should_sighting_broadcast(mp_id: str, min_gap_hours: int = 6) -> bool:
+def _should_sighting_broadcast(mp: "MissingPet", min_gap_hours: int = 6) -> bool:
     """Evita re-alertar a região por avistamento mais de uma vez a cada
     ~6h — vários relatos seguidos não devem virar vários pushes."""
-    rec = _load_mp_notified().get(mp_id, {})
-    last = rec.get("last_sighting_broadcast_at")
+    last = mp.last_sighting_broadcast_at
     if not last:
         return True
-    try:
-        return (datetime.now(timezone.utc) - datetime.fromisoformat(last)).total_seconds() >= min_gap_hours * 3600
-    except Exception:
-        return True
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - last).total_seconds() >= min_gap_hours * 3600
 
 
-def _mark_sighting_broadcast(mp_id: str) -> None:
-    data = _load_mp_notified()
-    rec = data.get(mp_id, {"notified": []})
-    rec["last_sighting_broadcast_at"] = datetime.now(timezone.utc).isoformat()
-    data[mp_id] = rec
-    _save_mp_notified(data)
+def _mark_sighting_broadcast(db: Session, mp: "MissingPet") -> None:
+    mp.last_sighting_broadcast_at = datetime.now(timezone.utc)
+    db.add(mp)
+    db.commit()
 
 
 # ── Raio de notificação ──────────────────────────────────────────────────────
@@ -293,6 +282,30 @@ class MissingPet(Base):
     current_radius_km = Column(Float, default=2.0)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     found_at = Column(DateTime, nullable=True)
+    # Throttle de re-alerta por avistamento (_should_sighting_broadcast) —
+    # era guardado num arquivo JSON solto (mp_notified.json), que some a
+    # cada deploy; agora é coluna de verdade (achado real, 02/10/2026: o
+    # dono perguntou "quem recebeu o alerta da Mel?" e a resposta, pra
+    # qualquer alerta, era "não dá pra saber" — o registro não sobrevivia
+    # a nenhum deploy).
+    last_sighting_broadcast_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class MissingPetNotification(Base):
+    """Quem recebeu push de um alerta específico, e por quê — registro
+    DURÁVEL (tabela de banco, sobrevive a deploy), substitui o antigo
+    mp_notified.json. `reason`: "nearby" (geo, dentro do raio efetivo),
+    "caretaker_or_family" (sempre notificados, sem filtro geo), "catchup"
+    (logou/entrou no raio depois do broadcast original — ver
+    catch_up_missing_pet_alerts_for_user)."""
+    __tablename__ = "missing_pet_notifications"
+    __table_args__ = (UniqueConstraint("missing_pet_id", "user_id", name="uq_mp_notification_pet_user"),)
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    missing_pet_id = Column(String(36), nullable=False, index=True)
+    user_id = Column(String(36), nullable=False, index=True)
+    reason = Column(String(30), nullable=False)
+    sent_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
 # ── Vencimento do alerta ─────────────────────────────────────────────────────
@@ -795,10 +808,11 @@ def _broadcast_missing_pet(
         c_lat, c_lng = center if center is not None else (mp.lat, mp.lng)
         radius = radius_km if radius_km is not None else _effective_radius_km(mp)
         has_location = c_lat is not None and c_lng is not None
+        _notif_db = SessionLocal()
         if origin == "sighting":
             excluded = {str(mp.user_id)} if mp.user_id else set()
         else:
-            excluded = _get_excluded_user_ids(mp.id, mp.user_id)
+            excluded = _get_excluded_user_ids(_notif_db, mp.id, mp.user_id)
 
         print(
             f"[broadcast] pet={mp.id} origin={origin} owner={mp.user_id or 'public'} raio={radius}km "
@@ -886,12 +900,15 @@ def _broadcast_missing_pet(
         # só recebia depois de N × latência ("demora vários segundos").
         # push_to_user() decide o canal (nativo/APNs quando existe, senão Web
         # Push) e já desativa subscriptions/tokens inválidos.
+        nearby_notified: list = []
+        caretaker_notified: list = []
         for user_id, ok_count in _parallel_push(targets, payload, subs_by_user):
             print(f"[broadcast]   user={user_id[:8]} devices_ok={ok_count}", flush=True)
             if ok_count > 0:
                 sent += 1
                 devices_sent += ok_count
                 newly_notified.append(user_id)
+                nearby_notified.append(user_id)
 
         # Notifica cuidadores e familiares do pet sempre (sem filtro de geo).
         # No re-alerta por avistamento (origin="sighting") isso é feito à parte
@@ -922,11 +939,17 @@ def _broadcast_missing_pet(
                         if ok_count > 0:
                             caretaker_sent += 1
                             newly_notified.append(c_id)
+                            caretaker_notified.append(c_id)
             except Exception as ce:
                 print(f"[broadcast] caretaker push error: {ce}", flush=True)
 
-        if newly_notified:
-            _mark_notified(mp.id, newly_notified)
+        try:
+            if nearby_notified:
+                _mark_notified(_notif_db, mp.id, nearby_notified, reason="nearby")
+            if caretaker_notified:
+                _mark_notified(_notif_db, mp.id, caretaker_notified, reason="caretaker_or_family")
+        finally:
+            _notif_db.close()
 
         print(
             f"[broadcast] DONE: {sent} usuários ({devices_sent} dispositivos) + {caretaker_sent} cuidadores, "
@@ -1076,12 +1099,17 @@ def catch_up_missing_pet_alerts_for_user(user_id: str, lat=None, lng=None, db: S
         if not pets:
             return 0
 
-        notified = _load_mp_notified()
+        already_notified_pet_ids = {
+            r[0] for r in db.query(MissingPetNotification.missing_pet_id).filter(
+                MissingPetNotification.user_id == str(user_id),
+                MissingPetNotification.missing_pet_id.in_([p.id for p in pets]),
+            ).all()
+        }
         newly: list[str] = []
         for mp in pets:
             if mp.user_id and str(mp.user_id) == str(user_id):
                 continue
-            if str(user_id) in notified.get(mp.id, {}).get("notified", []):
+            if mp.id in already_notified_pet_ids:
                 continue
             # raio EFETIVO do alerta (cresce com o tempo), não os 30 km da busca
             if mp.lat is not None and mp.lng is not None:
@@ -1105,7 +1133,7 @@ def catch_up_missing_pet_alerts_for_user(user_id: str, lat=None, lng=None, db: S
             newly.append(mp.id)  # marca SEMPRE — o banner é o canal garantido
 
         for mp_id in newly:
-            _mark_notified(mp_id, [str(user_id)])
+            _mark_notified(db, mp_id, [str(user_id)], reason="catchup")
         if newly:
             print(f"[catch-up] user={str(user_id)[:8]} +{len(newly)} alerta(s) atrasado(s)", flush=True)
         return len(newly)
@@ -1348,7 +1376,7 @@ def _maybe_open_sighting_monitor_point(db: Session, mp: "MissingPet", sighting: 
     ouviu falar do alerta, a graça é justamente alcançá-la."""
     if sighting.lat is None or sighting.lng is None:
         return
-    if not _should_sighting_broadcast(mp.id):
+    if not _should_sighting_broadcast(mp):
         return
 
     original = _ensure_original_monitor_point(db, mp)
@@ -1376,7 +1404,7 @@ def _maybe_open_sighting_monitor_point(db: Session, mp: "MissingPet", sighting: 
     )
     db.add(new_point)
     db.commit()
-    _mark_sighting_broadcast(mp.id)
+    _mark_sighting_broadcast(db, mp)
 
     # Broadcast em thread própria (mesmo padrão de _broadcast_missing_pet_async
     # nos outros pontos de chamada deste módulo) — não trava a resposta HTTP
@@ -1428,7 +1456,9 @@ def grow_missing_pet_radii() -> int:
 
             if any_grew and mp.user_id:
                 try:
-                    total_notified = len(_load_mp_notified().get(mp.id, {}).get("notified", []))
+                    total_notified = db.query(func.count(MissingPetNotification.id)).filter(
+                        MissingPetNotification.missing_pet_id == mp.id
+                    ).scalar() or 0
                     push_to_user(mp.user_id, {
                         "title": f"📡 O raio de busca de {mp.pet_name} aumentou",
                         "body": f"{total_notified} pessoa{'s' if total_notified != 1 else ''} na região "
@@ -2159,11 +2189,10 @@ def my_alerts(db: Session = Depends(get_db), current_user=Depends(get_current_us
     except Exception as exc:
         logger.warning("my_alerts catch-up erro: %s", exc)
 
-    notified_data = _load_mp_notified()
     # IDs dos alertas onde este usuário foi notificado
     notified_pet_ids = [
-        mp_id for mp_id, rec in notified_data.items()
-        if user_id in rec.get("notified", [])
+        r[0] for r in db.query(MissingPetNotification.missing_pet_id)
+        .filter(MissingPetNotification.user_id == user_id).distinct().all()
     ]
     # Alertas da própria família/dos pets que o usuário cuida NÃO entram
     # aqui — esse endpoint alimenta só o banner "pet de outra pessoa pode
@@ -2196,8 +2225,10 @@ def my_history(db: Session = Depends(get_db), current_user=Depends(get_current_u
     )
 
     # Pets de outros usuários onde o usuário foi notificado e já foram encontrados
-    notified_data = _load_mp_notified()
-    notified_pet_ids = [mp_id for mp_id, rec in notified_data.items() if user_id in rec.get("notified", [])]
+    notified_pet_ids = [
+        r[0] for r in db.query(MissingPetNotification.missing_pet_id)
+        .filter(MissingPetNotification.user_id == user_id).distinct().all()
+    ]
     helped_found = []
     if notified_pet_ids:
         family_found_ids = [p.id for p in family_found]
@@ -2287,8 +2318,10 @@ def alert_reach(
     _ensure_missing_pet_access(db, str(current_user.id), mp)
 
     subs_by_user = _load_subscriptions_by_user()
-    notified_data = _load_mp_notified()
-    already_notified_ids = set(notified_data.get(mp_id, {}).get("notified", []))
+    already_notified_ids = {
+        r[0] for r in db.query(MissingPetNotification.user_id)
+        .filter(MissingPetNotification.missing_pet_id == mp_id).all()
+    }
     radius = _effective_radius_km(mp)
     has_location = mp.lat is not None and mp.lng is not None
 
@@ -3213,8 +3246,10 @@ def _case_participant_user_ids(
                 ids.add(str(f.finder_user_id))
 
     if include_region:
-        rec = _load_mp_notified().get(mp.id, {})
-        ids.update(str(u) for u in rec.get("notified", []))
+        region_ids = db.query(MissingPetNotification.user_id).filter(
+            MissingPetNotification.missing_pet_id == mp.id
+        ).all()
+        ids.update(str(r[0]) for r in region_ids)
 
     ids.discard("")
     ids.discard("None")

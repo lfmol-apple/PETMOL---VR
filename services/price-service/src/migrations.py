@@ -300,6 +300,9 @@ def run_pg_migrations(engine: Engine) -> None:
         _pg_add_column_if_missing(conn, "missing_pets", "reporter_contact", "TEXT")
         _pg_add_column_if_missing(conn, "missing_pets", "access_token", "TEXT")
         _pg_add_column_if_missing(conn, "missing_pets", "public_slug", "TEXT")
+        # Throttle de re-alerta por avistamento — era mp_notified.json
+        # (arquivo solto, não sobrevivia a deploy), ver missing_pets/__init__.py.
+        _pg_add_column_if_missing(conn, "missing_pets", "last_sighting_broadcast_at", "TIMESTAMPTZ")
         conn.execute(text('ALTER TABLE "missing_pets" ALTER COLUMN "user_id" DROP NOT NULL'))
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_missing_pets_access_token ON missing_pets (access_token) WHERE access_token IS NOT NULL"))
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_missing_pets_public_slug ON missing_pets (public_slug) WHERE public_slug IS NOT NULL"))
@@ -1107,6 +1110,7 @@ def run_sqlite_migrations(engine: Engine) -> None:
         changed |= _sqlite_add_column_if_missing(conn, "missing_pets", "reporter_contact", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "missing_pets", "access_token", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "missing_pets", "public_slug", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "missing_pets", "last_sighting_broadcast_at", "TIMESTAMP")
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_missing_pets_access_token ON missing_pets (access_token)"))
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_missing_pets_public_slug ON missing_pets (public_slug)"))
         conn.execute(text("""
