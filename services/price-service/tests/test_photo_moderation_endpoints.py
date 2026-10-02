@@ -7,6 +7,7 @@ from __future__ import annotations
 import base64
 import io
 import json
+import threading
 
 import pytest
 from PIL import Image
@@ -87,6 +88,30 @@ def _signup(client, cid, email):
     return r.json()["access_token"]
 
 
+@pytest.fixture
+def _background_threads(monkeypatch):
+    """Perfil do pet (`publish_immediately=True`) publica a foto na hora e
+    classifica em segundo plano numa thread real — captura essa thread pra
+    o teste poder `.join()` DEPOIS de já ter visto a resposta HTTP (mesma
+    ordem real: a resposta sai primeiro, a classificação roda depois).
+    Monkeypatch de instância, não da classe — não afeta threads de outros
+    testes nem do scheduler/app."""
+    threads: list[threading.Thread] = []
+    orig_start = threading.Thread.start
+
+    def _tracked_start(self):
+        threads.append(self)
+        return orig_start(self)
+
+    monkeypatch.setattr(threading.Thread, "start", _tracked_start)
+    return threads
+
+
+def _wait_background(threads: list[threading.Thread], timeout: float = 5.0) -> None:
+    for t in threads:
+        t.join(timeout=timeout)
+
+
 def _admin_headers():
     db = SessionLocal()
     try:
@@ -104,7 +129,10 @@ def _admin_headers():
 #  Perfil do pet — POST /pets/{id}/photo
 # ═══════════════════════════════════════════════════════════════════════
 
-def test_pet_photo_aprovada_atualiza_o_pet(client, monkeypatch):
+def test_pet_photo_publica_na_hora_sem_esperar_a_ia(client, monkeypatch, _background_threads):
+    """Achado real 02/10/2026: o cadastro de pet travava ~20s esperando o
+    Gemini. Agora a foto é publicada NA HORA (resposta não espera a IA);
+    a classificação roda depois, em segundo plano."""
     _mock_vision(monkeypatch, APPROVED_CLASSIFICATION)
     token = _signup(client, "cid-modA", "modA@example.com")
     headers = {"Authorization": f"Bearer {token}", "X-PETMOL-CLIENT-ID": "cid-modA"}
@@ -120,8 +148,14 @@ def test_pet_photo_aprovada_atualiza_o_pet(client, monkeypatch):
     updated = client.get(f"/pets/{pet['id']}", headers=headers).json()
     assert updated["photo"] is not None
 
+    _wait_background(_background_threads)
+    confirmed = client.get(f"/pets/{pet['id']}", headers=headers).json()
+    assert confirmed["photo"] is not None  # IA confirmou depois — continua
 
-def test_pet_photo_rejeitada_nao_muda_o_pet_e_devolve_422(client, monkeypatch):
+
+def test_pet_photo_publicada_e_removida_depois_se_ia_reprovar(client, monkeypatch, _background_threads):
+    """Nunca mais 422 na hora pro perfil do pet — a foto some DEPOIS,
+    em segundo plano, se a IA reprovar (resposta HTTP já tinha saído)."""
     _mock_vision(monkeypatch, REJECTED_CLASSIFICATION)
     token = _signup(client, "cid-modB", "modB@example.com")
     headers = {"Authorization": f"Bearer {token}", "X-PETMOL-CLIENT-ID": "cid-modB"}
@@ -129,14 +163,21 @@ def test_pet_photo_rejeitada_nao_muda_o_pet_e_devolve_422(client, monkeypatch):
 
     r = client.post(f"/pets/{pet['id']}/photo", headers=headers,
                      files={"file": ("foto.jpg", _jpeg_bytes(), "image/jpeg")})
-    assert r.status_code == 422
-    assert "Não foi possível aprovar" in r.json()["detail"]
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "approved"
 
-    unchanged = client.get(f"/pets/{pet['id']}", headers=headers).json()
-    assert unchanged["photo"] is None
+    published = client.get(f"/pets/{pet['id']}", headers=headers).json()
+    assert published["photo"] is not None  # publicada otimista, antes da IA opinar
+
+    _wait_background(_background_threads)
+    reverted = client.get(f"/pets/{pet['id']}", headers=headers).json()
+    assert reverted["photo"] is None  # removida depois que a IA reprovou
 
 
-def test_pet_photo_pendente_nao_muda_o_pet_ainda(client, monkeypatch):
+def test_pet_photo_pendente_fica_publica_mesmo_assim(client, monkeypatch, _background_threads):
+    """Diferente do fluxo síncrono (Pet Sumido): no perfil do pet,
+    "pending" (IA ambígua/indisponível) NÃO desfaz a publicação otimista —
+    só fica registrado pra eventual revisão humana (painel de moderação)."""
     _mock_vision(monkeypatch, PENDING_CLASSIFICATION)
     token = _signup(client, "cid-modC", "modC@example.com")
     headers = {"Authorization": f"Bearer {token}", "X-PETMOL-CLIENT-ID": "cid-modC"}
@@ -145,10 +186,11 @@ def test_pet_photo_pendente_nao_muda_o_pet_ainda(client, monkeypatch):
     r = client.post(f"/pets/{pet['id']}/photo", headers=headers,
                      files={"file": ("foto.jpg", _jpeg_bytes(), "image/jpeg")})
     assert r.status_code == 200
-    assert r.json()["status"] == "pending"
+    assert r.json()["status"] == "approved"
 
-    unchanged = client.get(f"/pets/{pet['id']}", headers=headers).json()
-    assert unchanged["photo"] is None
+    _wait_background(_background_threads)
+    still_there = client.get(f"/pets/{pet['id']}", headers=headers).json()
+    assert still_there["photo"] is not None
 
 
 def test_pet_photo_arquivo_invalido_e_recusado_antes_da_ia(client, monkeypatch):

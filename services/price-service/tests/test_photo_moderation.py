@@ -225,15 +225,23 @@ def _mock_vision(monkeypatch, classification: dict | None, *, raise_error: bool 
 
 def test_upload_direto_pela_api_sem_moderacao_nao_e_possivel(client):
     """O endpoint real de upload de foto do pet SEMPRE passa pela
-    moderação — não existe caminho que grave a foto sem isso (a garantia
-    é estrutural: `upload_pet_photo` chama `moderate_upload` antes de
-    qualquer `db.commit()` na foto)."""
+    moderação — não existe caminho que grave a foto sem isso. Desde a
+    publicação otimista (02/10/2026, cadastro de pet não pode mais travar
+    esperando o Gemini), quem escreve `pet.photo` é o próprio
+    `moderate_upload` (mesma sessão, antes de disparar a classificação em
+    segundo plano — ver moderation/service.py) — o router não escreve
+    nessa coluna diretamente nunca mais, só chama `moderate_upload`."""
     import inspect
     from src.pets import router as pets_router_module
+    from src.moderation import service as moderation_service_module
 
-    source = inspect.getsource(pets_router_module.upload_pet_photo)
-    assert "moderate_upload" in source
-    assert source.index("moderate_upload") < source.index("pet.photo = outcome.public_key")
+    router_source = inspect.getsource(pets_router_module.upload_pet_photo)
+    assert "moderate_upload" in router_source
+    assert "pet.photo =" not in router_source  # não ESCREVE a coluna direto — só lê (old_photo) e delega pra moderate_upload
+
+    service_source = inspect.getsource(moderation_service_module.moderate_upload)
+    assert "pet_row.photo = public_key" in service_source
+    assert service_source.index("sanitize_image") < service_source.index("pet_row.photo = public_key")
 
 
 # ═══════════════════════════════════════════════════════════════════════
