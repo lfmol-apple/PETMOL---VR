@@ -27,7 +27,6 @@ const CTA = 'w-full py-4 bg-gradient-to-r from-[#0066ff] to-[#0056D2] text-white
 const DEFAULT_CHECKIN_DAY = 1;
 const DEFAULT_CHECKIN_HOUR = 20;
 const DEFAULT_CHECKIN_MINUTE = 0;
-const PROFILE_PUSH_SEEN_KEY = 'petmol-profile-push-seen-v1';
 const NOTIFICATION_CONSENTS_KEY = 'petmol_notification_consents_v1';
 
 interface TutorData {
@@ -219,13 +218,6 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
-    const hasSeenPushPref = window.localStorage.getItem(PROFILE_PUSH_SEEN_KEY) === '1';
-
-    if (!hasSeenPushPref) {
-      setNotifsOpen(true);
-      window.localStorage.setItem(PROFILE_PUSH_SEEN_KEY, '1');
-    }
 
     try {
       const saved = JSON.parse(window.localStorage.getItem(NOTIFICATION_CONSENTS_KEY) || '{}');
@@ -984,7 +976,11 @@ export default function ProfilePage() {
                         >
                           {pushLoading === 'activate' ? 'Ativando...' : 'Ativar notificações no celular'}
                         </button>
-                      ) : (
+                      ) : isAdmin ? (
+                        // "Enviar teste"/"Desativar" como botões são ferramenta de
+                        // diagnóstico (testar o próprio push, forçar reativar) —
+                        // só pro dono. Pro tutor comum eles pareciam um painel de
+                        // debug vazado e induziam a desligar notificação à toa.
                         <div className="flex gap-3">
                           <button
                             type="button"
@@ -1007,6 +1003,18 @@ export default function ProfilePage() {
                             {pushLoading === 'deactivate' ? 'Desativando...' : 'Desativar'}
                           </button>
                         </div>
+                      ) : (
+                        // Tutor comum: link discreto, mesmo padrão do "Parar de
+                        // compartilhar minha localização" logo acima — nunca um
+                        // botão grande convidando a desativar.
+                        <button
+                          type="button"
+                          onClick={() => void deactivatePush()}
+                          disabled={pushLoading === 'deactivate'}
+                          className="text-[11px] font-bold text-rose-600 underline underline-offset-2 disabled:opacity-40"
+                        >
+                          {pushLoading === 'deactivate' ? 'Desativando...' : 'Desativar notificações no celular'}
+                        </button>
                       )}
 
                       {!isSupported && (
