@@ -154,6 +154,7 @@ def get_locations_summary(
     since: Optional[str] = Query(None),
     until: Optional[str] = Query(None),
     sort_by: str = Query("total", pattern="^(total|downloads|acessos)$"),
+    platform: Optional[str] = Query(None, description="ios|android|pwa — restringe tudo (totais e ranking) a essa plataforma"),
     db: Session = Depends(get_db),
     _=_Auth,
 ):
@@ -163,8 +164,8 @@ def get_locations_summary(
     Control, quando o dono navega aqui a partir de um card de
     Downloads/Acessos): a janela vira exatamente o período selecionado —
     ver `locations_bi.py`."""
-    parsed = AnalyticsFilters.build(since=since, until=until)
-    return locations_bi.locations_summary(db, since=parsed.since, until=parsed.until, sort_by=sort_by)
+    parsed = AnalyticsFilters.build(since=since, until=until, platform=platform)
+    return locations_bi.locations_summary(db, since=parsed.since, until=parsed.until, sort_by=sort_by, platform=platform)
 
 
 @router.get("/campaigns")
