@@ -8,6 +8,7 @@ import { trackV1Metric } from '@/lib/v1Metrics';
 import { PetPhotoPicker } from './PetPhotoPicker';
 import { classifyPhotoUpload, notAPetPhotoMessage, type PhotoUploadOutcome } from '@/lib/photoModerationMessages';
 import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
+import { DateField } from '@/components/ui/DateField';
 import { localTodayISO } from '@/lib/localDate';
 import { sanitizePetName } from '@/lib/petName';
 import { useKeyboardSheetViewport } from '@/hooks/useKeyboardSheetViewport';
@@ -71,11 +72,6 @@ const segBtn = (active: boolean) =>
     active ? 'border-[#0056D2] bg-blue-50 text-[#0047ad]' : 'border-slate-300 bg-white text-slate-600'
   }`;
 
-const inputCls = 'w-full rounded-2xl border-2 border-slate-300 bg-white px-4 py-3.5 text-base outline-none transition-all duration-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:shadow-lg focus:shadow-blue-500/10';
-// iOS: input[type=date] tem largura intrínseca e valor centralizado — força
-// encolher (min-w-0), tira o chrome nativo (appearance-none) e alinha à esquerda
-// como os outros campos.
-const dateInputCls = `${inputCls} block min-w-0 appearance-none text-left [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0`;
 
 // Toggle visual — div sem estilos padrão de browser (button no Safari quebra backgroundColor)
 function Toggle({ on }: { on: boolean }) {
@@ -662,8 +658,7 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
               {/* Data de nascimento */}
               <div className="space-y-1.5">
                 <label className={label}>Data de nascimento</label>
-                <input type="date" max={today} value={birthDate} onChange={e => setBirthDate(e.target.value)}
-                  className={dateInputCls} />
+                <DateField max={today} value={birthDate} onChange={setBirthDate} />
               </div>
 
               {/* Peso */}
