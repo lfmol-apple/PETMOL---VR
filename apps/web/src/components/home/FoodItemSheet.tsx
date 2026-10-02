@@ -2,11 +2,14 @@
 
 import { useBackHandler } from '@/lib/backStack';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ShoppingCart, X } from 'lucide-react';
+import { Bell, ShoppingCart, X } from 'lucide-react';
 import { FoodControlTab, type FoodControlTabFormRequest, type FoodControlTabState } from '@/components/FoodControlTab';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import { SheetAvatar, SheetHeader, SheetIcon } from '@/components/ui/sheet';
 import { ModalPortal } from '@/components/ModalPortal';
+import { ActivationAskSheet } from './ActivationAskSheet';
+import { useOneTimeAsk } from '@/features/interactions/useOneTimeAsk';
+import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { API_BACKEND_BASE, API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
@@ -254,6 +257,9 @@ function PhotoBubble({
 // ── component ─────────────────────────────────────────────────────────────────
 
 export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, petPhotoUrl, racaoEventId }: FoodItemSheetProps) {
+  const { permission: pushPermission, requestPermission: requestPushPermission, subscribeToPush } = useNotificationPermissionController();
+  const pushAsk = useOneTimeAsk('petmol_food_push_ask_v1', pushPermission === 'default');
+
   // Navigation
   const [mode, setMode]           = useState<SheetMode>(initialMode === 'buy' ? 'buy' : 'view');
   const [subMode, setSubMode]     = useState<FoodSubMode>('main');
@@ -1098,6 +1104,19 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
+    <>
+    <ActivationAskSheet
+      open={pushAsk.open}
+      icon={<Bell className="h-5 w-5" strokeWidth={2.2} />}
+      title="Ative as notificações"
+      body="Pra você não perder a hora de comprar ração de novo — o PETMOL avisa sozinho quando o estoque estiver acabando."
+      ctaLabel="Ativar notificações"
+      onActivate={async () => {
+        const granted = await requestPushPermission();
+        if (granted) await subscribeToPush();
+      }}
+      onDismiss={pushAsk.dismiss}
+    />
     <ModalPortal>
       <div ref={overlayRef}
         className="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden overscroll-x-none touch-pan-y p-4"
@@ -1859,5 +1878,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
         </ModalPortal>
       )}
     </ModalPortal>
+    </>
   );
 }

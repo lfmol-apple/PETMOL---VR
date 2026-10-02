@@ -1,13 +1,16 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect, type ReactNode } from 'react';
-import { Siren } from 'lucide-react';
+import { MapPin, Siren } from 'lucide-react';
 import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import { getToken } from '@/lib/auth-token';
 import { isNativeApp } from '@/lib/pwaPlatform';
 import { reverseGeocode, formatReverseGeocodeResult } from '@/lib/osm';
 import { classifyPhotoUpload, notAPetPhotoMessage, unusablePhotoMessage, type PhotoUploadOutcome } from '@/lib/photoModerationMessages';
+import { ActivationAskSheet } from './ActivationAskSheet';
+import { useOneTimeAsk } from '@/features/interactions/useOneTimeAsk';
+import { requestLocationAndPersist } from '@/features/interactions/requestCorePermissions';
 
 interface PetSumidoSheetProps {
   pet: PetHealthProfile;
@@ -33,6 +36,10 @@ interface PetSumidoSheetProps {
   // — sobrepõe a regra padrão de qual aba abre primeiro. Ver
   // homeModalRouting.ts / home/page.tsx.
   initialSection?: Section;
+  // true = tutor.location_source === 'gps' (home/page.tsx já tem isso
+  // carregado). Usado só pro aviso de ativação abaixo — nunca pro
+  // preenchimento do campo "visto em" do formulário, que é outra fonte.
+  userSharesLocation?: boolean;
 }
 
 type Step = 'form' | 'card';
@@ -148,8 +155,9 @@ export function PetSumidoSheet({
   pet, petPhotoUrl, onClose, onAlertSaved,
   editAlertId, initialContact = '', initialLocation = '',
   initialCharacteristics = '', initialMissingDate, initialMissingTime,
-  nearbyContent, nearbyCount = 0, initialSection,
+  nearbyContent, nearbyCount = 0, initialSection, userSharesLocation = false,
 }: PetSumidoSheetProps) {
+  const locationAsk = useOneTimeAsk('petmol_ps_location_ask_v1', !userSharesLocation);
   const isEditMode = Boolean(editAlertId);
   const [step, setStep] = useState<Step>('form');
   // O botão "Pet Sumido" agora só faz a função dele — reportar o próprio pet
@@ -639,6 +647,16 @@ export function PetSumidoSheet({
   const missingParts = [!hasPhoto && 'foto', !hasContact && 'WhatsApp', !hasLocation && 'local visto'].filter(Boolean) as string[];
 
   return (
+    <>
+    <ActivationAskSheet
+      open={locationAsk.open}
+      icon={<MapPin className="h-5 w-5" strokeWidth={2.2} />}
+      title="Ative sua localização"
+      body="Pra você ser avisado na hora se um pet sumir perto de você — é exatamente pra isso que esta tela serve. Sem localização, você não recebe esses alertas."
+      ctaLabel="Ativar localização"
+      onActivate={() => requestLocationAndPersist()}
+      onDismiss={locationAsk.dismiss}
+    />
     <SheetShell open onClose={onClose} z={SHEET_Z.raised}>
       <SheetHeader
         title="Pet Sumido"
@@ -1068,5 +1086,6 @@ export function PetSumidoSheet({
         </div>
       )}
     </SheetShell>
+    </>
   );
 }

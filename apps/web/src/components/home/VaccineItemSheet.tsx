@@ -4,8 +4,11 @@ import React, { useEffect, useMemo, useRef, useState, type ChangeEvent, type Dis
 import type { VaccineRecord, VaccineType } from '@/lib/petHealth';
 import type { VaccineFormData } from '@/lib/types/homeForms';
 import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
-import { Camera, Check, Home, X } from 'lucide-react';
+import { Bell, Camera, Check, Home, X } from 'lucide-react';
 import { SheetAvatar, SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
+import { ActivationAskSheet } from './ActivationAskSheet';
+import { useOneTimeAsk } from '@/features/interactions/useOneTimeAsk';
+import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
 import { localTodayISO } from '@/lib/localDate';
 import { VaccineDateStep } from './VaccineDateStep';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
@@ -139,6 +142,8 @@ export function VaccineItemSheet({
 }: VaccineItemSheetProps) {
   const petPhotoSrc = resolvePetPhotoUrl(petPhotoUrl);
   const { tutor } = useAuth();
+  const { permission: pushPermission, requestPermission: requestPushPermission, subscribeToPush } = useNotificationPermissionController();
+  const pushAsk = useOneTimeAsk('petmol_vaccine_push_ask_v1', pushPermission === 'default');
   const [mode, setMode] = useState<'view' | 'buy'>(initialMode === 'buy' ? 'buy' : 'view');
   const [quickRegisterExpanded, setQuickRegisterExpanded] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(true);
@@ -348,6 +353,19 @@ export function VaccineItemSheet({
   }
 
   return (
+    <>
+    <ActivationAskSheet
+      open={pushAsk.open}
+      icon={<Bell className="h-5 w-5" strokeWidth={2.2} />}
+      title="Ative as notificações"
+      body="Pra você não perder a data da próxima vacina — o PETMOL avisa sozinho quando chegar perto do vencimento."
+      ctaLabel="Ativar notificações"
+      onActivate={async () => {
+        const granted = await requestPushPermission();
+        if (granted) await subscribeToPush();
+      }}
+      onDismiss={pushAsk.dismiss}
+    />
     <SheetShell open onClose={onClose} hideHandle z={SHEET_Z.base}>
         {/* Success overlay */}
         {justSaved && (
@@ -837,6 +855,7 @@ export function VaccineItemSheet({
         </SheetShell>
       )}
     </SheetShell>
+    </>
   );
 }
 
