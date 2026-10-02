@@ -418,6 +418,27 @@ def init_db():
         finally:
             db.close()
 
+    # E-mails extras (ADMIN_EXTRA_EMAILS, ver config.py) ganham a mesma
+    # linha em admin_users — mas só se a conta já existe (cadastro normal
+    # pelo app); nunca cria usuário novo pra eles, ao contrário do master
+    # acima. Rodar a cada start é idempotente (admin.first() cobre o "já
+    # tem" e o loop nunca remove quem foi tirado da lista depois).
+    extra_emails = [e.strip().lower() for e in (settings.admin_extra_emails or "").split(",") if e.strip()]
+    if extra_emails:
+        db = SessionLocal()
+        try:
+            for email in extra_emails:
+                user = db.query(User).filter(func.lower(User.email) == email).first()
+                if not user:
+                    continue
+                admin = db.query(AdminUser).filter(AdminUser.user_id == user.id).first()
+                if not admin:
+                    admin = AdminUser(user_id=str(user.id), role="admin")
+                    db.add(admin)
+                    db.commit()
+        finally:
+            db.close()
+
 
 @app.on_event("startup")
 def start_push_scheduler():
