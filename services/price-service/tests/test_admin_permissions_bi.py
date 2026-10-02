@@ -55,6 +55,33 @@ def test_summary_conta_notificacao_e_localizacao(client):
     assert sum(c.values()) == s["total_users"]
 
 
+def test_uninstalls_proxy_conta_so_token_invalido_nunca_troca_de_conta(client):
+    """Proxy aproximado de desinstalação: só token recusado pela Apple/Google
+    (disabled_reason="push_invalid_token") conta — troca de conta no mesmo
+    aparelho (disabled_reason="account_switch") e desativações antigas sem
+    motivo (NULL, de antes desta coluna existir) nunca entram."""
+    now = datetime.now(timezone.utc)
+    db = SessionLocal()
+    try:
+        def user(email):
+            u = User(email=email, password_hash="x", name=email.split("@")[0])
+            db.add(u); db.commit(); db.refresh(u); return u
+        a = user("a@x.com")
+        b = user("b@x.com")
+        c = user("c@x.com")
+        db.add(NativePushToken(user_id=a.id, platform="ios", token="t1", disabled_at=now, disabled_reason="push_invalid_token"))
+        db.add(NativePushToken(user_id=b.id, platform="android", token="t2", disabled_at=now, disabled_reason="account_switch"))
+        db.add(NativePushToken(user_id=c.id, platform="ios", token="t3", disabled_at=now - timedelta(days=5)))  # motivo nunca guardado (antigo)
+        db.commit()
+    finally:
+        db.close()
+
+    s = client.get("/v1/admin/analytics/permissions/summary").json()
+    assert s["uninstalls_proxy"]["today"] == 1
+    assert s["uninstalls_proxy"]["since_tracking"] == 1
+    assert "proxy" in s["uninstalls_proxy"]["note"].lower()
+
+
 def test_tutores_e_pets_filtra_por_notificacao_localizacao_aparelho_e_busca(client):
     _seed()
     get = lambda **p: client.get("/v1/admin/analytics/users", params=p).json()

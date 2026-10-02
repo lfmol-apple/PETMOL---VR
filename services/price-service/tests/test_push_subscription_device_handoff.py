@@ -75,3 +75,7 @@ def test_registering_native_token_on_a_device_disables_the_previous_accounts_tok
         active_count = sum(1 for row in by_user.values() if row.disabled_at is None)
         assert disabled_count == 1, "conta antiga deveria ter sido desativada neste token"
         assert active_count == 1
+        disabled_row = next(row for row in by_user.values() if row.disabled_at is not None)
+        # Troca de conta no mesmo aparelho NUNCA conta como possível
+        # desinstalação (proxy em permissions_bi.py olha só push_invalid_token).
+        assert disabled_row.disabled_reason == "account_switch"

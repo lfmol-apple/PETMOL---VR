@@ -62,6 +62,7 @@ def test_apns_fanout_sends_and_disables_invalid(monkeypatch):
     with SessionLocal() as db:
         bad = db.query(NativePushToken).filter(NativePushToken.id == bad_id).first()
         assert bad.disabled_at is not None
+        assert bad.disabled_reason == "push_invalid_token"  # proxy de desinstalação (ver permissions_bi.py)
         good = db.query(NativePushToken).filter(NativePushToken.token == "tok-good").first()
         assert good.disabled_at is None
 

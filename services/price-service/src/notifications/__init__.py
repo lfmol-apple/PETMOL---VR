@@ -142,6 +142,13 @@ class NativePushToken(Base):
     created_at   = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     last_seen_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     disabled_at  = Column(DateTime(timezone=True), nullable=True, index=True)
+    # Por que foi desativado — "push_invalid_token" (Apple/Google recusou o
+    # token = proxy aproximado de desinstalação, pode ser falso positivo em
+    # rotação de token), "account_switch" (trocou de conta no mesmo
+    # aparelho) ou "manual_unregister" (logout). NULL = desativado antes
+    # desta coluna existir (Out/2026) — motivo nunca foi guardado, não dá
+    # pra reconstruir retroativamente.
+    disabled_reason = Column(String(30), nullable=True)
 
 
 # Cria as tabelas se não existirem
@@ -340,7 +347,8 @@ def push_native_ios_to_user(user_id: str, payload: dict) -> int:
                 invalid_ids.append(t.id)
         if invalid_ids:
             db.query(NativePushToken).filter(NativePushToken.id.in_(invalid_ids)).update(
-                {"disabled_at": datetime.now(timezone.utc)}, synchronize_session=False
+                {"disabled_at": datetime.now(timezone.utc), "disabled_reason": "push_invalid_token"},
+                synchronize_session=False,
             )
             db.commit()
         return ok
@@ -991,6 +999,7 @@ def register_native_device(body: RegisterNativeDeviceRequest, current_user=Depen
             existing.platform = body.platform
             existing.last_seen_at = now
             existing.disabled_at = None
+            existing.disabled_reason = None
         else:
             db.add(NativePushToken(
                 user_id=user_id, platform=body.platform, token=body.token,
@@ -1006,7 +1015,10 @@ def register_native_device(body: RegisterNativeDeviceRequest, current_user=Depen
             NativePushToken.token == body.token,
             NativePushToken.user_id != user_id,
             NativePushToken.disabled_at.is_(None),
-        ).update({NativePushToken.disabled_at: now}, synchronize_session=False)
+        ).update(
+            {NativePushToken.disabled_at: now, NativePushToken.disabled_reason: "account_switch"},
+            synchronize_session=False,
+        )
 
         db.commit()
         return {"status": "registered"}
@@ -1022,7 +1034,7 @@ def unregister_native_device(body: Optional[UnregisterNativeDeviceRequest] = Non
         q = db.query(NativePushToken).filter(NativePushToken.user_id == str(current_user.id))
         if body and body.token:
             q = q.filter(NativePushToken.token == body.token)
-        q.update({"disabled_at": now}, synchronize_session=False)
+        q.update({"disabled_at": now, "disabled_reason": "manual_unregister"}, synchronize_session=False)
         db.commit()
         return {"status": "unregistered"}
     finally:

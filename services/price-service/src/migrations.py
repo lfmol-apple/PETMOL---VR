@@ -77,6 +77,13 @@ def run_pg_migrations(engine: Engine) -> None:
         # pets: insurance plan (Mar 2026)
         _pg_add_column_if_missing(conn, "pets", "insurance_provider", "TEXT")
 
+        # native_push_tokens: motivo da desativação (Out/2026) — distingue token
+        # inválido na Apple/Google (proxy de possível desinstalação) de outros
+        # motivos (troca de conta no aparelho, logout manual). Só passa a ser
+        # preenchido a partir de agora; desativações passadas ficam NULL pra
+        # sempre (o motivo nunca foi guardado, não dá pra reconstruir).
+        _pg_add_column_if_missing(conn, "native_push_tokens", "disabled_reason", "TEXT")
+
         # vaccine_records: country catalog fields (Fev 2026)
         _pg_add_column_if_missing(conn, "vaccine_records", "vaccine_code", "TEXT")
         _pg_add_column_if_missing(conn, "vaccine_records", "country_code", "TEXT")
@@ -1284,6 +1291,10 @@ def run_sqlite_migrations(engine: Engine) -> None:
         changed |= _sqlite_add_column_if_missing(conn, "analytics_product_events", "city", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "analytics_product_events", "region", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "analytics_product_events", "country", "TEXT")
+
+        # native_push_tokens: motivo da desativação (Out/2026) — ver o
+        # equivalente em run_pg_migrations pra explicação completa.
+        changed |= _sqlite_add_column_if_missing(conn, "native_push_tokens", "disabled_reason", "TEXT")
 
         # `changed` is intentionally unused; kept for potential logging later.
         _ = changed

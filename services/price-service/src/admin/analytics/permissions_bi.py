@@ -92,8 +92,35 @@ def summary(db: Session) -> dict:
     city = count(User.location_source == "city")
     ip = count(User.location_source == "ip")
 
+    today_start_utc = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    uninstalls_today = (
+        db.query(func.count(NativePushToken.id))
+        .filter(NativePushToken.disabled_reason == "push_invalid_token", NativePushToken.disabled_at >= today_start_utc)
+        .scalar() or 0
+    )
+    # Sem corte de data — linhas desativadas ANTES desta coluna existir
+    # (Out/2026) têm disabled_reason NULL por definição (motivo nunca foi
+    # guardado), então contar só os não-nulos já é "desde que começamos a
+    # rastrear", sem precisar de uma constante de data separada.
+    uninstalls_since_tracking = (
+        db.query(func.count(NativePushToken.id))
+        .filter(NativePushToken.disabled_reason == "push_invalid_token")
+        .scalar() or 0
+    )
+
     return {
         "total_users": total,
+        "uninstalls_proxy": {
+            "today": uninstalls_today,
+            "since_tracking": uninstalls_since_tracking,
+            "note": (
+                "Proxy aproximado, não é o dado real da App Store/Google Play (ainda não integrado): conta "
+                "tokens de push nativo que a Apple/Google recusaram como inválidos — forte indício de "
+                "desinstalação, mas pode incluir troca de aparelho ou rotação de token sem desinstalar de "
+                "verdade. Só conta a partir de quando esse motivo passou a ser registrado (Out/2026); "
+                "desativações anteriores não entram, mesmo motivo nunca tendo sido guardado antes."
+            ),
+        },
         "push": {
             "active": push_any,
             "none": total - push_any,
