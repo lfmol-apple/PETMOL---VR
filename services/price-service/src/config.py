@@ -113,10 +113,19 @@ class Settings(BaseSettings):
     # Admin bootstrap (used to promote first admin safely)
     admin_bootstrap_secret: Optional[str] = None
 
-    # Admin master: the ONLY email ever allowed through get_current_admin.
-    # Overridable via env var, but defaults to the real value so this holds
-    # even if the server's env file doesn't set it.
+    # Admin master: the PRIMARY admin email — the one that still receives
+    # every operational email/push (boletim diário, avisos de remédio
+    # perdido, push de novo download etc; ver admin_master_email nesses
+    # usos). Overridable via env var, but defaults to the real value so
+    # this holds even if the server's env file doesn't set it.
     admin_master_email: str = "leonardofmol@gmail.com"
+    # E-mails ADICIONAIS com acesso de admin ao painel (get_current_admin),
+    # separados por vírgula — NUNCA recebem os e-mails/pushes operacionais
+    # acima (isso continua só pro admin_master_email); é só permissão de
+    # login no /admin/dashboard. A conta precisa já existir (cadastro normal
+    # pelo app) — isto não cria usuário novo, só a linha em admin_users no
+    # próximo start do servidor. Env var: ADMIN_EXTRA_EMAILS.
+    admin_extra_emails: str = ""
 
     # Recebe os MESMOS pushes de "acesso/download" (analytics/router.py) que
     # o admin master recebe — só isso, nunca passa por get_current_admin nem

@@ -28,6 +28,20 @@ def _extract_token(
     return cookie_token
 
 
+def admin_allowed_emails(settings) -> set:
+    """E-mails (minúsculos) com permissão de login no /admin/dashboard —
+    o master (settings.admin_master_email) mais quem estiver em
+    admin_extra_emails (lista separada por vírgula). Usado tanto aqui
+    (autenticação) quanto no seed de AdminUser no startup (main.py) —
+    sempre os dois juntos, nunca um sem o outro."""
+    out = {settings.admin_master_email.strip().lower()}
+    for e in (settings.admin_extra_emails or "").split(","):
+        e = e.strip().lower()
+        if e:
+            out.add(e)
+    return out
+
+
 def get_current_admin(
     db: Session = Depends(get_db),
     authorization: Optional[str] = Header(default=None),
@@ -45,11 +59,11 @@ def get_current_admin(
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário não encontrado")
 
-    # The admin_users table alone is not enough to grant access — only the
-    # single hardcoded master email may ever pass, even if a stray row
-    # exists in admin_users for someone else.
+    # The admin_users table alone is not enough to grant access — só passa
+    # quem está em admin_allowed_emails (master + admin_extra_emails), mesmo
+    # que exista uma linha "perdida" em admin_users pra outro e-mail.
     settings = get_settings()
-    if user.email.strip().lower() != settings.admin_master_email.strip().lower():
+    if user.email.strip().lower() not in admin_allowed_emails(settings):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso admin negado")
 
     admin = db.query(AdminUser).filter(AdminUser.user_id == user.id).first()
