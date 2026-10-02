@@ -87,6 +87,42 @@ def test_locations_summary_splits_download_vs_acesso_by_city(client, monkeypatch
     assert body["unmapped_places"] == 2
 
 
+def test_locations_summary_reports_platform_breakdown_and_accepts_platform_filter(client, monkeypatch):
+    """Tela dedicada de Downloads: precisa saber quanto é Android vs. iPhone,
+    e poder restringir o ranking de cidades a uma só plataforma."""
+    headers = _admin_headers()
+    now = datetime.now(timezone.utc)
+    _set_campaign(monkeypatch, (now - timedelta(days=2)).isoformat())
+
+    db = SessionLocal()
+    try:
+        db.query(AppInstall).delete()
+        db.add_all([
+            AppInstall(platform="ios", ip_hash="a", city="Belo Horizonte", region="MG", country="BR", created_at=now),
+            AppInstall(platform="ios", ip_hash="b", city="Curitiba", region="PR", country="BR", created_at=now),
+            AppInstall(platform="android", ip_hash="c", city="Curitiba", region="PR", country="BR", created_at=now),
+            AppInstall(platform="pwa", ip_hash="d", city="Recife", region="PE", country="BR", created_at=now),
+            AppInstall(platform="web", ip_hash="e", city="Recife", region="PE", country="BR", created_at=now),
+        ])
+        db.commit()
+    finally:
+        db.close()
+
+    r = client.get("/v1/admin/analytics/locations", headers=headers)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["downloads_campaign_by_platform"] == {"ios": 2, "android": 1, "pwa": 1}
+    assert body["downloads_today_by_platform"] == {"ios": 2, "android": 1, "pwa": 1}
+
+    r2 = client.get("/v1/admin/analytics/locations", params={"platform": "android"}, headers=headers)
+    assert r2.status_code == 200, r2.text
+    body2 = r2.json()
+    assert body2["downloads_campaign"] == 1
+    assert body2["downloads_campaign_by_platform"] == {"ios": 0, "android": 1, "pwa": 0}
+    by_city2 = {p["city"]: p for p in body2["places"]}
+    assert set(by_city2.keys()) == {"Curitiba"}   # só a cidade com o Android
+
+
 def test_locations_summary_resolves_coordinate_from_geocoded_tutors_same_city(client, monkeypatch):
     """A cidade de um acesso/download ganha lat/lng quando existe pelo
     menos um tutor JÁ geocodificado (User.lat/lng) na mesma cidade — a

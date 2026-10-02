@@ -67,12 +67,24 @@ def _user_city_counts(db: Session) -> dict[tuple[str, str], int]:
     return {(city or "", state or ""): n for city, state, n in rows if city}
 
 
+def _platform_breakdown(rows: list) -> dict[str, int]:
+    """Quantos installs de cada plataforma de download, dentre as linhas já
+    filtradas por período/plataforma — base da tela dedicada de Downloads
+    (Android vs. iPhone vs. PWA)."""
+    counts = {p: 0 for p in DOWNLOAD_PLATFORMS}
+    for r in rows:
+        if r.platform in counts:
+            counts[r.platform] += 1
+    return counts
+
+
 def locations_summary(
     db: Session, *,
     limit_places: int = 80,
     since: Optional[datetime] = None,
     until: Optional[datetime] = None,
     sort_by: str = "total",
+    platform: Optional[str] = None,
 ) -> dict[str, Any]:
     """`since`/`until`: quando ausentes (comportamento padrão, preservado),
     a janela é o corte da campanha — "os locais desde que a campanha
@@ -95,13 +107,18 @@ def locations_summary(
     q = db.query(AppInstall).filter(AppInstall.created_at >= window_start)
     if until:
         q = q.filter(AppInstall.created_at <= until)
+    if platform:
+        q = q.filter(platform_clause(AppInstall.platform, platform))
     rows = q.all()
     # Filtro de "hoje" vai pro SQL, não pra comparação em Python — SQLite
     # (testes) devolve `created_at` sem tzinfo, e comparar um datetime
     # naive com um aware (today_start_utc) explode em TypeError. Deixando o
     # banco fazer a comparação (como o e-mail diário já faz), funciona nos
     # dois motores.
-    rows_today = db.query(AppInstall).filter(AppInstall.created_at >= max(cutoff, today_start_utc)).all()
+    rows_today_q = db.query(AppInstall).filter(AppInstall.created_at >= max(cutoff, today_start_utc))
+    if platform:
+        rows_today_q = rows_today_q.filter(platform_clause(AppInstall.platform, platform))
+    rows_today = rows_today_q.all()
 
     def _is_download(platform: str) -> bool:
         return platform in DOWNLOAD_PLATFORMS
@@ -158,8 +175,10 @@ def locations_summary(
     return {
         "downloads_today": downloads_today,
         "acessos_today": acessos_today,
+        "downloads_today_by_platform": _platform_breakdown(rows_today),
         "downloads_campaign": downloads_campaign,
         "acessos_campaign": acessos_campaign,
+        "downloads_campaign_by_platform": _platform_breakdown(rows),
         "total_campaign": len(rows),
         "places": places[:limit_places],
         "places_total": len(places),

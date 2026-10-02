@@ -139,9 +139,12 @@ export interface LocationRow {
   cadastros_declared_location: number;
   lat: number | null; lng: number | null;
 }
+export interface DownloadPlatformBreakdown { ios: number; android: number; pwa: number }
 export interface LocationsResponse {
   downloads_today: number; acessos_today: number;
+  downloads_today_by_platform: DownloadPlatformBreakdown;
   downloads_campaign: number; acessos_campaign: number;
+  downloads_campaign_by_platform: DownloadPlatformBreakdown;
   total_campaign: number;
   places: LocationRow[]; places_total: number;
   mapped_places: number; unmapped_places: number;

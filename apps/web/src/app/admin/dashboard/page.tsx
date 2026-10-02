@@ -18,6 +18,7 @@ import { JourneySection } from '@/components/admin/sections/JourneySection';
 import { LandingAbSection } from '@/components/admin/sections/LandingAbSection';
 import { LandingIntroSection } from '@/components/admin/sections/LandingIntroSection';
 import { LocationsSection } from '@/components/admin/sections/LocationsSection';
+import { DownloadsSection } from '@/components/admin/sections/DownloadsSection';
 import { ModerationSection } from '@/components/admin/sections/ModerationSection';
 import { TacticalSection } from '@/components/admin/sections/TacticalSection';
 import { TodaySection, BaseStrip } from '@/components/admin/sections/TodaySection';
@@ -87,19 +88,20 @@ function periodLabel(filter: GlobalFilter, datePreset: DatePresetKey): string {
   return 'Todo o período (desde o início)';
 }
 
-type SectionLetter = 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N';
+type SectionLetter = 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O';
 const SECTION_IDS: Record<SectionLetter, string> = {
   B: 'mc-b', C: 'mc-c', D: 'mc-d', E: 'mc-e', F: 'mc-f', G: 'mc-g', H: 'mc-h', I: 'mc-i', J: 'mc-j',
-  K: 'mc-k', L: 'mc-l', M: 'mc-m', N: 'mc-n',
+  K: 'mc-k', L: 'mc-l', M: 'mc-m', N: 'mc-n', O: 'mc-o',
 };
 
 /** Abas: 12 painéis empilhados viraram 5 telas por PERGUNTA do dono —
  * "como foi hoje?", "de onde vem gente?", "quem fica e volta?", "a loja
  * rende?", "quem são / está tudo funcionando?". Nenhuma seção foi perdida;
  * só mudou onde cada uma mora (a fusão de painéis redundantes vem depois). */
-type TabKey = 'hoje' | 'aquisicao' | 'ativacao' | 'loja' | 'pessoas';
+type TabKey = 'hoje' | 'downloads' | 'aquisicao' | 'ativacao' | 'loja' | 'pessoas';
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'hoje', label: '☀️ Hoje' },
+  { key: 'downloads', label: '📥 Downloads' },
   { key: 'aquisicao', label: '📣 Aquisição e campanhas' },
   { key: 'ativacao', label: '🌱 Ativação e retenção' },
   { key: 'loja', label: '🛒 Loja e receita' },
@@ -108,6 +110,7 @@ const TABS: { key: TabKey; label: string }[] = [
 const TAB_OF_SECTION: Record<SectionLetter, TabKey> = {
   B: 'ativacao', C: 'ativacao', D: 'ativacao', E: 'ativacao', F: 'loja',
   G: 'aquisicao', H: 'pessoas', I: 'pessoas', J: 'pessoas', K: 'aquisicao', L: 'pessoas', M: 'aquisicao', N: 'aquisicao',
+  O: 'downloads',
 };
 const isTabKey = (v: string): v is TabKey => TABS.some((t) => t.key === v);
 
@@ -177,7 +180,7 @@ export default function AdminDashboardPage() {
   // exatamente a mesma coisa que abas escondidas). O toggle continua
   // disponível pra quem quiser recolher alguma seção específica depois.
   const [open, setOpen] = useState<Record<SectionLetter, boolean>>({
-    B: true, C: true, D: true, E: true, F: true, G: true, H: true, I: true, J: true, K: true, L: true, M: true, N: true,
+    B: true, C: true, D: true, E: true, F: true, G: true, H: true, I: true, J: true, K: true, L: true, M: true, N: true, O: true,
   });
 
   useEffect(() => {
@@ -313,9 +316,10 @@ export default function AdminDashboardPage() {
             ))}
           </div>
 
-          {/* Hoje é sempre "hoje/ontem" — o filtro de período global não faz
-              sentido ali, então só as outras abas mostram a barra. */}
-          {tab !== 'hoje' && filterBar}
+          {/* Hoje é sempre "hoje/ontem" e Downloads tem seus próprios filtros
+              (plataforma/cidade/UF, direto no DownloadsSection) — o filtro
+              de período global não se aplica a nenhuma das duas. */}
+          {tab !== 'hoje' && tab !== 'downloads' && filterBar}
           <p className="mb-4 flex items-center gap-1.5 px-1 text-[11px] text-slate-400">
             <span className="relative flex h-1.5 w-1.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -333,6 +337,12 @@ export default function AdminDashboardPage() {
               />
               <BaseStrip onOpenPeople={openTutors} onOpenMissingPets={openMissingPets} />
             </div>
+          )}
+
+          {tab === 'downloads' && (
+            <AccordionPanel id={SECTION_IDS.O} letter="O" title="Downloads" subtitle="hoje, total acumulado, Android/iPhone/PWA e por cidade/estado" open={open.O} onToggle={() => toggle('O')}>
+              <DownloadsSection />
+            </AccordionPanel>
           )}
 
           {tab === 'aquisicao' && (
