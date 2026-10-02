@@ -163,11 +163,16 @@ def test_pet_photo_publicada_e_removida_depois_se_ia_reprovar(client, monkeypatc
 
     r = client.post(f"/pets/{pet['id']}/photo", headers=headers,
                      files={"file": ("foto.jpg", _jpeg_bytes(), "image/jpeg")})
+    # Nunca mais 422 na hora — a resposta não espera a IA (publica otimista).
+    # Não dá pra afirmar de forma confiável que a foto ainda está lá NESTE
+    # instante exato: com a IA mockada (resposta quase instantânea), a
+    # thread de fundo pode terminar e reverter antes até deste assert rodar
+    # — o que em produção (Gemini de verdade, segundos de latência) não
+    # acontece. A garantia real e determinística é: resposta rápida agora,
+    # removida depois que a IA reprovar (ver `test_pet_photo_publica_na_hora_sem_esperar_a_ia`
+    # pro caso aprovado, onde não há essa corrida).
     assert r.status_code == 200, r.text
     assert r.json()["status"] == "approved"
-
-    published = client.get(f"/pets/{pet['id']}", headers=headers).json()
-    assert published["photo"] is not None  # publicada otimista, antes da IA opinar
 
     _wait_background(_background_threads)
     reverted = client.get(f"/pets/{pet['id']}", headers=headers).json()

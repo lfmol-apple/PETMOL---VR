@@ -10,21 +10,12 @@ import pytest
 from src.db import SessionLocal, Base, engine
 from src.notifications import PushSubscription
 import src.notifications as notif
-import src.missing_pets as mp_mod
-from src.missing_pets import MissingPet, FoundReport, catch_up_missing_pet_alerts_for_user
+from src.missing_pets import MissingPet, MissingPetNotification, FoundReport, catch_up_missing_pet_alerts_for_user
 
 
 @pytest.fixture(autouse=True)
 def _isolate(monkeypatch):
     Base.metadata.create_all(bind=engine)
-    store: dict = {}
-
-    def _save(d):
-        store.clear()
-        store.update(d)
-
-    monkeypatch.setattr(mp_mod, "_load_mp_notified", lambda: {k: dict(v) for k, v in store.items()})
-    monkeypatch.setattr(mp_mod, "_save_mp_notified", _save)
     sent = []
 
     def fake_send(subscription, payload):
@@ -37,6 +28,7 @@ def _isolate(monkeypatch):
         db.query(PushSubscription).delete()
         db.query(MissingPet).delete()
         db.query(FoundReport).delete()
+        db.query(MissingPetNotification).delete()
         db.commit()
 
 
@@ -118,9 +110,9 @@ def test_catchup_marks_notified_even_when_push_fails(_isolate):
 
     n = catch_up_missing_pet_alerts_for_user("sem_device", -19.90, -43.90)
     assert n == 1
-    assert "sem_device" in store_snapshot()[mp_id]["notified"]
-
-
-# helper para o teste acima ler o mp_notified mockado
-def store_snapshot():
-    return mp_mod._load_mp_notified()
+    with SessionLocal() as db:
+        notified_ids = {
+            r[0] for r in db.query(MissingPetNotification.user_id)
+            .filter(MissingPetNotification.missing_pet_id == mp_id).all()
+        }
+    assert "sem_device" in notified_ids

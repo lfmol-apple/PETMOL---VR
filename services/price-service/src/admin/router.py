@@ -503,6 +503,48 @@ def admin_app_installs(
     }
 
 
+@router.get("/missing-pets/{mp_id}/recipients")
+def admin_missing_pet_recipients(
+    mp_id: str,
+    db: Session = Depends(get_db),
+    current=Depends(get_current_admin_or_readonly_key),
+):
+    """Quem recebeu o push de um alerta de Pet Sumido específico, e por quê
+    (nearby/caretaker_or_family/catchup) — achado real, 02/10/2026: o dono
+    testou um alerta e perguntou "quem recebeu isso?", e a resposta pra
+    QUALQUER alerta era "não dá pra saber" (o registro antigo era um
+    arquivo solto no disco, apagado a cada deploy). Agora é uma tabela de
+    verdade — ver MissingPetNotification em missing_pets/__init__.py."""
+    from ..missing_pets import MissingPet, MissingPetNotification
+
+    mp = db.query(MissingPet).filter(MissingPet.id == mp_id).first()
+    if not mp:
+        raise HTTPException(status_code=404, detail="Alerta não encontrado")
+
+    rows = (
+        db.query(MissingPetNotification, User)
+        .join(User, User.id == MissingPetNotification.user_id)
+        .filter(MissingPetNotification.missing_pet_id == mp_id)
+        .order_by(MissingPetNotification.sent_at.desc())
+        .all()
+    )
+    return {
+        "missing_pet_id": mp_id,
+        "pet_name": mp.pet_name,
+        "total": len(rows),
+        "recipients": [
+            {
+                "user_id": notif.user_id,
+                "name": user.name,
+                "email": user.email,
+                "reason": notif.reason,
+                "sent_at": notif.sent_at.isoformat() if notif.sent_at else None,
+            }
+            for notif, user in rows
+        ],
+    }
+
+
 @router.post("/logout", response_model=OkOut)
 def admin_logout(response: Response):
     response.delete_cookie(COOKIE_NAME, path="/")

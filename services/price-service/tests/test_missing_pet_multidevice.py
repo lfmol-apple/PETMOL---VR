@@ -15,6 +15,7 @@ import src.notifications as notif
 import src.missing_pets as mp_mod
 from src.missing_pets import (
     MissingPet,
+    MissingPetNotification,
     FoundReport,
     MissingPetFollower,
     _broadcast_missing_pet,
@@ -40,9 +41,10 @@ def _sub(db, user_id, tag, lat=None, lng=None):
 @pytest.fixture(autouse=True)
 def _isolate(monkeypatch):
     Base.metadata.create_all(bind=engine)
-    # não escreve o mp_notified.json real
-    monkeypatch.setattr(mp_mod, "_load_mp_notified", lambda: {})
-    monkeypatch.setattr(mp_mod, "_save_mp_notified", lambda _d: None)
+    # Não grava o registro real de notificados — estes testes isolam OUTROS
+    # comportamentos (fanout multi-dispositivo, filtro geo etc); quem testa
+    # o registro em si usa MissingPetNotification direto (ver testes
+    # específicos abaixo).
     monkeypatch.setattr(mp_mod, "_mark_notified", lambda *_a, **_k: None)
     sent = []
 
@@ -59,6 +61,7 @@ def _isolate(monkeypatch):
         db.query(MissingPet).delete()
         db.query(FoundReport).delete()
         db.query(MissingPetFollower).delete()
+        db.query(MissingPetNotification).delete()
         db.commit()
 
 
@@ -169,10 +172,9 @@ def test_case_participants_dono_finder_follower(_isolate):
     assert "" not in ids and "None" not in ids
 
 
-def test_push_case_notifies_all_participants_except_confirmer(_isolate, monkeypatch):
+def test_push_case_notifies_all_participants_except_confirmer(_isolate):
     sent = _isolate
     from src.missing_pets import _push_case
-    monkeypatch.setattr(mp_mod, "_load_mp_notified", lambda: {"MP_ID": {"notified": ["regionUser"]}})
 
     with SessionLocal() as db:
         _sub(db, "owner", "owner-dev")
@@ -186,6 +188,7 @@ def test_push_case_notifies_all_participants_except_confirmer(_isolate, monkeypa
         db.add(mp)
         db.add(FoundReport(id=str(uuid.uuid4()), missing_pet_id="MP_ID", finder_contact="c", finder_user_id="finder1"))
         db.add(MissingPetFollower(id=str(uuid.uuid4()), missing_pet_id="MP_ID", finder_user_id="follower1"))
+        db.add(MissingPetNotification(missing_pet_id="MP_ID", user_id="regionUser", reason="nearby"))
         db.commit()
         participants = _case_participant_user_ids(db, mp, include_region=True)
         _push_case(participants, {"title": "x", "body": "y"}, exclude={"owner"})
@@ -223,7 +226,6 @@ def test_mark_found_is_idempotent(_isolate, monkeypatch):
     """2 PATCH /found (dois botões + toque duplo) não re-disparam o push."""
     sent = _isolate
     monkeypatch.setattr(mp_mod, "_ensure_missing_pet_access", lambda *a, **k: None)
-    monkeypatch.setattr(mp_mod, "_load_mp_notified", lambda: {"MP_ID": {"notified": ["regionUser"]}})
 
     class _U:
         id = "owner"
@@ -234,6 +236,7 @@ def test_mark_found_is_idempotent(_isolate, monkeypatch):
             id="MP_ID", user_id="owner", pet_id=None, pet_name="Rex", contact="x",
             status="found", current_radius_km=2.0,
         ))
+        db.add(MissingPetNotification(missing_pet_id="MP_ID", user_id="regionUser", reason="nearby"))
         db.commit()
         db2 = SessionLocal()
         try:
@@ -264,10 +267,8 @@ def test_sighting_broadcast_reaches_new_area_and_not_owner(_isolate):
     assert n == 1
 
 
-def test_sighting_broadcast_does_not_exclude_already_notified(_isolate, monkeypatch):
+def test_sighting_broadcast_does_not_exclude_already_notified(_isolate):
     sent = _isolate
-    # "u1" já foi notificado do alerta original
-    monkeypatch.setattr(mp_mod, "_load_mp_notified", lambda: {"MP": {"notified": ["u1"]}})
     with SessionLocal() as db:
         _sub(db, "u1", "u1-dev", lat=10.0, lng=10.0)
         mp = MissingPet(
@@ -275,6 +276,8 @@ def test_sighting_broadcast_does_not_exclude_already_notified(_isolate, monkeypa
             lat=0.0, lng=0.0, current_radius_km=2.0, status="active",
         )
         db.add(mp)
+        # "u1" já foi notificado do alerta original
+        db.add(MissingPetNotification(missing_pet_id="MP", user_id="u1", reason="nearby"))
         db.commit()
         # initial: u1 é excluído (já notificado)
         assert _broadcast_missing_pet(mp) == 0
@@ -351,14 +354,14 @@ def test_effective_radius_never_exceeds_species_cap(_isolate):
     assert _effective_radius_km(_MP()) == 20.0
 
 
-def test_should_sighting_broadcast_throttle(_isolate, monkeypatch):
+def test_should_sighting_broadcast_throttle(_isolate):
     from src.missing_pets import _should_sighting_broadcast, _mark_sighting_broadcast
-    store: dict = {}
-    monkeypatch.setattr(mp_mod, "_load_mp_notified", lambda: store)
-    monkeypatch.setattr(mp_mod, "_save_mp_notified", lambda d: store.update(d))
-    assert _should_sighting_broadcast("case-x") is True
-    _mark_sighting_broadcast("case-x")
-    assert _should_sighting_broadcast("case-x") is False
+
+    with SessionLocal() as db:
+        mp = _make_mp(db, owner_id="owner")
+        assert _should_sighting_broadcast(mp) is True
+        _mark_sighting_broadcast(db, mp)
+        assert _should_sighting_broadcast(mp) is False
 
 
 # ── PS-9: alerta vence em 10 dias ────────────────────────────────────────────
@@ -505,7 +508,7 @@ def test_rebroadcast_only_reaches_new_subscribers(_isolate, monkeypatch):
     # "early" agora está na lista de já-notificados; "late" entra depois
     monkeypatch.setattr(
         mp_mod, "_get_excluded_user_ids",
-        lambda mp_id, owner: {"early", str(owner or "")},
+        lambda db, mp_id, owner: {"early", str(owner or "")},
     )
     sent.clear()
     with SessionLocal() as db:
@@ -623,9 +626,6 @@ def test_ensure_original_monitor_point_creates_once(_isolate):
 def test_sighting_inside_existing_radius_opens_no_new_point(_isolate, monkeypatch):
     from src.missing_pets import _maybe_open_sighting_monitor_point, MissingPetMonitorPoint
 
-    store: dict = {}
-    monkeypatch.setattr(mp_mod, "_load_mp_notified", lambda: store)
-    monkeypatch.setattr(mp_mod, "_save_mp_notified", lambda d: store.update(d))
     monkeypatch.setattr(mp_mod.threading, "Thread", _SyncThread)
 
     class _Sighting:
@@ -646,9 +646,6 @@ def test_sighting_outside_radius_opens_new_point_same_size(_isolate, monkeypatch
     from src.missing_pets import _maybe_open_sighting_monitor_point, MissingPetMonitorPoint
 
     sent = _isolate
-    store: dict = {}
-    monkeypatch.setattr(mp_mod, "_load_mp_notified", lambda: store)
-    monkeypatch.setattr(mp_mod, "_save_mp_notified", lambda d: store.update(d))
     monkeypatch.setattr(mp_mod.threading, "Thread", _SyncThread)
 
     class _Sighting:
@@ -679,10 +676,6 @@ def test_grow_radii_updates_point_and_pushes_newly_covered_user(_isolate, monkey
     from src.missing_pets import grow_missing_pet_radii, MissingPetMonitorPoint
 
     sent = _isolate
-    store: dict = {}
-    monkeypatch.setattr(mp_mod, "_load_mp_notified", lambda: store)
-    monkeypatch.setattr(mp_mod, "_save_mp_notified", lambda d: store.update(d))
-
     tutor_pushes: list = []
     real_push_to_user = mp_mod.push_to_user
     def spy_push_to_user(user_id, payload, *a, **k):
@@ -721,10 +714,6 @@ def test_grow_radii_updates_point_and_pushes_newly_covered_user(_isolate, monkey
 
 def test_grow_radii_no_change_does_not_push_tutor(_isolate, monkeypatch):
     from src.missing_pets import grow_missing_pet_radii
-
-    store: dict = {}
-    monkeypatch.setattr(mp_mod, "_load_mp_notified", lambda: store)
-    monkeypatch.setattr(mp_mod, "_save_mp_notified", lambda d: store.update(d))
 
     tutor_pushes: list = []
     def spy_push_to_user(user_id, payload, *a, **k):
