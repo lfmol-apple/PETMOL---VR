@@ -206,19 +206,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    try {
-      await fetch(`${API_URL}/auth/logout`, {
-        method: 'POST',
-      });
-    } catch (error) {
-      console.error('Erro ao fazer logout:', error);
-    }
+    // Limpa tudo que é local PRIMEIRO — isto é o logout de verdade, e é
+    // instantâneo. O POST /auth/logout só apaga o cookie de sessão no
+    // servidor (não tem nada pra desfazer que dependa dele); por isso
+    // dispara em segundo plano, nunca espera. Achado real (02/10/2026): o
+    // "Sair" ficava preso esperando essa resposta — sem timeout, uma rede
+    // lenta ou o backend fora do ar travava o botão sem motivo nenhum.
     invalidateMe();
     clearToken();
     clearSensitiveBrowserCaches();
     setAuthToken(null);
     setTutor(null);
     setIsOfflineMode(false);
+
+    fetch(`${API_URL}/auth/logout`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(5000),
+    }).catch((error) => {
+      console.error('Erro ao limpar sessão no servidor (best-effort, não bloqueia o logout):', error);
+    });
   };
 
   const currentUser = tutor?.email || null;
