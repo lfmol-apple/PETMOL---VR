@@ -207,6 +207,7 @@ export interface UserRow {
 export type PushPlatform = 'ios' | 'android' | 'web';
 export interface PermissionsSummary {
   total_users: number;
+  uninstalls_proxy: { today: number; since_tracking: number; note: string };
   push: { active: number; none: number; ios: number; android: number; web: number };
   location: { gps: number; gps_fresh: number; city_only: number; ip_only: number; none: number; fresh_days: number };
   combined: { both: number; only_push: number; only_location: number; neither: number };
