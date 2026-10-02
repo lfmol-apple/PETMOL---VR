@@ -163,12 +163,20 @@ async def upload_pet_photo(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Upload de foto do pet — passa por moderação por IA obrigatória
-    (ver `moderation/service.py`) antes de qualquer URL pública existir."""
-    from ..moderation import ModerationRejected, PENDING_MESSAGE, REJECTED_MESSAGE, moderate_upload
+    """Upload de foto do pet — publica NA HORA (não trava esperando o
+    Gemini, que em produção já levou até ~20s e deixava o cadastro de pet
+    "travado" — achado real, 02/10/2026) e roda a moderação por IA em
+    segundo plano; se reprovada depois, a foto é removida automaticamente
+    (ver `moderation/service.py::_finish_optimistic_moderation`)."""
+    from ..moderation import ModerationRejected, REJECTED_MESSAGE, moderate_upload
 
     pet = _get_pet_or_404(db, user.id, pet_id)
     raw = await file.read()
+    # Guardado ANTES da chamada — `moderate_upload` (publish_immediately)
+    # já grava e commita `pet.photo` ele mesmo, na mesma sessão, antes de
+    # disparar a classificação em segundo plano (evita corrida com um
+    # eventual reverso rápido demais — ver moderation/service.py).
+    old_photo = pet.photo
 
     try:
         outcome = await moderate_upload(
@@ -179,22 +187,15 @@ async def upload_pet_photo(
             entity_id=pet.id,
             uploader_user_id=str(user.id),
             uploader_ip=(request.client.host if request.client else None),
+            publish_immediately=True,
         )
     except ModerationRejected as exc:
         raise HTTPException(status_code=422, detail=REJECTED_MESSAGE) from exc
 
-    if outcome.status == "pending":
-        return {"status": "pending", "message": PENDING_MESSAGE}
-
-    # Aprovada — só agora troca a foto antiga (nunca antes de ter uma nova
-    # foto aprovada pra substituir, senão um upload recusado deixaria o
-    # pet sem foto nenhuma).
-    if pet.photo:
-        delete_pet_photo(pet.photo)
-    pet.photo = outcome.public_key
-
-    db.commit()
-    db.refresh(pet)
+    # Só agora troca a foto antiga (nunca antes de ter uma nova foto pra
+    # substituir, senão um upload recusado deixaria o pet sem foto nenhuma).
+    if old_photo and old_photo != outcome.public_key:
+        delete_pet_photo(old_photo)
 
     return {"status": "approved", "photo_url": f"/uploads/{outcome.public_key}"}
 

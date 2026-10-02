@@ -6,8 +6,10 @@ própria mais.
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
+import threading
 import time
 import uuid
 from collections import defaultdict
@@ -129,11 +131,20 @@ async def moderate_upload(
     entity_id: Optional[str] = None,
     uploader_user_id: Optional[str] = None,
     uploader_ip: Optional[str] = None,
+    publish_immediately: bool = False,
 ) -> ModerationOutcome:
     """Ponto único de entrada. Levanta `ModerationRejected` se a foto for
     recusada (o chamador decide como comunicar isso — normalmente 422 com
     `REJECTED_MESSAGE`). Nunca levanta por causa da IA estar fora do ar —
-    nesse caso a decisão é sempre "pending", auditada como tal."""
+    nesse caso a decisão é sempre "pending", auditada como tal.
+
+    `publish_immediately` (achado real, 02/10/2026 — cadastro de pet
+    travando ~20s esperando o Gemini): publica a foto sanitizada NA HORA e
+    roda a classificação em segundo plano (`_finish_optimistic_moderation`);
+    se for reprovada depois, a foto pública é removida. Só pra
+    `pet_profile` — missing_pet_alert/pet_sighting continuam síncronos de
+    propósito (alcance público/push imediato, risco maior de mostrar algo
+    impróprio por alguns segundos antes de reverter)."""
     if context not in PUBLIC_PREFIX_BY_CONTEXT:
         raise ValueError(f"contexto de moderação desconhecido: {context}")
 
@@ -144,10 +155,53 @@ async def moderate_upload(
     # HTTPException (400/413) sozinha se não for uma imagem de verdade.
     sanitized = sanitize_image(raw_bytes)
 
+    key = f"{uuid.uuid4().hex}.jpg"
+
+    if publish_immediately:
+        public_prefix = PUBLIC_PREFIX_BY_CONTEXT[context]
+        public_key = f"{public_prefix}/{key}"
+        # promote_to_public move da área de revisão pra pública — precisa
+        # existir lá primeiro, mesmo caminho do fluxo síncrono.
+        review_storage.save_pending(key, sanitized.bytes_, content_type=sanitized.content_type)
+        review_storage.promote_to_public(key, public_key, content_type=sanitized.content_type)
+        record = PhotoModerationDecision(
+            context=context,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            uploader_user_id=uploader_user_id,
+            storage_key=key,
+            content_type=sanitized.content_type,
+            byte_size=len(sanitized.bytes_),
+            status=APPROVED,
+            ai_reason="publicada otimista — classificação em segundo plano ainda não terminou",
+            upload_ip_hash=_ip_hash(uploader_ip),
+            final_public_key=public_key,
+        )
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+
+        # Grava a foto na entidade (hoje só "pet") e COMMITA antes de
+        # disparar a thread — tem que acontecer-antes do possível reverso
+        # em segundo plano, senão é uma corrida de verdade: se a IA
+        # responder rápido demais, a thread pode reverter ANTES deste
+        # commit, e este commit reescreveria por cima o reverso.
+        if entity_type == "pet" and entity_id:
+            from ..pets.models import Pet
+            pet_row = db.query(Pet).filter(Pet.id == entity_id).first()
+            if pet_row:
+                pet_row.photo = public_key
+                db.commit()
+
+        threading.Thread(
+            target=_finish_optimistic_moderation,
+            args=(record.id, sanitized.bytes_, sanitized.content_type, public_key, key, abuse_key, entity_id),
+            daemon=True,
+        ).start()
+        return ModerationOutcome(status=APPROVED, decision_id=record.id, public_key=public_key, public_url_path=public_key)
+
     # 2) Classificação por IA + decisão determinística.
     decision, classification, ai_unavailable = await classify_and_decide(sanitized.bytes_)
-
-    key = f"{uuid.uuid4().hex}.jpg"
 
     record = PhotoModerationDecision(
         context=context,
@@ -218,3 +272,84 @@ async def moderate_upload(
         public_key=public_key,
         public_url_path=public_key,
     )
+
+
+def _finalize_rejected_background(
+    db: Session, record: PhotoModerationDecision, classification: dict,
+    sanitized_bytes: bytes, key: str, abuse_key: str, public_key: str, entity_id: Optional[str],
+) -> None:
+    """Mesma lógica do ramo REJECTED síncrono (registra abuso, guarda a
+    foto pra revisão se não for sensível, limpa expiradas) — só que sem
+    `raise` (ninguém está esperando a resposta) e desfazendo a publicação
+    otimista: apaga o arquivo público e tira a foto do pet, se ainda for
+    essa a atual (o tutor pode ter trocado de novo nesse meio tempo)."""
+    from ..pets.models import Pet
+    from ..pets.upload import delete_pet_photo
+
+    _register_rejection(abuse_key)
+    if not is_sensitive(classification):
+        try:
+            review_storage.save_pending(key, sanitized_bytes, content_type=record.content_type)
+            record.image_retained = True
+        except Exception:  # noqa: BLE001 — guardar é best-effort
+            logger.warning("Não foi possível guardar a foto recusada pra revisão (otimista)", exc_info=True)
+    record.status = REJECTED
+    db.add(record)
+    db.commit()
+    try:
+        purge_expired_rejected_images(db)
+    except Exception:  # noqa: BLE001
+        logger.warning("Falha ao limpar fotos recusadas antigas", exc_info=True)
+
+    delete_pet_photo(public_key)
+    if entity_id:
+        pet = db.query(Pet).filter(Pet.id == entity_id).first()
+        if pet and pet.photo == public_key:
+            pet.photo = None
+            db.commit()
+    logger.warning(
+        "Moderação (otimista) REJEITOU foto já publicada — removida (context=%s, motivo=%s, entity_id=%s)",
+        record.context, record.ai_reason, entity_id,
+    )
+
+
+def _finish_optimistic_moderation(
+    decision_id: str, sanitized_bytes: bytes, content_type: str,
+    public_key: str, key: str, abuse_key: str, entity_id: Optional[str],
+) -> None:
+    """Roda em thread separada, depois que a resposta HTTP de
+    `publish_immediately=True` já foi enviada. Nunca derruba o processo —
+    falha aqui só fica no log, a foto continua publicada como estava."""
+    from ..db import SessionLocal
+
+    try:
+        decision, classification, ai_unavailable = asyncio.run(classify_and_decide(sanitized_bytes))
+    except Exception:  # noqa: BLE001
+        logger.exception("Classificação em segundo plano falhou (decision_id=%s)", decision_id)
+        return
+
+    db = SessionLocal()
+    try:
+        record = db.query(PhotoModerationDecision).filter(PhotoModerationDecision.id == decision_id).first()
+        if not record:
+            return
+        record.ai_decision = decision.ai_decision
+        record.ai_reason = decision.reason
+        record.ai_confidence = classification.get("confidence") if classification else None
+        record.ai_species = classification.get("species") if classification else None
+        record.ai_image_type = classification.get("image_type") if classification else None
+        record.ai_is_main_subject = classification.get("pet_is_main_subject") if classification else None
+        record.ai_flags_json = flags_json(classification) if classification else None
+        record.ai_unavailable = ai_unavailable
+
+        if decision.status == REJECTED:
+            _finalize_rejected_background(db, record, classification, sanitized_bytes, key, abuse_key, public_key, entity_id)
+        else:
+            # Aprovada de verdade, ou "pending" (IA indisponível/ambígua) —
+            # nos dois casos a foto JÁ está pública (publicação otimista);
+            # só grava o resultado da IA pra auditoria, sem desfazer nada.
+            db.add(record)
+            db.commit()
+            logger.info("Moderação (otimista) confirmou a foto (status_ia=%s, entity_id=%s)", decision.status, entity_id)
+    finally:
+        db.close()
