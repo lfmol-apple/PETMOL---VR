@@ -27,7 +27,6 @@ const CTA = 'w-full py-4 bg-gradient-to-r from-[#0066ff] to-[#0056D2] text-white
 const DEFAULT_CHECKIN_DAY = 1;
 const DEFAULT_CHECKIN_HOUR = 20;
 const DEFAULT_CHECKIN_MINUTE = 0;
-const NOTIFICATION_CONSENTS_KEY = 'petmol_notification_consents_v1';
 
 interface TutorData {
   id: string;
@@ -208,32 +207,12 @@ export default function ProfilePage() {
       setGeoLoading(false);
     }
   };
-  const [notificationConsents, setNotificationConsents] = useState({ health: true, operational: true, offers: false });
   const [checkinSaving, setCheckinSaving] = useState(false);
   const [checkinSaved, setCheckinSaved] = useState(false);
 
   useEffect(() => {
     loadTutorData();
   }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    try {
-      const saved = JSON.parse(window.localStorage.getItem(NOTIFICATION_CONSENTS_KEY) || '{}');
-      setNotificationConsents((prev) => ({ ...prev, ...saved }));
-    } catch {
-      // Local preference fallback only.
-    }
-  }, []);
-
-  const updateNotificationConsent = (key: keyof typeof notificationConsents, value: boolean) => {
-    setNotificationConsents((prev) => {
-      const next = { ...prev, [key]: value };
-      window.localStorage.setItem(NOTIFICATION_CONSENTS_KEY, JSON.stringify(next));
-      return next;
-    });
-  };
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location.hash === '#checkin') {
@@ -849,49 +828,54 @@ export default function ProfilePage() {
                       </span>
                     </div>
 
-                    <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
-                      <p className="text-sm font-black text-slate-900">Quais notificações deseja receber?</p>
-                      <div className="mt-3 grid gap-2">
-                        {[
-                          { key: 'health', label: 'Saúde' },
-                          { key: 'operational', label: 'Operacional (ração)' },
-                          { key: 'offers', label: 'Ofertas' },
-                        ].map((item) => (
-                          <label key={item.key} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
-                            <span className="text-sm font-semibold text-slate-700">{item.label}</span>
-                            <input
-                              type="checkbox"
-                              checked={notificationConsents[item.key as keyof typeof notificationConsents]}
-                              onChange={(e) => updateNotificationConsent(item.key as keyof typeof notificationConsents, e.target.checked)}
+                    {/* Localização para alertas de Pet Sumido — logo abaixo de
+                        "Notificações no celular" de propósito: quem chega
+                        aqui pelo e-mail de ativação já está no clima de
+                        ativar algo, e dá pra fazer os dois gatilhos (push e
+                        localização) de uma vez só, sem precisar rolar a
+                        tela toda. */}
+                    {(() => {
+                      const onFile = tutorData?.lat != null && tutorData?.lng != null;
+                      const bySource = tutorData?.location_source;
+                      return (
+                        <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
+                          <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
+                            <span>
+                              <span className="block text-sm font-semibold text-slate-700">Compartilhar localização</span>
+                              <span className="block text-[11px] font-medium text-slate-400">(Para pets sumidos)</span>
+                            </span>
+                            <PreferenceSwitch
+                              checked={onFile}
+                              disabled={geoLoading || geoStatus === 'denied'}
+                              onToggle={() => {
+                                if (onFile) void handleStopSharing();
+                                else void handleRequestGeo();
+                              }}
                             />
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <p className="text-sm font-black text-slate-900">Uso de IA para fotos</p>
-                          <p className="mt-1 text-xs font-medium leading-relaxed text-slate-500">
-                            Autoriza o PETMOL a enviar fotos escolhidas por você ao Google Gemini para leitura automática.
-                          </p>
+                          </div>
+                          {geoStatus === 'denied' && (
+                            <p className="mt-2 text-[11px] font-medium text-rose-600">
+                              Bloqueada — libere nas configurações do celular.
+                            </p>
+                          )}
+                          {onFile && bySource !== 'gps' && (
+                            <button
+                              type="button"
+                              onClick={() => void handleRequestGeo()}
+                              disabled={geoLoading}
+                              className="mt-2 text-[11px] font-bold text-blue-600 underline underline-offset-2 disabled:opacity-40"
+                            >
+                              Melhorar precisão (usar GPS)
+                            </button>
+                          )}
+                          {!onFile && geoStatus !== 'denied' && (
+                            <p className="mt-2 text-[11px] text-slate-400">
+                              Sem isso, você não recebe alerta de pet sumido na sua região.
+                            </p>
+                          )}
                         </div>
-                        <span className={`flex-shrink-0 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${aiPhotoConsentGranted ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                          {aiPhotoConsentLoading ? 'Verificando' : aiPhotoConsentGranted ? 'Ativo' : 'Inativo'}
-                        </span>
-                      </div>
-                      {aiPhotoConsentGranted && (
-                        <button
-                          type="button"
-                          onClick={() => void handleRevokeAiPhotoConsent()}
-                          disabled={aiPhotoConsentLoading}
-                          className="mt-3 w-full rounded-xl bg-slate-100 py-2.5 text-xs font-black uppercase tracking-widest text-slate-600 transition-all active:scale-[0.98] disabled:opacity-40"
-                        >
-                          Revogar uso de IA para fotos
-                        </button>
-                      )}
-                    </div>
+                      );
+                    })()}
 
                     {pushFeedback && (
                       <div className={`mt-3 rounded-2xl px-4 py-3 text-xs font-bold ${pushFeedback.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
@@ -959,52 +943,29 @@ export default function ProfilePage() {
                       )}
                     </div>
 
-                    {/* Localização para alertas de Pet Sumido — logo abaixo de
-                        "Ativar notificações" de propósito: quem chega aqui já
-                        está no clima de ativar algo, e esse é o 2º gatilho
-                        mais importante (o 1º é a notificação em si). */}
-                    {(() => {
-                      const onFile = tutorData?.lat != null && tutorData?.lng != null;
-                      const bySource = tutorData?.location_source;
-                      return (
-                        <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
-                          <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
-                            <span>
-                              <span className="block text-sm font-semibold text-slate-700">Compartilhar localização</span>
-                              <span className="block text-[11px] font-medium text-slate-400">(Para pets sumidos)</span>
-                            </span>
-                            <PreferenceSwitch
-                              checked={onFile}
-                              disabled={geoLoading || geoStatus === 'denied'}
-                              onToggle={() => {
-                                if (onFile) void handleStopSharing();
-                                else void handleRequestGeo();
-                              }}
-                            />
-                          </div>
-                          {geoStatus === 'denied' && (
-                            <p className="mt-2 text-[11px] font-medium text-rose-600">
-                              Bloqueada — libere nas configurações do celular.
-                            </p>
-                          )}
-                          {onFile && bySource !== 'gps' && (
-                            <button
-                              type="button"
-                              onClick={() => void handleRequestGeo()}
-                              disabled={geoLoading}
-                              className="mt-2 text-[11px] font-bold text-blue-600 underline underline-offset-2 disabled:opacity-40"
-                            >
-                              Melhorar precisão (usar GPS)
-                            </button>
-                          )}
-                          {!onFile && geoStatus !== 'denied' && (
-                            <p className="mt-2 text-[11px] text-slate-400">
-                              Sem isso, você não recebe alerta de pet sumido na sua região.
-                            </p>
-                          )}
+                    <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-black text-slate-900">Uso de IA para fotos</p>
+                          <p className="mt-1 text-xs font-medium leading-relaxed text-slate-500">
+                            Autoriza o PETMOL a enviar fotos escolhidas por você ao Google Gemini para leitura automática.
+                          </p>
                         </div>
-                      );
-                    })()}
+                        <span className={`flex-shrink-0 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${aiPhotoConsentGranted ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                          {aiPhotoConsentLoading ? 'Verificando' : aiPhotoConsentGranted ? 'Ativo' : 'Inativo'}
+                        </span>
+                      </div>
+                      {aiPhotoConsentGranted && (
+                        <button
+                          type="button"
+                          onClick={() => void handleRevokeAiPhotoConsent()}
+                          disabled={aiPhotoConsentLoading}
+                          className="mt-3 w-full rounded-xl bg-slate-100 py-2.5 text-xs font-black uppercase tracking-widest text-slate-600 transition-all active:scale-[0.98] disabled:opacity-40"
+                        >
+                          Revogar uso de IA para fotos
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                 </div>
