@@ -10,6 +10,7 @@ import { MonetizedOffersList } from '@/features/commerce/MonetizedOffersList';
 import { AffiliateCatalogSearch } from '@/features/commerce/AffiliateCatalogSearch';
 import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { ReminderPicker } from '@/components/ReminderPicker';
+import { DateField } from '@/components/ui/DateField';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { scheduleUniqueReminder, buildRemindAt } from '@/features/notifications/pushService';
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
@@ -771,13 +772,12 @@ export function ParasiteItemSheet({
                 <>
                   <div>
                     <label className={labelCls}>Data *</label>
-                    <input
-                      type="date"
-                      className={inputCls}
+                    <DateField
+                      inputClassName={`${inputCls} pr-11 tabular-nums`}
                       value={applyForm.date}
-                      onChange={e => setApplyForm(f => ({
+                      onChange={(iso) => setApplyForm(f => ({
                         ...f,
-                        date: e.target.value,
+                        date: iso,
                       }))}
                     />
                   </div>
@@ -844,11 +844,10 @@ export function ParasiteItemSheet({
                 <div className="flex items-start gap-2.5">
                   <div className="min-w-0 flex-1">
                     <label className={accentLabelCls}>Data</label>
-                    <input
-                      type="date"
-                      className={inputCls}
+                    <DateField
+                      inputClassName={`${inputCls} pr-11 tabular-nums`}
                       value={editForm.date_applied}
-                      onChange={e => setEditForm(f => ({ ...f, date_applied: e.target.value }))}
+                      onChange={(iso) => setEditForm(f => ({ ...f, date_applied: iso }))}
                     />
                   </div>
                   <div className="w-[120px] flex-shrink-0">

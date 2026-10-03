@@ -7,6 +7,7 @@ import { IosSwitch } from '@/components/ui/IosSwitch';
 import type { ParasiteControl, ParasiteControlType } from '@/lib/types/home';
 import type { ParasiteFormData } from '@/lib/types/homeForms';
 import { dateToLocalISO } from '@/lib/localDate';
+import { DateField } from '@/components/ui/DateField';
 
 interface HealthParasiteControlPanelProps {
   petName?: string;
@@ -152,11 +153,10 @@ export function HealthParasiteControlPanel({
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   {parasiteFormData.type === 'collar' ? t('parasite.collar_date') : t('parasite.application_date')} *
                 </label>
-                <input
-                  type="date"
+                <DateField
                   value={parasiteFormData.date_applied}
-                  onChange={(e) => setParasiteFormData((prev) => ({ ...prev, date_applied: e.target.value }))}
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm"
+                  onChange={(iso) => setParasiteFormData((prev) => ({ ...prev, date_applied: iso }))}
+                  inputClassName="w-full p-2 pr-10 border border-gray-300 rounded-lg tabular-nums focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm"
                 />
               </div>
               <div>

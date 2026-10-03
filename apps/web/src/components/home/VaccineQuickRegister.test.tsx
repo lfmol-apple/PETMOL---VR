@@ -31,19 +31,24 @@ afterEach(() => {
 });
 
 const dateInput = () => screen.getByLabelText(/Data da aplicação/) as HTMLInputElement;
+/** O DateField some o input nativo (sem label) só pra abrir o calendário — o teclado digita no campo mascarado. */
+const nativeDateInput = () => document.querySelector('input[type="date"]') as HTMLInputElement;
+/** Simula o tutor digitando no campo mascarado (DDMMAAAA), não colando um valor ISO. */
+const isoToTyped = (iso: string) => { const [y, m, d] = iso.split('-'); return `${d}${m}${y}`; };
+const isoToBr = (iso: string) => { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}`; };
 
 describe('VaccineDateStep', () => {
   it('sugere hoje, mostra a data claramente e não deixa escolher o futuro', () => {
     render(<VaccineDateStep vaccineName="Antirrábica" onSave={vi.fn()} />);
-    expect(dateInput().value).toBe('2026-09-24');
-    expect(dateInput().max).toBe('2026-09-24');
+    expect(dateInput().value).toBe(isoToBr('2026-09-24'));
+    expect(nativeDateInput().max).toBe('2026-09-24');
     expect(screen.getByText(/A próxima dose é calculada a partir dela/)).toBeTruthy();
   });
 
   it('data futura ou apagada desabilita Salvar e avisa', () => {
     const onSave = vi.fn();
     render(<VaccineDateStep vaccineName="Antirrábica" onSave={onSave} />);
-    fireEvent.change(dateInput(), { target: { value: '2026-09-25' } });
+    fireEvent.change(dateInput(), { target: { value: isoToTyped('2026-09-25') } });
     expect((screen.getByText('Salvar vacina') as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByRole('alert').textContent).toMatch(/não pode ser no futuro/);
     fireEvent.change(dateInput(), { target: { value: '' } });
@@ -68,13 +73,13 @@ describe('Registro rápido (modal) — escolher a vacina NÃO salva; a data é d
   it('tocar na vacina só abre o passo de data (nada gravado)', () => {
     const { handle } = open();
     expect(handle).not.toHaveBeenCalled();
-    expect(dateInput().value).toBe('2026-09-24');
+    expect(dateInput().value).toBe(isoToBr('2026-09-24'));
     expect(screen.queryByText('Esse mês')).toBeNull();     // data "1º do mês" inventada saiu
   });
 
   it.each(CASES)('vacina aplicada %s (%s) é salva com essa data exata', async (_l, iso) => {
     const { handle } = open();
-    fireEvent.change(dateInput(), { target: { value: iso } });
+    fireEvent.change(dateInput(), { target: { value: isoToTyped(iso) } });
     fireEvent.click(screen.getByText('Salvar vacina'));
     await waitFor(() => expect(handle).toHaveBeenCalledTimes(1));
     expect(handle.mock.calls[0][0]).toMatchObject({ type: 'multiple', code: 'DOG_POLYVALENT_V8' });
@@ -115,14 +120,14 @@ describe('Carteirinha — o chip do registro rápido não grava mais direto com 
     const { onDirectSaveVaccine } = openSheet();
     fireEvent.click(screen.getByText('Antirrábica'));
     expect(onDirectSaveVaccine).not.toHaveBeenCalled();
-    expect(dateInput().value).toBe('2026-09-24');
+    expect(dateInput().value).toBe(isoToBr('2026-09-24'));
     expect(screen.getByText('Cancelar')).toBeTruthy();
   });
 
   it.each(CASES)('vacina aplicada %s (%s): salva com a data escolhida', async (_l, iso) => {
     const { onDirectSaveVaccine } = openSheet();
     fireEvent.click(screen.getByText('Antirrábica'));
-    fireEvent.change(dateInput(), { target: { value: iso } });
+    fireEvent.change(dateInput(), { target: { value: isoToTyped(iso) } });
     fireEvent.click(screen.getByText('Salvar vacina'));
     await waitFor(() => expect(onDirectSaveVaccine).toHaveBeenCalledTimes(1));
     expect(onDirectSaveVaccine.mock.calls[0][0]).toMatchObject({ type: 'rabies', code: 'rabies' });

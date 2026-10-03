@@ -47,6 +47,14 @@ describe('DateField', () => {
     expect(input.value).toBe('04/07/1998');
   });
 
+  it('apagar o campo inteiro avisa o formulário (campo opcional limpo)', () => {
+    const onChange = vi.fn();
+    render(<DateField value="2026-01-15" onChange={onChange} />);
+    const input = screen.getByPlaceholderText('DD/MM/AAAA');
+    fireEvent.change(input, { target: { value: '' } });
+    expect(onChange).toHaveBeenCalledWith('');
+  });
+
   it('botão de calendário existe e é independente do campo de texto', () => {
     render(<Controlled />);
     expect(screen.getByRole('button', { name: 'Abrir calendário' })).toBeTruthy();

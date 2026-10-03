@@ -10,6 +10,7 @@ import type { GroomingRecord, ParasiteControl } from '@/lib/types/home';
 import { buildPetCareReminders, resolveCareCTA } from '@/lib/petCareDomain';
 import { dateToLocalISO } from '@/lib/localDate';
 import { CARE_STATE } from '@/lib/careState';
+import { DateField } from '@/components/ui/DateField';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 const createLocalDate = (dateStr: string): Date => {
@@ -276,11 +277,10 @@ export function RemindersSection({
                 {isExpanded && (
                   <div className="px-3 pb-3 pt-1 border-t border-gray-100 bg-white/80">
                     <div className="flex flex-col gap-2">
-                      <input
-                        type="date"
+                      <DateField
                         value={quickMarkDate}
-                        onChange={e => setQuickMarkDate(e.target.value)}
-                        className="w-full text-[12px] border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-400"
+                        onChange={setQuickMarkDate}
+                        inputClassName="w-full text-[12px] border border-gray-200 rounded-lg px-2.5 py-1.5 pr-9 tabular-nums focus:outline-none focus:border-blue-400"
                       />
                       <input
                         type="text"

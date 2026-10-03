@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { localTodayISO } from '@/lib/localDate';
 import { isValidAppliedOn } from '@/lib/vaccineQuickDate';
+import { DateField } from '@/components/ui/DateField';
 
 /**
  * Passo "Quando foi aplicada?" do registro rápido de vacina — o tutor VÊ a
@@ -47,13 +48,12 @@ export function VaccineDateStep({
         <label htmlFor="quick-vaccine-date" className="block text-sm font-medium text-gray-700 mb-1.5">
           Data da aplicação *
         </label>
-        <input
+        <DateField
           id="quick-vaccine-date"
-          type="date"
           value={date}
           max={today}
-          onChange={(e) => setDate(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-[#0056D2] focus:border-transparent"
+          onChange={setDate}
+          inputClassName="w-full px-3 py-2 pr-11 border border-gray-300 rounded-lg bg-white tabular-nums focus:ring-2 focus:ring-[#0056D2] focus:border-transparent"
         />
         <p className="mt-1 text-[11px] text-slate-500">
           Sugerimos hoje — se foi antes, troque pela data da carteirinha. A próxima dose é calculada a partir dela.
