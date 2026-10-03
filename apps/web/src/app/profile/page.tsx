@@ -849,71 +849,6 @@ export default function ProfilePage() {
                       </span>
                     </div>
 
-                    {/* Localização para alertas de Pet Sumido — independente do push */}
-                    {(() => {
-                      const hasPreciseFix = geoStatus === 'granted';
-                      const onFile = tutorData?.lat != null && tutorData?.lng != null;
-                      const bySource = tutorData?.location_source;
-                      return (
-                        <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-black text-slate-900">Localização para alertas</p>
-                              <p className="mt-0.5 text-xs text-slate-500 leading-relaxed">
-                                Para você ser avisado se um pet sumir perto de você.
-                              </p>
-                            </div>
-                            <span className={`ml-3 flex-shrink-0 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${
-                              onFile ? 'bg-emerald-50 text-emerald-700' :
-                              geoStatus === 'denied' ? 'bg-rose-50 text-rose-700' :
-                                                       'bg-amber-50 text-amber-700'
-                            }`}>
-                              {onFile ? (bySource === 'gps' ? 'Precisa' : 'Aproximada') : geoStatus === 'denied' ? 'Bloqueada' : 'Não definida'}
-                            </span>
-                          </div>
-                          {(!onFile || bySource !== 'gps') && (
-                            <button
-                              type="button"
-                              onClick={() => void handleRequestGeo()}
-                              disabled={geoLoading || geoStatus === 'denied'}
-                              className="mt-3 w-full rounded-xl bg-blue-600 py-2.5 text-xs font-black uppercase tracking-widest text-white transition-all active:scale-[0.98] disabled:opacity-40"
-                            >
-                              {geoLoading ? 'Aguardando...'
-                                : geoStatus === 'denied' ? 'Bloqueada — libere nas configurações do celular'
-                                : onFile ? 'Melhorar precisão (usar GPS)'
-                                : 'Compartilhar localização'}
-                            </button>
-                          )}
-                          {onFile && (
-                            <p className="mt-2 text-[11px] text-emerald-600 font-medium">
-                              {bySource === 'gps'
-                                ? 'Alertas de pets sumidos na sua área ativados (localização precisa).'
-                                : 'Alertas ativados pela sua cidade. Toque acima para usar o GPS e receber alertas mais precisos.'}
-                            </p>
-                          )}
-                          {onFile && bySource === 'gps' && (
-                            <>
-                              <p className="mt-1 text-[11px] leading-snug text-slate-400">
-                                Ao abrir o app, a posição é atualizada sozinha (só a última, sem histórico). Você controla isso aqui.
-                              </p>
-                              <button
-                                type="button"
-                                onClick={() => void handleStopSharing()}
-                                className="mt-2 text-[11px] font-bold text-rose-600 underline underline-offset-2"
-                              >
-                                Parar de compartilhar minha localização
-                              </button>
-                            </>
-                          )}
-                          {!onFile && !hasPreciseFix && (
-                            <p className="mt-2 text-[11px] text-slate-400">
-                              Sem isso, você não recebe alerta de pet sumido na sua região.
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })()}
-
                     <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
                       <p className="text-sm font-black text-slate-900">Quais notificações deseja receber?</p>
                       <div className="mt-3 grid gap-2">
@@ -1023,6 +958,54 @@ export default function ProfilePage() {
                         </p>
                       )}
                     </div>
+
+                    {/* Localização para alertas de Pet Sumido — logo abaixo de
+                        "Ativar notificações" de propósito: quem chega aqui já
+                        está no clima de ativar algo, e esse é o 2º gatilho
+                        mais importante (o 1º é a notificação em si). */}
+                    {(() => {
+                      const onFile = tutorData?.lat != null && tutorData?.lng != null;
+                      const bySource = tutorData?.location_source;
+                      return (
+                        <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
+                          <label className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
+                            <span>
+                              <span className="block text-sm font-semibold text-slate-700">Compartilhar localização</span>
+                              <span className="block text-[11px] font-medium text-slate-400">(Para pets sumidos)</span>
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={onFile}
+                              disabled={geoLoading || geoStatus === 'denied'}
+                              onChange={(e) => {
+                                if (e.target.checked) void handleRequestGeo();
+                                else void handleStopSharing();
+                              }}
+                            />
+                          </label>
+                          {geoStatus === 'denied' && (
+                            <p className="mt-2 text-[11px] font-medium text-rose-600">
+                              Bloqueada — libere nas configurações do celular.
+                            </p>
+                          )}
+                          {onFile && bySource !== 'gps' && (
+                            <button
+                              type="button"
+                              onClick={() => void handleRequestGeo()}
+                              disabled={geoLoading}
+                              className="mt-2 text-[11px] font-bold text-blue-600 underline underline-offset-2 disabled:opacity-40"
+                            >
+                              Melhorar precisão (usar GPS)
+                            </button>
+                          )}
+                          {!onFile && geoStatus !== 'denied' && (
+                            <p className="mt-2 text-[11px] text-slate-400">
+                              Sem isso, você não recebe alerta de pet sumido na sua região.
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                 </div>
