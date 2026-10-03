@@ -968,21 +968,20 @@ export default function ProfilePage() {
                       const bySource = tutorData?.location_source;
                       return (
                         <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
-                          <label className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
+                          <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
                             <span>
                               <span className="block text-sm font-semibold text-slate-700">Compartilhar localização</span>
                               <span className="block text-[11px] font-medium text-slate-400">(Para pets sumidos)</span>
                             </span>
-                            <input
-                              type="checkbox"
+                            <PreferenceSwitch
                               checked={onFile}
                               disabled={geoLoading || geoStatus === 'denied'}
-                              onChange={(e) => {
-                                if (e.target.checked) void handleRequestGeo();
-                                else void handleStopSharing();
+                              onToggle={() => {
+                                if (onFile) void handleStopSharing();
+                                else void handleRequestGeo();
                               }}
                             />
-                          </label>
+                          </div>
                           {geoStatus === 'denied' && (
                             <p className="mt-2 text-[11px] font-medium text-rose-600">
                               Bloqueada — libere nas configurações do celular.
