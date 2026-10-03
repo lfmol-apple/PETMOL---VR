@@ -266,27 +266,36 @@ def _email_copy_push_location(name: Optional[str], pet_names: list[str]) -> tupl
     """Texto final escrito pelo dono (03/10/2026) — retorna (subject,
     body_text, body_html); o HTML existe só pra renderizar o negrito/emoji
     do texto original em clientes de e-mail de verdade, o texto puro é
-    idêntico em conteúdo (fallback de quem não renderiza HTML)."""
+    idêntico em conteúdo (fallback de quem não renderiza HTML).
+
+    Concordância verbal (03/10/2026): quem tem mais de um pet cadastrado
+    (ex: "Mel e Rex") precisa de verbo no plural — "não sabem", "têm",
+    "se percam" — nunca a forma no singular copiada pra cada pet."""
     saudacao_tutor = name.split(" ")[0] if name else ""
     saudacao = f"Oi, {saudacao_tutor}!" if saudacao_tutor else "Oi!"
-    pet = _pet_phrase(pet_names) if pet_names else "seu pet"
-    subject = f"{pet} já tem o seu carinho. Agora falta ativar as notificações"
+    nomes = [n for n in pet_names if n]
+    plural = len(nomes) > 1
+    pet = _pet_phrase(pet_names) if nomes else "seu pet"
+    nao_sabe = "não sabem" if plural else "não sabe"
+    tem = "têm" if plural else "tem"
+    perca = "se percam" if plural else "se perca"
+    subject = f"{pet} já {tem} o seu carinho. Agora falta ativar as notificações"
 
     body_text = (
         f"{saudacao}\n\n"
-        f"{pet} não sabe conferir a data da próxima vacina nem avisar que a ração está "
-        "acabando. Mas tem você para cuidar de tudo isso — e foi para ajudar nesse "
-        "cuidado que criamos o PETMOL.\n\n"
+        f"{pet} {nao_sabe} conferir a data da próxima vacina nem avisar que a ração "
+        f"está acabando. Mas {tem} você para cuidar de tudo isso — e foi para ajudar "
+        "nesse cuidado que criamos o PETMOL.\n\n"
         "O app é gratuito, sem anúncios. E sabemos como é chato receber notificações o "
         "tempo todo só para comprar alguma coisa. Também não gostamos disso.\n\n"
         "Pedimos que você ative as notificações para que os avisos importantes cheguem "
         "na hora certa: o lembrete de uma vacina, a previsão de quando a ração vai "
-        f"acabar ou uma informação de que alguém avistou {pet}, caso um dia se perca.\n\n"
+        f"acabar ou uma informação de que alguém avistou {pet}, caso um dia {perca}.\n\n"
         "Com as notificações desativadas, você pode deixar de receber um aviso "
         "justamente quando mais precisar.\n\n"
         'Leva só 10 segundos: abra o PETMOL, toque no seu perfil e depois em "Ativar '
         'notificações".\n\n'
-        f"{pet} já tem o mais importante: o seu carinho. Deixe o PETMOL ajudar você a "
+        f"{pet} já {tem} o mais importante: o seu carinho. Deixe o PETMOL ajudar você a "
         "cuidar dos detalhes.\n\n"
         "Equipe PETMOL"
     )
@@ -296,21 +305,21 @@ def _email_copy_push_location(name: Optional[str], pet_names: list[str]) -> tupl
     body_html = (
         '<div style="font-family:Arial,sans-serif;font-size:15px;color:#1f2937;line-height:1.6;max-width:480px">'
         f"<p>{saudacao_html}</p>"
-        f"<p>{pet_html} não sabe conferir a data da próxima vacina nem avisar que a ração "
-        "está acabando. Mas tem você para cuidar de tudo isso — e foi para ajudar nesse "
-        "cuidado que criamos o PETMOL.</p>"
+        f"<p>{pet_html} {nao_sabe} conferir a data da próxima vacina nem avisar que a "
+        f"ração está acabando. Mas {tem} você para cuidar de tudo isso — e foi para "
+        "ajudar nesse cuidado que criamos o PETMOL.</p>"
         "<p>O app é gratuito, sem anúncios. E sabemos como é chato receber notificações "
         "o tempo todo só para comprar alguma coisa. Também não gostamos disso.</p>"
         "<p><strong>Pedimos que você ative as notificações para que os avisos "
         "importantes cheguem na hora certa:</strong> o lembrete de uma vacina, a "
         "previsão de quando a ração vai acabar ou uma informação de que alguém avistou "
-        f"{pet_html}, caso um dia se perca.</p>"
+        f"{pet_html}, caso um dia {perca}.</p>"
         "<p>Com as notificações desativadas, você pode deixar de receber um aviso "
         "justamente quando mais precisar.</p>"
         '<p><strong>Leva só 10 segundos: abra o PETMOL, toque no seu perfil e depois em '
         '"Ativar notificações".</strong></p>'
-        f"<p>{pet_html} já tem o mais importante: o seu carinho. Deixe o PETMOL ajudar "
-        "você a cuidar dos detalhes. 💛</p>"
+        f"<p>{pet_html} já {tem} o mais importante: o seu carinho. Deixe o PETMOL "
+        "ajudar você a cuidar dos detalhes. 💛</p>"
         "<p>Equipe PETMOL</p>"
         "</div>"
     )
