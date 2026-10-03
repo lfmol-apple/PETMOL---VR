@@ -45,6 +45,13 @@ describe('middleware — isPublic não deve liberar rotas autenticadas por acide
     expect(isPublic('/google')).toBe(false);
     expect(isPublic('/rgpf')).toBe(false);
   });
+
+  it('cartaz e formulário do Pet Sumido são públicos — quem acha o pet não tem conta', () => {
+    expect(isPublic('/pet-perdido/algum-slug-de-pet')).toBe(true);
+    expect(isPublic('/reportar-pet-perdido')).toBe(true);
+    // query string (?status=token) não faz parte do pathname — segue batendo exato.
+    expect(isPublic('/pet-perdido-fake')).toBe(false);
+  });
 });
 
 describe('middleware — comercial da landing (mp4) para visitante sem login', () => {
