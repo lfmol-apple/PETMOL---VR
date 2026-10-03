@@ -222,23 +222,19 @@ STATE_PUSH_LOCATION: dict = {"phase": "idle", "started_at": None, "finished_at":
 _lock_push_location = threading.Lock()
 
 
-# Quem abriu o app há poucos dias ainda vai ver o pedido CONTEXTUAL em tela
-# (Pet Sumido/Vacina/Ração) na próxima visita, então mandar e-mail também
-# seria redundante — mas "poucos dias" é curto de propósito: ajustado de 14
-# pra 3 (03/10/2026, pedido do dono) pra alcançar inatividade bem mais rápido.
-_INACTIVITY_THRESHOLD_DAYS = 3
-
-
 def _target_users_push_location(db) -> list[dict]:
-    """Sem push ativo E sem localização compartilhada E sem abrir o app nos
-    últimos `_INACTIVITY_THRESHOLD_DAYS` dias (ou nunca apareceu em
-    analytics) — quem ainda abre o app com frequência já é alcançado pelos
-    pedidos contextuais em tela. Só e-mail: por definição ninguém aqui tem
-    dispositivo de push ativo."""
+    """Sem push ativo — ponto. Alcance máximo por decisão do dono
+    (03/10/2026): os mesmos que o painel de Permissões conta como "sem
+    nenhum push" (ex: 191 de 340) devem receber, não importa se já
+    compartilham localização nem há quanto tempo não abrem o app — essa
+    campanha deixou de ser sobre quem os pedidos contextuais em tela nunca
+    alcançam, e passou a ser sobre quem nunca ligou push, independente do
+    resto. `_run_push_location` filtra depois quem já recebeu antes
+    (ActivationCampaignContact), pra um segundo disparo não repetir gente."""
     now = datetime.now(timezone.utc)
     candidates = (
         db.query(User.id, User.name, User.email)
-        .filter(~has_any_push(User.id), ~shares_location())
+        .filter(~has_any_push(User.id))
         .all()
     )
     ids = [str(u.id) for u in candidates]
@@ -258,8 +254,6 @@ def _target_users_push_location(db) -> list[dict]:
         if not email:
             continue
         seen = _aware(last_seen.get(str(user_id)))
-        if seen is not None and (now - seen).total_seconds() / 86400.0 <= _INACTIVITY_THRESHOLD_DAYS:
-            continue
         out.append({
             "user_id": str(user_id), "name": name, "email": email,
             "pet_names": pet_names_by_user.get(str(user_id), []),
@@ -327,6 +321,14 @@ def _run_push_location(dry_run: bool) -> None:
     db = SessionLocal()
     try:
         targets = _target_users_push_location(db)
+        # Quem já recebeu essa campanha antes (envio real anterior) não
+        # recebe de novo — sem isso, alargar o segmento e disparar outra vez
+        # reenviaria pra quem já foi contactado.
+        already_contacted = {
+            str(uid) for (uid,) in db.query(ActivationCampaignContact.user_id)
+            .filter(ActivationCampaignContact.campaign == CAMPAIGN_PUSH_LOCATION).all()
+        }
+        targets = [t for t in targets if t["user_id"] not in already_contacted]
         result = {"total": len(targets), "dry_run": dry_run}
         if not dry_run:
             sent_email = failed_email = 0
