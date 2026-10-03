@@ -1,7 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Check, Home, Trash2, X } from 'lucide-react';
+import { Bell, Check, Home, Trash2, X } from 'lucide-react';
+import { ActivationAskSheet } from './ActivationAskSheet';
+import { useOneTimeAsk } from '@/features/interactions/useOneTimeAsk';
+import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import type { ParasiteControl } from '@/lib/types/home';
@@ -171,6 +174,9 @@ export function ParasiteItemSheet({
   // dispensar o scanner, ou escolher preencher na mão — scan é o caminho
   // feliz, não só uma opção ao lado de um form já visível.
   const [showManualForm, setShowManualForm] = useState(false);
+
+  const { permission: pushPermission, requestPermission: requestPushPermission, subscribeToPush } = useNotificationPermissionController();
+  const pushAsk = useOneTimeAsk('petmol_parasite_push_ask_v1', pushPermission === 'default');
 
   useEffect(() => {
     void onRefresh();
@@ -490,6 +496,19 @@ export function ParasiteItemSheet({
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
+    <>
+    <ActivationAskSheet
+      open={pushAsk.open}
+      icon={<Bell className="h-5 w-5" strokeWidth={2.2} />}
+      title="Ative as notificações"
+      body="Pra você não perder a data de aplicar de novo — o PETMOL avisa sozinho quando estiver na hora do próximo vermífugo, antipulgas ou troca de coleira."
+      ctaLabel="Ativar notificações"
+      onActivate={async () => {
+        const granted = await requestPushPermission();
+        if (granted) await subscribeToPush();
+      }}
+      onDismiss={pushAsk.dismiss}
+    />
     <SheetShell open onClose={onClose} hideHandle tone="cream" z={SHEET_Z.base}>
       {/* Success overlay */}
       {justSaved && (
@@ -1025,5 +1044,6 @@ export function ParasiteItemSheet({
         </div>
       )}
     </SheetShell>
+    </>
   );
 }

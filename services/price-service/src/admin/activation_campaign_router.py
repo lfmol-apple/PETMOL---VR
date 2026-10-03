@@ -246,12 +246,15 @@ def _target_users_push_location(db) -> list[dict]:
 def _email_copy_push_location(name: Optional[str], pet_names: list[str]) -> tuple[str, str]:
     saudacao = f"Oi {name.split(' ')[0]}" if name else "Oi"
     pet = _pet_phrase(pet_names) if pet_names else "seu pet"
-    subject = "Você pode estar perdendo avisos importantes do PETMOL"
+    subject = f"{pet} conta só com você pra lembrar disso"
     body = (
-        f"{saudacao}, notamos que as notificações e a localização do PETMOL ainda estão "
-        f"desativadas na sua conta. Sem isso, {pet} não recebe aviso quando uma vacina ou a "
-        "ração está vencendo, e você não é avisado se um pet sumir perto de você. Leva 10 "
-        'segundos: abra o app, toque no seu perfil e em "Ativar notificações".'
+        f"{saudacao}. {pet} não tem como checar sozinho(a) se uma vacina está vencendo, se "
+        "a ração vai acabar, ou pedir ajuda se um dia se perder por aí — isso depende "
+        "inteiramente de alguém lembrar por ele(a). Hoje essa parte do cuidado está "
+        "desligada na sua conta: as notificações e a localização do PETMOL ainda não foram "
+        f"ativadas, e sem elas {pet} fica sem essa rede de proteção bem quando mais precisar "
+        'dela. Leva 10 segundos pra religar isso: abra o app, toque no seu perfil e em '
+        '"Ativar notificações".'
     )
     return subject, body
 
