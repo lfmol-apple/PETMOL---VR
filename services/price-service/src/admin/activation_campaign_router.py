@@ -39,6 +39,7 @@ import hmac
 import logging
 import threading
 import uuid
+from html import escape
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -267,21 +268,59 @@ def _target_users_push_location(db) -> list[dict]:
     return out
 
 
-def _email_copy_push_location(name: Optional[str], pet_names: list[str]) -> tuple[str, str]:
-    saudacao = f"Oi {name.split(' ')[0]}" if name else "Oi"
+def _email_copy_push_location(name: Optional[str], pet_names: list[str]) -> tuple[str, str, str]:
+    """Texto final escrito pelo dono (03/10/2026) — retorna (subject,
+    body_text, body_html); o HTML existe só pra renderizar o negrito/emoji
+    do texto original em clientes de e-mail de verdade, o texto puro é
+    idêntico em conteúdo (fallback de quem não renderiza HTML)."""
+    saudacao_tutor = name.split(" ")[0] if name else ""
+    saudacao = f"Oi, {saudacao_tutor}!" if saudacao_tutor else "Oi!"
     pet = _pet_phrase(pet_names) if pet_names else "seu pet"
-    subject = f"Isso é importante pra {pet}: ative as notificações do PETMOL"
-    body = (
-        f"{saudacao}. O PETMOL é gratuito, sem anúncio, e não é o tipo de app que fica "
-        "mandando notificação atrás de notificação só pra vender alguma coisa — pensamos "
-        "assim porque também não gostamos disso. Mas existe um motivo pro qual ele pede "
-        "pra você ativar as notificações: é assim que avisamos na hora certa quando uma "
-        f"vacina está vencendo, a ração de {pet} vai acabar, ou se alguém perto de você "
-        f"avistar {pet} caso ele(a) se perca um dia. Sem isso ativado, esse cuidado "
-        "simplesmente não chega até você. Leva 10 segundos: abra o app, toque no seu "
-        'perfil e em "Ativar notificações". É um pedido simples, mas muito importante.'
+    subject = f"{pet} já tem o seu carinho. Agora falta ativar as notificações"
+
+    body_text = (
+        f"{saudacao}\n\n"
+        f"{pet} não sabe conferir a data da próxima vacina nem avisar que a ração está "
+        "acabando. Mas tem você para cuidar de tudo isso — e foi para ajudar nesse "
+        "cuidado que criamos o PETMOL.\n\n"
+        "O app é gratuito, sem anúncios. E sabemos como é chato receber notificações o "
+        "tempo todo só para comprar alguma coisa. Também não gostamos disso.\n\n"
+        "Pedimos que você ative as notificações para que os avisos importantes cheguem "
+        "na hora certa: o lembrete de uma vacina, a previsão de quando a ração vai "
+        f"acabar ou uma informação de que alguém avistou {pet}, caso um dia se perca.\n\n"
+        "Com as notificações desativadas, você pode deixar de receber um aviso "
+        "justamente quando mais precisar.\n\n"
+        'Leva só 10 segundos: abra o PETMOL, toque no seu perfil e depois em "Ativar '
+        'notificações".\n\n'
+        f"{pet} já tem o mais importante: o seu carinho. Deixe o PETMOL ajudar você a "
+        "cuidar dos detalhes.\n\n"
+        "Equipe PETMOL"
     )
-    return subject, body
+
+    pet_html = escape(pet)
+    saudacao_html = escape(saudacao)
+    body_html = (
+        '<div style="font-family:Arial,sans-serif;font-size:15px;color:#1f2937;line-height:1.6;max-width:480px">'
+        f"<p>{saudacao_html}</p>"
+        f"<p>{pet_html} não sabe conferir a data da próxima vacina nem avisar que a ração "
+        "está acabando. Mas tem você para cuidar de tudo isso — e foi para ajudar nesse "
+        "cuidado que criamos o PETMOL.</p>"
+        "<p>O app é gratuito, sem anúncios. E sabemos como é chato receber notificações "
+        "o tempo todo só para comprar alguma coisa. Também não gostamos disso.</p>"
+        "<p><strong>Pedimos que você ative as notificações para que os avisos "
+        "importantes cheguem na hora certa:</strong> o lembrete de uma vacina, a "
+        "previsão de quando a ração vai acabar ou uma informação de que alguém avistou "
+        f"{pet_html}, caso um dia se perca.</p>"
+        "<p>Com as notificações desativadas, você pode deixar de receber um aviso "
+        "justamente quando mais precisar.</p>"
+        '<p><strong>Leva só 10 segundos: abra o PETMOL, toque no seu perfil e depois em '
+        '"Ativar notificações".</strong></p>'
+        f"<p>{pet_html} já tem o mais importante: o seu carinho. Deixe o PETMOL ajudar "
+        "você a cuidar dos detalhes. 💛</p>"
+        "<p>Equipe PETMOL</p>"
+        "</div>"
+    )
+    return subject, body_text, body_html
 
 
 def _run_push_location(dry_run: bool) -> None:
@@ -292,8 +331,8 @@ def _run_push_location(dry_run: bool) -> None:
         if not dry_run:
             sent_email = failed_email = 0
             for t in targets:
-                subject, body = _email_copy_push_location(t["name"], t["pet_names"])
-                if send_mail(to=t["email"], subject=subject, body_text=body):
+                subject, body_text, body_html = _email_copy_push_location(t["name"], t["pet_names"])
+                if send_mail(to=t["email"], subject=subject, body_text=body_text, body_html=body_html):
                     sent_email += 1
                     db.add(ActivationCampaignContact(campaign=CAMPAIGN_PUSH_LOCATION, user_id=t["user_id"]))
                 else:
