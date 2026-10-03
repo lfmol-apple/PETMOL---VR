@@ -38,16 +38,17 @@ from __future__ import annotations
 import hmac
 import logging
 import threading
+import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import Column, DateTime, String, func
 
 from ..analytics.models import AnalyticsProductEvent
 from ..config import get_settings
-from ..db import SessionLocal
+from ..db import Base, SessionLocal
 from ..mailer import send_mail
 from ..notifications import push_to_user
 from ..pets.models import Pet
@@ -62,6 +63,23 @@ router = APIRouter(prefix="/v1/admin/campaigns", tags=["Admin Campaigns"])
 
 STATE: dict = {"phase": "idle", "started_at": None, "finished_at": None, "result": None, "error": None}
 _lock = threading.Lock()
+
+
+class ActivationCampaignContact(Base):
+    """Registro DURÁVEL de quem foi contactado por qual campanha de
+    ativação, e quando — único jeito de medir conversão depois (comparando
+    o estado de push/localização na hora do envio, que por definição do
+    segmento era "nenhum dos dois", com o estado atual). Só grava envio
+    real (dry_run=False); um dry-run não contacta ninguém de verdade."""
+    __tablename__ = "activation_campaign_contacts"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    campaign = Column(String(40), nullable=False, index=True)
+    user_id = Column(String(36), nullable=False, index=True)
+    sent_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+CAMPAIGN_PUSH_LOCATION = "push_location"
 
 
 class RunRequest(BaseModel):
@@ -271,8 +289,10 @@ def _run_push_location(dry_run: bool) -> None:
                 subject, body = _email_copy_push_location(t["name"], t["pet_names"])
                 if send_mail(to=t["email"], subject=subject, body_text=body):
                     sent_email += 1
+                    db.add(ActivationCampaignContact(campaign=CAMPAIGN_PUSH_LOCATION, user_id=t["user_id"]))
                 else:
                     failed_email += 1
+            db.commit()
             result.update(sent_email=sent_email, failed_email=failed_email)
 
         with _lock_push_location:
@@ -303,3 +323,43 @@ def run_push_location_activation(payload: RunRequest, x_sync_token: Optional[str
 @router.get("/push-location-activation/status")
 def push_location_activation_status(current=Depends(get_current_admin_or_readonly_key)):
     return STATE_PUSH_LOCATION
+
+
+@router.get("/push-location-activation/conversion")
+def push_location_activation_conversion(current=Depends(get_current_admin_or_readonly_key)):
+    """Quantos de quem recebeu o e-mail de verdade (ActivationCampaignContact,
+    só grava em envio real) JÁ ativaram push e/ou localização desde então —
+    por definição do segmento, ninguém contactado tinha nenhum dos dois na
+    hora do envio, então qualquer estado atual positivo é conversão."""
+    db = SessionLocal()
+    try:
+        contacted = (
+            db.query(ActivationCampaignContact.user_id, func.min(ActivationCampaignContact.sent_at))
+            .filter(ActivationCampaignContact.campaign == CAMPAIGN_PUSH_LOCATION)
+            .group_by(ActivationCampaignContact.user_id)
+            .all()
+        )
+        if not contacted:
+            return {
+                "campaign": CAMPAIGN_PUSH_LOCATION, "contacted_total": 0,
+                "converted_push": 0, "converted_location": 0, "converted_either": 0,
+                "last_contacted_at": None,
+            }
+        user_ids = [str(uid) for uid, _ in contacted]
+        last_contacted_at = max(sent_at for _, sent_at in contacted)
+        converted_push_ids = {
+            str(uid) for (uid,) in db.query(User.id).filter(User.id.in_(user_ids), has_any_push(User.id)).all()
+        }
+        converted_location_ids = {
+            str(uid) for (uid,) in db.query(User.id).filter(User.id.in_(user_ids), shares_location()).all()
+        }
+        return {
+            "campaign": CAMPAIGN_PUSH_LOCATION,
+            "contacted_total": len(user_ids),
+            "converted_push": len(converted_push_ids),
+            "converted_location": len(converted_location_ids),
+            "converted_either": len(converted_push_ids | converted_location_ids),
+            "last_contacted_at": last_contacted_at.isoformat() if last_contacted_at else None,
+        }
+    finally:
+        db.close()
