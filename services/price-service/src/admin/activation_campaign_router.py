@@ -408,3 +408,24 @@ def push_location_activation_conversion(current=Depends(get_current_admin_or_rea
         }
     finally:
         db.close()
+
+
+class PreviewEmailRequest(BaseModel):
+    to: str
+    tutor_name: Optional[str] = None
+    pet_names: list[str] = []
+
+
+@router.post("/push-location-activation/preview")
+def push_location_activation_preview(
+    payload: PreviewEmailRequest,
+    x_sync_token: Optional[str] = Header(default=None, alias="X-Sync-Token"),
+):
+    """Manda o e-mail REAL deste degrau pra um endereço qualquer (ex: o
+    próprio dono), sem entrar na lógica de segmento nem no registro de
+    conversão — só pra conferir como chega de verdade na caixa de entrada.
+    Mesmo token de escrita da campanha (nunca um disparo "de graça")."""
+    _authorize(x_sync_token)
+    subject, body_text, body_html = _email_copy_push_location(payload.tutor_name, payload.pet_names)
+    ok = send_mail(to=payload.to, subject=subject, body_text=body_text, body_html=body_html)
+    return {"sent": ok, "to": payload.to, "subject": subject}
