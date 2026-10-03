@@ -21,6 +21,8 @@ const PUBLIC_PATHS = [
   '/invite/',
   '/achei-um-pet',
   '/cuidar/',
+  '/pet-perdido/',
+  '/reportar-pet-perdido',
   '/loja',
   '/guias',
   '/recommendations',
