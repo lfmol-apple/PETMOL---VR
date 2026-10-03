@@ -351,3 +351,33 @@ def test_push_location_conversion_reflete_ativacao_depois_do_envio_real(monkeypa
     assert after["converted_push"] == 1
     assert after["converted_either"] == 1
     assert after["last_contacted_at"] is not None
+
+
+def test_push_location_preview_manda_pra_qualquer_endereco_sem_mexer_em_segmento_ou_conversao(monkeypatch, client):
+    """Preview é só conferência (ex: o dono mandando pra própria caixa) —
+    não entra no cálculo de segmento nem vira contato registrado."""
+    _enable_token(monkeypatch)
+    sent = {"email": []}
+    monkeypatch.setattr("src.admin.activation_campaign_router.send_mail",
+                        lambda **kw: sent["email"].append(kw) or True)
+
+    headers = {"X-Sync-Token": TOKEN}
+    r = client.post("/v1/admin/campaigns/push-location-activation/preview", json={
+        "to": "dono@example.com", "tutor_name": "Leonardo", "pet_names": ["Marley"],
+    }, headers=headers)
+    assert r.status_code == 200, r.text
+    assert r.json()["sent"] is True
+    assert len(sent["email"]) == 1
+    assert sent["email"][0]["to"] == "dono@example.com"
+    assert "Marley" in sent["email"][0]["body_text"]
+    assert "body_html" in sent["email"][0] and "Marley" in sent["email"][0]["body_html"]
+
+    readonly_headers = {"X-Admin-Api-Key": READONLY_KEY}
+    conv = client.get("/v1/admin/campaigns/push-location-activation/conversion", headers=readonly_headers).json()
+    assert conv["contacted_total"] == 0  # preview não vira contato de campanha
+
+
+def test_push_location_preview_sem_token_recusa_com_401(client):
+    r = client.post("/v1/admin/campaigns/push-location-activation/preview",
+                     json={"to": "qualquer@example.com"}, headers={"X-Sync-Token": "errado"})
+    assert r.status_code == 401
