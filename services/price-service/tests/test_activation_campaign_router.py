@@ -424,7 +424,7 @@ def test_push_location_respeita_lote_e_pausa_entre_lotes(monkeypatch, client):
     _enable_token(monkeypatch)
     monkeypatch.setattr("src.admin.activation_campaign_router.send_mail", lambda **kw: True)
     sleeps: list[float] = []
-    monkeypatch.setattr("src.admin.activation_campaign_router.time.sleep", lambda s: sleeps.append(s))
+    monkeypatch.setattr("src.admin.activation_campaign_router._sleep", lambda s: sleeps.append(s))
 
     db = SessionLocal()
     try:

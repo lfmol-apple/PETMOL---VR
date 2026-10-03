@@ -38,7 +38,7 @@ from __future__ import annotations
 import hmac
 import logging
 import threading
-import time
+from time import sleep as _sleep
 import uuid
 from html import escape
 from datetime import datetime, timezone
@@ -367,7 +367,7 @@ def _run_push_location(dry_run: bool, batch_size: int = 10, batch_pause_seconds:
                     }
                 is_last = (i + 1) == len(targets)
                 if not is_last and (i + 1) % batch_size == 0:
-                    time.sleep(batch_pause_seconds)
+                    _sleep(batch_pause_seconds)
             result.update(sent_email=sent_email, failed_email=failed_email)
 
         with _lock_push_location:
