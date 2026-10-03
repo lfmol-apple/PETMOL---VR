@@ -12,10 +12,31 @@ from __future__ import annotations
 import logging
 import os
 import smtplib
+from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 logger = logging.getLogger(__name__)
+
+# Diagnóstico temporário (sem SSH pra ler logs do servidor) — mesmo padrão
+# já usado pra APNs/FCM (ver notifications/apns.py). Guarda o erro REAL do
+# SMTP pra cada tentativa, pra investigar disparos em massa (ex: campanhas)
+# sem precisar entrar no servidor. Lido via GET /v1/admin/debug/mailer-log.
+_RECENT_ATTEMPTS: list = []
+
+
+def get_recent_mailer_attempts() -> list:
+    return list(_RECENT_ATTEMPTS)
+
+
+def _log_attempt(to: str, ok: bool, error: str = "") -> None:
+    _RECENT_ATTEMPTS.append({
+        "at": datetime.now(timezone.utc).isoformat(),
+        "to": to,
+        "ok": ok,
+        "error": error,
+    })
+    del _RECENT_ATTEMPTS[:-200]
 
 
 def smtp_configured() -> bool:
@@ -64,7 +85,9 @@ def send_mail(
             smtp.login(user, password)
             smtp.sendmail(from_addr or user, [to], msg.as_string())
         logger.info("mailer: e-mail entregue em %s (%s)", to, subject)
+        _log_attempt(to, ok=True)
         return True
     except Exception as exc:
         logger.error("mailer: falha ao enviar para %s: %s", to, exc)
+        _log_attempt(to, ok=False, error=str(exc))
         return False
