@@ -391,3 +391,27 @@ def test_push_location_preview_sem_token_recusa_com_401(client):
     r = client.post("/v1/admin/campaigns/push-location-activation/preview",
                      json={"to": "qualquer@example.com"}, headers={"X-Sync-Token": "errado"})
     assert r.status_code == 401
+
+
+def test_push_location_preview_concordancia_plural_com_mais_de_um_pet(monkeypatch, client):
+    """"Mel e Rex" tem que vir com verbo no plural — "não sabem", "têm",
+    "se percam" — nunca a forma singular copiada pra dois pets."""
+    _enable_token(monkeypatch)
+    sent = {"email": []}
+    monkeypatch.setattr("src.admin.activation_campaign_router.send_mail",
+                        lambda **kw: sent["email"].append(kw) or True)
+
+    headers = {"X-Sync-Token": TOKEN}
+    r = client.post("/v1/admin/campaigns/push-location-activation/preview", json={
+        "to": "dois@example.com", "tutor_name": "Leonardo", "pet_names": ["Mel", "Rex"],
+    }, headers=headers)
+    assert r.status_code == 200, r.text
+
+    body = sent["email"][0]["body_text"]
+    assert "Mel e Rex não sabem" in body
+    assert "Mas têm você" in body
+    assert "caso um dia se percam" in body
+    assert "Mel e Rex já têm o mais importante" in body
+    # formas singulares não podem sobrar coladas no texto plural
+    assert "não sabe " not in body
+    assert "se perca." not in body
