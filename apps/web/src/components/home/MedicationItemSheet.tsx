@@ -6,7 +6,10 @@ import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { parsePetEventExtraData, type PetEventRecord } from '@/lib/petEvents';
 import { extractMedicationBarcode } from '@/lib/petCareDomain';
-import { Check, Home, Trash2, X } from 'lucide-react';
+import { Bell, Check, Home, Trash2, X } from 'lucide-react';
+import { ActivationAskSheet } from './ActivationAskSheet';
+import { useOneTimeAsk } from '@/features/interactions/useOneTimeAsk';
+import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
 import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { CARE_STATE } from '@/lib/careState';
@@ -381,6 +384,9 @@ export function MedicationItemSheet({
   // dispensar o scanner, ou escolher preencher na mão — scan é o caminho
   // feliz, não só uma opção ao lado de um form já visível.
   const [showManualForm, setShowManualForm] = useState(false);
+
+  const { permission: pushPermission, requestPermission: requestPushPermission, subscribeToPush } = useNotificationPermissionController();
+  const pushAsk = useOneTimeAsk('petmol_medication_push_ask_v1', pushPermission === 'default');
 
   useEffect(() => {
     void onRefresh();
@@ -770,6 +776,19 @@ export function MedicationItemSheet({
       : 'Nenhuma medicação';
 
   return (
+    <>
+    <ActivationAskSheet
+      open={pushAsk.open}
+      icon={<Bell className="h-5 w-5" strokeWidth={2.2} />}
+      title="Ative as notificações"
+      body="Pra você não perder a hora do próximo remédio — o PETMOL avisa sozinho quando a dose estiver chegando."
+      ctaLabel="Ativar notificações"
+      onActivate={async () => {
+        const granted = await requestPushPermission();
+        if (granted) await subscribeToPush();
+      }}
+      onDismiss={pushAsk.dismiss}
+    />
     <SheetShell open onClose={onClose} hideHandle z={SHEET_Z.top}>
         {/* Success overlay */}
         {justSaved && (
@@ -1502,6 +1521,7 @@ export function MedicationItemSheet({
           </div>
         )}
     </SheetShell>
+    </>
   );
 }
 

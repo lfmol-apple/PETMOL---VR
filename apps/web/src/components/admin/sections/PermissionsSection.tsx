@@ -9,8 +9,54 @@
  * reorganiza num painel próprio, mais visível.
  */
 import { adminGet, type PermissionsSummary } from '@/lib/admin/analyticsApi';
+import { campaignsGet, type ActivationConversion } from '@/lib/admin/campaignsApi';
 import { useAsync, Loading, ErrorBox, numberFmt } from './sections';
 import { PermissionsHistory } from './PermissionsHistory';
+
+/** Conversão do degrau 2 (e-mail de push+localização, PR #592/#601) — quantos
+ * de quem recebeu o e-mail de verdade já ativaram algo desde então. Pedido
+ * isolado do resto do painel: se esse fetch falhar, o resto da tela continua
+ * de pé (ninguém perde os números de hoje por causa de um card a mais). */
+function ActivationConversionCard() {
+  const { data, error, loading } = useAsync<ActivationConversion>(
+    () => campaignsGet('/push-location-activation/conversion'), [],
+  );
+
+  if (loading) return null;
+  if (error || !data) return null;
+  if (data.contacted_total === 0) return null;
+
+  const pct = (n: number) => `${Math.round((n / data.contacted_total) * 100)}%`;
+
+  return (
+    <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-blue-700">
+        Conversão do e-mail &quot;ative as notificações&quot;
+      </p>
+      <div className="mt-2 grid grid-cols-3 gap-3 text-center">
+        <div>
+          <p className="text-2xl font-extrabold text-slate-800 tabular-nums">{numberFmt(data.contacted_total)}</p>
+          <p className="text-[11px] font-semibold text-slate-500">receberam o e-mail</p>
+        </div>
+        <div>
+          <p className="text-2xl font-extrabold text-emerald-700 tabular-nums">
+            {numberFmt(data.converted_either)} <span className="text-sm font-bold text-emerald-600">({pct(data.converted_either)})</span>
+          </p>
+          <p className="text-[11px] font-semibold text-slate-500">ativaram algo desde então</p>
+        </div>
+        <div className="text-left">
+          <p className="text-[12px] text-slate-600">🔔 Push: <b className="text-slate-800">{numberFmt(data.converted_push)}</b></p>
+          <p className="text-[12px] text-slate-600">📍 Localização: <b className="text-slate-800">{numberFmt(data.converted_location)}</b></p>
+        </div>
+      </div>
+      {data.last_contacted_at && (
+        <p className="mt-2 text-[11px] text-blue-700/70">
+          Último envio: {new Date(data.last_contacted_at).toLocaleString('pt-BR')}
+        </p>
+      )}
+    </div>
+  );
+}
 
 export function PermissionsSection() {
   const { data, error, loading } = useAsync<PermissionsSummary>(() => adminGet('/permissions/summary'), []);
@@ -76,6 +122,8 @@ export function PermissionsSection() {
         </div>
         <p className="mt-2 text-[12px] leading-relaxed text-amber-800/80">{data.uninstalls_proxy.note}</p>
       </div>
+
+      <ActivationConversionCard />
 
       <PermissionsHistory />
 

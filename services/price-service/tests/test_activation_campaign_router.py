@@ -268,3 +268,66 @@ def test_pet_com_alimentacao_configurada_nao_entra_na_campanha(monkeypatch, clie
     client.post("/v1/admin/campaigns/food-activation/run", json={"dry_run": False}, headers=headers)
     _wait_done(client)
     assert email not in sent_emails
+
+
+def test_push_location_dry_run_nao_registra_contato_nenhum(monkeypatch, client):
+    """dry_run nunca contacta ninguém de verdade — o endpoint de conversão
+    tem que continuar zerado depois de um dry run."""
+    _enable_token(monkeypatch)
+    monkeypatch.setattr("src.admin.activation_campaign_router.send_mail", lambda **kw: True)
+
+    db = SessionLocal()
+    try:
+        uid = _mk_user(db, email=f"dryconv.{uuid.uuid4().hex[:6]}@example.com", name="Tutor Dry")
+        _mk_pet(db, user_id=uid, name="Dry")
+        _mk_event(db, user_id=uid, days_ago=90)
+    finally:
+        db.close()
+
+    headers = {"X-Sync-Token": TOKEN}
+    client.post("/v1/admin/campaigns/push-location-activation/run", json={"dry_run": True}, headers=headers)
+    _wait_done_push_location(client)
+
+    r = client.get("/v1/admin/campaigns/push-location-activation/conversion",
+                    headers={"X-Admin-Api-Key": READONLY_KEY})
+    assert r.status_code == 200, r.text
+    assert r.json()["contacted_total"] == 0
+
+
+def test_push_location_conversion_reflete_ativacao_depois_do_envio_real(monkeypatch, client):
+    """Envia de verdade pra um tutor sem push/localização; o endpoint de
+    conversão deve mostrar 1 contactado e 0 convertido. Depois o tutor ativa
+    o push (mesmo sem a campanha rodar de novo) — a conversão tem que subir
+    pra 1, porque ela lê o estado ATUAL, não uma foto do dia do envio."""
+    _enable_token(monkeypatch)
+    monkeypatch.setattr("src.admin.activation_campaign_router.send_mail", lambda **kw: True)
+
+    db = SessionLocal()
+    try:
+        uid = _mk_user(db, email=f"convertido.{uuid.uuid4().hex[:6]}@example.com", name="Tutor Convertido")
+        _mk_pet(db, user_id=uid, name="Amora")
+        _mk_event(db, user_id=uid, days_ago=90)
+    finally:
+        db.close()
+
+    headers = {"X-Sync-Token": TOKEN}
+    client.post("/v1/admin/campaigns/push-location-activation/run", json={"dry_run": False}, headers=headers)
+    _wait_done_push_location(client)
+
+    readonly_headers = {"X-Admin-Api-Key": READONLY_KEY}
+    before = client.get("/v1/admin/campaigns/push-location-activation/conversion", headers=readonly_headers).json()
+    assert before["contacted_total"] == 1
+    assert before["converted_push"] == 0
+    assert before["converted_either"] == 0
+
+    db = SessionLocal()
+    try:
+        _mk_push_subscription(db, user_id=uid)
+    finally:
+        db.close()
+
+    after = client.get("/v1/admin/campaigns/push-location-activation/conversion", headers=readonly_headers).json()
+    assert after["contacted_total"] == 1
+    assert after["converted_push"] == 1
+    assert after["converted_either"] == 1
+    assert after["last_contacted_at"] is not None

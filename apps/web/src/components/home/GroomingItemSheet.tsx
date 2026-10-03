@@ -4,7 +4,10 @@ import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import type { GroomingRecord, GroomingType } from '@/lib/types/home';
-import { Check, Home, Trash2, X } from 'lucide-react';
+import { Bell, Check, Home, Trash2, X } from 'lucide-react';
+import { ActivationAskSheet } from './ActivationAskSheet';
+import { useOneTimeAsk } from '@/features/interactions/useOneTimeAsk';
+import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
 import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { ReminderPicker } from '@/components/ReminderPicker';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
@@ -133,6 +136,9 @@ export function GroomingItemSheet({
   const [toast, setToast] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [justSaved, setJustSaved] = useState(false);
+
+  const { permission: pushPermission, requestPermission: requestPushPermission, subscribeToPush } = useNotificationPermissionController();
+  const pushAsk = useOneTimeAsk('petmol_grooming_push_ask_v1', pushPermission === 'default');
 
   useEffect(() => {
     void onRefresh();
@@ -375,6 +381,19 @@ export function GroomingItemSheet({
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
+    <>
+    <ActivationAskSheet
+      open={pushAsk.open}
+      icon={<Bell className="h-5 w-5" strokeWidth={2.2} />}
+      title="Ative as notificações"
+      body="Pra você não perder a data do próximo banho e tosa — o PETMOL avisa sozinho quando estiver chegando perto."
+      ctaLabel="Ativar notificações"
+      onActivate={async () => {
+        const granted = await requestPushPermission();
+        if (granted) await subscribeToPush();
+      }}
+      onDismiss={pushAsk.dismiss}
+    />
     <SheetShell open onClose={onClose} hideHandle tone="grey" z={SHEET_Z.base}>
         {/* Success overlay */}
         {justSaved && (
@@ -891,5 +910,6 @@ export function GroomingItemSheet({
           </div>
         )}
     </SheetShell>
+    </>
   );
 }
