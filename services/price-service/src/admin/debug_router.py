@@ -44,6 +44,7 @@ from ..notifications.apns import (
     send_apns,
 )
 from ..notifications.fcm import fcm_configured, get_recent_fcm_attempts, send_fcm
+from ..mailer import get_recent_mailer_attempts, smtp_configured
 from .deps import get_current_admin_or_readonly_key
 
 router = APIRouter(prefix="/v1/admin/debug", tags=["Admin Debug"])
@@ -252,6 +253,15 @@ def fcm_log(_auth=Depends(get_current_admin_or_readonly_key)):
     `native_push_tokens` de /user pra achar de qual usuário/device é.
     Diagnóstico temporário, ver notifications/fcm.py."""
     return {"configured": fcm_configured(), "attempts": get_recent_fcm_attempts()}
+
+
+@router.get("/mailer-log")
+def mailer_log(_auth=Depends(get_current_admin_or_readonly_key)):
+    """Últimas tentativas reais de envio por e-mail (erro real do SMTP, não
+    só "falhou") — criado 03/10/2026 pra investigar uma falha em massa
+    (111 de 136) numa campanha, sem precisar de SSH pro servidor.
+    Diagnóstico temporário, ver mailer.py."""
+    return {"smtp_configured": smtp_configured(), "attempts": get_recent_mailer_attempts()}
 
 
 @router.post("/fcm-test")
