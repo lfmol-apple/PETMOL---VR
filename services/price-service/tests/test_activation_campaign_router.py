@@ -223,6 +223,26 @@ def test_push_location_dry_run_so_conta_dormente_sem_push_sem_localizacao(monkey
     assert sent["email"] == []  # dry run não envia nada
 
 
+def test_push_location_alcanca_quem_abriu_ha_mais_de_3_dias(monkeypatch, client):
+    """Ajuste de 14 pra 3 dias (03/10/2026): quem não abre há 5 dias já
+    entra na campanha — com a regra antiga (14 dias) ficaria de fora."""
+    _enable_token(monkeypatch)
+    monkeypatch.setattr("src.admin.activation_campaign_router.send_mail", lambda **kw: True)
+
+    db = SessionLocal()
+    try:
+        uid = _mk_user(db, email=f"cincodias.{uuid.uuid4().hex[:6]}@example.com", name="Tutor Cinco Dias")
+        _mk_pet(db, user_id=uid, name="Pingo")
+        _mk_event(db, user_id=uid, days_ago=5)
+    finally:
+        db.close()
+
+    headers = {"X-Sync-Token": TOKEN}
+    client.post("/v1/admin/campaigns/push-location-activation/run", json={"dry_run": True}, headers=headers)
+    status = _wait_done_push_location(client)
+    assert status["result"]["total"] == 1
+
+
 def test_push_location_send_de_verdade_manda_so_email_com_nome_do_pet(monkeypatch, client):
     _enable_token(monkeypatch)
     sent = {"email": []}
