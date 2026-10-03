@@ -415,3 +415,28 @@ def test_push_location_preview_concordancia_plural_com_mais_de_um_pet(monkeypatc
     # formas singulares não podem sobrar coladas no texto plural
     assert "não sabe " not in body
     assert "se perca." not in body
+
+
+def test_push_location_respeita_lote_e_pausa_entre_lotes(monkeypatch, client):
+    """Achado real 03/10/2026: a Hostinger rejeita envio em rajada (451
+    Ratelimit). Com batch_size=2 e 5 alvos, espera-se pausa depois do 2º e
+    do 4º envio (não depois do último — a campanha termina, não pausa à toa)."""
+    _enable_token(monkeypatch)
+    monkeypatch.setattr("src.admin.activation_campaign_router.send_mail", lambda **kw: True)
+    sleeps: list[float] = []
+    monkeypatch.setattr("src.admin.activation_campaign_router.time.sleep", lambda s: sleeps.append(s))
+
+    db = SessionLocal()
+    try:
+        for i in range(5):
+            uid = _mk_user(db, email=f"lote{i}.{uuid.uuid4().hex[:6]}@example.com", name=f"Tutor {i}")
+            _mk_pet(db, user_id=uid, name=f"Pet{i}")
+    finally:
+        db.close()
+
+    headers = {"X-Sync-Token": TOKEN}
+    client.post("/v1/admin/campaigns/push-location-activation/run",
+                json={"dry_run": False, "batch_size": 2, "batch_pause_seconds": 7}, headers=headers)
+    status = _wait_done_push_location(client)
+    assert status["result"]["sent_email"] == 5
+    assert sleeps == [7, 7]  # pausa após o 2º e o 4º envio, não após o 5º (último)

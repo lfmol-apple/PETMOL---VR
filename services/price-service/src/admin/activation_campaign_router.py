@@ -38,6 +38,7 @@ from __future__ import annotations
 import hmac
 import logging
 import threading
+import time
 import uuid
 from html import escape
 from datetime import datetime, timezone
@@ -85,6 +86,12 @@ CAMPAIGN_PUSH_LOCATION = "push_location"
 
 class RunRequest(BaseModel):
     dry_run: bool = True
+    # Achado real 03/10/2026: a hospedagem (Hostinger) rejeita envio em
+    # rajada com "451 4.7.1 Ratelimit hostinger_out_ratelimit exceeded" —
+    # manda devagar, em lotes com pausa entre eles. Valores conservadores
+    # por padrão; ajustável por request se o limite real se mostrar maior.
+    batch_size: int = 10
+    batch_pause_seconds: int = 180
 
 
 def _authorize(x_sync_token: Optional[str]) -> None:
@@ -326,7 +333,7 @@ def _email_copy_push_location(name: Optional[str], pet_names: list[str]) -> tupl
     return subject, body_text, body_html
 
 
-def _run_push_location(dry_run: bool) -> None:
+def _run_push_location(dry_run: bool, batch_size: int = 10, batch_pause_seconds: int = 180) -> None:
     db = SessionLocal()
     try:
         targets = _target_users_push_location(db)
@@ -341,14 +348,26 @@ def _run_push_location(dry_run: bool) -> None:
         result = {"total": len(targets), "dry_run": dry_run}
         if not dry_run:
             sent_email = failed_email = 0
-            for t in targets:
+            for i, t in enumerate(targets):
                 subject, body_text, body_html = _email_copy_push_location(t["name"], t["pet_names"])
                 if send_mail(to=t["email"], subject=subject, body_text=body_text, body_html=body_html):
                     sent_email += 1
                     db.add(ActivationCampaignContact(campaign=CAMPAIGN_PUSH_LOCATION, user_id=t["user_id"]))
+                    # Grava na hora — um lote longo (lento de propósito) pode
+                    # atravessar um restart/deploy no meio; sem commit
+                    # incremental, quem já recebeu nesse meio-tempo perderia
+                    # o registro e tomaria o e-mail de novo depois.
+                    db.commit()
                 else:
                     failed_email += 1
-            db.commit()
+                with _lock_push_location:
+                    STATE_PUSH_LOCATION["result"] = {
+                        **result, "sent_email": sent_email, "failed_email": failed_email,
+                        "progress": f"{i + 1}/{len(targets)}",
+                    }
+                is_last = (i + 1) == len(targets)
+                if not is_last and (i + 1) % batch_size == 0:
+                    time.sleep(batch_pause_seconds)
             result.update(sent_email=sent_email, failed_email=failed_email)
 
         with _lock_push_location:
@@ -372,8 +391,12 @@ def run_push_location_activation(payload: RunRequest, x_sync_token: Optional[str
             raise HTTPException(status_code=409, detail="campanha já em andamento")
         STATE_PUSH_LOCATION.update(phase="running", started_at=datetime.now(timezone.utc).isoformat(),
                                    finished_at=None, result=None, error=None)
-    threading.Thread(target=_run_push_location, args=(payload.dry_run,), daemon=True).start()
-    return {"started": True, "dry_run": payload.dry_run}
+    threading.Thread(
+        target=_run_push_location,
+        args=(payload.dry_run, payload.batch_size, payload.batch_pause_seconds),
+        daemon=True,
+    ).start()
+    return {"started": True, "dry_run": payload.dry_run, "batch_size": payload.batch_size, "batch_pause_seconds": payload.batch_pause_seconds}
 
 
 @router.get("/push-location-activation/status")
