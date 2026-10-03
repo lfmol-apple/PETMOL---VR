@@ -179,10 +179,10 @@ def _wait_done_push_location(client, timeout=5.0):
     raise AssertionError("campanha não terminou a tempo")
 
 
-def test_push_location_dry_run_so_conta_dormente_sem_push_sem_localizacao(monkeypatch, client):
-    """4 tutores: dormente sem nada (entra), ativo sem nada (fica de fora —
-    pedidos contextuais em tela já cobrem), com push (fora), com localização
-    (fora)."""
+def test_push_location_dry_run_alcanca_todo_mundo_sem_push_ponto(monkeypatch, client):
+    """Alcance máximo (03/10/2026, pedido do dono): sem push é o único
+    critério — ativo ou dormente, com ou sem localização compartilhada,
+    todo mundo sem push entra. Só quem TEM push fica de fora."""
     _enable_token(monkeypatch)
     sent = {"email": []}
     monkeypatch.setattr("src.admin.activation_campaign_router.send_mail",
@@ -219,28 +219,38 @@ def test_push_location_dry_run_so_conta_dormente_sem_push_sem_localizacao(monkey
     status = _wait_done_push_location(client)
     result = status["result"]
     assert result["dry_run"] is True
-    assert result["total"] == 1  # só o dormente sem push/localização
+    assert result["total"] == 3  # dormente + ativo + com GPS — só o com push fica de fora
     assert sent["email"] == []  # dry run não envia nada
 
 
-def test_push_location_alcanca_quem_abriu_ha_mais_de_3_dias(monkeypatch, client):
-    """Ajuste de 14 pra 3 dias (03/10/2026): quem não abre há 5 dias já
-    entra na campanha — com a regra antiga (14 dias) ficaria de fora."""
+def test_push_location_segunda_rodada_nao_repete_quem_ja_recebeu(monkeypatch, client):
+    """Alargar o segmento (ou só rodar de novo) não pode reenviar pra quem
+    já recebeu — ActivationCampaignContact é a memória disso."""
     _enable_token(monkeypatch)
     monkeypatch.setattr("src.admin.activation_campaign_router.send_mail", lambda **kw: True)
 
     db = SessionLocal()
     try:
-        uid = _mk_user(db, email=f"cincodias.{uuid.uuid4().hex[:6]}@example.com", name="Tutor Cinco Dias")
-        _mk_pet(db, user_id=uid, name="Pingo")
-        _mk_event(db, user_id=uid, days_ago=5)
+        uid_ja = _mk_user(db, email=f"jarecebeu.{uuid.uuid4().hex[:6]}@example.com", name="Tutor Já Recebeu")
+        _mk_pet(db, user_id=uid_ja, name="Nina")
     finally:
         db.close()
 
     headers = {"X-Sync-Token": TOKEN}
+    client.post("/v1/admin/campaigns/push-location-activation/run", json={"dry_run": False}, headers=headers)
+    first = _wait_done_push_location(client)
+    assert first["result"]["sent_email"] == 1
+
+    db = SessionLocal()
+    try:
+        uid_novo = _mk_user(db, email=f"novo.{uuid.uuid4().hex[:6]}@example.com", name="Tutor Novo")
+        _mk_pet(db, user_id=uid_novo, name="Thor")
+    finally:
+        db.close()
+
     client.post("/v1/admin/campaigns/push-location-activation/run", json={"dry_run": True}, headers=headers)
-    status = _wait_done_push_location(client)
-    assert status["result"]["total"] == 1
+    second = _wait_done_push_location(client)
+    assert second["result"]["total"] == 1  # só o novo — quem já recebeu não conta de novo
 
 
 def test_push_location_send_de_verdade_manda_so_email_com_nome_do_pet(monkeypatch, client):
