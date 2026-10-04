@@ -67,6 +67,8 @@ const CAT_BREEDS = [
 
 const SRD_BREED = 'SRD (Sem Raça Definida)';
 
+const AGE_GROUP_LABEL: Record<string, string> = { puppy: 'Filhote', adult: 'Adulto', senior: 'Idoso' };
+
 const label = 'block text-[11px] font-bold text-slate-500 uppercase tracking-wide';
 
 const segBtn = (active: boolean) =>
@@ -647,31 +649,22 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
                 </div>
               </div>
 
-              {/* Data de nascimento — vem antes da faixa etária de propósito:
-                  informando ela, a faixa etária se calcula sozinha (feedback
-                  de beta tester, 04/10/2026 — perguntar os dois gerava
-                  dúvida tipo "1 ano e meio é filhote ou adulto?"). */}
+              {/* Data de nascimento — a faixa etária deixou de ser uma
+                  pergunta (feedback de beta tester, 04/10/2026: perguntar
+                  os dois gerava dúvida tipo "1 ano e meio é filhote ou
+                  adulto?"); agora é só um resultado calculado daqui, sem
+                  botão pra tocar. */}
               <div className="space-y-1.5">
                 <label className={label}>Data de nascimento</label>
                 <DateField max={today} value={birthDate} onChange={(iso) => {
                   setBirthDate(iso);
-                  const calculated = ageGroupFromBirthDate(iso);
-                  if (calculated) setAgeGroup(calculated);
+                  setAgeGroup(ageGroupFromBirthDate(iso));
                 }} />
-              </div>
-
-              {/* Faixa etária */}
-              <div className="space-y-1.5">
-                <label className={label}>Faixa etária</label>
-                {birthDate && (
-                  <p className="text-[11px] font-medium text-slate-400">Calculada pela data de nascimento — pode ajustar se necessário.</p>
+                {birthDate && ageGroup && (
+                  <p className="text-[12px] font-semibold text-[#0047ad]">
+                    {AGE_GROUP_LABEL[ageGroup]}
+                  </p>
                 )}
-                <div className="flex gap-2">
-                  {([{ v: 'puppy', l: 'Filhote' }, { v: 'adult', l: 'Adulto' }, { v: 'senior', l: 'Idoso' }]).map(o => (
-                    <button key={o.v} type="button" onClick={() => setAgeGroup(prev => prev === o.v ? '' : o.v)}
-                      className={segBtn(ageGroup === o.v)}>{o.l}</button>
-                  ))}
-                </div>
               </div>
 
               {/* Peso */}

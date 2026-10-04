@@ -67,6 +67,8 @@ const CAT_BREEDS = [
 
 // ── Primitives ────────────────────────────────────────────────────────────────
 
+const AGE_GROUP_LABEL: Record<string, string> = { puppy: 'Filhote', adult: 'Adulto', senior: 'Idoso' };
+
 const PHOTOS_BASE_URL = process.env.NEXT_PUBLIC_PHOTOS_BASE_URL || '';
 const OWN_PHOTO_HOSTS = ['petmol.app', 'petmol.com.br', 'www.petmol.com.br', 'localhost'];
 
@@ -695,32 +697,21 @@ export function EditPetModal({ pet, photoVersion, careSummary, onClose, onSave, 
                 </div>
               </div>
 
-              {/* Data de nascimento — antes da faixa etária de propósito:
-                  informando ela, a faixa etária se calcula sozinha (feedback
-                  de beta tester, 04/10/2026). */}
+              {/* Data de nascimento — a faixa etária deixou de ser pergunta
+                  (feedback de beta tester, 04/10/2026), agora é só um
+                  resultado calculado daqui, sem botão pra tocar. */}
               <div className="space-y-1.5">
                 <label className={lbl}>Data de nascimento</label>
                 <DateField max={today} value={formData.birth_date}
                   onChange={(iso) => {
                     set('birth_date', iso);
-                    const calculated = ageGroupFromBirthDate(iso);
-                    if (calculated) set('age_group', calculated);
+                    set('age_group', ageGroupFromBirthDate(iso));
                   }} />
-              </div>
-
-              {/* Faixa etária */}
-              <div className="space-y-1.5">
-                <label className={lbl}>Faixa etária</label>
-                {formData.birth_date && (
-                  <p className="text-[11px] font-medium text-slate-400">Calculada pela data de nascimento — pode ajustar se necessário.</p>
+                {formData.birth_date && formData.age_group && (
+                  <p className="text-[12px] font-semibold text-[#0047ad]">
+                    {AGE_GROUP_LABEL[formData.age_group]}
+                  </p>
                 )}
-                <div className="flex gap-2">
-                  {([{ v: 'puppy', l: 'Filhote' }, { v: 'adult', l: 'Adulto' }, { v: 'senior', l: 'Idoso' }]).map(o => (
-                    <button key={o.v} type="button"
-                      onClick={() => set('age_group', formData.age_group === o.v ? '' : o.v)}
-                      className={segBtn(formData.age_group === o.v)}>{o.l}</button>
-                  ))}
-                </div>
               </div>
 
               {/* Peso */}
