@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Bell, Check, Home, Trash2, X } from 'lucide-react';
 import { ActivationAskSheet } from './ActivationAskSheet';
-import { useOneTimeAsk } from '@/features/interactions/useOneTimeAsk';
+import { usePushOneTimeAsk } from '@/features/interactions/usePushOneTimeAsk';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
@@ -176,7 +176,7 @@ export function ParasiteItemSheet({
   const [showManualForm, setShowManualForm] = useState(false);
 
   const { permission: pushPermission, requestPermission: requestPushPermission, subscribeToPush } = useNotificationPermissionController();
-  const pushAsk = useOneTimeAsk('petmol_parasite_push_ask_v1', pushPermission === 'default');
+  const pushAsk = usePushOneTimeAsk('petmol_parasite_push_ask_v1', pushPermission === 'default');
 
   useEffect(() => {
     void onRefresh();

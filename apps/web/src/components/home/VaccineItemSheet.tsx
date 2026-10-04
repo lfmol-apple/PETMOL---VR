@@ -7,7 +7,7 @@ import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
 import { Bell, Camera, Check, Home, X } from 'lucide-react';
 import { SheetAvatar, SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { ActivationAskSheet } from './ActivationAskSheet';
-import { useOneTimeAsk } from '@/features/interactions/useOneTimeAsk';
+import { usePushOneTimeAsk } from '@/features/interactions/usePushOneTimeAsk';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
 import { localTodayISO } from '@/lib/localDate';
 import { VaccineDateStep } from './VaccineDateStep';
@@ -143,7 +143,7 @@ export function VaccineItemSheet({
   const petPhotoSrc = resolvePetPhotoUrl(petPhotoUrl);
   const { tutor } = useAuth();
   const { permission: pushPermission, requestPermission: requestPushPermission, subscribeToPush } = useNotificationPermissionController();
-  const pushAsk = useOneTimeAsk('petmol_vaccine_push_ask_v1', pushPermission === 'default');
+  const pushAsk = usePushOneTimeAsk('petmol_vaccine_push_ask_v1', pushPermission === 'default');
   const [mode, setMode] = useState<'view' | 'buy'>(initialMode === 'buy' ? 'buy' : 'view');
   const [quickRegisterExpanded, setQuickRegisterExpanded] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(true);
@@ -386,11 +386,22 @@ export function VaccineItemSheet({
               <h3 className="mb-1 text-xl font-bold text-slate-900">Vacina registrada!</h3>
               <p className="text-sm text-slate-400">O prontuário do pet foi atualizado.</p>
             </div>
+            {/* Feedback de beta tester (04/10/2026): quem tem mais de uma
+                vacina pra registrar (ex: raiva + V10 numa visita só) saía
+                direto daqui sem notar o "Ver prontuário" discreto, e tinha
+                que fechar e reabrir a tela inteira pra cadastrar a
+                próxima. Esse botão vai direto pro registro rápido de novo. */}
             <button
-              onClick={() => onGoHome?.()}
+              onClick={() => { setJustSaved(false); setQuickRegisterExpanded(true); }}
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 py-3.5 text-[15px] font-bold text-white shadow-[0_8px_20px_-6px_rgba(16,185,129,0.4)] transition-transform active:scale-[0.97]"
             >
-              <Home className="h-[18px] w-[18px]" strokeWidth={2.3} />
+              Cadastrar outra vacina
+            </button>
+            <button
+              onClick={() => onGoHome?.()}
+              className="flex w-full items-center justify-center gap-2 text-sm font-semibold text-slate-500"
+            >
+              <Home className="h-[16px] w-[16px]" strokeWidth={2.3} />
               Ir para a home
             </button>
             <button onClick={() => setJustSaved(false)} className="text-sm text-slate-400 underline">

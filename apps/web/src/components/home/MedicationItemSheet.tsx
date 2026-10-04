@@ -8,7 +8,7 @@ import { parsePetEventExtraData, type PetEventRecord } from '@/lib/petEvents';
 import { extractMedicationBarcode } from '@/lib/petCareDomain';
 import { Bell, Check, Home, Trash2, X } from 'lucide-react';
 import { ActivationAskSheet } from './ActivationAskSheet';
-import { useOneTimeAsk } from '@/features/interactions/useOneTimeAsk';
+import { usePushOneTimeAsk } from '@/features/interactions/usePushOneTimeAsk';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
 import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
@@ -386,7 +386,7 @@ export function MedicationItemSheet({
   const [showManualForm, setShowManualForm] = useState(false);
 
   const { permission: pushPermission, requestPermission: requestPushPermission, subscribeToPush } = useNotificationPermissionController();
-  const pushAsk = useOneTimeAsk('petmol_medication_push_ask_v1', pushPermission === 'default');
+  const pushAsk = usePushOneTimeAsk('petmol_medication_push_ask_v1', pushPermission === 'default');
 
   useEffect(() => {
     void onRefresh();
