@@ -12,8 +12,10 @@
  * Aqui a gente compara a versão EMBUTIDA no bundle em build-time
  * (NEXT_PUBLIC_APP_VERSION = SHA) com /version.json (atualizado a cada
  * deploy). Se o bundle rodando está velho → recarrega uma vez. Checa no
- * mount, a cada 60s, e principalmente quando o app volta ao foco (o caso
- * do WKWebView retomando).
+ * mount, a cada 20s (reduzido de 60s em 04/10/2026 — alguém testando logo
+ * depois de um deploy não devia esperar quase um minuto pra autocorrigir),
+ * e principalmente quando o app volta ao foco (o caso do WKWebView
+ * retomando).
  *
  * A marca "já recarreguei pra essa versão" é compartilhada com
  * ChunkReloadGuard (ver lib/versionSkew.ts) — os dois nunca devem contar
@@ -51,7 +53,7 @@ export function BuildVersionGate() {
     };
 
     void check();
-    const iv = window.setInterval(() => void check(), 60_000);
+    const iv = window.setInterval(() => void check(), 20_000);
     let focusTimer: number | null = null;
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
