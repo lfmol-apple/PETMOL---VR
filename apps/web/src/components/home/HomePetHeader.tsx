@@ -262,18 +262,14 @@ export function HomePetHeader({
           </button>
         </div>
 
-        {/* Botões de ação no canto inferior direito */}
-        <div className="absolute bottom-2.5 right-2.5 z-20 flex gap-2 sm:bottom-3 sm:right-3">
-          <button
-            onClick={onOpenAddPetModal}
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/40 bg-white/20 text-white shadow-lg backdrop-blur-md transition-all hover:bg-white/40 active:scale-90 sm:h-9 sm:w-9"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-            </svg>
-          </button>
+        {/* Botão de ação no canto inferior direito — só "editar este pet"
+            (lápis). "Adicionar pet" saiu daqui de cima da foto (pedido do
+            dono, 04/10/2026: "adicionar pet poderia estar embaixo da foto
+            e claro") — agora é um botão com texto, abaixo do nome. */}
+        <div className="absolute bottom-2.5 right-2.5 z-20 sm:bottom-3 sm:right-3">
           <button
             onClick={onOpenEditPetModal}
+            aria-label="Editar pet"
             className="flex h-8 w-8 items-center justify-center rounded-full border border-white/40 bg-white/20 text-white shadow-lg backdrop-blur-md transition-all hover:bg-white/40 active:scale-90 sm:h-9 sm:w-9"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -309,6 +305,18 @@ export function HomePetHeader({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
                 </svg>
               </div>
+            </button>
+            {/* "Adicionar pet" — texto claro, embaixo da foto (pedido do
+                dono, 04/10/2026), nunca mais um "+" flutuando em cima dela. */}
+            <button
+              type="button"
+              onClick={onOpenAddPetModal}
+              className="ml-1 flex flex-shrink-0 items-center gap-1 rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1.5 text-[11px] font-black uppercase tracking-wide text-blue-700 transition-all active:scale-95 sm:px-3"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
+              </svg>
+              Adicionar pet
             </button>
           </div>
           
