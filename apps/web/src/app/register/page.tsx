@@ -414,7 +414,7 @@ export default function RegisterPage() {
                 inputMode="email"
                 // eslint-disable-next-line jsx-a11y/no-autofocus
                 autoFocus
-                className="w-full text-[28px] font-medium text-slate-900 border-none outline-none bg-transparent placeholder:text-slate-300"
+                className="w-full text-[24px] font-medium text-slate-900 border-none outline-none bg-transparent placeholder:text-slate-300"
               />
             </div>
           </div>
@@ -471,7 +471,7 @@ export default function RegisterPage() {
                 id="petmol-access-code"
                 // eslint-disable-next-line jsx-a11y/no-autofocus
                 autoFocus
-                className="w-full text-[28px] font-medium text-slate-900 border-none outline-none bg-transparent pr-24 placeholder:text-slate-300"
+                className="w-full text-[24px] font-medium text-slate-900 border-none outline-none bg-transparent pr-24 placeholder:text-slate-300"
               />
               <button
                 type="button"

@@ -2,7 +2,7 @@
 import { getToken } from '@/lib/auth-token';
 import { API_BASE_URL } from '@/lib/api';
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { Camera, Plus, Save } from 'lucide-react';
+import { Camera, Pencil, Plus, Save } from 'lucide-react';
 import { PetSpecies } from '@/lib/petTaxonomy';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import { isPetProfileCompleted, trackV1Metric } from '@/lib/v1Metrics';
@@ -14,6 +14,7 @@ import { localTodayISO } from '@/lib/localDate';
 import { sanitizePetName } from '@/lib/petName';
 import { useKeyboardSheetViewport } from '@/hooks/useKeyboardSheetViewport';
 import { classifyPhotoUpload, notAPetPhotoMessage } from '@/lib/photoModerationMessages';
+import { ageGroupFromBirthDate } from '@/lib/petAge';
 
 // ── Breed data (sincronizado com register-pet) ────────────────────────────────
 
@@ -41,6 +42,7 @@ const DOG_BREEDS = [
   'Schnauzer Gigante', 'Schnauzer Médio', 'Schnauzer Miniatura',
   'Shar-Pei', 'Shiba Inu', 'Shih Tzu', 'Spitz Alemão Médio',
   'Spitz Japonês', 'St. Bernard', 'Staffordshire Bull Terrier',
+  'Terrier Brasileiro (Fox Paulistinha)',
   'Vizsla', 'Weimaraner', 'West Highland White Terrier',
   'Whippet', 'Yorkshire Terrier', 'Zuchon', 'Outro',
 ];
@@ -641,8 +643,13 @@ export function EditPetModal({ pet, photoVersion, careSummary, onClose, onSave, 
                   ) : (
                     <Camera className="w-8 h-8 text-slate-400" />
                   )}
+                  {/* "+" só faz sentido sem foto ainda — com foto já existente,
+                      dava a impressão de "adicionar outra" em vez de "editar
+                      esta" (feedback de beta tester, 04/10/2026). */}
                   <span className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-[#0056D2] border-[3px] border-white flex items-center justify-center shadow-md">
-                    <Plus className="w-4 h-4 text-white" strokeWidth={3} />
+                    {petPhotoUrl
+                      ? <Pencil className="w-4 h-4 text-white" strokeWidth={2.5} />
+                      : <Plus className="w-4 h-4 text-white" strokeWidth={3} />}
                   </span>
                 </button>
                 <button type="button" onClick={() => setShowPhotoPicker(true)}
@@ -688,9 +695,25 @@ export function EditPetModal({ pet, photoVersion, careSummary, onClose, onSave, 
                 </div>
               </div>
 
+              {/* Data de nascimento — antes da faixa etária de propósito:
+                  informando ela, a faixa etária se calcula sozinha (feedback
+                  de beta tester, 04/10/2026). */}
+              <div className="space-y-1.5">
+                <label className={lbl}>Data de nascimento</label>
+                <DateField max={today} value={formData.birth_date}
+                  onChange={(iso) => {
+                    set('birth_date', iso);
+                    const calculated = ageGroupFromBirthDate(iso);
+                    if (calculated) set('age_group', calculated);
+                  }} />
+              </div>
+
               {/* Faixa etária */}
               <div className="space-y-1.5">
                 <label className={lbl}>Faixa etária</label>
+                {formData.birth_date && (
+                  <p className="text-[11px] font-medium text-slate-400">Calculada pela data de nascimento — pode ajustar se necessário.</p>
+                )}
                 <div className="flex gap-2">
                   {([{ v: 'puppy', l: 'Filhote' }, { v: 'adult', l: 'Adulto' }, { v: 'senior', l: 'Idoso' }]).map(o => (
                     <button key={o.v} type="button"
@@ -698,13 +721,6 @@ export function EditPetModal({ pet, photoVersion, careSummary, onClose, onSave, 
                       className={segBtn(formData.age_group === o.v)}>{o.l}</button>
                   ))}
                 </div>
-              </div>
-
-              {/* Data de nascimento */}
-              <div className="space-y-1.5">
-                <label className={lbl}>Data de nascimento</label>
-                <DateField max={today} value={formData.birth_date}
-                  onChange={(iso) => set('birth_date', iso)} />
               </div>
 
               {/* Peso */}

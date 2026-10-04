@@ -6,7 +6,7 @@ import { getToken } from '@/lib/auth-token';
 import type { GroomingRecord, GroomingType } from '@/lib/types/home';
 import { Bell, Check, Home, Trash2, X } from 'lucide-react';
 import { ActivationAskSheet } from './ActivationAskSheet';
-import { useOneTimeAsk } from '@/features/interactions/useOneTimeAsk';
+import { usePushOneTimeAsk } from '@/features/interactions/usePushOneTimeAsk';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
 import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { ReminderPicker } from '@/components/ReminderPicker';
@@ -138,7 +138,7 @@ export function GroomingItemSheet({
   const [justSaved, setJustSaved] = useState(false);
 
   const { permission: pushPermission, requestPermission: requestPushPermission, subscribeToPush } = useNotificationPermissionController();
-  const pushAsk = useOneTimeAsk('petmol_grooming_push_ask_v1', pushPermission === 'default');
+  const pushAsk = usePushOneTimeAsk('petmol_grooming_push_ask_v1', pushPermission === 'default');
 
   useEffect(() => {
     void onRefresh();

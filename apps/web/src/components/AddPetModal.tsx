@@ -11,6 +11,7 @@ import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/she
 import { DateField } from '@/components/ui/DateField';
 import { localTodayISO } from '@/lib/localDate';
 import { sanitizePetName } from '@/lib/petName';
+import { ageGroupFromBirthDate } from '@/lib/petAge';
 import { useKeyboardSheetViewport } from '@/hooks/useKeyboardSheetViewport';
 
 // ── Breed data (sincronizado com register-pet) ────────────────────────────────
@@ -39,6 +40,7 @@ const DOG_BREEDS = [
   'Schnauzer Gigante', 'Schnauzer Médio', 'Schnauzer Miniatura',
   'Shar-Pei', 'Shiba Inu', 'Shih Tzu', 'Spitz Alemão Médio',
   'Spitz Japonês', 'St. Bernard', 'Staffordshire Bull Terrier',
+  'Terrier Brasileiro (Fox Paulistinha)',
   'Vizsla', 'Weimaraner', 'West Highland White Terrier',
   'Whippet', 'Yorkshire Terrier', 'Zuchon', 'Outro',
 ];
@@ -644,21 +646,31 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
                 </div>
               </div>
 
+              {/* Data de nascimento — vem antes da faixa etária de propósito:
+                  informando ela, a faixa etária se calcula sozinha (feedback
+                  de beta tester, 04/10/2026 — perguntar os dois gerava
+                  dúvida tipo "1 ano e meio é filhote ou adulto?"). */}
+              <div className="space-y-1.5">
+                <label className={label}>Data de nascimento</label>
+                <DateField max={today} value={birthDate} onChange={(iso) => {
+                  setBirthDate(iso);
+                  const calculated = ageGroupFromBirthDate(iso);
+                  if (calculated) setAgeGroup(calculated);
+                }} />
+              </div>
+
               {/* Faixa etária */}
               <div className="space-y-1.5">
                 <label className={label}>Faixa etária</label>
+                {birthDate && (
+                  <p className="text-[11px] font-medium text-slate-400">Calculada pela data de nascimento — pode ajustar se necessário.</p>
+                )}
                 <div className="flex gap-2">
                   {([{ v: 'puppy', l: 'Filhote' }, { v: 'adult', l: 'Adulto' }, { v: 'senior', l: 'Idoso' }]).map(o => (
                     <button key={o.v} type="button" onClick={() => setAgeGroup(prev => prev === o.v ? '' : o.v)}
                       className={segBtn(ageGroup === o.v)}>{o.l}</button>
                   ))}
                 </div>
-              </div>
-
-              {/* Data de nascimento */}
-              <div className="space-y-1.5">
-                <label className={label}>Data de nascimento</label>
-                <DateField max={today} value={birthDate} onChange={setBirthDate} />
               </div>
 
               {/* Peso */}

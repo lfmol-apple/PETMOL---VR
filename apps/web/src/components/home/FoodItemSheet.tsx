@@ -8,7 +8,7 @@ import type { PetHealthProfile } from '@/lib/petHealth';
 import { SheetAvatar, SheetHeader, SheetIcon } from '@/components/ui/sheet';
 import { ModalPortal } from '@/components/ModalPortal';
 import { ActivationAskSheet } from './ActivationAskSheet';
-import { useOneTimeAsk } from '@/features/interactions/useOneTimeAsk';
+import { usePushOneTimeAsk } from '@/features/interactions/usePushOneTimeAsk';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { API_BACKEND_BASE, API_BASE_URL } from '@/lib/api';
@@ -258,7 +258,7 @@ function PhotoBubble({
 
 export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, petPhotoUrl, racaoEventId }: FoodItemSheetProps) {
   const { permission: pushPermission, requestPermission: requestPushPermission, subscribeToPush } = useNotificationPermissionController();
-  const pushAsk = useOneTimeAsk('petmol_food_push_ask_v1', pushPermission === 'default');
+  const pushAsk = usePushOneTimeAsk('petmol_food_push_ask_v1', pushPermission === 'default');
 
   // Navigation
   const [mode, setMode]           = useState<SheetMode>(initialMode === 'buy' ? 'buy' : 'view');
