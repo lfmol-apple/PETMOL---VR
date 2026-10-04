@@ -11,10 +11,13 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import smtplib
 from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +50,49 @@ def smtp_configured() -> bool:
     )
 
 
+def sendgrid_configured() -> bool:
+    return bool(os.environ.get("SENDGRID_API_KEY"))
+
+
+def _parse_from_address(raw: str) -> dict:
+    """'PETMOL <noreply@petmol.com.br>' -> {"email": ..., "name": ...};
+    aceita também só o e-mail puro, sem nome."""
+    m = re.match(r'^\s*(.*?)\s*<([^<>]+)>\s*$', raw)
+    if m:
+        name = m.group(1).strip().strip('"')
+        email = m.group(2).strip()
+        return {"email": email, "name": name} if name else {"email": email}
+    return {"email": raw.strip()}
+
+
+def _send_via_sendgrid(*, to: str, subject: str, body_text: str, body_html: str | None, reply_to: str | None) -> None:
+    """Levanta exceção em qualquer falha — quem chama decide o que logar."""
+    api_key = os.environ.get("SENDGRID_API_KEY", "")
+    from_addr = os.environ.get("SENDGRID_FROM") or os.environ.get("SMTP_FROM") or "PETMOL <noreply@petmol.com.br>"
+
+    content = [{"type": "text/plain", "value": body_text}]
+    if body_html:
+        content.append({"type": "text/html", "value": body_html})
+
+    payload: dict = {
+        "personalizations": [{"to": [{"email": to}]}],
+        "from": _parse_from_address(from_addr),
+        "subject": subject,
+        "content": content,
+    }
+    if reply_to:
+        payload["reply_to"] = {"email": reply_to}
+
+    resp = httpx.post(
+        "https://api.sendgrid.com/v3/mail/send",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json=payload,
+        timeout=15,
+    )
+    if resp.status_code not in (200, 202):
+        raise RuntimeError(f"SendGrid {resp.status_code}: {resp.text[:300]}")
+
+
 def send_mail(
     *,
     to: str,
@@ -55,7 +101,24 @@ def send_mail(
     body_html: str | None = None,
     reply_to: str | None = None,
 ) -> bool:
-    """Entrega 1 e-mail. Retorna True se o SMTP aceitou, False caso contrário."""
+    """Entrega 1 e-mail. Retorna True se aceito, False caso contrário.
+
+    SendGrid tem prioridade quando configurado (SENDGRID_API_KEY) — achado
+    real 03-04/10/2026: o SMTP da Hostinger (hospedagem compartilhada)
+    bloqueou envio em lote por mais de 24h com "451 Ratelimit", sem
+    reset automático. SendGrid é feito pra esse volume; o SMTP da
+    Hostinger continua como fallback pra quem não configurou a chave."""
+    if sendgrid_configured():
+        try:
+            _send_via_sendgrid(to=to, subject=subject, body_text=body_text, body_html=body_html, reply_to=reply_to)
+            logger.info("mailer: e-mail entregue via SendGrid em %s (%s)", to, subject)
+            _log_attempt(to, ok=True)
+            return True
+        except Exception as exc:
+            logger.error("mailer: SendGrid falhou ao enviar para %s: %s", to, exc)
+            _log_attempt(to, ok=False, error=f"SendGrid: {exc}")
+            return False
+
     host = os.environ.get("SMTP_HOST", "")
     port = int(os.environ.get("SMTP_PORT", "587"))
     user = os.environ.get("SMTP_USER", "")

@@ -44,7 +44,7 @@ from ..notifications.apns import (
     send_apns,
 )
 from ..notifications.fcm import fcm_configured, get_recent_fcm_attempts, send_fcm
-from ..mailer import get_recent_mailer_attempts, smtp_configured
+from ..mailer import get_recent_mailer_attempts, sendgrid_configured, smtp_configured
 from .deps import get_current_admin_or_readonly_key
 
 router = APIRouter(prefix="/v1/admin/debug", tags=["Admin Debug"])
@@ -261,7 +261,11 @@ def mailer_log(_auth=Depends(get_current_admin_or_readonly_key)):
     só "falhou") — criado 03/10/2026 pra investigar uma falha em massa
     (111 de 136) numa campanha, sem precisar de SSH pro servidor.
     Diagnóstico temporário, ver mailer.py."""
-    return {"smtp_configured": smtp_configured(), "attempts": get_recent_mailer_attempts()}
+    return {
+        "sendgrid_configured": sendgrid_configured(),
+        "smtp_configured": smtp_configured(),
+        "attempts": get_recent_mailer_attempts(),
+    }
 
 
 @router.post("/fcm-test")
