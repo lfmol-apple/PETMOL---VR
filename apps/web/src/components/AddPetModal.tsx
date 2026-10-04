@@ -596,11 +596,12 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
                       </span>
                     </>
                   )}
-
-                  <span className="absolute bottom-3 left-4 right-4 text-center text-[12px] font-bold text-white/85">
-                    {petPhoto ? 'Trocar foto' : 'Adicionar foto do pet'}
-                  </span>
                 </button>
+                {/* Rótulo "Adicionar/Trocar foto" só aqui embaixo, de propósito
+                    (feedback de beta tester, 04/10/2026) — em cima da foto
+                    ficava repetido com este daqui, e o contraste contra uma
+                    foto de verdade (não só o fundo escuro do placeholder)
+                    podia ficar ruim de ler. */}
                 <div className="flex items-center justify-center gap-2">
                   <button
                     type="button"
