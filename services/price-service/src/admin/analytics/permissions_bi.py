@@ -17,6 +17,7 @@ from typing import Optional
 from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.orm import Session
 
+from ...analytics.models import AnalyticsProductEvent
 from ...notifications import NativePushToken, PushSubscription
 from ...user_auth.models import User
 
@@ -73,6 +74,59 @@ def devices_by_user(db: Session, user_ids: list[str]) -> dict[str, list[dict]]:
     ).all():
         out[uid].append({"platform": platform if platform in (IOS, ANDROID) else WEB, "last_seen_at": _iso(seen)})
     return out
+
+
+def _classify_device_local(os_: Optional[str], device_class: Optional[str]) -> Optional[str]:
+    """Cópia deliberada de `_classify_device` (admin/analytics/queries.py) —
+    `queries.py` importa este módulo (`from . import permissions_bi`), então
+    importar de lá pra cá criaria ciclo. Mesma lógica, mantida em sincronia
+    manualmente (função pequena, pura, estável)."""
+    if not os_:
+        return None
+    os_ = os_.lower()
+    if os_ == "ios":
+        return "ipad" if device_class == "tablet" else "iphone"
+    if os_ == "android":
+        return "android"
+    if os_ in ("macos", "windows", "linux"):
+        return "desktop"
+    return "outros"
+
+
+def device_breakdown(db: Session) -> dict:
+    """iPhone/iPad/Android/Desktop/outros/sem-dado de TODO tutor cadastrado,
+    pelo evento de analytics mais recente dele — diferente do breakdown de
+    push (abaixo), que só conta quem tem token ATIVO. Esse aqui cobre
+    qualquer um que já abriu o app alguma vez, com ou sem notificação."""
+    user_ids = [uid for (uid,) in db.query(User.id).all()]
+    last_seen = dict(
+        db.query(AnalyticsProductEvent.user_id, func.max(AnalyticsProductEvent.received_at))
+        .filter(AnalyticsProductEvent.user_id.in_(user_ids or ["__none__"]))
+        .group_by(AnalyticsProductEvent.user_id)
+        .all()
+    )
+    pairs = [(uid, ts) for uid, ts in last_seen.items() if ts is not None]
+    latest_meta: dict[str, dict] = {}
+    if pairs:
+        cond = or_(*[
+            and_(AnalyticsProductEvent.user_id == uid, AnalyticsProductEvent.received_at == ts)
+            for uid, ts in pairs
+        ])
+        for uid, os_, dclass in (
+            db.query(AnalyticsProductEvent.user_id, AnalyticsProductEvent.os, AnalyticsProductEvent.device_class)
+            .filter(cond)
+            .all()
+        ):
+            latest_meta.setdefault(uid, {"os": os_, "device_class": dclass})
+
+    counts = {"iphone": 0, "ipad": 0, "android": 0, "desktop": 0, "outros": 0, "sem_dado": 0}
+    for uid in user_ids:
+        meta = latest_meta.get(uid)
+        device_type = _classify_device_local(
+            meta.get("os") if meta else None, meta.get("device_class") if meta else None
+        )
+        counts[device_type or "sem_dado"] += 1
+    return counts
 
 
 def summary(db: Session) -> dict:
@@ -137,4 +191,5 @@ def summary(db: Session) -> dict:
             "fresh_days": FRESH_LOCATION_DAYS,
         },
         "combined": {"both": both, "only_push": only_push, "only_location": only_gps, "neither": neither},
+        "devices": device_breakdown(db),
     }

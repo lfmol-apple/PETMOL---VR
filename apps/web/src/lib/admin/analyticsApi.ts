@@ -211,6 +211,7 @@ export interface PermissionsSummary {
   push: { active: number; none: number; ios: number; android: number; web: number };
   location: { gps: number; gps_fresh: number; city_only: number; ip_only: number; none: number; fresh_days: number };
   combined: { both: number; only_push: number; only_location: number; neither: number };
+  devices: { iphone: number; ipad: number; android: number; desktop: number; outros: number; sem_dado: number };
 }
 export interface UsersListResponse {
   total: number; page: number; page_size: number;
