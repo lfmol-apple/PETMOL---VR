@@ -72,6 +72,19 @@ export function PermissionsSection() {
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Tutores cadastrados</p>
           <p className="mt-1 text-3xl font-extrabold text-slate-800 tabular-nums">{numberFmt(data.total_users)}</p>
+          {/* Aparelho de TODO tutor (não só quem tem push ativo) — pelo
+              último evento de analytics dele. "Sem dado" = nunca abriu o
+              app desde que começamos a medir isso, ou está sem nenhum
+              evento registrado. */}
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-slate-500">
+            <span>🍎 iPhone: <b className="text-slate-700">{numberFmt(data.devices.iphone)}</b></span>
+            <span>📱 iPad: <b className="text-slate-700">{numberFmt(data.devices.ipad)}</b></span>
+            <span>🤖 Android: <b className="text-slate-700">{numberFmt(data.devices.android)}</b></span>
+            <span>💻 Desktop: <b className="text-slate-700">{numberFmt(data.devices.desktop)}</b></span>
+          </div>
+          {data.devices.sem_dado > 0 && (
+            <p className="mt-1 text-[11px] text-slate-400">{numberFmt(data.devices.sem_dado)} sem dado de aparelho</p>
+          )}
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Com push ativo</p>

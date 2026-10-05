@@ -55,6 +55,47 @@ def test_summary_conta_notificacao_e_localizacao(client):
     assert sum(c.values()) == s["total_users"]
 
 
+def test_devices_classifica_todo_tutor_pelo_ultimo_evento_nao_so_quem_tem_push(client):
+    """Pedido do dono (05/10/2026): Android × iPhone de TODO tutor
+    cadastrado, não só de quem tem push ativo — pelo último evento de
+    analytics de cada um. Quem nunca abriu o app (sem evento nenhum) entra
+    em "sem_dado", não vira um palpite."""
+    from src.analytics.models import AnalyticsProductEvent
+    _seed()
+    now = datetime.now(timezone.utc)
+    db = SessionLocal()
+    try:
+        ids = {u.email: u.id for u in db.query(User).all()}
+
+        def ev(email, os_, device_class, days_ago):
+            return AnalyticsProductEvent(
+                event_id=f"ev-{email}-{days_ago}", event_name="app_open", user_id=ids[email],
+                anonymous_id=f"a-{email}", session_id="s", platform=os_ or "web",
+                os=os_, device_class=device_class, received_at=now - timedelta(days=days_ago),
+            )
+        db.add_all([
+            ev("ambos@x.com", "ios", None, 5),       # iPhone — evento antigo
+            ev("ambos@x.com", "ios", "tablet", 0),   # iPad — evento MAIS recente, é esse que conta
+            ev("sopush@x.com", "android", None, 1),  # Android
+            ev("sogps@x.com", "macos", None, 1),     # Desktop
+            ev("cidade@x.com", "windows", None, 1),  # Desktop também
+            # "nada@x.com" nunca aparece em nenhum evento — fica sem_dado
+        ])
+        db.commit()
+    finally:
+        db.close()
+
+    s = client.get("/v1/admin/analytics/permissions/summary").json()
+    d = s["devices"]
+    assert d["iphone"] == 0   # o evento mais recente da ambos@ foi o iPad, não o iPhone antigo
+    assert d["ipad"] == 1
+    assert d["android"] == 1
+    assert d["desktop"] == 2
+    assert d["outros"] == 0
+    assert d["sem_dado"] == 1
+    assert sum(d.values()) == s["total_users"]
+
+
 def test_uninstalls_proxy_conta_so_token_invalido_nunca_troca_de_conta(client):
     """Proxy aproximado de desinstalação: só token recusado pela Apple/Google
     (disabled_reason="push_invalid_token") conta — troca de conta no mesmo
