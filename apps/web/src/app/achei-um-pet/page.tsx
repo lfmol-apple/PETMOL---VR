@@ -15,7 +15,6 @@ interface MissingPetRecord {
   pet_name: string;
   species: string | null;
   breed: string | null;
-  characteristics: string | null;
   contact?: string;
   last_seen_location: string | null;
   missing_date: string | null;
@@ -1495,14 +1494,6 @@ function PetCard({
           <div className="flex items-start gap-2 rounded-2xl bg-white/5 px-3.5 py-3 text-[12px] text-white/68 border border-white/8">
             <span className="flex-shrink-0 mt-0.5">📍</span>
             <span className="leading-snug line-clamp-2">{redactStreetFromLocation(pet.last_seen_location)}</span>
-          </div>
-        )}
-
-        {/* Characteristics */}
-        {pet.characteristics && (
-          <div className="bg-white/5 rounded-2xl px-3.5 py-3 border border-white/8">
-            <p className="text-[11px] font-bold text-white/40 uppercase tracking-wide mb-1">Características</p>
-            <p className="text-[13px] text-white/70 leading-relaxed line-clamp-3">{pet.characteristics}</p>
           </div>
         )}
 
