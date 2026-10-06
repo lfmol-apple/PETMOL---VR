@@ -1,6 +1,7 @@
 'use client';
 
 import { takePendingDeepLink, withDeepLinkNonce } from '@/lib/deepLinkIntent';
+import { shareAppUrl } from '@/lib/landingLinks';
 import { useBackHandler } from '@/lib/backStack';
 import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -853,6 +854,20 @@ function HomePageInner() {
       // user cancelled share or error — silent
     } finally {
       setShareLoading(false);
+    }
+  };
+
+  const handleShareApp = async () => {
+    const url = shareAppUrl('home');
+    const text = 'Uso o PETMOL para cuidar dos meus pets — vacina, ração, remédio, tudo num lugar só. Baixa também 🐾';
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'PETMOL — cuidado de pets', text, url });
+      } else {
+        window.open(`https://wa.me/?text=${encodeURIComponent(`${text}\n${url}`)}`, '_blank', 'noopener');
+      }
+    } catch {
+      // user cancelled share — silent
     }
   };
 
@@ -2466,6 +2481,14 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       >
                         <span className="text-sm sm:text-base">🐾</span>
                         {shareLoading ? 'Gerando link...' : `Convidar família para cuidar de ${currentPet.pet_name}`}
+                      </button>
+
+                      <button
+                        onClick={() => void handleShareApp()}
+                        className="flex w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-[12px] font-semibold text-blue-700 transition-opacity active:opacity-70 sm:rounded-2xl sm:py-2.5 sm:text-[13px]"
+                      >
+                        <span className="text-sm sm:text-base">📤</span>
+                        Compartilhar o PETMOL
                       </button>
 
                     </div>
