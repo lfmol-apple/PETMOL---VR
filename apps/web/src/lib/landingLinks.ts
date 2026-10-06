@@ -36,3 +36,16 @@ export function appStoreUrl(placement: string, campaign: CampaignParams = {}, pr
   const ct = clean(`${campaign.utm_campaign || 'landing'}_${placement}`, 'landing');
   return `${APP_STORE_BASE}?pt=${encodeURIComponent(pt)}&ct=${encodeURIComponent(ct)}`;
 }
+
+/** Link pra quando um TUTOR compartilha o app (não é selo da landing) — manda pra
+ * própria landing, que já detecta o aparelho de quem abrir e mostra o selo certo.
+ * UTM fixo (utm_source=app_share) pra aparecer separado no painel de atribuição. */
+export function shareAppUrl(placement: string): string {
+  const qs = [
+    'utm_source=app_share',
+    'utm_medium=referral',
+    'utm_campaign=convite_usuario',
+    `utm_content=${clean(placement, 'app')}`,
+  ].join('&');
+  return `https://www.petmol.com.br/?${qs}`;
+}

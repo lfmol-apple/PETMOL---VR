@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { API_BASE_URL } from '@/lib/api';
+import { shareAppUrl } from '@/lib/landingLinks';
 import { requestUserConfirmation, showBlockingNotice } from '@/features/interactions/userPromptChannel';
 import { forgetLocationRefresh } from '@/lib/silentLocationRefresh';
 import { invalidateMe } from '@/lib/fetchMe';
@@ -437,6 +438,19 @@ export default function ProfilePage() {
     } catch { /* user cancelled or error */ } finally {
       setShareLoading(null);
     }
+  };
+
+  const handleShareApp = async () => {
+    const url = shareAppUrl('profile');
+    const text = 'Uso o PETMOL para cuidar dos meus pets — vacina, ração, remédio, tudo num lugar só. Baixa também 🐾';
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'PETMOL — cuidado de pets', text, url });
+      } else {
+        await navigator.clipboard.writeText(`${text}\n${url}`);
+        showBlockingNotice('Link copiado! Cole no WhatsApp ou Instagram para compartilhar.');
+      }
+    } catch { /* user cancelled share — silent */ }
   };
 
   const handleRemoveCaretaker = async (petId: string, userId: string) => {
@@ -985,6 +999,14 @@ export default function ProfilePage() {
 
               {familyOpen && (
                 <div className="bg-slate-50/50 p-4 space-y-4">
+                  <button
+                    onClick={() => void handleShareApp()}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-[12px] font-semibold text-blue-700 active:opacity-70"
+                  >
+                    <span className="text-sm">📤</span>
+                    Compartilhar o PETMOL
+                  </button>
+
                   {familyLoading ? (
                     <p className="text-xs text-slate-400 text-center py-2">Carregando...</p>
                   ) : myPets.length === 0 ? (
