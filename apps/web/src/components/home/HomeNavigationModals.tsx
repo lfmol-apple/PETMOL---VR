@@ -209,18 +209,24 @@ export function HomeNavigationModals({
                   >
                     {shouldShowAlert(tone, alert) && <ControlAlertBadge tone={tone} />}
                     {image ? (
-                      <span className={`absolute opacity-100 transition-transform duration-300 group-hover:scale-110 ${tab === 'flea_tick' ? 'top-6 right-4' : tab === 'medication' ? 'top-2 right-1' : 'top-1 right-1'}`}>
+                      // Normalização ÓPTICA (não matemática) entre os 6 — pedido
+                      // do dono 07/10/2026: Coleira estava grande demais,
+                      // Antipulgas e Medicação pequenos demais, PetShops podia
+                      // ganhar presença. Vermífugo/Banho já estavam bons, mantidos.
+                      <span className="absolute top-1.5 right-1.5 transition-transform duration-300 group-hover:scale-110">
                         <img
                           src={image}
                           alt=""
                           className={
                             tab === 'collar'
-                              ? 'h-[68px] w-[68px] object-contain'
+                              ? 'h-[60px] w-[60px] object-contain'
                               : tab === 'flea_tick'
-                                ? 'h-[32px] w-[32px] object-contain'
+                                ? 'h-[54px] w-[54px] object-contain'
                                 : tab === 'medication'
-                                  ? 'h-[50px] w-[70px] object-contain'
-                                  : 'h-[62px] w-[62px] object-contain'
+                                  ? 'h-[58px] w-[58px] object-contain'
+                                  : tab === 'petshops'
+                                    ? 'h-[68px] w-[68px] object-contain'
+                                    : 'h-[62px] w-[62px] object-contain'
                           }
                         />
                       </span>

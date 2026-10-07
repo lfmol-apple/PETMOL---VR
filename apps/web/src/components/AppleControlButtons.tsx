@@ -143,16 +143,20 @@ export function AppleControlButtons({
   const healthIsDense = isDenseCardCopy('Cuidados', healthHeadlineText);
   const vaccineIsDense = isDenseCardCopy('Vacina', vaccineHeadlineText);
   const shoppingIsDense = isDenseCardCopy(shoppingTitle, `Tudo que ${petName || 'seu pet'} usa`);
+  // Arte centralizada verticalmente (não mais "pendurada" no canto superior
+  // direito) e maior — asset premium como protagonista visual real, não
+  // decoração pequena. Caixa comum por card, com ajuste de escala óptica
+  // (não matemática) por densidade de texto — pedido do dono, 07/10/2026.
   const foodIconClass = foodIsDense
-    ? 'right-0.5 top-0.5 h-9 w-9 opacity-75 min-[390px]:right-1 min-[390px]:top-1 min-[390px]:h-10 min-[390px]:w-10'
-    : 'right-1 top-1 h-10 w-10 opacity-95 min-[390px]:right-1.5 min-[390px]:top-1.5 min-[390px]:h-12 min-[390px]:w-12';
-  const referenceIconClass = 'right-1 top-1 h-12 w-12 opacity-95 min-[390px]:right-1.5 min-[390px]:top-1.5 min-[390px]:h-14 min-[390px]:w-14';
-  const denseReferenceIconClass = 'right-0.5 top-0.5 h-10 w-10 opacity-75 min-[390px]:right-1 min-[390px]:top-1 min-[390px]:h-12 min-[390px]:w-12';
+    ? 'right-1.5 top-1/2 -translate-y-1/2 h-12 w-12 min-[390px]:right-2 min-[390px]:h-[52px] min-[390px]:w-[52px]'
+    : 'right-2 top-1/2 -translate-y-1/2 h-14 w-14 min-[390px]:right-2.5 min-[390px]:h-16 min-[390px]:w-16';
+  const referenceIconClass = 'right-2 top-1/2 -translate-y-1/2 h-[60px] w-[60px] min-[390px]:right-2.5 min-[390px]:h-[68px] min-[390px]:w-[68px]';
+  const denseReferenceIconClass = 'right-1.5 top-1/2 -translate-y-1/2 h-[52px] w-[52px] min-[390px]:right-2 min-[390px]:h-[60px] min-[390px]:w-[60px]';
   const foodCopyClass = foodIsDense
-    ? 'pr-3 pt-5 min-[390px]:pr-4 min-[390px]:pt-6'
-    : 'pr-6 pt-2 min-[390px]:pr-7 min-[390px]:pt-3';
-  const careCopyClass = 'pr-7 pt-2 min-[390px]:pr-9 min-[390px]:pt-3';
-  const denseCareCopyClass = 'pr-3 pt-5 min-[390px]:pr-4 min-[390px]:pt-6';
+    ? 'pr-[64px] min-[390px]:pr-[72px]'
+    : 'pr-[72px] min-[390px]:pr-[84px]';
+  const careCopyClass = 'pr-[76px] min-[390px]:pr-[88px]';
+  const denseCareCopyClass = 'pr-[64px] min-[390px]:pr-[76px]';
 
   return (
     <>
@@ -247,14 +251,14 @@ export function AppleControlButtons({
             onClick={onShoppingClick}
             className="group relative min-h-[84px] overflow-hidden rounded-[20px] border border-[#D9E6F7] bg-gradient-to-br from-white to-[#F2F6FC] p-2.5 shadow-[0_2px_10px_-2px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(15,23,42,0.14)] active:scale-95 min-[390px]:min-h-[96px] min-[390px]:p-3"
           >
-            <span className={`absolute pointer-events-none opacity-100 transition-all group-hover:scale-105 ${shoppingIsDense ? 'right-0.5 top-0.5 h-10 w-10 min-[390px]:right-1 min-[390px]:top-1 min-[390px]:h-12 min-[390px]:w-12' : 'right-1 top-1 h-12 w-12 min-[390px]:right-1.5 min-[390px]:top-1.5 min-[390px]:h-14 min-[390px]:w-14'}`}>
+            <span className={`absolute pointer-events-none opacity-100 transition-all group-hover:scale-105 ${shoppingIsDense ? 'right-1.5 top-1/2 -translate-y-1/2 h-[52px] w-[52px] min-[390px]:right-2 min-[390px]:h-[60px] min-[390px]:w-[60px]' : 'right-2 top-1/2 -translate-y-1/2 h-[60px] w-[60px] min-[390px]:right-2.5 min-[390px]:h-[68px] min-[390px]:w-[68px]'}`}>
               <img
                 src={careAssetSrc('store')}
                 alt=""
                 className="h-full w-full object-contain"
               />
             </span>
-            <div className={`relative z-10 flex h-full flex-col justify-center text-left transition-[padding] ${shoppingIsDense ? 'pr-4 pt-5 min-[390px]:pr-5 min-[390px]:pt-6' : 'pr-10 pt-2 min-[390px]:pr-12 min-[390px]:pt-3'}`}>
+            <div className={`relative z-10 flex h-full flex-col justify-center text-left transition-[padding] ${shoppingIsDense ? 'pr-[64px] min-[390px]:pr-[76px]' : 'pr-[76px] min-[390px]:pr-[88px]'}`}>
               <h3 className="line-clamp-2 break-words text-[13px] font-bold leading-tight text-[#0B1E36] min-[390px]:text-[14px] sm:text-base">{shoppingTitle}</h3>
               <p className="mt-0.5 line-clamp-2 break-words text-[9px] leading-[1.12] text-[#5B6B82] min-[390px]:text-[10px] sm:text-xs">Tudo que {petName || 'seu pet'} usa</p>
             </div>

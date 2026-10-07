@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Bell, Check, Home, Trash2, X } from 'lucide-react';
+import { Bell, Check, Home, ShoppingCart, Trash2, X } from 'lucide-react';
 import { ActivationAskSheet } from './ActivationAskSheet';
 import { usePushOneTimeAsk } from '@/features/interactions/usePushOneTimeAsk';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
@@ -19,6 +19,7 @@ import { scheduleUniqueReminder, buildRemindAt } from '@/features/notifications/
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
 import type { ProductCategory, ScannedProduct } from '@/lib/productScanner';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
+import { careAssetSrc } from '@/lib/careAssets';
 import { CARE_STATE, careStateFromDaysUntilDue } from '@/lib/careState';
 
 // CTA primário do sistema cromático PETMOL (Modelo C): sempre azul
@@ -583,15 +584,32 @@ export function ParasiteItemSheet({
 
               {/* Active product card */}
               {current && (() => {
-                // Estado real (CARE_STATE), não a cor da área — "em dia" é
-                // teal/discreto, nunca a cor arbitrária da categoria.
-                const urgentBorder = status.row;
+                // Estado real (CARE_STATE), tratamento "muito discreto" —
+                // o card inteiro NÃO vira uma superfície vermelha/verde
+                // grande; a cor do estado fica só na borda (fina) e no
+                // badge/texto já existentes abaixo (pedido do dono,
+                // 07/10/2026: "evite grande superfície rosa/vermelha se
+                // uma indicação menor comunica o estado com clareza").
+                const urgentBorder = status.key === 'critical'
+                  ? 'border-red-200 bg-white'
+                  : status.key === 'attention'
+                    ? 'border-amber-200 bg-white'
+                    : status.key === 'ok'
+                      ? 'border-teal-200 bg-white'
+                      : 'border-[#D9E6F7] bg-white';
                 const statusPill = `${status.chip} ${status.chipText}`;
                 return (
                   <div className={`flex items-start gap-2.5 px-3 py-2 rounded-xl border ${urgentBorder}`}>
-                    <div className="w-8 h-8 rounded-lg bg-white/80 flex items-center justify-center text-base flex-shrink-0">
-                      {cfg.icon}
-                    </div>
+                    {/* Piloto Antipulgas (07/10/2026): em ~32px o asset 3D
+                        perde legibilidade (regra do dono) — removido aqui
+                        em vez de forçado pequeno. Vermífugo/Coleira
+                        continuam com o emoji de categoria por ora (só
+                        Antipulgas é o piloto desta etapa). */}
+                    {type !== 'flea_tick' && (
+                      <div className="w-8 h-8 rounded-lg bg-white/80 flex items-center justify-center text-base flex-shrink-0">
+                        {cfg.icon}
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Produto atual</p>
                       <p className="text-[13px] font-bold text-[#0B1E36] leading-tight break-words">{current.product_name}</p>
@@ -617,7 +635,13 @@ export function ParasiteItemSheet({
               {/* Empty state — responde o que é, por que preencher e o que fazer */}
               {!current && (
                 <div className="rounded-2xl border border-gray-100 bg-gray-50 p-6 text-center">
-                  <p className="text-4xl mb-3">{cfg.icon}</p>
+                  {/* Piloto Antipulgas: aqui tem espaço de verdade (~64px) —
+                      asset premium em vez do emoji de categoria. */}
+                  {type === 'flea_tick' ? (
+                    <img src={careAssetSrc('fleaTick')} alt="" className="mx-auto mb-3 h-16 w-16 object-contain" />
+                  ) : (
+                    <p className="text-4xl mb-3">{cfg.icon}</p>
+                  )}
                   <p className="text-sm font-semibold text-gray-700">
                     {petName ? `${petName} usa proteção contra ` : 'Proteção contra '}
                     {type === 'dewormer' ? 'vermes?' : type === 'collar' ? 'parasitas com coleira?' : 'pulgas e carrapatos?'}
@@ -675,7 +699,7 @@ export function ParasiteItemSheet({
                           className="flex items-center gap-3 px-4 py-2.5"
                         >
                           <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-base flex-shrink-0 ${!isHistory ? 'bg-[#F2F6FC]' : 'bg-gray-100'}`}>
-                            {!isHistory ? cfg.icon : '·'}
+                            {type === 'flea_tick' ? (!isHistory ? '' : '·') : (!isHistory ? cfg.icon : '·')}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
@@ -788,7 +812,7 @@ export function ParasiteItemSheet({
                   onClick={() => setMode('buy')}
                   className={`w-full py-3 rounded-2xl active:scale-[0.98] transition-all text-[14px] font-black flex items-center justify-center gap-2 ${SECONDARY_BTN}`}
                 >
-                  <span>🛒</span>
+                  <ShoppingCart className="h-4 w-4" strokeWidth={2.3} />
                   Ainda não comprei — {cfg.buyLabel}
                 </button>
               )}
@@ -860,7 +884,7 @@ export function ParasiteItemSheet({
             <div className="px-4 pt-2 pb-4 space-y-3">
               <div className="flex items-center gap-2">
                 <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-base bg-[#F2F6FC] ring-1 ring-[#D9E6F7]">
-                  {cfg.icon}
+                  {type !== 'flea_tick' && cfg.icon}
                 </div>
                 <h3 className="text-[16px] font-bold text-gray-900">Editar registro</h3>
               </div>
@@ -981,7 +1005,7 @@ export function ParasiteItemSheet({
               onClick={() => setMode('buy')}
               className={`w-full py-3.5 rounded-2xl text-[15px] font-black active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 ${SECONDARY_BTN}`}
             >
-              <span>🛒</span>
+              <ShoppingCart className="h-[18px] w-[18px]" strokeWidth={2.3} />
               {cfg.buyLabel}
             </button>
           </div>
