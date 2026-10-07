@@ -7,8 +7,11 @@ import { Bell, BellOff, MapPin, MapPinOff, CalendarClock } from 'lucide-react';
 import { useI18n } from '@/lib/I18nContext';
 import { HomeAttentionOverlays } from '@/components/home/HomeAttentionOverlays';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
-import { requestLocationAndPersist } from '@/features/interactions/requestCorePermissions';
+import { requestLocationAndPersist, stopSharingLocation } from '@/features/interactions/requestCorePermissions';
 import { queryGeolocationPermission, type GeolocationPermissionState } from '@/lib/silentLocationRefresh';
+import { fetchMe } from '@/lib/fetchMe';
+import { API_BASE_URL } from '@/lib/api';
+import { getToken } from '@/lib/auth-token';
 import type { PetInteractionItem } from '@/features/interactions/types';
 import type { PetHealthProfile } from '@/lib/petHealth';
 
@@ -85,30 +88,51 @@ export function HomePetHeader({
   }, []);
 
   // Indicador de permissões (canto da foto) — reusa o controller de push
-  // já existente (hook consumido do mesmo jeito em PermissionsNudgeCard.tsx)
-  // em vez de reimplementar detecção de notificação. 'default'|'granted'|
-  // 'denied' tanto web quanto nativo (o hook já normaliza isso).
-  const { permission: pushPermission, requestPermission: requestPushPermission, subscribeToPush } =
-    useNotificationPermissionController();
+  // já existente (hook consumido do mesmo jeito em PermissionsNudgeCard.tsx
+  // e em profile/page.tsx) em vez de reimplementar. "Ativo" aqui segue a
+  // MESMA definição que o Perfil já usa: isSubscribed (o app realmente tem
+  // uma subscription registrada), não só a permissão bruta do navegador —
+  // o navegador não tem API pra "desligar" notificação por conta própria,
+  // então o que o PETMOL de fato liga/desliga é a subscription.
+  const {
+    permission: pushPermission,
+    requestPermission: requestPushPermission,
+    subscribeToPush,
+    isSubscribed,
+    unsubscribe: unsubscribePush,
+  } = useNotificationPermissionController();
 
-  // Geolocalização: só LEITURA do estado real via Permissions API
-  // (queryGeolocationPermission, em silentLocationRefresh.ts — mesma
-  // chamada que o resto do app já usa pra decidir se renova a localização
-  // em segundo plano). Checado uma vez ao montar; query() é passivo, não
-  // abre diálogo nenhum, então não há "pedir repetidamente" aqui.
+  // Localização: mesma definição que o Perfil usa (handleStopSharing/
+  // handleRequestGeo em profile/page.tsx) — "ativo" é ter lat/lng
+  // guardados no tutor (GET /auth/me), não só a permissão do navegador.
+  // Não existe API de navegador pra revogar geolocalização de dentro do
+  // app; o que o PETMOL controla de fato é guardar ou apagar a posição.
+  // geoPermission continua só pra saber se um novo pedido vai mostrar o
+  // diálogo nativo ou se o SO já bloqueou (pra dar a orientação certa).
   const [geoPermission, setGeoPermission] = useState<GeolocationPermissionState>('unsupported');
+  const [hasLocation, setHasLocation] = useState(false);
+  const refreshLocationState = async () => {
+    try {
+      const token = getToken();
+      const res = await fetchMe(API_BASE_URL, token);
+      if (!res.ok) return;
+      const data = await res.json();
+      setHasLocation(data?.lat != null && data?.lng != null);
+    } catch { /* melhor esforço */ }
+  };
   useEffect(() => {
     let active = true;
     void queryGeolocationPermission().then((state) => {
       if (active) setGeoPermission(state);
     });
+    void refreshLocationState();
     return () => { active = false; };
   }, []);
 
-  const notifOff = pushPermission === 'denied' || pushPermission === 'default';
-  const locOff = geoPermission === 'denied' || geoPermission === 'prompt';
+  const notifOff = !isSubscribed;
+  const locOff = !hasLocation;
 
-  // Popover de explicação — mesmo padrão de portal fixo usado pelo
+  // Popover de explicação/ação — mesmo padrão de portal fixo usado pelo
   // seletor de pets (renderSelector) logo abaixo, só que mais simples
   // (sem precisar medir posição de um botão específico: os dois ícones
   // ficam sempre no mesmo canto da foto).
@@ -118,8 +142,18 @@ export function HomePetHeader({
   const activatePush = async () => {
     setPermBusy(true);
     try {
-      const granted = await requestPushPermission();
-      if (granted) void subscribeToPush();
+      const granted = pushPermission === 'granted' ? true : await requestPushPermission();
+      if (granted) await subscribeToPush();
+    } catch { /* melhor esforço */ } finally {
+      setPermBusy(false);
+      setPermPopup(null);
+    }
+  };
+
+  const deactivatePush = async () => {
+    setPermBusy(true);
+    try {
+      await unsubscribePush();
     } catch { /* melhor esforço */ } finally {
       setPermBusy(false);
       setPermPopup(null);
@@ -133,6 +167,18 @@ export function HomePetHeader({
     } finally {
       const state = await queryGeolocationPermission();
       setGeoPermission(state);
+      await refreshLocationState();
+      setPermBusy(false);
+      setPermPopup(null);
+    }
+  };
+
+  const deactivateLocation = async () => {
+    setPermBusy(true);
+    try {
+      await stopSharingLocation();
+    } finally {
+      await refreshLocationState();
       setPermBusy(false);
       setPermPopup(null);
     }
@@ -141,9 +187,7 @@ export function HomePetHeader({
   const renderPermPopup = () => {
     if (!mounted || !permPopup) return null;
     const isPush = permPopup === 'push';
-    // Estado ATUAL no momento em que o popover abriu — tocar num controle
-    // já ativo abre uma confirmação (sem ação nenhuma: permissão de
-    // sistema não é toggle interno do app, nunca "desativamos" por aqui).
+    // Estado ATUAL no momento em que o popover abriu.
     const isOff = isPush ? notifOff : locOff;
     const deniedByOs = isOff && (isPush ? pushPermission === 'denied' : geoPermission === 'denied');
     const title = isOff
@@ -151,8 +195,8 @@ export function HomePetHeader({
       : (isPush ? 'Notificações ativas' : 'Localização ativa');
     const body = !isOff
       ? (isPush
-          ? 'Tudo certo — você recebe lembretes de cuidado e alertas de pet sumido perto de você.'
-          : 'Tudo certo — isso ajuda a avisar sobre pets sumidos perto de você.')
+          ? 'Você recebe lembretes de cuidado e alertas de pet sumido perto de você.'
+          : 'Isso ajuda a avisar sobre pets sumidos perto de você.')
       : (isPush
           ? 'Precisamos de notificações pra avisar sobre lembretes de cuidado e alertas de pet sumido perto de você.'
           : 'Precisamos da localização especialmente pra avisar sobre pets sumidos perto de você.');
@@ -175,9 +219,9 @@ export function HomePetHeader({
               disabled={permBusy}
               className="rounded-full px-3 py-1.5 text-[12px] font-semibold text-slate-400 active:opacity-70 disabled:opacity-40"
             >
-              {!isOff || deniedByOs ? 'Entendi' : 'Agora não'}
+              {deniedByOs ? 'Entendi' : 'Agora não'}
             </button>
-            {isOff && !deniedByOs && (
+            {!deniedByOs && isOff && (
               <button
                 type="button"
                 onClick={() => void (isPush ? activatePush() : activateLocation())}
@@ -185,6 +229,16 @@ export function HomePetHeader({
                 className="rounded-full bg-[#0056D2] px-3.5 py-1.5 text-[12px] font-bold text-white active:scale-95 transition-transform disabled:opacity-60"
               >
                 Ativar
+              </button>
+            )}
+            {!isOff && (
+              <button
+                type="button"
+                onClick={() => void (isPush ? deactivatePush() : deactivateLocation())}
+                disabled={permBusy}
+                className="rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-[12px] font-bold text-slate-600 active:scale-95 transition-transform disabled:opacity-60"
+              >
+                Desativar
               </button>
             )}
           </div>
@@ -371,6 +425,41 @@ export function HomePetHeader({
           </>
         )}
 
+        {/* Status de Notificações/Localização — DE VOLTA pra foto, canto
+            superior esquerdo (10/10/2026, correção: a versão em linha
+            abaixo da foto "virou mais um botão da Home" e o estado ativo
+            ficou invisível). Agora SEMPRE visíveis, os dois estados —
+            Bell/MapPin azul quando ativo, BellOff/MapPinOff âmbar quando
+            não. Nunca vermelho, nunca toggle (ver renderPermPopup: tocar
+            ativo só confirma, nunca desativa). */}
+        <div className="absolute left-2.5 top-2.5 z-20 flex items-center gap-1.5 sm:left-3 sm:top-3">
+          <button
+            type="button"
+            onClick={() => setPermPopup('push')}
+            aria-label={notifOff ? 'Notificações desativadas' : 'Notificações ativas'}
+            title={notifOff ? 'Notificações desativadas' : 'Notificações ativas'}
+            className={`flex h-8 w-8 items-center justify-center rounded-full border shadow-lg backdrop-blur-md transition-all active:scale-90 sm:h-9 sm:w-9 ${
+              notifOff
+                ? 'border-amber-200/70 bg-amber-400/90 text-amber-950 hover:bg-amber-400'
+                : 'border-white/40 bg-black/30 text-white hover:bg-black/50'
+            }`}
+          >
+            {notifOff ? <BellOff className="h-4 w-4" strokeWidth={2.3} /> : <Bell className="h-4 w-4" strokeWidth={2.3} />}
+          </button>
+          <button
+            type="button"
+            onClick={() => setPermPopup('location')}
+            aria-label={locOff ? 'Localização desativada' : 'Localização ativa'}
+            title={locOff ? 'Localização desativada' : 'Localização ativa'}
+            className={`flex h-8 w-8 items-center justify-center rounded-full border shadow-lg backdrop-blur-md transition-all active:scale-90 sm:h-9 sm:w-9 ${
+              locOff
+                ? 'border-amber-200/70 bg-amber-400/90 text-amber-950 hover:bg-amber-400'
+                : 'border-white/40 bg-black/30 text-white hover:bg-black/50'
+            }`}
+          >
+            {locOff ? <MapPinOff className="h-4 w-4" strokeWidth={2.3} /> : <MapPin className="h-4 w-4" strokeWidth={2.3} />}
+          </button>
+        </div>
 
         {/* Botão de ação no canto inferior direito — só "editar este pet"
             (lápis). Controle pequeno e indispensável, continua sobre a
