@@ -361,21 +361,19 @@ export function HomePetHeader({
           em qualquer largura de tela; antes cada um tinha seu próprio px
           responsivo e desalinhava dependendo do tamanho da tela. */}
       <div
-        className="relative group mx-auto w-full overflow-hidden rounded-[22px] border border-white/50 bg-gradient-to-br from-blue-400 to-purple-500 shadow-lg shadow-blue-500/10 ring-1 ring-black/5 sm:rounded-[28px] aspect-[1.25/1] max-h-[min(36dvh,315px)] max-w-[min(100%,calc(min(36dvh,315px)*1.25))] lg:max-h-none lg:max-w-none"
+        className="relative group mx-auto w-full overflow-hidden rounded-[22px] border border-white/50 bg-gradient-to-br from-blue-400 to-purple-500 shadow-lg shadow-blue-500/10 ring-1 ring-black/5 sm:rounded-[28px] aspect-[1.25/1]"
         style={{
-          // Mobile/tablet (<1024px): teto de altura em dvh (315px) continua
-          // — é a mesma lógica de sempre, pensada pra tela curta de celular.
-          // Desktop (lg:): REMOVIDO o teto (max-h-none/max-w-none) em vez de
-          // só aumentá-lo. Um teto em altura, em qualquer valor fixo,
-          // SEMPRE encolhe a largura proporcionalmente (aspect-ratio 1.25/1)
-          // — por isso um aumento de 315→360px (tentativa anterior) mantinha
-          // a MESMA proporção foto:card de antes e não parecia diferente.
-          // Sem teto, a largura passa a ser só w-full (ocupa o conteúdo do
-          // card) e a altura segue o aspect-ratio — sem distorcer nada,
-          // sem mudar o crop, só parando de encolher a foto artificialmente.
-          // Isso já é seguro contra tela gigante: o card-pai (lg:max-w-3xl)
-          // é fixo em 768px independente do monitor, então a foto também
-          // para de crescer a partir daí.
+          // Teto de altura/largura REMOVIDO em qualquer breakpoint
+          // (10/10/2026, pedido explícito: a foto tem que alinhar em
+          // largura com o resto da tela, igual produção). A versão
+          // anterior (teto só até 315px/36dvh de altura, derivando a
+          // largura disso) deixava a foto mais ESTREITA que os cards/
+          // botões em telas largas — o teto em altura sempre encolhe a
+          // largura proporcionalmente (aspect-ratio 1.25/1), então
+          // qualquer valor de teto além de ~1024px (onde o card-pai já
+          // trava em lg:max-w-3xl) causa esse desalinhamento. Agora é só
+          // w-full (sempre igual aos irmãos) + aspect-ratio — altura
+          // segue da largura, sem distorcer, sem mudar o crop.
           backfaceVisibility: 'hidden',
           WebkitBackfaceVisibility: 'hidden',
           transform: 'translate3d(0,0,0)',
