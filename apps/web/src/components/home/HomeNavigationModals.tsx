@@ -205,7 +205,7 @@ export function HomeNavigationModals({
                       onCloseHealthOptionsModal();
                       onOpenHealthTab(tab);
                     }}
-                    className={`group relative overflow-hidden border border-[#D9E6F7] bg-gradient-to-br from-white to-[#F2F6FC] rounded-[20px] p-3 h-[108px] transition-all duration-200 hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-end shadow-[0_2px_10px_-2px_rgba(15,23,42,0.08)] hover:shadow-[0_8px_24px_-6px_rgba(15,23,42,0.14)] ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
+                    className={`group relative overflow-hidden border border-[#D9E6F7] bg-gradient-to-br from-white to-[#F2F6FC] rounded-[20px] p-3 h-[116px] transition-all duration-200 hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-end shadow-[0_2px_10px_-2px_rgba(15,23,42,0.08)] hover:shadow-[0_8px_24px_-6px_rgba(15,23,42,0.14)] ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
                   >
                     {shouldShowAlert(tone, alert) && <ControlAlertBadge tone={tone} />}
                     {image ? (
@@ -213,20 +213,25 @@ export function HomeNavigationModals({
                       // do dono 07/10/2026: Coleira estava grande demais,
                       // Antipulgas e Medicação pequenos demais, PetShops podia
                       // ganhar presença. Vermífugo/Banho já estavam bons, mantidos.
+                      // Reduzido de novo mais tarde no mesmo dia: o ícone fica
+                      // absolutamente posicionado (não reserva espaço próprio),
+                      // então com h-[108px] original + ícones de até 68px a
+                      // base dele quase encostava no texto embaixo (cartão
+                      // também cresceu de 108→116px, acima, pra dar folga real).
                       <span className="absolute top-1.5 right-1.5 transition-transform duration-300 group-hover:scale-110">
                         <img
                           src={image}
                           alt=""
                           className={
                             tab === 'collar'
-                              ? 'h-[60px] w-[60px] object-contain'
+                              ? 'h-11 w-11 object-contain'
                               : tab === 'flea_tick'
-                                ? 'h-[54px] w-[54px] object-contain'
+                                ? 'h-10 w-10 object-contain'
                                 : tab === 'medication'
-                                  ? 'h-[58px] w-[58px] object-contain'
+                                  ? 'h-[42px] w-[42px] object-contain'
                                   : tab === 'petshops'
-                                    ? 'h-[68px] w-[68px] object-contain'
-                                    : 'h-[62px] w-[62px] object-contain'
+                                    ? 'h-12 w-12 object-contain'
+                                    : 'h-11 w-11 object-contain'
                           }
                         />
                       </span>
