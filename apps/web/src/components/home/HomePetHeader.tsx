@@ -126,7 +126,24 @@ export function HomePetHeader({
       if (active) setGeoPermission(state);
     });
     void refreshLocationState();
-    return () => { active = false; };
+    // O Perfil tem sua própria cópia desse estado — ativar/desativar lá não
+    // atualiza esta tela ao vivo, e a navegação pode trazer a Home de volta
+    // sem remontar. Reconfere ao voltar o foco pra não mostrar um estado
+    // que já foi mudado em outra tela.
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      void queryGeolocationPermission().then((state) => {
+        if (active) setGeoPermission(state);
+      });
+      void refreshLocationState();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleVisibility);
+    return () => {
+      active = false;
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleVisibility);
+    };
   }, []);
 
   const notifOff = !isSubscribed;

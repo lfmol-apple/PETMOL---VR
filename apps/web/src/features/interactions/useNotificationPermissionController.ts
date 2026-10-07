@@ -309,6 +309,31 @@ export function useNotificationPermissionController() {
         }
       })
       .catch(() => { /* silently ignore */ });
+
+    // Cada tela (Home, Perfil, sheets de item) usa sua própria instância
+    // deste hook, sem estado compartilhado. Ativar/desativar numa tela não
+    // atualiza as outras já montadas — e navegação entre rotas do Next.js
+    // pode reaproveitar a instância anterior sem remontar. Reconferimos a
+    // subscription real (não a dança de renovação, só a leitura) sempre que
+    // a aba/app volta a ficar visível, pra outras telas puxarem o estado
+    // real em vez de ficarem com o valor capturado na montagem.
+    const resyncFromRealSubscription = async () => {
+      try {
+        const reg = await getSwRegistration();
+        const sub = await reg.pushManager.getSubscription();
+        setIsSubscribed(!!sub);
+        setSubscription(sub);
+      } catch { /* melhor esforço */ }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') void resyncFromRealSubscription();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleVisibility);
+    };
   }, [isNative]);
 
   const unsubscribe = useCallback(async (): Promise<void> => {
