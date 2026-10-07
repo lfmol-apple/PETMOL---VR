@@ -139,26 +139,6 @@ export function HomePetHeader({
               </button>
             ))}
           </div>
-          {/* "Adicionar pet" — movido pra cá (07/10/2026, redesenho
-              compacto da identificação): um botão de texto próprio
-              embaixo da foto criava uma linha alta e um espaço vertical
-              que a Home não precisa logo na abertura. Aqui ele fica
-              contextual — você já está escolhendo entre os pets. */}
-          <div className="border-t border-slate-100 p-2">
-            <button
-              type="button"
-              onClick={() => {
-                onClosePetSelector();
-                onOpenAddPetModal();
-              }}
-              className="flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-[12px] font-black uppercase tracking-wide text-blue-700 transition-colors hover:bg-blue-50 active:scale-95"
-            >
-              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
-              </svg>
-              Adicionar pet
-            </button>
-          </div>
         </div>
       </>,
       document.body
@@ -316,50 +296,50 @@ export function HomePetHeader({
 
       </div>
 
-      {/* Identificação do pet — redesenho compacto (07/10/2026): nome +
-          "Trocar pet" discreta na mesma linha, UMA linha corrida de
-          dados embaixo (sem pills, sem "Adicionar pet" aqui — foi pro
-          rodapé do seletor, ver renderSelector). Sem texto sobre a
-          foto, sem gradiente decorativo. */}
-      <div className="px-1 pb-1.5 sm:px-1.5 sm:pb-2">
-        <div className="flex items-center justify-between gap-2">
+      {/* Identificação do pet. Linha nome/Trocar-pet/Adicionar-pet
+          restaurada EXATAMENTE como estava antes da compactação de
+          09/10/2026 (recuperada de 3e22ea61, não reescrita de memória —
+          pedido explícito do dono: "Trocar pet" à esquerda dentro do
+          botão do nome, "Adicionar pet" visível à direita, ambos como
+          eram). A linha única de dados (identityLine) abaixo é a única
+          parte do redesenho compacto que permanece — "não mexa nas
+          pills ainda". */}
+      <div className="px-0.5 pb-1 min-[390px]:px-1 sm:px-1.5 sm:pb-2">
+        <div className="flex w-full items-center pr-1">
           <button
             ref={nameButtonRef}
             onClick={onTogglePetSelector}
-            className="group -ml-1 flex min-w-0 items-center gap-1 rounded-xl py-0.5 pl-1 pr-1.5 text-left transition-all hover:bg-slate-100/50 active:scale-95"
+            className="group -ml-1 flex min-w-0 flex-1 items-center gap-1.5 rounded-2xl py-1 pl-1.5 pr-2 text-left transition-all hover:bg-slate-100/50 active:scale-95 sm:gap-2 sm:py-1.5 sm:pr-2.5"
           >
-            <h2 className="min-w-0 truncate text-[25px] font-black leading-none tracking-tight text-slate-900 transition-colors group-hover:text-blue-600 sm:text-[28px]">
-              {currentPet.pet_name}
-            </h2>
-            {pets.length > 1 && (
-              <svg
-                className={`h-4 w-4 flex-shrink-0 text-slate-400 transition-transform duration-300 ${showPetSelector ? 'rotate-180' : ''}`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
+            <span className="min-w-0">
+              <h2 className="min-w-0 truncate text-[28px] font-black leading-none tracking-tight text-slate-900 transition-colors group-hover:text-blue-600 sm:text-3xl">
+                {currentPet.pet_name}
+              </h2>
+              {pets.length > 1 && (
+                <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-blue-700 shadow-sm ring-1 ring-blue-100 group-hover:bg-blue-50 sm:mt-1">
+                  Trocar pet
+                </span>
+              )}
+            </span>
+            <div className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 transition-transform duration-300 ${showPetSelector ? 'rotate-180 bg-blue-100 text-blue-600' : 'text-slate-400'}`}>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
               </svg>
-            )}
+            </div>
           </button>
-          {/* "Trocar pet" — ação secundária discreta (texto + ícone,
-              sem fundo/borda), não compete com o nome. Preserva
-              exatamente o mesmo comportamento de troca de antes. */}
-          {pets.length > 1 && (
-            <button
-              type="button"
-              onClick={onTogglePetSelector}
-              className="flex flex-shrink-0 items-center gap-1 rounded-lg px-1.5 py-1 text-[12.5px] font-bold text-[#0056D2] transition-colors hover:bg-blue-50 active:scale-95"
-            >
-              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4" />
-              </svg>
-              Trocar pet
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onOpenAddPetModal}
+            className="ml-1 flex flex-shrink-0 items-center gap-1 rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1.5 text-[11px] font-black uppercase tracking-wide text-blue-700 transition-all active:scale-95 sm:px-3"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
+            </svg>
+            Adicionar pet
+          </button>
         </div>
         {identityLine && (
-          <p className="line-clamp-2 pl-1 text-[13px] font-medium leading-snug text-slate-500 sm:text-[13.5px]">
+          <p className="line-clamp-2 mt-1 ml-1 text-[13px] font-medium leading-snug text-slate-500 sm:mt-1.5 sm:text-[13.5px]">
             {identityLine}
           </p>
         )}
