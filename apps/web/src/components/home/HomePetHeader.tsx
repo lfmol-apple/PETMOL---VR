@@ -139,6 +139,26 @@ export function HomePetHeader({
               </button>
             ))}
           </div>
+          {/* "Adicionar pet" — movido pra cá (07/10/2026, redesenho
+              compacto da identificação): um botão de texto próprio
+              embaixo da foto criava uma linha alta e um espaço vertical
+              que a Home não precisa logo na abertura. Aqui ele fica
+              contextual — você já está escolhendo entre os pets. */}
+          <div className="border-t border-slate-100 p-2">
+            <button
+              type="button"
+              onClick={() => {
+                onClosePetSelector();
+                onOpenAddPetModal();
+              }}
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-[12px] font-black uppercase tracking-wide text-blue-700 transition-colors hover:bg-blue-50 active:scale-95"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
+              </svg>
+              Adicionar pet
+            </button>
+          </div>
         </div>
       </>,
       document.body
@@ -164,18 +184,29 @@ export function HomePetHeader({
     ? `${latestWeight.weight} ${latestWeight.weight_unit ?? 'kg'}`
     : null;
 
-  const petChips = [
+  // Linha única corrida (não mais pills) — redesenho compacto da
+  // identificação, 07/10/2026: "Lhasa Apso · Macho · 9a 4m · 11,6 kg".
+  // Quatro pílulas com quatro fundos criavam fragmentação visual sem
+  // necessidade; uma frase lê melhor e ocupa menos altura. "Castrado"
+  // fica de fora (não citado no formato aprovado); continua
+  // editável/visível em outras telas do pet, só não entra aqui.
+  const identityLine = [
     currentPet.breed || (currentPet.species === 'cat' ? 'Gato' : currentPet.species === 'dog' ? 'Cão' : null),
     currentPet.sex === 'male' ? 'Macho' : currentPet.sex === 'female' ? 'Fêmea' : null,
     petAge ?? null,
     weightChip,
-    currentPet.neutered === true ? 'Castrado' : null,
-  ].filter(Boolean) as string[];
+  ].filter(Boolean).join(' · ');
 
   const currentPetPhotoUrl = getPhotoUrl(currentPet.photo, currentPet.pet_id, photoTimestamps);
 
   return (
-    <>    <div className="px-2 pt-1.5 space-y-2 sm:pt-4 sm:space-y-3">
+    <>    <div className="px-2 pt-1.5 space-y-1.5 sm:pt-4 sm:space-y-2">
+      {/* space-y reduzido de 2/3 pra 1.5/2 no redesenho compacto
+          (07/10/2026): a identificação ficou bem mais curta (uma linha
+          de nome + uma linha de dados, sem pills, sem botão "Adicionar
+          pet" próprio) e não precisa mais da mesma folga. Objetivo:
+          Alimentação/Cuidados aparecerem mais cedo na tela sem
+          sacrificar o tamanho da foto. */}
       {/* Container da Foto + Navegação Estilo Apple — padding lateral igual
           ao de HomePetDashboard/AppleControlButtons (px-2 flat, sem variar
           por breakpoint) pra foto e cards ficarem com a MESMA borda lateral
@@ -220,9 +251,6 @@ export function HomePetHeader({
             onError={(e) => { e.currentTarget.style.display = 'none'; }}
           />
         )}
-
-        {/* Overlay premium gradient na parte inferior da foto */}
-        <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
 
         {pets.length > 1 && (
           <>
@@ -271,9 +299,8 @@ export function HomePetHeader({
         </div>
 
         {/* Botão de ação no canto inferior direito — só "editar este pet"
-            (lápis). "Adicionar pet" saiu daqui de cima da foto (pedido do
-            dono, 04/10/2026: "adicionar pet poderia estar embaixo da foto
-            e claro") — agora é um botão com texto, abaixo do nome. */}
+            (lápis). Controle pequeno e indispensável, continua sobre a
+            foto; nenhum texto informativo mora mais aqui. */}
         <div className="absolute bottom-2.5 right-2.5 z-20 sm:bottom-3 sm:right-3">
           <button
             onClick={onOpenEditPetModal}
@@ -289,60 +316,53 @@ export function HomePetHeader({
 
       </div>
 
-      {/* Dados de Identidade do Pet (Abaixo da Foto) */}
-      <div className="px-0.5 pb-1 min-[390px]:px-1 sm:px-1.5 sm:pb-2">
-        <div className="flex flex-col">
-          <div className="flex w-full items-center pr-1">
-            <button
-              ref={nameButtonRef}
-              onClick={onTogglePetSelector}
-              className="group -ml-1 flex min-w-0 flex-1 items-center gap-1.5 rounded-2xl py-1 pl-1.5 pr-2 text-left transition-all hover:bg-slate-100/50 active:scale-95 sm:gap-2 sm:py-1.5 sm:pr-2.5"
-            >
-              <span className="min-w-0">
-                <h2 className="min-w-0 truncate text-[28px] font-black leading-none tracking-tight text-slate-900 transition-colors group-hover:text-blue-600 sm:text-3xl">
-                  {currentPet.pet_name}
-                </h2>
-                {pets.length > 1 && (
-                  <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-blue-700 shadow-sm ring-1 ring-blue-100 group-hover:bg-blue-50 sm:mt-1">
-                    Trocar pet
-                  </span>
-                )}
-              </span>
-              <div className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 transition-transform duration-300 ${showPetSelector ? 'rotate-180 bg-blue-100 text-blue-600' : 'text-slate-400'}`}>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </button>
-            {/* "Adicionar pet" — texto claro, embaixo da foto (pedido do
-                dono, 04/10/2026), nunca mais um "+" flutuando em cima dela. */}
+      {/* Identificação do pet — redesenho compacto (07/10/2026): nome +
+          "Trocar pet" discreta na mesma linha, UMA linha corrida de
+          dados embaixo (sem pills, sem "Adicionar pet" aqui — foi pro
+          rodapé do seletor, ver renderSelector). Sem texto sobre a
+          foto, sem gradiente decorativo. */}
+      <div className="px-1 pb-1.5 sm:px-1.5 sm:pb-2">
+        <div className="flex items-center justify-between gap-2">
+          <button
+            ref={nameButtonRef}
+            onClick={onTogglePetSelector}
+            className="group -ml-1 flex min-w-0 items-center gap-1 rounded-xl py-0.5 pl-1 pr-1.5 text-left transition-all hover:bg-slate-100/50 active:scale-95"
+          >
+            <h2 className="min-w-0 truncate text-[25px] font-black leading-none tracking-tight text-slate-900 transition-colors group-hover:text-blue-600 sm:text-[28px]">
+              {currentPet.pet_name}
+            </h2>
+            {pets.length > 1 && (
+              <svg
+                className={`h-4 w-4 flex-shrink-0 text-slate-400 transition-transform duration-300 ${showPetSelector ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+              </svg>
+            )}
+          </button>
+          {/* "Trocar pet" — ação secundária discreta (texto + ícone,
+              sem fundo/borda), não compete com o nome. Preserva
+              exatamente o mesmo comportamento de troca de antes. */}
+          {pets.length > 1 && (
             <button
               type="button"
-              onClick={onOpenAddPetModal}
-              className="ml-1 flex flex-shrink-0 items-center gap-1 rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1.5 text-[11px] font-black uppercase tracking-wide text-blue-700 transition-all active:scale-95 sm:px-3"
+              onClick={onTogglePetSelector}
+              className="flex flex-shrink-0 items-center gap-1 rounded-lg px-1.5 py-1 text-[12.5px] font-bold text-[#0056D2] transition-colors hover:bg-blue-50 active:scale-95"
             >
               <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4" />
               </svg>
-              Adicionar pet
+              Trocar pet
             </button>
-          </div>
-          
-          {/* Chips de dados do pet */}
-          {petChips.length > 0 && (
-            <div className="mt-1.5 ml-1 flex flex-wrap gap-1.5 sm:mt-2">
-              {petChips.map((chip) => (
-                <span
-                  key={chip}
-                  className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold leading-none text-slate-600 sm:px-2.5 sm:py-1 sm:text-[11px]"
-                >
-                  {chip}
-                </span>
-              ))}
-            </div>
           )}
-
         </div>
+        {identityLine && (
+          <p className="line-clamp-2 pl-1 text-[13px] font-medium leading-snug text-slate-500 sm:text-[13.5px]">
+            {identityLine}
+          </p>
+        )}
 
         {renderSelector()}
       </div>
