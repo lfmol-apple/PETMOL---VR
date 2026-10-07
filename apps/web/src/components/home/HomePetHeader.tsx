@@ -2,9 +2,13 @@
 import { useBackHandler } from '@/lib/backStack';
 import { useRef, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { BellOff, MapPinOff, CalendarClock } from 'lucide-react';
 
 import { useI18n } from '@/lib/I18nContext';
 import { HomeAttentionOverlays } from '@/components/home/HomeAttentionOverlays';
+import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
+import { requestLocationAndPersist } from '@/features/interactions/requestCorePermissions';
+import { queryGeolocationPermission, type GeolocationPermissionState } from '@/lib/silentLocationRefresh';
 import type { PetInteractionItem } from '@/features/interactions/types';
 import type { PetHealthProfile } from '@/lib/petHealth';
 
@@ -79,6 +83,106 @@ export function HomePetHeader({
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Indicador de permissões (canto da foto) — reusa o controller de push
+  // já existente (hook consumido do mesmo jeito em PermissionsNudgeCard.tsx)
+  // em vez de reimplementar detecção de notificação. 'default'|'granted'|
+  // 'denied' tanto web quanto nativo (o hook já normaliza isso).
+  const { permission: pushPermission, requestPermission: requestPushPermission, subscribeToPush } =
+    useNotificationPermissionController();
+
+  // Geolocalização: só LEITURA do estado real via Permissions API
+  // (queryGeolocationPermission, em silentLocationRefresh.ts — mesma
+  // chamada que o resto do app já usa pra decidir se renova a localização
+  // em segundo plano). Checado uma vez ao montar; query() é passivo, não
+  // abre diálogo nenhum, então não há "pedir repetidamente" aqui.
+  const [geoPermission, setGeoPermission] = useState<GeolocationPermissionState>('unsupported');
+  useEffect(() => {
+    let active = true;
+    void queryGeolocationPermission().then((state) => {
+      if (active) setGeoPermission(state);
+    });
+    return () => { active = false; };
+  }, []);
+
+  const notifOff = pushPermission === 'denied' || pushPermission === 'default';
+  const locOff = geoPermission === 'denied' || geoPermission === 'prompt';
+
+  // Popover de explicação — mesmo padrão de portal fixo usado pelo
+  // seletor de pets (renderSelector) logo abaixo, só que mais simples
+  // (sem precisar medir posição de um botão específico: os dois ícones
+  // ficam sempre no mesmo canto da foto).
+  const [permPopup, setPermPopup] = useState<'push' | 'location' | null>(null);
+  const [permBusy, setPermBusy] = useState(false);
+
+  const activatePush = async () => {
+    setPermBusy(true);
+    try {
+      const granted = await requestPushPermission();
+      if (granted) void subscribeToPush();
+    } catch { /* melhor esforço */ } finally {
+      setPermBusy(false);
+      setPermPopup(null);
+    }
+  };
+
+  const activateLocation = async () => {
+    setPermBusy(true);
+    try {
+      await requestLocationAndPersist();
+    } finally {
+      const state = await queryGeolocationPermission();
+      setGeoPermission(state);
+      setPermBusy(false);
+      setPermPopup(null);
+    }
+  };
+
+  const renderPermPopup = () => {
+    if (!mounted || !permPopup) return null;
+    const isPush = permPopup === 'push';
+    const deniedByOs = isPush ? pushPermission === 'denied' : geoPermission === 'denied';
+    const title = isPush ? 'Notificações desativadas' : 'Localização desativada';
+    const body = isPush
+      ? 'Precisamos de notificações pra avisar sobre lembretes de cuidado e alertas de pet sumido perto de você.'
+      : 'Precisamos da localização especialmente pra avisar sobre pets sumidos perto de você.';
+    return createPortal(
+      <>
+        <div className="fixed inset-0 z-[200]" onClick={() => setPermPopup(null)} />
+        <div className="fixed left-1/2 top-1/2 z-[201] w-[calc(100vw-48px)] max-w-[320px] -translate-x-1/2 -translate-y-1/2 rounded-[22px] border border-white/60 bg-white/95 p-4 shadow-2xl ring-1 ring-black/5 backdrop-blur-xl animate-in fade-in zoom-in duration-200">
+          <p className="text-[14px] font-black text-slate-900">{title}</p>
+          <p className="mt-1 text-[12.5px] leading-snug text-slate-500">{body}</p>
+          {deniedByOs ? (
+            <p className="mt-2.5 text-[11.5px] leading-snug text-amber-700">
+              O sistema não deixa pedir de novo por aqui — abra as configurações do aparelho e permita
+              {isPush ? ' notificações' : ' localização'} para o Petmol.
+            </p>
+          ) : null}
+          <div className="mt-3 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setPermPopup(null)}
+              disabled={permBusy}
+              className="rounded-full px-3 py-1.5 text-[12px] font-semibold text-slate-400 active:opacity-70 disabled:opacity-40"
+            >
+              {deniedByOs ? 'Entendi' : 'Agora não'}
+            </button>
+            {!deniedByOs && (
+              <button
+                type="button"
+                onClick={() => void (isPush ? activatePush() : activateLocation())}
+                disabled={permBusy}
+                className="rounded-full bg-[#0056D2] px-3.5 py-1.5 text-[12px] font-bold text-white active:scale-95 transition-transform disabled:opacity-60"
+              >
+                Ativar
+              </button>
+            )}
+          </div>
+        </div>
+      </>,
+      document.body
+    );
+  };
 
   useEffect(() => {
     if (showPetSelector && nameButtonRef.current) {
@@ -257,26 +361,37 @@ export function HomePetHeader({
           </>
         )}
 
-        {/* Bell de eventos futuros — canto superior esquerdo */}
-        <div className="absolute left-2.5 top-2.5 z-20 sm:left-3 sm:top-3">
-          <button
-            type="button"
-            onClick={onOpenUpcoming}
-            aria-label="Próximos eventos"
-            className="relative flex h-9 w-9 items-center justify-center rounded-full border border-white/40 bg-black/30 text-white shadow-lg backdrop-blur-md transition-all hover:bg-black/50 active:scale-90 sm:h-10 sm:w-10"
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5" aria-hidden="true">
-              <path d="M12 22a2 2 0 0 0 2-2H10a2 2 0 0 0 2 2Zm6-6V11a6 6 0 0 0-5-5.92V4a1 1 0 0 0-2 0v1.08A6 6 0 0 0 6 11v5l-1.29 1.29A1 1 0 0 0 5 19h14a1 1 0 0 0 .71-1.71L18 16Z" />
-            </svg>
-            {upcomingCount > 0 && (
-              <span className={`absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full border-2 border-white text-[10px] font-black text-white flex items-center justify-center px-1 leading-none shadow-md tabular-nums ${
-                upcomingUrgent ? 'bg-red-500' : 'bg-sky-500'
-              }`}>
-                {upcomingCount > 99 ? '99+' : upcomingCount}
-              </span>
+        {/* Canto superior esquerdo da foto — só avisos de permissão
+            (09/10/2026). O sino de "próximos eventos" que morava aqui
+            virou o indicador CalendarClock na faixa de identificação
+            abaixo (mesmo dado, mesma regra — ver ali). Se notificação E
+            localização estiverem ok, este canto fica limpo. */}
+        {(notifOff || locOff) && (
+          <div className="absolute left-2.5 top-2.5 z-20 flex items-center gap-1.5 sm:left-3 sm:top-3">
+            {notifOff && (
+              <button
+                type="button"
+                onClick={() => setPermPopup('push')}
+                aria-label="Notificações desativadas"
+                title="Notificações desativadas"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/40 bg-black/30 text-amber-300 shadow-lg backdrop-blur-md transition-all hover:bg-black/50 active:scale-90 sm:h-9 sm:w-9"
+              >
+                <BellOff className="h-4 w-4" strokeWidth={2.2} />
+              </button>
             )}
-          </button>
-        </div>
+            {locOff && (
+              <button
+                type="button"
+                onClick={() => setPermPopup('location')}
+                aria-label="Localização desativada"
+                title="Localização desativada"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/40 bg-black/30 text-amber-300 shadow-lg backdrop-blur-md transition-all hover:bg-black/50 active:scale-90 sm:h-9 sm:w-9"
+              >
+                <MapPinOff className="h-4 w-4" strokeWidth={2.2} />
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Botão de ação no canto inferior direito — só "editar este pet"
             (lápis). Controle pequeno e indispensável, continua sobre a
@@ -327,6 +442,29 @@ export function HomePetHeader({
               </svg>
             </div>
           </button>
+          {/* Indicador de agenda/pendências — era o sino sobre a foto,
+              mudou de lugar (09/10/2026): mesmo dado (allUpcomingReminders,
+              vacina/vermífugo/banho/ração/medicação/eventos, ver
+              buildPetCareReminders em petCareDomain.ts), mesma regra de
+              negócio (número só aparece se > 0 — igual o badge antigo;
+              o ícone em si fica sempre visível como atalho pra agenda).
+              CalendarClock é o ícone certo porque o dado real é "próximos
+              cuidados" (próxima dose, próxima consulta etc.), não
+              notificação — Bell ficou livre pra representar só o estado
+              da PERMISSÃO de notificação, no canto da foto. */}
+          <button
+            type="button"
+            onClick={onOpenUpcoming}
+            aria-label={upcomingCount > 0 ? `Agenda do pet — ${upcomingCount} pendência${upcomingCount === 1 ? '' : 's'}` : 'Agenda do pet'}
+            className="ml-1 flex flex-shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] font-bold transition-all active:scale-95 sm:px-2.5"
+          >
+            <CalendarClock className={`h-3.5 w-3.5 ${upcomingUrgent && upcomingCount > 0 ? 'text-red-600' : 'text-slate-500'}`} strokeWidth={2.2} />
+            {upcomingCount > 0 && (
+              <span className={`tabular-nums ${upcomingUrgent ? 'text-red-600' : 'text-slate-600'}`}>
+                {upcomingCount > 99 ? '99+' : upcomingCount}
+              </span>
+            )}
+          </button>
           <button
             type="button"
             onClick={onOpenAddPetModal}
@@ -345,6 +483,7 @@ export function HomePetHeader({
         )}
 
         {renderSelector()}
+        {renderPermPopup()}
       </div>
       </div>
 
