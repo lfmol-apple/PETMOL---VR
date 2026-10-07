@@ -2,7 +2,7 @@
 
 import { takePendingDeepLink, withDeepLinkNonce } from '@/lib/deepLinkIntent';
 import { shareAppUrl } from '@/lib/landingLinks';
-import { UserPlus, Share2 } from 'lucide-react';
+import { UserPlus } from 'lucide-react';
 import { useBackHandler } from '@/lib/backStack';
 import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -2474,20 +2474,24 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
                   {/* Compartilhar cuidado — só para o dono do pet. Compacto,
                       raio de controle (12px, careVisualTokens.CARE_RADIUS.
-                      control), Lucide em vez de emoji. Hierarquia REAL
-                      (07/10/2026, correção do 50/50 anterior): Convidar =
-                      flex-[3] (~60%, ação principal, azul-gelo + peso
-                      maior) vs Compartilhar = flex-[2] (~40%, secundário,
-                      branco + texto mais discreto) — proporcional, não
-                      largura fixa, então não trunca em telas estreitas;
-                      texto do Compartilhar continua sempre visível (nunca
-                      vira botão só-ícone). */}
+                      control), Lucide em vez de emoji. Mesmo tamanho e
+                      alinhamento (10/10/2026, pedido explícito — a
+                      hierarquia 60/40 anterior saiu): os dois flex-1,
+                      mesmo padding/fonte, mesma altura; só a cor continua
+                      diferenciando ação principal (azul-gelo) de
+                      secundária (branco). Compartilhar ganhou os 3
+                      logotipos (Instagram/WhatsApp/Facebook) só como
+                      indicação visual de pra onde dá pra compartilhar —
+                      o botão continua chamando handleShareApp(), que já
+                      abre o share sheet nativo do sistema (com esses e
+                      qualquer outro app instalado); nenhum app específico
+                      é aberto direto por aqui. */}
                   {currentPet && loggedUserId && (currentPet.owner_user_id ?? loggedUserId) === loggedUserId && (
                     <div className="flex flex-row gap-2 px-2 pb-1 min-[390px]:px-3 sm:px-4 sm:pb-2">
                       <button
                         onClick={handleSharePet}
                         disabled={shareLoading}
-                        className="flex flex-[3] items-center justify-center gap-1.5 rounded-xl border border-[#BFD4F0] bg-[#F2F6FC] px-2 py-1.5 text-[11px] font-bold text-[#0056D2] transition-opacity active:opacity-70 disabled:opacity-40 sm:py-2 sm:text-[12px] lg:py-2.5 lg:text-[13px]"
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#BFD4F0] bg-[#F2F6FC] px-2 py-1.5 text-[11px] font-bold text-[#0056D2] transition-opacity active:opacity-70 disabled:opacity-40 sm:py-2 sm:text-[12px] lg:py-2.5 lg:text-[13px]"
                       >
                         <UserPlus className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2.4} />
                         <span className="truncate">{shareLoading ? 'Gerando link...' : 'Convidar família'}</span>
@@ -2495,9 +2499,23 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
                       <button
                         onClick={() => void handleShareApp()}
-                        className="flex flex-[2] items-center justify-center gap-1.5 rounded-xl border border-[#E5E9F0] bg-white px-2 py-1.5 text-[11px] font-normal text-[#8792A2] transition-opacity active:opacity-70 sm:py-2 sm:text-[12px] lg:py-2.5 lg:text-[13px]"
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#E5E9F0] bg-white px-2 py-1.5 text-[11px] font-normal text-[#8792A2] transition-opacity active:opacity-70 sm:py-2 sm:text-[12px] lg:py-2.5 lg:text-[13px]"
                       >
-                        <Share2 className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2} />
+                        <span className="flex flex-shrink-0 items-center" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" width="13" height="13" className="rounded-[4px] ring-1 ring-white">
+                            <rect width="24" height="24" rx="6" fill="#E1306C" />
+                            <circle cx="12" cy="12" r="5" fill="none" stroke="#fff" strokeWidth="2" />
+                            <circle cx="17.3" cy="6.7" r="1.3" fill="#fff" />
+                          </svg>
+                          <svg viewBox="0 0 24 24" width="13" height="13" className="-ml-1 rounded-full ring-1 ring-white">
+                            <circle cx="12" cy="12" r="12" fill="#25D366" />
+                            <path d="M16.7 13.6c-.25-.13-1.47-.73-1.7-.81-.23-.08-.4-.13-.57.13-.17.25-.65.81-.8.98-.15.17-.3.19-.54.06-.25-.13-1.05-.39-2-1.23-.74-.66-1.24-1.48-1.39-1.73-.14-.25-.02-.38.11-.51.11-.11.25-.3.37-.44.12-.15.16-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.57-1.37-.78-1.87-.2-.5-.41-.43-.57-.43h-.48c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.09 0 1.24.9 2.43 1.03 2.6.13.17 1.77 2.71 4.3 3.8.6.26 1.07.41 1.43.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.19.21-.58.21-1.08.14-1.19-.06-.1-.23-.16-.48-.29z" fill="#fff" />
+                          </svg>
+                          <svg viewBox="0 0 24 24" width="13" height="13" className="-ml-1 rounded-full ring-1 ring-white">
+                            <circle cx="12" cy="12" r="12" fill="#1877F2" />
+                            <path d="M13.5 21v-7h2.1l.3-2.6h-2.4V9.7c0-.75.2-1.26 1.28-1.26H16V6.14C15.7 6.1 14.8 6 13.76 6 11.6 6 10.1 7.33 10.1 9.74v1.66H8v2.6h2.1V21h3.4z" fill="#fff" />
+                          </svg>
+                        </span>
                         <span className="truncate">Compartilhar</span>
                       </button>
 
