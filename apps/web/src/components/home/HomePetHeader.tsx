@@ -2,7 +2,7 @@
 import { useBackHandler } from '@/lib/backStack';
 import { useRef, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BellOff, MapPinOff, CalendarClock } from 'lucide-react';
+import { Bell, BellOff, MapPin, MapPinOff, CalendarClock } from 'lucide-react';
 
 import { useI18n } from '@/lib/I18nContext';
 import { HomeAttentionOverlays } from '@/components/home/HomeAttentionOverlays';
@@ -141,11 +141,21 @@ export function HomePetHeader({
   const renderPermPopup = () => {
     if (!mounted || !permPopup) return null;
     const isPush = permPopup === 'push';
-    const deniedByOs = isPush ? pushPermission === 'denied' : geoPermission === 'denied';
-    const title = isPush ? 'Notificações desativadas' : 'Localização desativada';
-    const body = isPush
-      ? 'Precisamos de notificações pra avisar sobre lembretes de cuidado e alertas de pet sumido perto de você.'
-      : 'Precisamos da localização especialmente pra avisar sobre pets sumidos perto de você.';
+    // Estado ATUAL no momento em que o popover abriu — tocar num controle
+    // já ativo abre uma confirmação (sem ação nenhuma: permissão de
+    // sistema não é toggle interno do app, nunca "desativamos" por aqui).
+    const isOff = isPush ? notifOff : locOff;
+    const deniedByOs = isOff && (isPush ? pushPermission === 'denied' : geoPermission === 'denied');
+    const title = isOff
+      ? (isPush ? 'Notificações desativadas' : 'Localização desativada')
+      : (isPush ? 'Notificações ativas' : 'Localização ativa');
+    const body = !isOff
+      ? (isPush
+          ? 'Tudo certo — você recebe lembretes de cuidado e alertas de pet sumido perto de você.'
+          : 'Tudo certo — isso ajuda a avisar sobre pets sumidos perto de você.')
+      : (isPush
+          ? 'Precisamos de notificações pra avisar sobre lembretes de cuidado e alertas de pet sumido perto de você.'
+          : 'Precisamos da localização especialmente pra avisar sobre pets sumidos perto de você.');
     return createPortal(
       <>
         <div className="fixed inset-0 z-[200]" onClick={() => setPermPopup(null)} />
@@ -165,9 +175,9 @@ export function HomePetHeader({
               disabled={permBusy}
               className="rounded-full px-3 py-1.5 text-[12px] font-semibold text-slate-400 active:opacity-70 disabled:opacity-40"
             >
-              {deniedByOs ? 'Entendi' : 'Agora não'}
+              {!isOff || deniedByOs ? 'Entendi' : 'Agora não'}
             </button>
-            {!deniedByOs && (
+            {isOff && !deniedByOs && (
               <button
                 type="button"
                 onClick={() => void (isPush ? activatePush() : activateLocation())}
@@ -361,37 +371,6 @@ export function HomePetHeader({
           </>
         )}
 
-        {/* Canto superior esquerdo da foto — só avisos de permissão
-            (09/10/2026). O sino de "próximos eventos" que morava aqui
-            virou o indicador CalendarClock na faixa de identificação
-            abaixo (mesmo dado, mesma regra — ver ali). Se notificação E
-            localização estiverem ok, este canto fica limpo. */}
-        {(notifOff || locOff) && (
-          <div className="absolute left-2.5 top-2.5 z-20 flex items-center gap-1.5 sm:left-3 sm:top-3">
-            {notifOff && (
-              <button
-                type="button"
-                onClick={() => setPermPopup('push')}
-                aria-label="Notificações desativadas"
-                title="Notificações desativadas"
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/40 bg-black/30 text-amber-300 shadow-lg backdrop-blur-md transition-all hover:bg-black/50 active:scale-90 sm:h-9 sm:w-9"
-              >
-                <BellOff className="h-4 w-4" strokeWidth={2.2} />
-              </button>
-            )}
-            {locOff && (
-              <button
-                type="button"
-                onClick={() => setPermPopup('location')}
-                aria-label="Localização desativada"
-                title="Localização desativada"
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/40 bg-black/30 text-amber-300 shadow-lg backdrop-blur-md transition-all hover:bg-black/50 active:scale-90 sm:h-9 sm:w-9"
-              >
-                <MapPinOff className="h-4 w-4" strokeWidth={2.2} />
-              </button>
-            )}
-          </div>
-        )}
 
         {/* Botão de ação no canto inferior direito — só "editar este pet"
             (lápis). Controle pequeno e indispensável, continua sobre a
@@ -442,25 +421,28 @@ export function HomePetHeader({
               </svg>
             </div>
           </button>
-          {/* Indicador de agenda/pendências — era o sino sobre a foto,
-              mudou de lugar (09/10/2026): mesmo dado (allUpcomingReminders,
-              vacina/vermífugo/banho/ração/medicação/eventos, ver
-              buildPetCareReminders em petCareDomain.ts), mesma regra de
-              negócio (número só aparece se > 0 — igual o badge antigo;
-              o ícone em si fica sempre visível como atalho pra agenda).
-              CalendarClock é o ícone certo porque o dado real é "próximos
-              cuidados" (próxima dose, próxima consulta etc.), não
-              notificação — Bell ficou livre pra representar só o estado
-              da PERMISSÃO de notificação, no canto da foto. */}
+          {/* "Próximos cuidados" — era o sino sobre a foto, mudou de
+              lugar (09/10/2026, depois ganhou mais presença visual numa
+              2ª rodada no mesmo dia: o ícone+número inline ficava
+              pequeno/imperceptível demais). Mesmo dado exato
+              (allUpcomingReminders: vacina/vermífugo/banho/ração/
+              medicação/eventos, ver buildPetCareReminders em
+              petCareDomain.ts), mesma regra de negócio (número só
+              aparece se > 0). Agora é um botão premium ~50px com badge
+              de verdade no canto (não mais número solto ao lado do
+              ícone) — nome do botão é "Próximos cuidados", não "Agenda"
+              (a auditoria confirmou que o dado real é cuidado do pet,
+              não uma agenda genérica). */}
           <button
             type="button"
             onClick={onOpenUpcoming}
-            aria-label={upcomingCount > 0 ? `Agenda do pet — ${upcomingCount} pendência${upcomingCount === 1 ? '' : 's'}` : 'Agenda do pet'}
-            className="ml-1 flex flex-shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] font-bold transition-all active:scale-95 sm:px-2.5"
+            aria-label={upcomingCount > 0 ? `Próximos cuidados — ${upcomingCount} pendência${upcomingCount === 1 ? '' : 's'}` : 'Próximos cuidados'}
+            title="Próximos cuidados"
+            className="relative ml-1 flex h-[50px] w-[50px] flex-shrink-0 items-center justify-center rounded-full border border-[#BFD4F0] bg-white shadow-[0_2px_10px_-3px_rgba(0,86,210,0.18)] transition-all active:scale-95"
           >
-            <CalendarClock className={`h-3.5 w-3.5 ${upcomingUrgent && upcomingCount > 0 ? 'text-red-600' : 'text-slate-500'}`} strokeWidth={2.2} />
+            <CalendarClock className="h-6 w-6 text-[#0056D2]" strokeWidth={2.2} />
             {upcomingCount > 0 && (
-              <span className={`tabular-nums ${upcomingUrgent ? 'text-red-600' : 'text-slate-600'}`}>
+              <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-white bg-red-500 px-1 text-[10px] font-black leading-none text-white shadow-sm tabular-nums">
                 {upcomingCount > 99 ? '99+' : upcomingCount}
               </span>
             )}
@@ -481,6 +463,45 @@ export function HomePetHeader({
             {identityLine}
           </p>
         )}
+
+        {/* Status de Notificações/Localização — fora da foto (09/10/2026,
+            2ª rodada: a 1ª versão, ícones discretos no canto da foto,
+            ficou imperceptível demais). Visíveis SEMPRE, ativo ou não —
+            não é alerta, é status. Nunca representado como toggle: cada
+            controle é um status-button que, se já ativo, no máximo abre
+            uma confirmação (nunca desativa nada — permissão de sistema
+            não é um switch interno do app); se desativado, abre o mesmo
+            popover de explicação+ação de antes. */}
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setPermPopup('push')}
+            aria-label={notifOff ? 'Notificações desativadas' : 'Notificações ativas'}
+            className={`flex items-center justify-center gap-1.5 rounded-xl border px-2.5 py-2 text-[12px] font-bold transition-all active:scale-95 ${
+              notifOff
+                ? 'border-amber-200 bg-amber-50 text-amber-700'
+                : 'border-[#BFD4F0] bg-[#F2F6FC] text-[#0056D2]'
+            }`}
+          >
+            {notifOff ? <BellOff className="h-4 w-4 flex-shrink-0" strokeWidth={2.2} /> : <Bell className="h-4 w-4 flex-shrink-0" strokeWidth={2.2} />}
+            <span className="truncate">Notificações</span>
+            {notifOff && <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-500" />}
+          </button>
+          <button
+            type="button"
+            onClick={() => setPermPopup('location')}
+            aria-label={locOff ? 'Localização desativada' : 'Localização ativa'}
+            className={`flex items-center justify-center gap-1.5 rounded-xl border px-2.5 py-2 text-[12px] font-bold transition-all active:scale-95 ${
+              locOff
+                ? 'border-amber-200 bg-amber-50 text-amber-700'
+                : 'border-[#BFD4F0] bg-[#F2F6FC] text-[#0056D2]'
+            }`}
+          >
+            {locOff ? <MapPinOff className="h-4 w-4 flex-shrink-0" strokeWidth={2.2} /> : <MapPin className="h-4 w-4 flex-shrink-0" strokeWidth={2.2} />}
+            <span className="truncate">Localização</span>
+            {locOff && <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-500" />}
+          </button>
+        </div>
 
         {renderSelector()}
         {renderPermPopup()}
