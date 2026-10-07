@@ -76,7 +76,7 @@ export function HealthGroomingPanel({
     <PremiumPanelShell title={t('health.grooming')} subtitle={petName}>
       <div className="space-y-4 sm:space-y-6">
         {/* Formulário de Registro */}
-        <div className="bg-gradient-to-br from-cyan-50 to-sky-50 rounded-xl p-4 sm:p-6 border border-cyan-200">
+        <div className="bg-[#F2F6FC] rounded-xl p-4 sm:p-6 border border-[#D9E6F7]">
           {/* Banner de lembretes pendentes */}
           {groomingDueAlerts.length > 0 && (
             <div className="mb-3 p-3 bg-amber-50 border border-amber-300 rounded-xl flex items-start gap-2">
@@ -95,7 +95,7 @@ export function HealthGroomingPanel({
           )}
 
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-base font-bold text-cyan-900">
+            <h3 className="text-base font-bold text-[#0B1E36]">
               {editingGrooming ? t('grooming.edit_service') : t('grooming.new_service')}
             </h3>
             <div className="flex items-center gap-2">
@@ -205,7 +205,7 @@ export function HealthGroomingPanel({
                       key={place.place_id}
                       type="button"
                       onClick={() => selectPlace(place)}
-                      className="w-full text-left px-4 py-3 hover:bg-cyan-50 border-b border-gray-100 last:border-b-0 transition-colors"
+                      className="w-full text-left px-4 py-3 hover:bg-[#F2F6FC] border-b border-gray-100 last:border-b-0 transition-colors"
                     >
                       <div className="font-semibold text-gray-800 flex items-center gap-1.5">
                         <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" strokeWidth={2.2} />
@@ -222,7 +222,7 @@ export function HealthGroomingPanel({
               )}
 
               {searchingPlaces && (
-                <div className="absolute right-3 top-10 text-cyan-500">
+                <div className="absolute right-3 top-10 text-[#0056D2]">
                   <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
@@ -231,8 +231,8 @@ export function HealthGroomingPanel({
               )}
 
               {groomingFormData.location_address && (
-                <div className="mt-2 p-3 bg-cyan-50 rounded-lg border border-cyan-200">
-                  <div className="text-sm font-medium text-cyan-900 mb-1">✓ Estabelecimento selecionado</div>
+                <div className="mt-2 p-3 bg-[#F2F6FC] rounded-lg border border-[#D9E6F7]">
+                  <div className="text-sm font-medium text-[#0B1E36] mb-1">✓ Estabelecimento selecionado</div>
                   <div className="text-xs text-[#0047ad]">📍 {groomingFormData.location_address}</div>
                   {groomingFormData.location_phone && (
                     <div className="text-xs text-[#0047ad] mt-1">📞 {groomingFormData.location_phone}</div>
@@ -291,7 +291,7 @@ export function HealthGroomingPanel({
             </div>
 
             {/* Lembrete */}
-            <div className="bg-white border border-cyan-200 rounded-lg p-3 space-y-2">
+            <div className="bg-white border border-[#D9E6F7] rounded-lg p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-800">🔔 Lembrete de próximo serviço</span>
                 <div className="flex items-center gap-2">
@@ -309,7 +309,7 @@ export function HealthGroomingPanel({
                 <select
                   value={groomingFormData.alert_days_before}
                   onChange={(e) => setGroomingFormData((prev) => ({ ...prev, alert_days_before: parseInt(e.target.value, 10) }))}
-                  className="w-full p-2 border border-cyan-200 rounded-lg focus:ring-2 focus:ring-[#0056D2] bg-white text-sm"
+                  className="w-full p-2 border border-[#D9E6F7] rounded-lg focus:ring-2 focus:ring-[#0056D2] bg-white text-sm"
                 >
                   <option value={1}>1 dia antes</option>
                   <option value={2}>2 dias antes</option>
@@ -324,7 +324,7 @@ export function HealthGroomingPanel({
             <div className="sticky bottom-0 bg-white z-10 pt-3 -mx-4 px-4 pb-3 border-t border-gray-100 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
               <button
                 onClick={handleSaveGrooming}
-                className="w-full px-4 py-3 bg-gradient-to-r from-[#0066ff] to-cyan-500 text-white rounded-xl font-semibold hover:from-[#0056D2] hover:to-cyan-600 text-base"
+                className="w-full px-4 py-3 bg-[#0056D2] text-white rounded-xl font-semibold hover:bg-[#004ab8] text-base"
               >
                 {editingGrooming ? `💾 ${t('grooming.update')}` : `💾 ${t('grooming.save_record')}`}
               </button>
@@ -421,7 +421,7 @@ export function HealthGroomingPanel({
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleEditGrooming(record)}
-                          className="px-3 py-1 bg-cyan-100 text-[#0047ad] rounded-lg hover:bg-cyan-200 text-sm font-medium transition-colors"
+                          className="px-3 py-1 bg-[#F2F6FC] text-[#0056D2] rounded-lg hover:bg-[#E6EEF9] text-sm font-medium transition-colors"
                           title={t('common.edit')}
                         >
                           ✏️ {t('common.edit')}
@@ -435,7 +435,7 @@ export function HealthGroomingPanel({
                         </button>
                       </div>
                       {!isGroomHistory && record.next_recommended_date && (
-                        <div className="text-xs text-cyan-600 font-medium">
+                        <div className="text-xs text-[#0056D2] font-medium">
                           🔔 {nextTypeLabel[record.type]}: {createLocalDate(record.next_recommended_date).toLocaleDateString('pt-BR')}
                           {record.scheduled_time ? ` às ${record.scheduled_time}` : ''}
                         </div>

@@ -2474,26 +2474,30 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
                   {/* Compartilhar cuidado — só para o dono do pet. Compacto,
                       raio de controle (12px, careVisualTokens.CARE_RADIUS.
-                      control), Lucide em vez de emoji, hierarquia por peso
-                      (Convidar = ação principal do pet, preenchido azul-gelo
-                      mais forte; Compartilhar = secundário, mais claro) —
-                      pedido do dono 07/10/2026. */}
+                      control), Lucide em vez de emoji. Hierarquia REAL
+                      (07/10/2026, correção do 50/50 anterior): Convidar =
+                      flex-[3] (~60%, ação principal, azul-gelo + peso
+                      maior) vs Compartilhar = flex-[2] (~40%, secundário,
+                      branco + texto mais discreto) — proporcional, não
+                      largura fixa, então não trunca em telas estreitas;
+                      texto do Compartilhar continua sempre visível (nunca
+                      vira botão só-ícone). */}
                   {currentPet && loggedUserId && (currentPet.owner_user_id ?? loggedUserId) === loggedUserId && (
                     <div className="flex flex-row gap-2 px-2 pb-1 min-[390px]:px-3 sm:px-4 sm:pb-2">
                       <button
                         onClick={handleSharePet}
                         disabled={shareLoading}
-                        className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#BFD4F0] bg-[#F2F6FC] px-2 py-1.5 text-[11px] font-semibold text-[#0056D2] transition-opacity active:opacity-70 disabled:opacity-40 sm:py-2 sm:text-[12px]"
+                        className="flex flex-[3] items-center justify-center gap-1.5 rounded-xl border border-[#BFD4F0] bg-[#F2F6FC] px-2 py-1.5 text-[11px] font-bold text-[#0056D2] transition-opacity active:opacity-70 disabled:opacity-40 sm:py-2 sm:text-[12px]"
                       >
-                        <UserPlus className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2.3} />
+                        <UserPlus className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2.4} />
                         <span className="truncate">{shareLoading ? 'Gerando link...' : 'Convidar família'}</span>
                       </button>
 
                       <button
                         onClick={() => void handleShareApp()}
-                        className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#D9E6F7] bg-white px-2 py-1.5 text-[11px] font-medium text-[#5B6B82] transition-opacity active:opacity-70 sm:py-2 sm:text-[12px]"
+                        className="flex flex-[2] items-center justify-center gap-1.5 rounded-xl border border-[#E5E9F0] bg-white px-2 py-1.5 text-[11px] font-normal text-[#8792A2] transition-opacity active:opacity-70 sm:py-2 sm:text-[12px]"
                       >
-                        <Share2 className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2.2} />
+                        <Share2 className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2} />
                         <span className="truncate">Compartilhar</span>
                       </button>
 

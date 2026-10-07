@@ -6,7 +6,7 @@ import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { parsePetEventExtraData, type PetEventRecord } from '@/lib/petEvents';
 import { extractMedicationBarcode } from '@/lib/petCareDomain';
-import { Bell, Check, Home, Trash2, X } from 'lucide-react';
+import { Bell, Check, Home, ShoppingCart, Trash2, X } from 'lucide-react';
 import { ActivationAskSheet } from './ActivationAskSheet';
 import { usePushOneTimeAsk } from '@/features/interactions/usePushOneTimeAsk';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
@@ -1227,8 +1227,9 @@ export function MedicationItemSheet({
                 </button>
                 <button
                   onClick={() => setMode('buy')}
-                  className="w-full py-3 rounded-2xl text-sm font-black active:scale-95 transition-all bg-[#F2F6FC] hover:bg-[#E6EEF9] active:bg-[#DCE7F6] text-[#0056D2] border border-[#BFD4F0] shadow-sm"
+                  className="w-full py-3 rounded-2xl text-sm font-black active:scale-95 transition-all bg-[#F2F6FC] hover:bg-[#E6EEF9] active:bg-[#DCE7F6] text-[#0056D2] border border-[#BFD4F0] shadow-sm flex items-center justify-center gap-1.5"
                 >
+                  <ShoppingCart className="h-4 w-4 flex-shrink-0" strokeWidth={2.3} />
                   Comprar medicamento
                 </button>
               </div>

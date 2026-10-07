@@ -511,7 +511,7 @@ export function GroomingItemSheet({
                                 href={`https://www.google.com/search?tbm=shop&q=${encodeURIComponent(productName + ' pet')}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-[14px] font-medium text-cyan-700 truncate max-w-[55%] text-right"
+                                className="text-[14px] font-medium text-[#0056D2] truncate max-w-[55%] text-right"
                               >
                                 {productName}
                               </a>

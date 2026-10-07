@@ -1359,7 +1359,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                           }}
                           className="w-full flex items-center justify-center gap-2.5 min-h-[52px] rounded-2xl bg-[#F2F6FC] hover:bg-[#E6EEF9] active:bg-[#DCE7F6] border border-[#BFD4F0] px-4 text-[14px] font-bold text-[#0056D2] active:scale-[0.98] transition-all"
                         >
-                          <span className="text-lg">🛒</span>
+                          <ShoppingCart className="h-[18px] w-[18px] flex-shrink-0" strokeWidth={2.3} />
                           Comprar ração
                         </button>
 
@@ -1493,7 +1493,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             }}
                             className="w-full py-3.5 rounded-2xl bg-[#F2F6FC] hover:bg-[#E6EEF9] active:bg-[#DCE7F6] border border-[#BFD4F0] active:scale-[0.97] transition-all text-[#0056D2] text-[15px] font-black flex items-center justify-center gap-2.5"
                           >
-                            <span className="text-lg">🛒</span>
+                            <ShoppingCart className="h-[18px] w-[18px] flex-shrink-0" strokeWidth={2.3} />
                             Comprar novamente
                           </button>
 
@@ -1615,7 +1615,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                                     }}
                                     className="w-full rounded-2xl bg-[#F2F6FC] hover:bg-[#E6EEF9] border border-[#BFD4F0] px-4 py-3 min-h-[48px] text-[14px] font-black text-[#0056D2] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                                   >
-                                    <span>🛒</span>
+                                    <ShoppingCart className="h-4 w-4 flex-shrink-0" strokeWidth={2.3} />
                                     Comprar novamente
                                   </button>
                                   <button
@@ -1742,7 +1742,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             }}
                             className="w-full py-3 rounded-2xl bg-[#F2F6FC] hover:bg-[#E6EEF9] border border-[#BFD4F0] active:scale-[0.98] transition-all text-[#0056D2] text-[14px] font-black flex items-center justify-center gap-2"
                           >
-                            <span>🛒</span>
+                            <ShoppingCart className="h-4 w-4 flex-shrink-0" strokeWidth={2.3} />
                             Ainda não comprei — ir para Comprar
                           </button>
 
