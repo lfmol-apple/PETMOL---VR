@@ -44,14 +44,18 @@ interface HomePetHeaderProps {
   // made up entirely of "vence em 3 semanas" stays a calmer blue.
   upcomingUrgent: boolean;
   onOpenUpcoming: () => void;
-  // "overlay" (padrão, piloto 07/10/2026): nome/raça/sexo/idade/peso e
-  // "Trocar pet" vivem DENTRO da foto, sobre um gradiente inferior — é o
-  // hero premium aprovado no teste com 30 fotos reais (estratégia B).
-  // "external": layout anterior, painel separado abaixo da foto — existe
-  // como fallback estrutural (ex.: pra quando entrar detecção automática
-  // de enquadramento) sem duplicar foto/sino/lápis/setas, comuns às duas
-  // variantes. Nenhuma seleção automática ainda — troca manual via prop.
-  heroVariant?: 'overlay' | 'external';
+  // "strip" (padrão, piloto 07/10/2026 — 2ª rodada): foto totalmente
+  // livre de texto + faixa de identidade (nome/raça/sexo/idade/peso/
+  // Trocar pet) imediatamente abaixo, na mesma moldura. Substituiu
+  // "overlay" como padrão depois que a foto real da Princesa mostrou
+  // texto passando sobre o animal.
+  // "overlay": versão anterior — nome/dados sobre a foto, com gradiente.
+  // Mantida como fallback estrutural, não usada por padrão.
+  // "external": layout mais antigo — painel separado abaixo da foto,
+  // fora da moldura compartilhada. Também fallback estrutural.
+  // As três variantes reusam a mesma foto/sino/lápis/setas — nenhuma
+  // seleção automática entre elas ainda, troca é manual via prop.
+  heroVariant?: 'strip' | 'overlay' | 'external';
 }
 
 export function HomePetHeader({
@@ -77,7 +81,7 @@ export function HomePetHeader({
   upcomingCount,
   upcomingUrgent,
   onOpenUpcoming,
-  heroVariant = 'overlay',
+  heroVariant = 'strip',
 }: HomePetHeaderProps) {
   const { t } = useI18n();
   const nameButtonRef = useRef<HTMLButtonElement>(null);
@@ -208,205 +212,215 @@ export function HomePetHeader({
 
   return (
     <>    <div className="px-2 pt-1.5 space-y-2 sm:pt-4 sm:space-y-3">
-      {/* Container da Foto + Navegação Estilo Apple — padding lateral igual
-          ao de HomePetDashboard/AppleControlButtons (px-2 flat, sem variar
-          por breakpoint) pra foto e cards ficarem com a MESMA borda lateral
-          em qualquer largura de tela; antes cada um tinha seu próprio px
-          responsivo e desalinhava dependendo do tamanho da tela. */}
-      <div
-        className="relative group mx-auto w-full overflow-hidden rounded-[22px] border border-white/50 bg-gradient-to-br from-blue-400 to-purple-500 shadow-lg shadow-blue-500/10 ring-1 ring-black/5 sm:rounded-[28px] aspect-[1.25/1] max-h-[min(36dvh,315px)] max-w-[min(100%,calc(min(36dvh,315px)*1.25))] lg:max-h-none lg:max-w-none"
-        style={{
-          // Mobile/tablet (<1024px): teto de altura em dvh (315px) continua
-          // — é a mesma lógica de sempre, pensada pra tela curta de celular.
-          // Desktop (lg:): REMOVIDO o teto (max-h-none/max-w-none) em vez de
-          // só aumentá-lo. Um teto em altura, em qualquer valor fixo,
-          // SEMPRE encolhe a largura proporcionalmente (aspect-ratio 1.25/1)
-          // — por isso um aumento de 315→360px (tentativa anterior) mantinha
-          // a MESMA proporção foto:card de antes e não parecia diferente.
-          // Sem teto, a largura passa a ser só w-full (ocupa o conteúdo do
-          // card) e a altura segue o aspect-ratio — sem distorcer nada,
-          // sem mudar o crop, só parando de encolher a foto artificialmente.
-          // Isso já é seguro contra tela gigante: o card-pai (lg:max-w-3xl)
-          // é fixo em 768px independente do monitor, então a foto também
-          // para de crescer a partir daí.
-          backfaceVisibility: 'hidden',
-          WebkitBackfaceVisibility: 'hidden',
-          transform: 'translate3d(0,0,0)',
-          WebkitTransform: 'translate3d(0,0,0)',
-          WebkitMaskImage: '-webkit-radial-gradient(white, black)'
-        }}
-      >
-
-        <div className="w-full h-full flex items-center justify-center text-white/45">
-          <PetSilhouette className="h-24 w-24 sm:h-32 sm:w-32" />
-        </div>
-
-        {/* Foto Real do Pet — mesma proporção 1:1 do picker, sem distorção */}
-        {currentPetPhotoUrl && (
-          <img
-            src={currentPetPhotoUrl}
-            alt={currentPet.pet_name}
-            className="absolute inset-0 w-full h-full object-cover"
-            style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
-            draggable={false}
-            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-          />
-        )}
-
-        {/* Gradiente do hero — só variante "overlay" (piloto 07/10/2026).
-            Stops em % da altura da própria foto (não px fixo): escala certo
-            tanto no hero baixo do mobile quanto no hero bem mais alto do
-            desktop, sem precisar de um breakpoint separado. Decaimento
-            rápido (a maior parte da escuridão fica nos primeiros ~25% de
-            baixo pra cima) — "não escurecer a imagem inteira", só o
-            necessário pra o texto branco ler bem. */}
-        {heroVariant === 'overlay' && (
+      {/* Wrapper de dimensionamento — só estabelece a largura do hero
+          (mesma fórmula de sempre: teto de altura em dvh no mobile,
+          sem teto no desktop), sem visual próprio. O visual (borda,
+          cantos, sombra) mora no único filho abaixo, pra foto + faixa
+          de identidade lerem como UM hero só, não "foto + card colado". */}
+      <div className="relative mx-auto w-full max-w-[min(100%,calc(min(36dvh,315px)*1.25))] lg:max-w-none">
+        <div className="group overflow-hidden rounded-[22px] border border-white/50 shadow-lg shadow-blue-500/10 ring-1 ring-black/5 sm:rounded-[28px]">
+          {/* Caixa da foto — mesmo teto de altura de sempre (315px/36dvh
+              no mobile, sem teto no desktop); a largura já vem definida
+              pelo wrapper acima, então aqui é só aspect-ratio + w-full. */}
           <div
-            className="pointer-events-none absolute inset-0"
+            className="relative w-full overflow-hidden bg-gradient-to-br from-blue-400 to-purple-500 aspect-[1.25/1] max-h-[min(36dvh,315px)] lg:max-h-none"
             style={{
-              background:
-                'linear-gradient(to top, rgba(6,8,12,.80) 0%, rgba(6,8,12,.60) 12%, rgba(6,8,12,.30) 26%, rgba(6,8,12,.08) 42%, rgba(6,8,12,0) 55%)',
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
+              transform: 'translate3d(0,0,0)',
+              WebkitTransform: 'translate3d(0,0,0)',
             }}
-          />
-        )}
-
-        {pets.length > 1 && (
-          <>
-            <button
-              type="button"
-              onClick={() => switchPetByOffset(-1)}
-              aria-label="Pet anterior"
-              className="hidden sm:flex absolute left-4 top-1/2 z-20 h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-white/20 text-white shadow-lg backdrop-blur-md transition-all hover:bg-white/40 active:scale-95"
-            >
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              onClick={() => switchPetByOffset(1)}
-              aria-label="Proximo pet"
-              className="hidden sm:flex absolute right-4 top-1/2 z-20 h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-white/20 text-white shadow-lg backdrop-blur-md transition-all hover:bg-white/40 active:scale-95"
-            >
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          </>
-        )}
-
-        {/* Bell de eventos futuros — canto superior esquerdo */}
-        <div className="absolute left-2.5 top-2.5 z-20 sm:left-3 sm:top-3">
-          <button
-            type="button"
-            onClick={onOpenUpcoming}
-            aria-label="Próximos eventos"
-            className="relative flex h-9 w-9 items-center justify-center rounded-full border border-white/40 bg-black/30 text-white shadow-lg backdrop-blur-md transition-all hover:bg-black/50 active:scale-90 sm:h-10 sm:w-10"
           >
-            <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5" aria-hidden="true">
-              <path d="M12 22a2 2 0 0 0 2-2H10a2 2 0 0 0 2 2Zm6-6V11a6 6 0 0 0-5-5.92V4a1 1 0 0 0-2 0v1.08A6 6 0 0 0 6 11v5l-1.29 1.29A1 1 0 0 0 5 19h14a1 1 0 0 0 .71-1.71L18 16Z" />
-            </svg>
-            {upcomingCount > 0 && (
-              <span className={`absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full border-2 border-white text-[10px] font-black text-white flex items-center justify-center px-1 leading-none shadow-md tabular-nums ${
-                upcomingUrgent ? 'bg-red-500' : 'bg-sky-500'
-              }`}>
-                {upcomingCount > 99 ? '99+' : upcomingCount}
-              </span>
-            )}
-          </button>
-        </div>
+            <div className="w-full h-full flex items-center justify-center text-white/45">
+              <PetSilhouette className="h-24 w-24 sm:h-32 sm:w-32" />
+            </div>
 
-        {/* Nome + raça/sexo + idade/peso + Trocar pet — DENTRO da foto,
-            variante "overlay" (piloto 07/10/2026, estratégia B aprovada no
-            teste com 30 fotos reais). max-w reserva espaço pra nunca
-            colidir com o lápis de editar (canto inferior direito); truncate
-            evita que um nome/raça muito longos estourem a largura. */}
-        {heroVariant === 'overlay' && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-3.5 pb-3 sm:px-4 sm:pb-3.5">
-            <div className="pointer-events-auto flex max-w-[76%] flex-col gap-0.5 sm:max-w-[70%]">
+            {/* Foto Real do Pet — mesma proporção 1:1 do picker, sem distorção */}
+            {currentPetPhotoUrl && (
+              <img
+                src={currentPetPhotoUrl}
+                alt={currentPet.pet_name}
+                className="absolute inset-0 w-full h-full object-cover"
+                style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
+                draggable={false}
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
+            )}
+
+            {/* Gradiente — só variante "overlay" (versão anterior, não é
+                mais o padrão: a Princesa mostrou que texto sobre a foto
+                passa em cima do animal em fotos reais). Mantido só como
+                fallback estrutural, inativo por padrão. */}
+            {heroVariant === 'overlay' && (
+              <div
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  background:
+                    'linear-gradient(to top, rgba(6,8,12,.80) 0%, rgba(6,8,12,.60) 12%, rgba(6,8,12,.30) 26%, rgba(6,8,12,.08) 42%, rgba(6,8,12,0) 55%)',
+                }}
+              />
+            )}
+
+            {pets.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => switchPetByOffset(-1)}
+                  aria-label="Pet anterior"
+                  className="hidden sm:flex absolute left-4 top-1/2 z-20 h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-white/20 text-white shadow-lg backdrop-blur-md transition-all hover:bg-white/40 active:scale-95"
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => switchPetByOffset(1)}
+                  aria-label="Proximo pet"
+                  className="hidden sm:flex absolute right-4 top-1/2 z-20 h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-white/20 text-white shadow-lg backdrop-blur-md transition-all hover:bg-white/40 active:scale-95"
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </>
+            )}
+
+            {/* Bell de eventos futuros — canto superior esquerdo */}
+            <div className="absolute left-2.5 top-2.5 z-20 sm:left-3 sm:top-3">
+              <button
+                type="button"
+                onClick={onOpenUpcoming}
+                aria-label="Próximos eventos"
+                className="relative flex h-9 w-9 items-center justify-center rounded-full border border-white/40 bg-black/30 text-white shadow-lg backdrop-blur-md transition-all hover:bg-black/50 active:scale-90 sm:h-10 sm:w-10"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5" aria-hidden="true">
+                  <path d="M12 22a2 2 0 0 0 2-2H10a2 2 0 0 0 2 2Zm6-6V11a6 6 0 0 0-5-5.92V4a1 1 0 0 0-2 0v1.08A6 6 0 0 0 6 11v5l-1.29 1.29A1 1 0 0 0 5 19h14a1 1 0 0 0 .71-1.71L18 16Z" />
+                </svg>
+                {upcomingCount > 0 && (
+                  <span className={`absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full border-2 border-white text-[10px] font-black text-white flex items-center justify-center px-1 leading-none shadow-md tabular-nums ${
+                    upcomingUrgent ? 'bg-red-500' : 'bg-sky-500'
+                  }`}>
+                    {upcomingCount > 99 ? '99+' : upcomingCount}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Nome/dados/Trocar pet sobre a foto — só variante "overlay",
+                fallback inativo (ver nota acima do gradiente). */}
+            {heroVariant === 'overlay' && (
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-3.5 pb-3 sm:px-4 sm:pb-3.5">
+                <div className="pointer-events-auto flex max-w-[76%] flex-col gap-0.5 sm:max-w-[70%]">
+                  <button
+                    ref={nameButtonRef}
+                    onClick={onTogglePetSelector}
+                    className="group -ml-1 inline-flex min-w-0 items-center gap-1 rounded-lg py-0.5 pl-1 pr-1.5 text-left active:scale-95"
+                  >
+                    <h2 className="min-w-0 truncate text-[27px] font-black leading-none tracking-tight text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.35)] sm:text-[34px]">
+                      {currentPet.pet_name}
+                    </h2>
+                  </button>
+                  {metaLine1 && <p className="truncate text-[13px] font-medium text-white/90 sm:text-[15px]">{metaLine1}</p>}
+                  {metaLine2 && <p className="truncate text-[13px] font-medium text-white/75 sm:text-[15px]">{metaLine2}</p>}
+                </div>
+              </div>
+            )}
+
+            {/* Botão de ação no canto inferior direito — só "editar este
+                pet" (lápis). Continua sobre a foto em qualquer variante —
+                pedido explícito: "controles pequenos indispensáveis". */}
+            <div className="absolute bottom-2.5 right-2.5 z-20 sm:bottom-3 sm:right-3">
+              <button
+                onClick={onOpenEditPetModal}
+                aria-label="Editar pet"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/40 bg-white/20 text-white shadow-lg backdrop-blur-md transition-all hover:bg-white/40 active:scale-90 sm:h-9 sm:w-9"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* FAIXA DE IDENTIDADE — padrão atual (piloto 07/10/2026, 2ª
+              rodada). Foto e faixa dividem a MESMA moldura (borda/raio/
+              sombra ficam no wrapper pai) — sem linha divisória, sem
+              sombra própria, pra ler como um hero só, não dois cards
+              empilhados. Nome em navy/graphite (não mais branco sobre
+              foto): a foto fica inteiramente livre de texto. */}
+          {heroVariant === 'strip' && (
+            <div className="bg-[#F2F6FC] px-4 py-3 sm:px-5 sm:py-3.5">
+              <div className="flex items-end justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <button
+                    ref={nameButtonRef}
+                    onClick={onTogglePetSelector}
+                    className="group -ml-1 inline-flex min-w-0 items-center gap-1 rounded-lg py-0.5 pl-1 pr-1.5 text-left active:scale-95"
+                  >
+                    <h2 className="min-w-0 truncate text-[21px] font-black leading-tight tracking-tight text-slate-900 transition-colors group-hover:text-[#0056D2] sm:text-[25px]">
+                      {currentPet.pet_name}
+                    </h2>
+                    {pets.length > 1 && (
+                      <svg
+                        className={`h-3.5 w-3.5 flex-shrink-0 text-slate-400 transition-transform duration-300 ${showPetSelector ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    )}
+                  </button>
+                  {metaLine1 && <p className="truncate pl-1 text-[12.5px] font-medium text-slate-500 sm:text-[13.5px]">{metaLine1}</p>}
+                  {metaLine2 && <p className="truncate pl-1 text-[12.5px] font-medium text-slate-400 sm:text-[13.5px]">{metaLine2}</p>}
+                </div>
+                {/* "Trocar pet" — discreta (branco + borda azul-gelo, não
+                    azul sólido dominante), à direita, alinhada com a
+                    última linha de dados. No mobile com raça longa, o
+                    bloco de texto trunca (min-w-0 + truncate) e esta
+                    pill nunca é espremida (flex-shrink-0). */}
+                {pets.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={onTogglePetSelector}
+                    className="flex flex-shrink-0 items-center gap-1 rounded-full border border-[#BFD4F0] bg-white px-2.5 py-1.5 text-[11px] font-bold text-[#0056D2] transition-all active:scale-95 sm:px-3"
+                  >
+                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4" />
+                    </svg>
+                    Trocar pet
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Variante "external" (fallback estrutural) — layout anterior
+              ao piloto: painel separado abaixo da foto, fora da moldura
+              compartilhada. */}
+          {heroVariant === 'external' && (
+            <div className="bg-white px-3 py-2.5 sm:px-4 sm:py-3">
               <button
                 ref={nameButtonRef}
                 onClick={onTogglePetSelector}
-                className="group -ml-1 inline-flex min-w-0 items-center gap-1 rounded-lg py-0.5 pl-1 pr-1.5 text-left active:scale-95"
+                className="group -ml-1 flex min-w-0 items-center gap-1.5 rounded-2xl py-1 pl-1.5 pr-2 text-left transition-all hover:bg-slate-100/50 active:scale-95"
               >
-                <h2 className="min-w-0 truncate text-[27px] font-black leading-none tracking-tight text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.35)] sm:text-[34px]">
-                  {currentPet.pet_name}
-                </h2>
-                {pets.length > 1 && (
-                  <svg
-                    className={`h-4 w-4 flex-shrink-0 text-white/80 transition-transform duration-300 ${showPetSelector ? 'rotate-180' : ''}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
-                  </svg>
-                )}
+                <span className="min-w-0">
+                  <h2 className="min-w-0 truncate text-[24px] font-black leading-none tracking-tight text-slate-900 transition-colors group-hover:text-blue-600">
+                    {currentPet.pet_name}
+                  </h2>
+                  <span className="mt-0.5 block text-[12px] font-medium text-slate-500">
+                    {[metaLine1, metaLine2].filter(Boolean).join(' · ')}
+                  </span>
+                </span>
               </button>
-              {metaLine1 && <p className="truncate text-[13px] font-medium text-white/90 sm:text-[15px]">{metaLine1}</p>}
-              {metaLine2 && <p className="truncate text-[13px] font-medium text-white/75 sm:text-[15px]">{metaLine2}</p>}
-              {pets.length > 1 && (
-                <button
-                  type="button"
-                  onClick={onTogglePetSelector}
-                  className="mt-1.5 inline-flex w-fit items-center gap-1 rounded-full border border-white/50 bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-white backdrop-blur-sm transition-all active:scale-95 sm:mt-2 sm:px-3"
-                >
-                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4" />
-                  </svg>
-                  Trocar pet
-                </button>
-              )}
             </div>
-          </div>
-        )}
-
-        {/* Botão de ação no canto inferior direito — só "editar este pet"
-            (lápis). */}
-        <div className="absolute bottom-2.5 right-2.5 z-20 sm:bottom-3 sm:right-3">
-          <button
-            onClick={onOpenEditPetModal}
-            aria-label="Editar pet"
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/40 bg-white/20 text-white shadow-lg backdrop-blur-md transition-all hover:bg-white/40 active:scale-90 sm:h-9 sm:w-9"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-            </svg>
-          </button>
+          )}
         </div>
       </div>
 
-      {/* Variante "external" (fallback estrutural, não usado por padrão) —
-          layout anterior ao piloto: painel separado abaixo da foto. */}
-      {heroVariant === 'external' && (
-        <div className="px-0.5 pb-1 min-[390px]:px-1 sm:px-1.5 sm:pb-2">
-          <div className="flex flex-col">
-            <button
-              ref={nameButtonRef}
-              onClick={onTogglePetSelector}
-              className="group -ml-1 flex min-w-0 items-center gap-1.5 rounded-2xl py-1 pl-1.5 pr-2 text-left transition-all hover:bg-slate-100/50 active:scale-95 sm:gap-2 sm:py-1.5 sm:pr-2.5"
-            >
-              <span className="min-w-0">
-                <h2 className="min-w-0 truncate text-[28px] font-black leading-none tracking-tight text-slate-900 transition-colors group-hover:text-blue-600 sm:text-3xl">
-                  {currentPet.pet_name}
-                </h2>
-                <span className="mt-0.5 block text-[12px] font-medium text-slate-500">
-                  {[metaLine1, metaLine2].filter(Boolean).join(' · ')}
-                </span>
-              </span>
-              {pets.length > 1 && (
-                <div className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 transition-transform duration-300 ${showPetSelector ? 'rotate-180 bg-blue-100 text-blue-600' : 'text-slate-400'}`}>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
-              )}
-            </button>
-          </div>
-          {renderSelector()}
-        </div>
-      )}
-      {heroVariant === 'overlay' && renderSelector()}
+      {renderSelector()}
       </div>
 
       <HomeAttentionOverlays
