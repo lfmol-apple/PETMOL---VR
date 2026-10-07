@@ -1880,7 +1880,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
       searchParams.get('native_start') === '1' ||
       Boolean(searchParams.get('modal') && searchParams.get('petId'));
     if (isNativeOrPushBoot) {
-      return <div className="min-h-screen bg-gradient-to-b from-amber-50/40 via-white to-gray-50" />;
+      return <div className="min-h-screen bg-gradient-to-b from-[#F2F6FC] via-white to-[#F6F9FD]" />;
     }
     // Mesmo splash azul do boot — continuidade com o splash nativo e com a
     // tela '/' enquanto resolve a sessão. Sem 🐾 girando nem "Carregando".
@@ -2006,7 +2006,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
   return (
     <div
-      className="min-h-screen bg-gradient-to-b from-amber-50/40 via-white to-gray-50"
+      className="min-h-screen bg-gradient-to-b from-[#F2F6FC] via-white to-[#F6F9FD]"
       onTouchStart={(e) => {
         // Só ativa pull-to-refresh se o scroll já estiver no topo
         if (window.scrollY === 0) {

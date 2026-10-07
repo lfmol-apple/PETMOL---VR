@@ -115,7 +115,7 @@ export function HealthGroomingPanel({
                 )}
                 className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white rounded-xl text-xs sm:text-sm font-bold transition-all shadow-md ring-2 ring-purple-300"
               >
-                <span className="text-sm sm:text-base">🛁</span>
+                <span className="text-sm sm:text-base">🏪</span>
                 <span className="hidden sm:inline">Encontre petshops perto de vc</span>
                 <span className="sm:hidden">Petshops</span>
                 <span className="text-white/70 text-xs">›</span>

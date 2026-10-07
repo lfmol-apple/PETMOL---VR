@@ -269,16 +269,16 @@ export function VaccineItemSheet({
   type ChipDef = { label: string; type: string; name: string; icon: string; code: string; notes: string; disabled?: boolean; isOther?: boolean };
   const dogChips: ChipDef[] = [
     { label: 'Polivalente (V8 / V10)', type: 'multiple', name: 'Polivalente (V10/V8)', icon: '💉', code: 'multiple', notes: 'Cinomose, Parvovirose, Hepatite, Coronavirose, Leptospirose, Adenovirose, Parainfluenza' },
-    { label: 'Antirrábica', type: 'rabies', name: 'Antirrábica', icon: '🦠', code: 'rabies', notes: '' },
-    { label: 'Tosse dos canis', type: 'kennel_cough', name: 'Gripe Canina (Tosse dos Canis)', icon: '🫁', code: 'kennel_cough', notes: 'Bordetella bronchiseptica' },
-    { label: 'Giárdia', type: 'giardia', name: 'Giárdia', icon: '🧪', code: 'giardia', notes: '' },
-    { label: 'Leishmaniose', type: 'leishmaniasis', name: 'Leishmaniose', icon: '🛡️', code: 'leishmaniasis', notes: '' },
+    { label: 'Antirrábica', type: 'rabies', name: 'Antirrábica', icon: '💉', code: 'rabies', notes: '' },
+    { label: 'Tosse dos canis', type: 'kennel_cough', name: 'Gripe Canina (Tosse dos Canis)', icon: '💉', code: 'kennel_cough', notes: 'Bordetella bronchiseptica' },
+    { label: 'Giárdia', type: 'giardia', name: 'Giárdia', icon: '💉', code: 'giardia', notes: '' },
+    { label: 'Leishmaniose', type: 'leishmaniasis', name: 'Leishmaniose', icon: '💉', code: 'leishmaniasis', notes: '' },
     { label: 'Outro', type: 'other', name: 'Outra Vacina', icon: '➕', code: 'other', notes: '', isOther: true },
   ];
   const catChips: ChipDef[] = [
     { label: 'Polivalente (V5 / V4 / V3)', type: 'multiple', name: 'Polivalente (V5/V4/V3)', icon: '💉', code: 'multiple', notes: 'Rinotraqueíte, Calicivirose, Panleucopenia, Clamidiose' },
-    { label: 'Antirrábica', type: 'rabies', name: 'Antirrábica', icon: '🦠', code: 'rabies', notes: '' },
-    { label: 'FeLV', type: 'feline_leukemia', name: 'FeLV (Leucemia Felina)', icon: '🐱', code: 'feline_leukemia', notes: '' },
+    { label: 'Antirrábica', type: 'rabies', name: 'Antirrábica', icon: '💉', code: 'rabies', notes: '' },
+    { label: 'FeLV', type: 'feline_leukemia', name: 'FeLV (Leucemia Felina)', icon: '💉', code: 'feline_leukemia', notes: '' },
     { label: 'Outro', type: 'other', name: 'Outra Vacina', icon: '➕', code: 'other', notes: '', isOther: true },
   ];
   const chips = (petSpecies === 'cat' || petSpecies === 'cats') ? catChips : dogChips;

@@ -60,7 +60,7 @@ function fmtDate(s?: string | null): string {
 }
 
 const TYPE_LABELS: Record<GroomingType, string> = {
-  bath: '🚿 Banho',
+  bath: '🛁 Banho',
   grooming: '✂️ Tosa',
   bath_grooming: '🛁 Banho + Tosa',
 };
@@ -648,7 +648,7 @@ export function GroomingItemSheet({
                     frequency_days: String(FREQ_DEFAULTS[e.target.value as GroomingType]),
                   }))}
                 >
-                  <option value="bath">🚿 Somente Banho</option>
+                  <option value="bath">🛁 Somente Banho</option>
                   <option value="grooming">✂️ Somente Tosa</option>
                   <option value="bath_grooming">🛁 Banho + Tosa</option>
                 </select>
@@ -765,7 +765,7 @@ export function GroomingItemSheet({
                       value={editForm.type}
                       onChange={e => setEditForm(f => ({ ...f, type: e.target.value as GroomingType }))}
                     >
-                      <option value="bath">🚿 Somente Banho</option>
+                      <option value="bath">🛁 Somente Banho</option>
                       <option value="grooming">✂️ Somente Tosa</option>
                       <option value="bath_grooming">🛁 Banho + Tosa</option>
                     </select>

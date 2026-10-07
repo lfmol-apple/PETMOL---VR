@@ -32,8 +32,8 @@ const PARASITE_TYPES: Array<{
   applicationForm: ParasiteFormData['application_form'];
 }> = [
   { value: 'dewormer', labelKey: 'parasite.dewormer', icon: '🪱', frequencyDays: 90, applicationForm: 'oral' },
-  { value: 'flea_tick', labelKey: 'parasite.flea_tick', icon: '🦟', frequencyDays: 30, applicationForm: 'topical' },
-  { value: 'collar', labelKey: 'parasite.collar', icon: '⭕', frequencyDays: 180, applicationForm: 'collar' },
+  { value: 'flea_tick', labelKey: 'parasite.flea_tick', icon: '🛡️', frequencyDays: 30, applicationForm: 'topical' },
+  { value: 'collar', labelKey: 'parasite.collar', icon: '📿', frequencyDays: 180, applicationForm: 'collar' },
 ];
 
 function createLocalDate(dateStr: string): Date {
@@ -68,7 +68,7 @@ export function HealthParasiteControlPanel({
   );
 
   return (
-    <PremiumPanelShell title={t('health.parasite_control')} icon="💊" subtitle={petName}>
+    <PremiumPanelShell title={t('health.parasite_control')} icon="🛡️" subtitle={petName}>
       <div className="space-y-6">
         {!showParasiteForm && (
           <button
@@ -83,7 +83,7 @@ export function HealthParasiteControlPanel({
           <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                <span>🦠</span>
+                <span>🛡️</span>
                 {editingParasite ? t('parasite.edit_record') : t('parasite.new_record')}
               </h3>
               <button onClick={resetParasiteForm} className="text-gray-400 hover:text-gray-700 text-lg">✕</button>
@@ -128,8 +128,8 @@ export function HealthParasiteControlPanel({
             <div data-parasite-form>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 {parasiteFormData.type === 'dewormer' && `🪱 ${t('parasite.dewormer')} *`}
-                {parasiteFormData.type === 'flea_tick' && `🦟 ${t('parasite.flea_tick')} *`}
-                {parasiteFormData.type === 'collar' && `⭕ ${t('parasite.collar')} *`}
+                {parasiteFormData.type === 'flea_tick' && `🛡️ ${t('parasite.flea_tick')} *`}
+                {parasiteFormData.type === 'collar' && `📿 ${t('parasite.collar')} *`}
                 {!parasiteFormData.type && 'Produto *'}
               </label>
               <input
@@ -216,7 +216,7 @@ export function HealthParasiteControlPanel({
                     className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm"
                   >
                     {parasiteFormData.type === 'dewormer' && (<><option value="oral">💊 Comprimido/Oral</option><option value="topical">💧 Pasta/Suspensão</option></>)}
-                    {parasiteFormData.type === 'flea_tick' && (<><option value="topical">💧 Pipeta/Tópico</option><option value="oral">💊 Comprimido</option>{species === 'dog' && <option value="collar">⭕ Coleira</option>}</>)}
+                    {parasiteFormData.type === 'flea_tick' && (<><option value="topical">💧 Pipeta/Tópico</option><option value="oral">💊 Comprimido</option>{species === 'dog' && <option value="collar">📿 Coleira</option>}</>)}
                   </select>
                 </div>
                 <div>
@@ -238,7 +238,7 @@ export function HealthParasiteControlPanel({
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Formato</label>
                 <select value="collar" disabled className="w-full p-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-500">
-                  <option value="collar">⭕ Coleira (Leishmaniose)</option>
+                  <option value="collar">📿 Coleira (Leishmaniose)</option>
                 </select>
               </div>
             )}
@@ -346,7 +346,7 @@ export function HealthParasiteControlPanel({
 
           {parasiteControls.length === 0 && !showParasiteForm && (
             <div className="text-center py-8 text-gray-500">
-              <div className="text-4xl mb-2">🦠</div>
+              <div className="text-4xl mb-2">🛡️</div>
               <p>Nenhum registro ainda</p>
               <p className="text-sm">Clique em &quot;Registrar Aplicação&quot; para começar</p>
             </div>
@@ -390,9 +390,9 @@ export function HealthParasiteControlPanel({
                       <div className="relative">
                         <span className="text-2xl">
                           {control.type === 'dewormer' && '🪱'}
-                          {control.type === 'flea_tick' && '🦟'}
+                          {control.type === 'flea_tick' && '🛡️'}
                           {control.type === 'heartworm' && '❤️'}
-                          {control.type === 'collar' && '⭕'}
+                          {control.type === 'collar' && '📿'}
                           {control.type === 'leishmaniasis' && '💉'}
                         </span>
                         {isOverdue && (
@@ -423,7 +423,7 @@ export function HealthParasiteControlPanel({
                           <div className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
                             {control.application_form === 'oral' && '💊 Comprimido'}
                             {control.application_form === 'topical' && '💧 Pipeta'}
-                            {control.application_form === 'collar' && '⭕ Coleira'}
+                            {control.application_form === 'collar' && '📿 Coleira'}
                             {control.application_form === 'injection' && '💉 Injeção'}
                           </div>
                         )}
@@ -439,7 +439,7 @@ export function HealthParasiteControlPanel({
                       </div>
                       {control.type === 'collar' && control.collar_expiry_date && (
                         <div className="text-[#0047ad] font-medium">
-                          ⭕ {t('health.collar_expiry')}: {createLocalDate(control.collar_expiry_date).toLocaleDateString(locale)}
+                          📿 {t('health.collar_expiry')}: {createLocalDate(control.collar_expiry_date).toLocaleDateString(locale)}
                         </div>
                       )}
                       {control.dosage && <div>💊 Dose: {control.dosage}</div>}
