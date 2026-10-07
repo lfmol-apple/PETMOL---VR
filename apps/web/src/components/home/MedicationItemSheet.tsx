@@ -6,7 +6,7 @@ import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { parsePetEventExtraData, type PetEventRecord } from '@/lib/petEvents';
 import { extractMedicationBarcode } from '@/lib/petCareDomain';
-import { Bell, Check, Home, ShoppingCart, Trash2, X } from 'lucide-react';
+import { Bell, Check, Home, Info, ShoppingCart, Trash2, X } from 'lucide-react';
 import { ActivationAskSheet } from './ActivationAskSheet';
 import { usePushOneTimeAsk } from '@/features/interactions/usePushOneTimeAsk';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
@@ -847,7 +847,10 @@ export function MedicationItemSheet({
 
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain bg-gradient-to-b from-sky-50 via-white to-violet-50">
-          <p className="mx-4 mt-3 mb-1 text-[11.5px] font-medium text-slate-500 text-center">ℹ️ Aqui é pra acompanhar e não esquecer os cuidados — o tratamento é sempre com o veterinário.</p>
+          <p className="mx-4 mt-3 mb-1 flex items-center justify-center gap-1 text-[11.5px] font-medium text-slate-500 text-center">
+            <Info className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2} />
+            Aqui é pra acompanhar e não esquecer os cuidados — o tratamento é sempre com o veterinário.
+          </p>
 
           {/* ── VIEW MODE ─────────────────────────────────────────────────── */}
           {mode === 'view' && (

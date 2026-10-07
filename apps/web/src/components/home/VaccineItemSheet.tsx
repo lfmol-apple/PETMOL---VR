@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState, type ChangeEvent, type Dis
 import type { VaccineRecord, VaccineType } from '@/lib/petHealth';
 import type { VaccineFormData } from '@/lib/types/homeForms';
 import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
-import { Bell, Camera, Check, Home, X } from 'lucide-react';
+import { Bell, Camera, Check, Home, Info, X } from 'lucide-react';
 import { SheetAvatar, SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { ActivationAskSheet } from './ActivationAskSheet';
 import { usePushOneTimeAsk } from '@/features/interactions/usePushOneTimeAsk';
@@ -434,7 +434,10 @@ export function VaccineItemSheet({
           </div>
         )}
         <div className="overflow-y-auto flex-1 overscroll-contain">
-          <p className="mx-4 mt-3 mb-1 text-[11.5px] font-medium text-slate-500 text-center">ℹ️ Aqui é pra acompanhar e não esquecer os cuidados — o tratamento é sempre com o veterinário.</p>
+          <p className="mx-4 mt-3 mb-1 flex items-center justify-center gap-1 text-[11.5px] font-medium text-slate-500 text-center">
+            <Info className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2} />
+            Aqui é pra acompanhar e não esquecer os cuidados — o tratamento é sempre com o veterinário.
+          </p>
           {mode === 'view' && (
             <div className="p-5 space-y-3 pb-8">
 

@@ -3,7 +3,7 @@
 // RESPONSABILIDADE: gestão ativa de saúde e rotina (WRITE).
 
 import { useState, useEffect, useCallback, type Dispatch, type SetStateAction } from 'react';
-import { Syringe, Shield, Pill, Bath, Soup } from 'lucide-react';
+import { Syringe, Shield, Pill, Bath, Soup, Info } from 'lucide-react';
 import { useDraftAutosave, loadDraft, clearDraft } from '@/hooks/useDraftAutosave';
 import { useI18n } from '@/lib/I18nContext';
 import { FoodControlTab } from '@/components/FoodControlTab';
@@ -425,7 +425,10 @@ export function HealthModal({
 
             {/* Conteúdo do Modal - Área de scroll otimizada */}
             <div className="p-3 sm:p-5 overflow-y-auto flex-1 bg-gray-50">
-              <p className="text-[11.5px] font-medium text-slate-500 text-center mb-3">ℹ️ Aqui é pra acompanhar e não esquecer os cuidados — o tratamento é sempre com o veterinário.</p>
+              <p className="flex items-center justify-center gap-1 text-[11.5px] font-medium text-slate-500 text-center mb-3">
+                <Info className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2} />
+                Aqui é pra acompanhar e não esquecer os cuidados — o tratamento é sempre com o veterinário.
+              </p>
 
               {/* Aba Vacinas */}
               {healthActiveTab === 'vaccines' && (
