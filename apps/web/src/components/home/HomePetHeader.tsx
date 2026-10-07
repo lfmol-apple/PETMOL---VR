@@ -182,13 +182,13 @@ export function HomePetHeader({
           em qualquer largura de tela; antes cada um tinha seu próprio px
           responsivo e desalinhava dependendo do tamanho da tela. */}
       <div
-        className="relative group mx-auto w-full overflow-hidden rounded-[22px] border border-white/50 bg-gradient-to-br from-blue-400 to-purple-500 shadow-lg shadow-blue-500/10 ring-1 ring-black/5 sm:rounded-[28px]"
+        className="relative group mx-auto w-full overflow-hidden rounded-[22px] border border-white/50 bg-gradient-to-br from-blue-400 to-purple-500 shadow-lg shadow-blue-500/10 ring-1 ring-black/5 sm:rounded-[28px] aspect-[1.25/1] max-h-[min(36dvh,315px)] max-w-[min(100%,calc(min(36dvh,315px)*1.25))] lg:max-h-[min(38dvh,360px)] lg:max-w-[min(100%,calc(min(38dvh,360px)*1.25))]"
         style={{
-          aspectRatio: '1.25 / 1',
-          maxHeight: 'min(36dvh, 315px)',
-          // No mobile a foto deve ocupar a largura útil do card. Em telas
-          // altas/largas, este teto evita uma foto desproporcionalmente alta.
-          maxWidth: 'min(100%, calc(min(36dvh, 315px) * 1.25))',
+          // Tetos de altura/largura (mobile e tablet: 315px: desktop 1024px+:
+          // 360px, ~mesma proporção do novo max-w-3xl do container — ver
+          // classe acima) viraram classes Tailwind com variante lg: porque
+          // inline style não aceita breakpoint. aspect-ratio preservado
+          // (1.25/1) em qualquer largura — só o teto muda, nunca o recorte.
           backfaceVisibility: 'hidden',
           WebkitBackfaceVisibility: 'hidden',
           transform: 'translate3d(0,0,0)',

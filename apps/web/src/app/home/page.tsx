@@ -2083,7 +2083,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           )}
         </div>
       </div>
-      <div className="relative mx-auto max-w-2xl px-2 py-3 min-[390px]:px-3 sm:px-4 sm:py-4">
+      <div className="relative mx-auto max-w-2xl px-2 py-3 min-[390px]:px-3 sm:px-4 sm:py-4 lg:max-w-3xl">
         {/* Pílula de status de sync — FLUTUA sobre o topo (absolute), não
             reserva espaço próprio. Antes era um slot fixo de h-9 sempre
             montado → 48px de vazio permanente entre o header e o card do pet
@@ -2318,7 +2318,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
         {/* Pet Management - if pets exist */}
         {pets.length > 0 ? (
-          <div className="mx-auto max-w-2xl space-y-3 rounded-[26px] border border-slate-200 bg-gradient-to-b from-[#F0F4F8] to-[#E2E8F0] p-2 shadow-2xl min-[390px]:space-y-4 min-[390px]:rounded-3xl min-[390px]:p-2.5 sm:p-4">
+          <div className="mx-auto max-w-2xl space-y-3 rounded-[26px] border border-slate-200 bg-gradient-to-b from-[#F0F4F8] to-[#E2E8F0] p-2 shadow-2xl min-[390px]:space-y-4 min-[390px]:rounded-3xl min-[390px]:p-2.5 sm:p-4 lg:max-w-3xl">
             {(() => {
               const currentPet = pets.find(p => p.pet_id === selectedPetId);
               if (!currentPet) return null;
@@ -2487,7 +2487,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       <button
                         onClick={handleSharePet}
                         disabled={shareLoading}
-                        className="flex flex-[3] items-center justify-center gap-1.5 rounded-xl border border-[#BFD4F0] bg-[#F2F6FC] px-2 py-1.5 text-[11px] font-bold text-[#0056D2] transition-opacity active:opacity-70 disabled:opacity-40 sm:py-2 sm:text-[12px]"
+                        className="flex flex-[3] items-center justify-center gap-1.5 rounded-xl border border-[#BFD4F0] bg-[#F2F6FC] px-2 py-1.5 text-[11px] font-bold text-[#0056D2] transition-opacity active:opacity-70 disabled:opacity-40 sm:py-2 sm:text-[12px] lg:py-2.5 lg:text-[13px]"
                       >
                         <UserPlus className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2.4} />
                         <span className="truncate">{shareLoading ? 'Gerando link...' : 'Convidar família'}</span>
@@ -2495,7 +2495,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
                       <button
                         onClick={() => void handleShareApp()}
-                        className="flex flex-[2] items-center justify-center gap-1.5 rounded-xl border border-[#E5E9F0] bg-white px-2 py-1.5 text-[11px] font-normal text-[#8792A2] transition-opacity active:opacity-70 sm:py-2 sm:text-[12px]"
+                        className="flex flex-[2] items-center justify-center gap-1.5 rounded-xl border border-[#E5E9F0] bg-white px-2 py-1.5 text-[11px] font-normal text-[#8792A2] transition-opacity active:opacity-70 sm:py-2 sm:text-[12px] lg:py-2.5 lg:text-[13px]"
                       >
                         <Share2 className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2} />
                         <span className="truncate">Compartilhar</span>

@@ -36,14 +36,18 @@ export function Header() {
   return (
     <>
       <header
-        className="bg-white border-b-2 border-[#0056D2]/20 sticky top-0 z-50 shadow-[0_2px_12px_rgba(0,86,210,0.10)] transition-shadow duration-300 py-2.5"
-        style={{ paddingTop: 'calc(0.625rem + env(safe-area-inset-top))' }}
+        className="bg-white border-b-2 border-[#0056D2]/20 sticky top-0 z-50 shadow-[0_2px_12px_rgba(0,86,210,0.10)] transition-shadow duration-300 pb-2.5 lg:pb-3 pt-[calc(0.625rem+env(safe-area-inset-top))] lg:pt-[calc(0.75rem+env(safe-area-inset-top))]"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
           {/* Marca alinhada à esquerda — clicável, volta pra Home/início.
               A legenda "você está na home" foi removida (09/10/2026): com
               "Início" agora também no menu ☰, a marca não precisa mais
-              carregar essa explicação sozinha, e o header ganha altura. */}
+              carregar essa explicação sozinha, e o header ganha altura.
+              Desktop (lg:) ganha presença de marca moderada — text-2xl→3xl,
+              mesma proporção interna (texto+patinha escalam juntos, aspecto
+              do logo preservado) — e o header ganha +2px de padding em cada
+              borda (pb-2.5→3, pt equivalente) só o suficiente pra acomodar
+              a fonte maior sem voltar ao header alto antigo. */}
           <Link
             href={homeHref}
             title={hasSession ? 'Ir para a home' : 'Ir para o início'}
@@ -51,7 +55,7 @@ export function Header() {
               showLogo ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
             }`}
           >
-            <span className="text-2xl font-black text-[#0056D2] tracking-tight flex items-center gap-1.5">
+            <span className="text-2xl lg:text-3xl font-black text-[#0056D2] tracking-tight flex items-center gap-1.5">
               Petmol<span className="ml-1">🐾</span>
             </span>
           </Link>

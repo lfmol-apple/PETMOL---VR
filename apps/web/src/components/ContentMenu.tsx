@@ -133,9 +133,9 @@ export function ContentMenu({ homeHref, onLogout }: { homeHref?: string; onLogou
               }`}
             >
               <span className="text-[14px] font-black text-slate-900">
-                <span aria-hidden className="mr-1.5">📖</span>Recommendations
+                <span aria-hidden className="mr-1.5">📖</span>Recomendações
               </span>
-              <span className="text-[12px] text-slate-500">Pet picks in English</span>
+              <span className="text-[12px] text-slate-500">Produtos selecionados, em inglês</span>
             </Link>
           )}
 
