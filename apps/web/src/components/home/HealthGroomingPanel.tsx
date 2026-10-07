@@ -1,6 +1,7 @@
 'use client';
 
 import type { Dispatch, SetStateAction } from 'react';
+import { MapPin, Store } from 'lucide-react';
 import { useI18n } from '@/lib/I18nContext';
 import { PremiumPanelShell } from '@/components/premium';
 import { IosSwitch } from '@/components/ui/IosSwitch';
@@ -72,7 +73,7 @@ export function HealthGroomingPanel({
   }
 
   return (
-    <PremiumPanelShell title={t('health.grooming')} icon="🛁" subtitle={petName}>
+    <PremiumPanelShell title={t('health.grooming')} subtitle={petName}>
       <div className="space-y-4 sm:space-y-6">
         {/* Formulário de Registro */}
         <div className="bg-gradient-to-br from-cyan-50 to-sky-50 rounded-xl p-4 sm:p-6 border border-cyan-200">
@@ -94,8 +95,7 @@ export function HealthGroomingPanel({
           )}
 
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-base font-bold text-cyan-900 flex items-center gap-1.5">
-              <span className="text-xl">🛁</span>
+            <h3 className="text-base font-bold text-cyan-900">
               {editingGrooming ? t('grooming.edit_service') : t('grooming.new_service')}
             </h3>
             <div className="flex items-center gap-2">
@@ -113,12 +113,12 @@ export function HealthGroomingPanel({
                   'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('petshop'),
                   '_blank', 'noopener,noreferrer'
                 )}
-                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white rounded-xl text-xs sm:text-sm font-bold transition-all shadow-md ring-2 ring-purple-300"
+                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-[#F2F6FC] hover:bg-[#E6EEF9] active:scale-95 text-[#0056D2] border border-[#BFD4F0] rounded-xl text-xs sm:text-sm font-bold transition-all"
               >
-                <span className="text-sm sm:text-base">🏪</span>
+                <Store className="h-4 w-4 flex-shrink-0" strokeWidth={2.3} />
                 <span className="hidden sm:inline">Encontre petshops perto de vc</span>
                 <span className="sm:hidden">Petshops</span>
-                <span className="text-white/70 text-xs">›</span>
+                <span className="text-[#0056D2]/60 text-xs">›</span>
               </button>
             </div>
           </div>
@@ -131,9 +131,9 @@ export function HealthGroomingPanel({
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { value: 'bath' as const, icon: '🛁', labelKey: 'grooming.bath', frequency: 14 },
-                  { value: 'grooming' as const, icon: '✂️', labelKey: 'grooming.grooming_only', frequency: 45 },
-                  { value: 'bath_grooming' as const, icon: '🛁✂️', labelKey: 'grooming.bath_grooming', frequency: 45 },
+                  { value: 'bath' as const, labelKey: 'grooming.bath', frequency: 14 },
+                  { value: 'grooming' as const, labelKey: 'grooming.grooming_only', frequency: 45 },
+                  { value: 'bath_grooming' as const, labelKey: 'grooming.bath_grooming', frequency: 45 },
                 ].map((option) => (
                   <button
                     key={option.value}
@@ -141,11 +141,10 @@ export function HealthGroomingPanel({
                     onClick={() => setGroomingFormData((prev) => ({ ...prev, type: option.value, frequency_days: option.frequency }))}
                     className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border-2 transition-all ${
                       groomingFormData.type === option.value
-                        ? 'border-[#0056D2] bg-cyan-50 text-[#0047ad]'
+                        ? 'border-[#0056D2] bg-[#F2F6FC] text-[#0056D2]'
                         : 'border-gray-200 hover:border-gray-300 text-gray-700'
                     }`}
                   >
-                    <span className="text-lg">{option.icon}</span>
                     <span className="text-xs font-semibold">{t(option.labelKey as Parameters<typeof t>[0])}</span>
                   </button>
                 ))}
@@ -208,8 +207,9 @@ export function HealthGroomingPanel({
                       onClick={() => selectPlace(place)}
                       className="w-full text-left px-4 py-3 hover:bg-cyan-50 border-b border-gray-100 last:border-b-0 transition-colors"
                     >
-                      <div className="font-semibold text-gray-800 flex items-center gap-2">
-                        🏪 {place.name}
+                      <div className="font-semibold text-gray-800 flex items-center gap-1.5">
+                        <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" strokeWidth={2.2} />
+                        {place.name}
                         {place.rating && <span className="text-xs text-yellow-600">⭐ {place.rating}</span>}
                       </div>
                       <div className="text-sm text-gray-600 mt-1">{place.formatted_address}</div>
@@ -341,9 +341,9 @@ export function HealthGroomingPanel({
             <div className="space-y-3">
               {groomingRecords.map((record) => {
                 const typeLabels: Record<string, string> = {
-                  bath: `🛁 ${t('grooming.bath')}`,
-                  grooming: `✂️ ${t('grooming.grooming_only')}`,
-                  bath_grooming: `🛁✂️ ${t('grooming.bath_plus_grooming')}`,
+                  bath: t('grooming.bath'),
+                  grooming: t('grooming.grooming_only'),
+                  bath_grooming: t('grooming.bath_plus_grooming'),
                 };
                 const nextTypeLabel: Record<string, string> = {
                   bath: 'Próximo Banho',

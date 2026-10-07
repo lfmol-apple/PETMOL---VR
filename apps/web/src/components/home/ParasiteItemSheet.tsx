@@ -33,6 +33,14 @@ const PRIMARY_BTN =
 const SECONDARY_BTN =
   'bg-[#F2F6FC] hover:bg-[#E6EEF9] active:bg-[#DCE7F6] text-[#0056D2] border border-[#BFD4F0] shadow-sm';
 
+// CareAssetKey correspondente a cada `type` deste sheet — só os nomes
+// divergem (flea_tick vs fleaTick), o conceito é o mesmo.
+const CARE_KEY_BY_TYPE = {
+  dewormer: 'dewormer',
+  flea_tick: 'fleaTick',
+  collar: 'collar',
+} as const;
+
 // ── Config por tipo ──────────────────────────────────────────────────────────
 const CONFIG = {
   dewormer: {
@@ -600,16 +608,10 @@ export function ParasiteItemSheet({
                 const statusPill = `${status.chip} ${status.chipText}`;
                 return (
                   <div className={`flex items-start gap-2.5 px-3 py-2 rounded-xl border ${urgentBorder}`}>
-                    {/* Piloto Antipulgas (07/10/2026): em ~32px o asset 3D
-                        perde legibilidade (regra do dono) — removido aqui
-                        em vez de forçado pequeno. Vermífugo/Coleira
-                        continuam com o emoji de categoria por ora (só
-                        Antipulgas é o piloto desta etapa). */}
-                    {type !== 'flea_tick' && (
-                      <div className="w-8 h-8 rounded-lg bg-white/80 flex items-center justify-center text-base flex-shrink-0">
-                        {cfg.icon}
-                      </div>
-                    )}
+                    {/* ~32px é pequeno demais pro asset 3D (regra do dono,
+                        propagada do piloto Antipulgas em 07/10/2026) — sem
+                        informação funcional pra acrescentar aqui, removido
+                        nos 3 tipos (o título do sheet já diz a categoria). */}
                     <div className="flex-1 min-w-0">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Produto atual</p>
                       <p className="text-[13px] font-bold text-[#0B1E36] leading-tight break-words">{current.product_name}</p>
@@ -635,13 +637,9 @@ export function ParasiteItemSheet({
               {/* Empty state — responde o que é, por que preencher e o que fazer */}
               {!current && (
                 <div className="rounded-2xl border border-gray-100 bg-gray-50 p-6 text-center">
-                  {/* Piloto Antipulgas: aqui tem espaço de verdade (~64px) —
-                      asset premium em vez do emoji de categoria. */}
-                  {type === 'flea_tick' ? (
-                    <img src={careAssetSrc('fleaTick')} alt="" className="mx-auto mb-3 h-16 w-16 object-contain" />
-                  ) : (
-                    <p className="text-4xl mb-3">{cfg.icon}</p>
-                  )}
+                  {/* Aqui tem espaço de verdade (~64px) — asset premium em
+                      vez do emoji de categoria, nos 3 tipos. */}
+                  <img src={careAssetSrc(CARE_KEY_BY_TYPE[type])} alt="" className="mx-auto mb-3 h-16 w-16 object-contain" />
                   <p className="text-sm font-semibold text-gray-700">
                     {petName ? `${petName} usa proteção contra ` : 'Proteção contra '}
                     {type === 'dewormer' ? 'vermes?' : type === 'collar' ? 'parasitas com coleira?' : 'pulgas e carrapatos?'}
@@ -699,7 +697,7 @@ export function ParasiteItemSheet({
                           className="flex items-center gap-3 px-4 py-2.5"
                         >
                           <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-base flex-shrink-0 ${!isHistory ? 'bg-[#F2F6FC]' : 'bg-gray-100'}`}>
-                            {type === 'flea_tick' ? (!isHistory ? '' : '·') : (!isHistory ? cfg.icon : '·')}
+                            {!isHistory ? '' : '·'}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
@@ -882,12 +880,7 @@ export function ParasiteItemSheet({
           {/* ── EDIT FORM ─────────────────────────────────────────────────── */}
           {mode === 'edit' && editRecord && (
             <div className="px-4 pt-2 pb-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-base bg-[#F2F6FC] ring-1 ring-[#D9E6F7]">
-                  {type !== 'flea_tick' && cfg.icon}
-                </div>
-                <h3 className="text-[16px] font-bold text-gray-900">Editar registro</h3>
-              </div>
+              <h3 className="text-[16px] font-bold text-gray-900">Editar registro</h3>
 
               <div className="rounded-2xl border-2 border-[#D9E6F7] bg-[#F2F6FC] p-3.5 space-y-3">
                 <div className="flex items-start gap-2.5">

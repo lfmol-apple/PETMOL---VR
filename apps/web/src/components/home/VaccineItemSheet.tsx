@@ -492,7 +492,15 @@ export function VaccineItemSheet({
                                 : 'bg-white border-gray-200 hover:bg-sky-50 hover:border-sky-200 shadow-sm'
                         }`}
                       >
-                        <span className="text-2xl flex-shrink-0">{isSaved ? '✅' : chip.icon}</span>
+                        {/* chip.icon (💉 uniforme em todas) não aparece mais
+                            aqui — é redundante quando toda opção mostra o
+                            mesmo símbolo; continua sendo salvo no registro
+                            (linha abaixo, onDirectSaveVaccine), só a
+                            renderização mudou. "Outro" mantém ➕ (distinto,
+                            informação real: "adicionar"). */}
+                        {(isSaved || chip.isOther) && (
+                          <span className="text-2xl flex-shrink-0">{isSaved ? '✅' : '➕'}</span>
+                        )}
                         <span className={`flex-1 text-[14px] font-bold ${chip.disabled ? 'text-gray-400' : chip.isOther ? 'text-gray-500' : 'text-slate-800'}`}>
                           {isSaved ? 'Registrado!' : isSaving ? 'Registrando...' : chip.label}
                         </span>

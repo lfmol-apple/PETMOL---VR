@@ -14,6 +14,7 @@ import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/s
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { CARE_STATE } from '@/lib/careState';
 import { CARE_AREA_THEME } from '@/lib/careAreaTheme';
+import { careAssetSrc } from '@/lib/careAssets';
 import { listReminders, deleteReminder, createReminder, refreshSubscription } from '@/features/notifications/pushService';
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
 import { DateField } from '@/components/ui/DateField';
@@ -872,7 +873,7 @@ export function MedicationItemSheet({
               {/* Empty state — o que é, por que preencher, o que fazer */}
               {!eventsLoading && medications.length === 0 && (
                 <div className="rounded-2xl border border-gray-100 bg-gray-50 p-6 text-center">
-                  <p className="text-4xl mb-3">💊</p>
+                  <img src={careAssetSrc('medication')} alt="" className="mx-auto mb-3 h-16 w-16 object-contain" />
                   <p className="text-sm font-semibold text-gray-700">Nenhum remédio em andamento</p>
                   <p className="text-xs text-gray-500 mt-2 leading-relaxed">
                     Se {petName || 'seu pet'} está tomando algum medicamento, registre aqui: o PETMOL

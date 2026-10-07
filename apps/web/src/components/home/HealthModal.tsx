@@ -3,6 +3,7 @@
 // RESPONSABILIDADE: gestão ativa de saúde e rotina (WRITE).
 
 import { useState, useEffect, useCallback, type Dispatch, type SetStateAction } from 'react';
+import { Syringe, Shield, Pill, Bath, Soup } from 'lucide-react';
 import { useDraftAutosave, loadDraft, clearDraft } from '@/hooks/useDraftAutosave';
 import { useI18n } from '@/lib/I18nContext';
 import { FoodControlTab } from '@/components/FoodControlTab';
@@ -270,14 +271,18 @@ export function HealthModal({
     return nextDate ? new Date(nextDate).getTime() < now : false;
   }).length;
   const overdueGroomingCount = groomingDueAlerts.length;
+  // Ícones de aba — Lucide, não emoji (microinterface, pedido do dono
+  // 07/10/2026). Melhor equivalente disponível na versão instalada
+  // (0.563.0): Parasitário não tem ícone de "pulga/carrapato", Shield é o
+  // mais neutro/próximo semanticamente do que já era usado (🛡️).
   const healthTabs = [
-    { id: 'vaccines', label: t('health.vaccines'), icon: '💉', urgent: overdueVaccines > 0 },
-    { id: 'parasites', label: t('health.parasite_control'), icon: '🛡️', urgent: overdueParasites > 0 },
+    { id: 'vaccines', label: t('health.vaccines'), icon: Syringe, urgent: overdueVaccines > 0 },
+    { id: 'parasites', label: t('health.parasite_control'), icon: Shield, urgent: overdueParasites > 0 },
     // Medicamentos desativados no PETMOL 1.0 — ver docs/MEDICAMENTOS_DESATIVADOS.md
-    ...(MEDICATIONS_ENABLED ? [{ id: 'medication', label: 'Medicação', icon: '💊', urgent: false }] : []),
+    ...(MEDICATIONS_ENABLED ? [{ id: 'medication', label: 'Medicação', icon: Pill, urgent: false }] : []),
     ...(healthModalMode === 'full' ? [
-      { id: 'grooming', label: t('health.grooming'), icon: '🛁', urgent: overdueGroomingCount > 0 },
-      { id: 'food', label: t('health.food'), icon: '🥣', urgent: false },
+      { id: 'grooming', label: t('health.grooming'), icon: Bath, urgent: overdueGroomingCount > 0 },
+      { id: 'food', label: t('health.food'), icon: Soup, urgent: false },
     ] : []),
   ].sort((a, b) => Number(b.urgent) - Number(a.urgent));
 
@@ -349,9 +354,9 @@ export function HealthModal({
                       <p className="text-white/75 text-[12px] sm:text-[13px] font-semibold uppercase tracking-[0.1em] leading-tight truncate">
                         {healthModalMode === 'grooming' ? t('health.grooming') :
                          healthModalMode === 'food' ? t('home.food.title') :
-                         healthModalMode === 'health' && healthActiveTab === 'vaccines' ? '💉 Vacinas' :
-                         healthModalMode === 'health' && healthActiveTab === 'parasites' ? '🛡️ Controle Parasitário' :
-                         healthModalMode === 'health' && healthActiveTab === 'medication' ? '💊 Medicação' :
+                         healthModalMode === 'health' && healthActiveTab === 'vaccines' ? 'Vacinas' :
+                         healthModalMode === 'health' && healthActiveTab === 'parasites' ? 'Controle Parasitário' :
+                         healthModalMode === 'health' && healthActiveTab === 'medication' ? 'Medicação' :
                          t('health.record_title')}
                       </p>
                     </div>
@@ -398,9 +403,10 @@ export function HealthModal({
                           <div className="absolute inset-0 bg-white/10 rounded-2xl border border-white/25 group-hover:bg-white/20"></div>
                         )}
 
-                        <span className={`relative text-lg sm:text-xl transition-transform ${healthActiveTab === tab.id ? 'scale-110' : 'grayscale opacity-90 group-hover:grayscale-0'}`}>
-                          {tab.icon}
-                        </span>
+                        <tab.icon
+                          className={`relative h-4 w-4 sm:h-[18px] sm:w-[18px] flex-shrink-0 transition-transform ${healthActiveTab === tab.id ? 'scale-110 text-[#0056D2]' : 'text-white/80 group-hover:text-white'}`}
+                          strokeWidth={2.3}
+                        />
                         <span className={`relative font-bold transition-colors ${
                           healthActiveTab === tab.id ? 'text-[#0056D2]' : 'text-white/80 group-hover:text-white'
                         }`}>

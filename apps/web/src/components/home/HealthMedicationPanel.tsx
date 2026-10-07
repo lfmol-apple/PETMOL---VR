@@ -56,7 +56,7 @@ export function HealthMedicationPanel({
   };
 
   return (
-    <PremiumPanelShell title="Medicação" icon="💊" subtitle={petName}>
+    <PremiumPanelShell title="Medicação" subtitle={petName}>
       <div className="space-y-4">
         {/* Formulário de nova medicação */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 space-y-3">
@@ -65,11 +65,8 @@ export function HealthMedicationPanel({
           </h4>
 
           {/* Tipo fixo: Prescrição / Medicação */}
-          <div className="bg-gradient-to-r from-purple-50 to-purple-100/50 border border-purple-200 rounded-xl p-3">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">💊</span>
-              <span className="font-semibold text-gray-800">Prescrição / Medicação</span>
-            </div>
+          <div className="bg-[#F2F6FC] border border-[#D9E6F7] rounded-xl p-3">
+            <span className="font-semibold text-[#0B1E36]">Prescrição / Medicação</span>
           </div>
 
           {/* Escanear é a via principal de identificação — mais preciso que
@@ -167,7 +164,7 @@ export function HealthMedicationPanel({
               onChange={e => setEventFormData(prev => ({ ...prev, frequency: e.target.value }))}
               className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
             >
-              <option value="dose_unica">💊 Dose única</option>
+              <option value="dose_unica">Dose única</option>
               <option value="1x_dia">1× ao dia</option>
               <option value="2x_dia">2× ao dia</option>
               <option value="3x_dia">3× ao dia</option>
@@ -492,8 +489,7 @@ export function HealthMedicationPanel({
                 return (
                   <div key={ev.id} className="bg-white rounded-xl border border-gray-200 p-3">
                     <div className="flex items-start gap-3">
-                      <div className="relative flex-shrink-0 mt-0.5">
-                        <span className="text-2xl leading-none">💊</span>
+                      <div className="relative flex-shrink-0 mt-0.5 h-2 w-2">
                         {(() => {
                           const todayStr = localTodayISO();
                           const eventDateStr = (ev.scheduled_at || '').split('T')[0] || (ev.scheduled_at || '').split(' ')[0];
