@@ -1,23 +1,29 @@
 /**
  * Fonte ÚNICA de verdade das 10 artes de categoria PETMOL (Home + Cuidados +
- * futuramente os sheets). Nenhum componente deve importar HOME_ART ou um
- * arquivo .webp diretamente — importa daqui, por conceito.
+ * futuramente os sheets). Nenhum componente deve importar HOME_ART, um
+ * arquivo .webp antigo ou um arquivo de apps/web/src/assets/petmol-premium/
+ * diretamente — importa daqui, por conceito.
  *
- * Estado atual (07/10/2026): os 10 conceitos apontam pras artes .webp
- * ANTIGAS (criadas pelo dono, já em produção), marcadas `placeholder: true`.
- * Elas são deliberadamente TEMPORÁRIAS — ver auditoria de redesign: os
- * prints mostraram que essas 9 artes (nota: hoje são 9 arquivos físicos pra
- * 10 conceitos — `care` e `grooming` reaproveitam o MESMO arquivo,
- * cuidados-pets-banho.webp, porque "Cuidados" nunca teve asset próprio)
- * parecem pertencer a famílias visuais diferentes entre si. A família nova
- * (3D realista, câmera/escala/iluminação únicas, fundo transparente) ainda
- * não foi gerada — ver docs técnicas no final deste arquivo.
+ * Família PETMOL definitiva (07/10/2026): os 10 conceitos foram aprovados
+ * e integrados — apps/web/src/assets/petmol-premium/*.webp, 512×512,
+ * alpha real, 3D realista/mesma câmera/mesma escala. `placeholder: false`
+ * em todos. As artes antigas (HOME_ART) continuam no repo pra rollback,
+ * mas nenhum componente as consome mais.
  *
- * QUANDO A ARTE NOVA DE UM CONCEITO CHEGAR: troque só o `src` (e marque
- * `placeholder: false`) na entrada correspondente de CARE_ASSETS, abaixo.
- * Nenhum componente consumidor muda.
+ * QUANDO PRECISAR TROCAR UM ASSET NO FUTURO: troque só o `src` (import +
+ * referência) na entrada correspondente de CARE_ASSETS, abaixo. Nenhum
+ * componente consumidor muda.
  */
-import { HOME_ART } from './homeArt';
+import food from '@/assets/petmol-premium/food.webp';
+import care from '@/assets/petmol-premium/care.webp';
+import vaccine from '@/assets/petmol-premium/vaccine.webp';
+import store from '@/assets/petmol-premium/store.webp';
+import dewormer from '@/assets/petmol-premium/dewormer.webp';
+import fleaTick from '@/assets/petmol-premium/flea-tick.webp';
+import collar from '@/assets/petmol-premium/collar.webp';
+import medication from '@/assets/petmol-premium/medication.webp';
+import grooming from '@/assets/petmol-premium/grooming.webp';
+import petshops from '@/assets/petmol-premium/petshops.webp';
 
 export type CareAssetKey =
   | 'food'
@@ -34,26 +40,23 @@ export type CareAssetKey =
 export interface CareAssetSpec {
   /** rótulo humano, só para debug/dev tools — não é o texto exibido na tela (isso continua vindo de cada componente/i18n) */
   label: string;
-  /** URL do asset ativo agora — placeholder (webp antigo) ou, no futuro, o 3D definitivo */
+  /** URL do asset ativo agora */
   src: string;
-  /** true = ainda é a arte antiga de transição; false = já é a família 3D definitiva */
+  /** true = arte antiga de transição; false = já é a família 3D definitiva */
   placeholder: boolean;
 }
 
 export const CARE_ASSETS: Record<CareAssetKey, CareAssetSpec> = {
-  food: { label: 'Alimentação', src: HOME_ART.alimentacao, placeholder: true },
-  // "Cuidados" (ícone agregado do card da Home) nunca teve arte própria —
-  // hoje reaproveita a de Banho e Tosa só porque precisava de alguma coisa.
-  // É o único dos 10 que não tem NENHUM asset dedicado ainda, nem antigo.
-  care: { label: 'Cuidados', src: HOME_ART.banho, placeholder: true },
-  vaccine: { label: 'Vacina', src: HOME_ART.vacina, placeholder: true },
-  store: { label: 'Loja', src: HOME_ART.loja, placeholder: true },
-  dewormer: { label: 'Vermífugo', src: HOME_ART.vermifugo, placeholder: true },
-  fleaTick: { label: 'Antipulgas', src: HOME_ART.antipulgas, placeholder: true },
-  collar: { label: 'Coleira', src: HOME_ART.coleira, placeholder: true },
-  medication: { label: 'Medicação', src: HOME_ART.medicacao, placeholder: true },
-  grooming: { label: 'Banho e Tosa', src: HOME_ART.banho, placeholder: true },
-  petshops: { label: 'PetShops', src: HOME_ART.petshops, placeholder: true },
+  food: { label: 'Alimentação', src: food.src, placeholder: false },
+  care: { label: 'Cuidados', src: care.src, placeholder: false },
+  vaccine: { label: 'Vacina', src: vaccine.src, placeholder: false },
+  store: { label: 'Loja', src: store.src, placeholder: false },
+  dewormer: { label: 'Vermífugo', src: dewormer.src, placeholder: false },
+  fleaTick: { label: 'Antipulgas', src: fleaTick.src, placeholder: false },
+  collar: { label: 'Coleira', src: collar.src, placeholder: false },
+  medication: { label: 'Medicação', src: medication.src, placeholder: false },
+  grooming: { label: 'Banho e Tosa', src: grooming.src, placeholder: false },
+  petshops: { label: 'PetShops', src: petshops.src, placeholder: false },
 };
 
 /** Atalho pro caso comum (só a URL). */
