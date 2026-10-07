@@ -44,6 +44,14 @@ interface HomePetHeaderProps {
   // made up entirely of "vence em 3 semanas" stays a calmer blue.
   upcomingUrgent: boolean;
   onOpenUpcoming: () => void;
+  // "overlay" (padrão, piloto 07/10/2026): nome/raça/sexo/idade/peso e
+  // "Trocar pet" vivem DENTRO da foto, sobre um gradiente inferior — é o
+  // hero premium aprovado no teste com 30 fotos reais (estratégia B).
+  // "external": layout anterior, painel separado abaixo da foto — existe
+  // como fallback estrutural (ex.: pra quando entrar detecção automática
+  // de enquadramento) sem duplicar foto/sino/lápis/setas, comuns às duas
+  // variantes. Nenhuma seleção automática ainda — troca manual via prop.
+  heroVariant?: 'overlay' | 'external';
 }
 
 export function HomePetHeader({
@@ -69,6 +77,7 @@ export function HomePetHeader({
   upcomingCount,
   upcomingUrgent,
   onOpenUpcoming,
+  heroVariant = 'overlay',
 }: HomePetHeaderProps) {
   const { t } = useI18n();
   const nameButtonRef = useRef<HTMLButtonElement>(null);
@@ -139,6 +148,27 @@ export function HomePetHeader({
               </button>
             ))}
           </div>
+          {/* "Adicionar pet" mudou de lugar (piloto do hero, 07/10/2026):
+              antes era um botão solto embaixo da foto; agora que nome/dados
+              foram pra dentro da foto, esse botão viraria um elemento órfão
+              ali fora. Aqui dentro do seletor ele fica contextual — você já
+              está escolhendo entre os pets, adicionar um novo é a mesma
+              tarefa. */}
+          <div className="border-t border-slate-100 p-2">
+            <button
+              type="button"
+              onClick={() => {
+                onClosePetSelector();
+                onOpenAddPetModal();
+              }}
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-[12px] font-black uppercase tracking-wide text-blue-700 transition-colors hover:bg-blue-50 active:scale-95"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
+              </svg>
+              Adicionar pet
+            </button>
+          </div>
         </div>
       </>,
       document.body
@@ -164,13 +194,15 @@ export function HomePetHeader({
     ? `${latestWeight.weight} ${latestWeight.weight_unit ?? 'kg'}`
     : null;
 
-  const petChips = [
+  // Informação corrida (não mais pills) — pedido do piloto de hero,
+  // 07/10/2026: "Baby / Lhasa Apso • Macho / 9a 4m • 11,6 kg". "Castrado"
+  // saiu dessa composição (não listado no exemplo aprovado); continua
+  // editável/visível em outras telas do pet, só não entra no hero.
+  const metaLine1 = [
     currentPet.breed || (currentPet.species === 'cat' ? 'Gato' : currentPet.species === 'dog' ? 'Cão' : null),
     currentPet.sex === 'male' ? 'Macho' : currentPet.sex === 'female' ? 'Fêmea' : null,
-    petAge ?? null,
-    weightChip,
-    currentPet.neutered === true ? 'Castrado' : null,
-  ].filter(Boolean) as string[];
+  ].filter(Boolean).join(' • ');
+  const metaLine2 = [petAge ?? null, weightChip].filter(Boolean).join(' • ');
 
   const currentPetPhotoUrl = getPhotoUrl(currentPet.photo, currentPet.pet_id, photoTimestamps);
 
@@ -221,8 +253,22 @@ export function HomePetHeader({
           />
         )}
 
-        {/* Overlay premium gradient na parte inferior da foto */}
-        <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+        {/* Gradiente do hero — só variante "overlay" (piloto 07/10/2026).
+            Stops em % da altura da própria foto (não px fixo): escala certo
+            tanto no hero baixo do mobile quanto no hero bem mais alto do
+            desktop, sem precisar de um breakpoint separado. Decaimento
+            rápido (a maior parte da escuridão fica nos primeiros ~25% de
+            baixo pra cima) — "não escurecer a imagem inteira", só o
+            necessário pra o texto branco ler bem. */}
+        {heroVariant === 'overlay' && (
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                'linear-gradient(to top, rgba(6,8,12,.80) 0%, rgba(6,8,12,.60) 12%, rgba(6,8,12,.30) 26%, rgba(6,8,12,.08) 42%, rgba(6,8,12,0) 55%)',
+            }}
+          />
+        )}
 
         {pets.length > 1 && (
           <>
@@ -270,10 +316,53 @@ export function HomePetHeader({
           </button>
         </div>
 
+        {/* Nome + raça/sexo + idade/peso + Trocar pet — DENTRO da foto,
+            variante "overlay" (piloto 07/10/2026, estratégia B aprovada no
+            teste com 30 fotos reais). max-w reserva espaço pra nunca
+            colidir com o lápis de editar (canto inferior direito); truncate
+            evita que um nome/raça muito longos estourem a largura. */}
+        {heroVariant === 'overlay' && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-3.5 pb-3 sm:px-4 sm:pb-3.5">
+            <div className="pointer-events-auto flex max-w-[76%] flex-col gap-0.5 sm:max-w-[70%]">
+              <button
+                ref={nameButtonRef}
+                onClick={onTogglePetSelector}
+                className="group -ml-1 inline-flex min-w-0 items-center gap-1 rounded-lg py-0.5 pl-1 pr-1.5 text-left active:scale-95"
+              >
+                <h2 className="min-w-0 truncate text-[27px] font-black leading-none tracking-tight text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.35)] sm:text-[34px]">
+                  {currentPet.pet_name}
+                </h2>
+                {pets.length > 1 && (
+                  <svg
+                    className={`h-4 w-4 flex-shrink-0 text-white/80 transition-transform duration-300 ${showPetSelector ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+                  </svg>
+                )}
+              </button>
+              {metaLine1 && <p className="truncate text-[13px] font-medium text-white/90 sm:text-[15px]">{metaLine1}</p>}
+              {metaLine2 && <p className="truncate text-[13px] font-medium text-white/75 sm:text-[15px]">{metaLine2}</p>}
+              {pets.length > 1 && (
+                <button
+                  type="button"
+                  onClick={onTogglePetSelector}
+                  className="mt-1.5 inline-flex w-fit items-center gap-1 rounded-full border border-white/50 bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-white backdrop-blur-sm transition-all active:scale-95 sm:mt-2 sm:px-3"
+                >
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4" />
+                  </svg>
+                  Trocar pet
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Botão de ação no canto inferior direito — só "editar este pet"
-            (lápis). "Adicionar pet" saiu daqui de cima da foto (pedido do
-            dono, 04/10/2026: "adicionar pet poderia estar embaixo da foto
-            e claro") — agora é um botão com texto, abaixo do nome. */}
+            (lápis). */}
         <div className="absolute bottom-2.5 right-2.5 z-20 sm:bottom-3 sm:right-3">
           <button
             onClick={onOpenEditPetModal}
@@ -285,67 +374,39 @@ export function HomePetHeader({
             </svg>
           </button>
         </div>
-
-
       </div>
 
-      {/* Dados de Identidade do Pet (Abaixo da Foto) */}
-      <div className="px-0.5 pb-1 min-[390px]:px-1 sm:px-1.5 sm:pb-2">
-        <div className="flex flex-col">
-          <div className="flex w-full items-center pr-1">
+      {/* Variante "external" (fallback estrutural, não usado por padrão) —
+          layout anterior ao piloto: painel separado abaixo da foto. */}
+      {heroVariant === 'external' && (
+        <div className="px-0.5 pb-1 min-[390px]:px-1 sm:px-1.5 sm:pb-2">
+          <div className="flex flex-col">
             <button
               ref={nameButtonRef}
               onClick={onTogglePetSelector}
-              className="group -ml-1 flex min-w-0 flex-1 items-center gap-1.5 rounded-2xl py-1 pl-1.5 pr-2 text-left transition-all hover:bg-slate-100/50 active:scale-95 sm:gap-2 sm:py-1.5 sm:pr-2.5"
+              className="group -ml-1 flex min-w-0 items-center gap-1.5 rounded-2xl py-1 pl-1.5 pr-2 text-left transition-all hover:bg-slate-100/50 active:scale-95 sm:gap-2 sm:py-1.5 sm:pr-2.5"
             >
               <span className="min-w-0">
                 <h2 className="min-w-0 truncate text-[28px] font-black leading-none tracking-tight text-slate-900 transition-colors group-hover:text-blue-600 sm:text-3xl">
                   {currentPet.pet_name}
                 </h2>
-                {pets.length > 1 && (
-                  <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-blue-700 shadow-sm ring-1 ring-blue-100 group-hover:bg-blue-50 sm:mt-1">
-                    Trocar pet
-                  </span>
-                )}
+                <span className="mt-0.5 block text-[12px] font-medium text-slate-500">
+                  {[metaLine1, metaLine2].filter(Boolean).join(' · ')}
+                </span>
               </span>
-              <div className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 transition-transform duration-300 ${showPetSelector ? 'rotate-180 bg-blue-100 text-blue-600' : 'text-slate-400'}`}>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </button>
-            {/* "Adicionar pet" — texto claro, embaixo da foto (pedido do
-                dono, 04/10/2026), nunca mais um "+" flutuando em cima dela. */}
-            <button
-              type="button"
-              onClick={onOpenAddPetModal}
-              className="ml-1 flex flex-shrink-0 items-center gap-1 rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1.5 text-[11px] font-black uppercase tracking-wide text-blue-700 transition-all active:scale-95 sm:px-3"
-            >
-              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
-              </svg>
-              Adicionar pet
+              {pets.length > 1 && (
+                <div className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 transition-transform duration-300 ${showPetSelector ? 'rotate-180 bg-blue-100 text-blue-600' : 'text-slate-400'}`}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              )}
             </button>
           </div>
-          
-          {/* Chips de dados do pet */}
-          {petChips.length > 0 && (
-            <div className="mt-1.5 ml-1 flex flex-wrap gap-1.5 sm:mt-2">
-              {petChips.map((chip) => (
-                <span
-                  key={chip}
-                  className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold leading-none text-slate-600 sm:px-2.5 sm:py-1 sm:text-[11px]"
-                >
-                  {chip}
-                </span>
-              ))}
-            </div>
-          )}
-
+          {renderSelector()}
         </div>
-
-        {renderSelector()}
-      </div>
+      )}
+      {heroVariant === 'overlay' && renderSelector()}
       </div>
 
       <HomeAttentionOverlays
