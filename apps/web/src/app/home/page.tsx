@@ -2483,11 +2483,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       texto do Compartilhar continua sempre visível (nunca
                       vira botão só-ícone). */}
                   {currentPet && loggedUserId && (currentPet.owner_user_id ?? loggedUserId) === loggedUserId && (
-                    <div className="flex flex-row gap-2 px-2 pb-1 pt-2.5 min-[390px]:px-3 sm:px-4 sm:pb-2 sm:pt-3">
-                      {/* pt-2.5/sm:pt-3 adicionado no piloto do hero
-                          (07/10/2026): nome/dados saíram de baixo da foto
-                          pra dentro dela, então sem essa margem o botão
-                          ficava colado na borda inferior da foto. */}
+                    <div className="flex flex-row gap-2 px-2 pb-1 min-[390px]:px-3 sm:px-4 sm:pb-2">
                       <button
                         onClick={handleSharePet}
                         disabled={shareLoading}
