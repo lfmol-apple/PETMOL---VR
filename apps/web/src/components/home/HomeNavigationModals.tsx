@@ -205,33 +205,30 @@ export function HomeNavigationModals({
                       onCloseHealthOptionsModal();
                       onOpenHealthTab(tab);
                     }}
-                    className={`group relative overflow-hidden border border-[#D9E6F7] bg-gradient-to-br from-white to-[#F2F6FC] rounded-[20px] p-3 h-[116px] transition-all duration-200 hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-end shadow-[0_2px_10px_-2px_rgba(15,23,42,0.08)] hover:shadow-[0_8px_24px_-6px_rgba(15,23,42,0.14)] ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
+                    className={`group relative overflow-hidden border border-[#D9E6F7] bg-gradient-to-br from-white to-[#F2F6FC] rounded-[20px] p-3 h-[108px] transition-all duration-200 hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-end shadow-[0_2px_10px_-2px_rgba(15,23,42,0.08)] hover:shadow-[0_8px_24px_-6px_rgba(15,23,42,0.14)] ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
                   >
                     {shouldShowAlert(tone, alert) && <ControlAlertBadge tone={tone} />}
                     {image ? (
-                      // Normalização ÓPTICA (não matemática) entre os 6 — pedido
-                      // do dono 07/10/2026: Coleira estava grande demais,
-                      // Antipulgas e Medicação pequenos demais, PetShops podia
-                      // ganhar presença. Vermífugo/Banho já estavam bons, mantidos.
-                      // Reduzido de novo mais tarde no mesmo dia: o ícone fica
-                      // absolutamente posicionado (não reserva espaço próprio),
-                      // então com h-[108px] original + ícones de até 68px a
-                      // base dele quase encostava no texto embaixo (cartão
-                      // também cresceu de 108→116px, acima, pra dar folga real).
-                      <span className="absolute top-1.5 right-1.5 transition-transform duration-300 group-hover:scale-110">
+                      // Posição/tamanho EXATAMENTE os da produção (pedido
+                      // explícito do dono, 10/10/2026) — não mais o ajuste
+                      // "óptico" feito hoje de manhã nem a redução feita hoje
+                      // à tarde, as duas ainda deixavam o ícone perto demais
+                      // do texto. Produção já tinha isso calibrado por tab
+                      // (flea_tick pequeno e mais baixo, medication não-
+                      // quadrado e mais alto) — portado ao pé da letra; só a
+                      // imagem (asset 3D novo) é diferente de produção.
+                      <span className={`absolute transition-transform duration-300 group-hover:scale-110 ${tab === 'flea_tick' ? 'top-6 right-4' : tab === 'medication' ? 'top-2 right-1' : 'top-1 right-1'}`}>
                         <img
                           src={image}
                           alt=""
                           className={
                             tab === 'collar'
-                              ? 'h-11 w-11 object-contain'
+                              ? 'h-[68px] w-[68px] object-contain'
                               : tab === 'flea_tick'
-                                ? 'h-10 w-10 object-contain'
+                                ? 'h-[32px] w-[32px] object-contain'
                                 : tab === 'medication'
-                                  ? 'h-[42px] w-[42px] object-contain'
-                                  : tab === 'petshops'
-                                    ? 'h-12 w-12 object-contain'
-                                    : 'h-11 w-11 object-contain'
+                                  ? 'h-[50px] w-[70px] object-contain'
+                                  : 'h-[62px] w-[62px] object-contain'
                           }
                         />
                       </span>

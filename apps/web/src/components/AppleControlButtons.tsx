@@ -143,25 +143,27 @@ export function AppleControlButtons({
   const healthIsDense = isDenseCardCopy('Cuidados', healthHeadlineText);
   const vaccineIsDense = isDenseCardCopy('Vacina', vaccineHeadlineText);
   const shoppingIsDense = isDenseCardCopy(shoppingTitle, `Tudo que ${petName || 'seu pet'} usa`);
-  // Arte centralizada verticalmente (não mais "pendurada" no canto superior
-  // direito) — asset premium como protagonista visual real, não decoração
-  // pequena. Caixa comum por card, com ajuste de escala óptica (não
-  // matemática) por densidade de texto — pedido do dono, 07/10/2026.
-  // Tamanhos reduzidos (mesma rodada, mais tarde no dia): a folga entre o
-  // ícone e o texto reservado em foodCopyClass/careCopyClass/
-  // denseCareCopyClass (pr-X) estava em só 8-12px — pouco pra aguentar
-  // variação real de fonte/imagem sem o texto parecer espremido. Os pr-X
-  // ficaram como estavam; só o ícone encolheu, abrindo ~20px de folga.
+  // Posição/tamanho do ícone voltaram a ser EXATAMENTE os valores da
+  // produção (pedido explícito do dono, 10/10/2026: "pedi tamanho exato
+  // dos cards da produção") — canto superior direito, não mais
+  // centralizado verticalmente. A tentativa de ícone grande e centralizado
+  // (07/10/2026 de manhã) e depois só "diminuído" (mesmo dia à tarde)
+  // continuavam cortando/espremendo o texto; produção já resolve isso
+  // com esses números específicos (ajustados ao longo do tempo lá), então
+  // portamos eles ao pé da letra em vez de adivinhar de novo. Só a COR
+  // (branco/azul-gelo em vez do degradê saturado por categoria) e a
+  // imagem (asset 3D novo em vez do HOME_ART antigo) continuam do
+  // redesign — a geometria é a de produção.
   const foodIconClass = foodIsDense
-    ? 'right-1.5 top-1/2 -translate-y-1/2 h-[38px] w-[38px] min-[390px]:right-2 min-[390px]:h-[42px] min-[390px]:w-[42px]'
-    : 'right-2 top-1/2 -translate-y-1/2 h-[44px] w-[44px] min-[390px]:right-2.5 min-[390px]:h-[50px] min-[390px]:w-[50px]';
-  const referenceIconClass = 'right-2 top-1/2 -translate-y-1/2 h-12 w-12 min-[390px]:right-2.5 min-[390px]:h-[54px] min-[390px]:w-[54px]';
-  const denseReferenceIconClass = 'right-1.5 top-1/2 -translate-y-1/2 h-10 w-10 min-[390px]:right-2 min-[390px]:h-12 min-[390px]:w-12';
+    ? 'right-0.5 top-0.5 h-9 w-9 min-[390px]:right-1 min-[390px]:top-1 min-[390px]:h-10 min-[390px]:w-10'
+    : 'right-1 top-1 h-10 w-10 min-[390px]:right-1.5 min-[390px]:top-1.5 min-[390px]:h-12 min-[390px]:w-12';
+  const referenceIconClass = 'right-1 top-1 h-12 w-12 min-[390px]:right-1.5 min-[390px]:top-1.5 min-[390px]:h-14 min-[390px]:w-14';
+  const denseReferenceIconClass = 'right-0.5 top-0.5 h-10 w-10 min-[390px]:right-1 min-[390px]:top-1 min-[390px]:h-12 min-[390px]:w-12';
   const foodCopyClass = foodIsDense
-    ? 'pr-[64px] min-[390px]:pr-[72px]'
-    : 'pr-[72px] min-[390px]:pr-[84px]';
-  const careCopyClass = 'pr-[76px] min-[390px]:pr-[88px]';
-  const denseCareCopyClass = 'pr-[64px] min-[390px]:pr-[76px]';
+    ? 'pr-3 pt-5 min-[390px]:pr-4 min-[390px]:pt-6'
+    : 'pr-6 pt-2 min-[390px]:pr-7 min-[390px]:pt-3';
+  const careCopyClass = 'pr-7 pt-2 min-[390px]:pr-9 min-[390px]:pt-3';
+  const denseCareCopyClass = 'pr-3 pt-5 min-[390px]:pr-4 min-[390px]:pt-6';
 
   return (
     <>
@@ -256,14 +258,14 @@ export function AppleControlButtons({
             onClick={onShoppingClick}
             className="group relative min-h-[84px] overflow-hidden rounded-[20px] border border-[#D9E6F7] bg-gradient-to-br from-white to-[#F2F6FC] p-2.5 shadow-[0_2px_10px_-2px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(15,23,42,0.14)] active:scale-95 min-[390px]:min-h-[96px] min-[390px]:p-3"
           >
-            <span className={`absolute pointer-events-none opacity-100 transition-all group-hover:scale-105 ${shoppingIsDense ? 'right-1.5 top-1/2 -translate-y-1/2 h-10 w-10 min-[390px]:right-2 min-[390px]:h-12 min-[390px]:w-12' : 'right-2 top-1/2 -translate-y-1/2 h-12 w-12 min-[390px]:right-2.5 min-[390px]:h-[54px] min-[390px]:w-[54px]'}`}>
+            <span className={`absolute pointer-events-none opacity-100 transition-all group-hover:scale-105 ${shoppingIsDense ? 'right-0.5 top-0.5 h-10 w-10 min-[390px]:right-1 min-[390px]:top-1 min-[390px]:h-12 min-[390px]:w-12' : 'right-1 top-1 h-12 w-12 min-[390px]:right-1.5 min-[390px]:top-1.5 min-[390px]:h-14 min-[390px]:w-14'}`}>
               <img
                 src={careAssetSrc('store')}
                 alt=""
                 className="h-full w-full object-contain"
               />
             </span>
-            <div className={`relative z-10 flex h-full flex-col justify-center text-left transition-[padding] ${shoppingIsDense ? 'pr-[64px] min-[390px]:pr-[76px]' : 'pr-[76px] min-[390px]:pr-[88px]'}`}>
+            <div className={`relative z-10 flex h-full flex-col justify-center text-left transition-[padding] ${shoppingIsDense ? 'pr-4 pt-5 min-[390px]:pr-5 min-[390px]:pt-6' : 'pr-10 pt-2 min-[390px]:pr-12 min-[390px]:pt-3'}`}>
               <h3 className="line-clamp-2 break-words text-[13px] font-bold leading-tight text-[#0B1E36] min-[390px]:text-[14px] sm:text-base">{shoppingTitle}</h3>
               <p className="mt-0.5 line-clamp-2 break-words text-[9px] leading-[1.12] text-[#5B6B82] min-[390px]:text-[10px] sm:text-xs">Tudo que {petName || 'seu pet'} usa</p>
             </div>
