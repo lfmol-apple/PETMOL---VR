@@ -139,25 +139,27 @@ export function HomeNavigationModals({
             >
               <div className="grid grid-cols-2 gap-2 mb-1">
                 {[
-                  // Cards vivos, na mesma linguagem da Home: borda saturada +
-                  // degradê forte + rótulo tingido. A arte .webp continua por cima.
-                  { icon: '🪱', image: HOME_ART.vermifugo, label: 'Vermífugo', gradient: 'border-amber-400 bg-gradient-to-br from-amber-100 via-yellow-100 to-orange-200 shadow-amber-900/10', text: 'text-amber-950', sub: 'text-amber-900/60', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
-                  { icon: '🛡️', image: HOME_ART.antipulgas, label: 'Antipulgas', gradient: 'border-emerald-400 bg-gradient-to-br from-emerald-100 via-emerald-100 to-teal-200 shadow-emerald-900/10', text: 'text-emerald-950', sub: 'text-emerald-900/60', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
+                  // Família única do redesign premium (07/10/2026): base
+                  // azul-gelo comum pros 6 — a arte .webp é que diferencia,
+                  // não mais um degradê saturado próprio por card. `icon` é
+                  // fallback morto (o `image` sempre existe).
+                  { icon: '🪱', image: HOME_ART.vermifugo, label: 'Vermífugo', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
+                  { icon: '🛡️', image: HOME_ART.antipulgas, label: 'Antipulgas', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
                   // Coleira antiparasitária é uso específico de cães — outras espécies não usam
                   ...(currentPet?.species === 'dog'
-                    ? [{ icon: '📿', image: HOME_ART.coleira, label: 'Coleira', gradient: 'border-orange-400 bg-gradient-to-br from-orange-100 via-orange-200 to-red-200 shadow-orange-900/10', text: 'text-orange-950', sub: 'text-orange-900/60', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
+                    ? [{ icon: '📿', image: HOME_ART.coleira, label: 'Coleira', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
                     : []),
-                  { icon: '🛁', image: HOME_ART.banho, label: 'Banho e Tosa', gradient: 'border-cyan-400 bg-gradient-to-br from-cyan-100 via-sky-100 to-cyan-200 shadow-cyan-900/10', text: 'text-cyan-950', sub: 'text-cyan-900/60', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
+                  { icon: '🛁', image: HOME_ART.banho, label: 'Banho e Tosa', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
                   // Medicamentos desativados no PETMOL 1.0 (ver
                   // docs/MEDICAMENTOS_DESATIVADOS.md) — mesmo padrão do
                   // filtro de espécie da Coleira acima, condicional na
                   // própria montagem do array.
                   ...(MEDICATIONS_ENABLED
-                    ? [{ icon: '💊', image: HOME_ART.medicacao, label: 'Medicação', gradient: 'border-purple-400 bg-gradient-to-br from-purple-100 via-fuchsia-100 to-purple-200 shadow-purple-900/10', text: 'text-purple-950', sub: 'text-purple-900/60', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue }]
+                    ? [{ icon: '💊', image: HOME_ART.medicacao, label: 'Medicação', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue }]
                     : []),
                   // Busca de estabelecimento (Maps) — saiu da Home, é mais um card aqui em Cuidados.
-                  { icon: '🏪', image: HOME_ART.petshops, label: 'PetShops', gradient: 'border-blue-400 bg-gradient-to-br from-blue-100 via-sky-100 to-blue-200 shadow-blue-900/10', text: 'text-blue-950', sub: 'text-blue-900/60', tab: 'petshops', alert: false, tone: undefined },
-                ].map(({ icon, image, label, gradient, text, sub, tab, alert, tone }) => {
+                  { icon: '🏪', image: HOME_ART.petshops, label: 'PetShops', tab: 'petshops', alert: false, tone: undefined },
+                ].map(({ icon, image, label, tab, alert, tone }) => {
                   const isEmergency = tab === 'emergency';
 
                   return (
@@ -203,11 +205,11 @@ export function HomeNavigationModals({
                       onCloseHealthOptionsModal();
                       onOpenHealthTab(tab);
                     }}
-                    className={`group relative overflow-hidden ${gradient} border rounded-[20px] p-3 h-[108px] transition-all duration-200 hover:shadow-lg hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-end shadow-sm ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
+                    className={`group relative overflow-hidden border border-[#D9E6F7] bg-gradient-to-br from-white to-[#F2F6FC] rounded-[20px] p-3 h-[108px] transition-all duration-200 hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-end shadow-[0_2px_10px_-2px_rgba(15,23,42,0.08)] hover:shadow-[0_8px_24px_-6px_rgba(15,23,42,0.14)] ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
                   >
                     {shouldShowAlert(tone, alert) && <ControlAlertBadge tone={tone} />}
                     {image ? (
-                      <span className={`absolute opacity-95 transition-transform duration-300 group-hover:scale-110 ${tab === 'flea_tick' ? 'top-6 right-4' : tab === 'medication' ? 'top-2 right-1' : 'top-1 right-1'}`}>
+                      <span className={`absolute opacity-100 transition-transform duration-300 group-hover:scale-110 ${tab === 'flea_tick' ? 'top-6 right-4' : tab === 'medication' ? 'top-2 right-1' : 'top-1 right-1'}`}>
                         <img
                           src={image}
                           alt=""
@@ -229,8 +231,8 @@ export function HomeNavigationModals({
                       <span className="pointer-events-none absolute right-2 top-2 h-6 w-6 rounded-full bg-red-300/35 blur-md animate-pulse" />
                     )}
                     <div className="relative">
-                      <span className={`text-[14px] font-bold leading-tight block ${isEmergency ? 'text-red-700' : text}`}>{label}</span>
-                      <span className={`text-[9px] font-black uppercase tracking-widest mt-0.5 block ${isEmergency ? 'text-red-500/80' : sub}`}>{isEmergency ? 'Clínicas e hospitais 24h' : tab === 'petshops' ? 'Perto de você' : 'Acompanhar'}</span>
+                      <span className={`text-[14px] font-bold leading-tight block ${isEmergency ? 'text-red-700' : 'text-[#0B1E36]'}`}>{label}</span>
+                      <span className={`text-[9px] font-black uppercase tracking-widest mt-0.5 block ${isEmergency ? 'text-red-500/80' : 'text-[#5B6B82]'}`}>{isEmergency ? 'Clínicas e hospitais 24h' : tab === 'petshops' ? 'Perto de você' : 'Acompanhar'}</span>
                     </div>
                   </button>
                 )})}

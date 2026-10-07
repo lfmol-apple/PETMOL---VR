@@ -164,12 +164,12 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onAlimentacaoClick}
-            className="group relative min-h-[76px] overflow-hidden rounded-xl border border-amber-400 bg-gradient-to-br from-amber-100 via-yellow-100 to-orange-200 p-2.5 shadow-sm shadow-amber-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[86px] min-[390px]:rounded-2xl min-[390px]:p-3"
+            className="group relative min-h-[76px] overflow-hidden rounded-[20px] border border-[#D9E6F7] bg-gradient-to-br from-white to-[#F2F6FC] p-2.5 shadow-[0_2px_10px_-2px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(15,23,42,0.14)] active:scale-95 min-[390px]:min-h-[86px] min-[390px]:p-3"
           >
             {(!hasFoodData || shouldShowAlert(colorFood, alertFood)) && (
               <AlertDot tone={!hasFoodData ? 'critical' : colorFood} />
             )}
-            <span className={`absolute pointer-events-none transition-all group-hover:scale-105 ${foodIconClass}`}>
+            <span className={`absolute pointer-events-none opacity-100 transition-all group-hover:scale-105 ${foodIconClass}`}>
               <img
                 src={HOME_ART.alimentacao}
                 alt=""
@@ -177,12 +177,12 @@ export function AppleControlButtons({
               />
             </span>
             <div className={`flex h-full flex-col justify-center text-left transition-[padding] ${foodCopyClass}`}>
-              <h3 className="line-clamp-2 text-[12px] font-bold leading-tight text-amber-950 min-[390px]:text-[13px] sm:text-base">{foodTitle || t('home.food.title')}</h3>
-              <p className={`mt-0.5 ${foodIsDense ? 'line-clamp-2' : 'line-clamp-1 min-[390px]:line-clamp-2'} text-[9px] leading-[1.12] min-[390px]:text-[10px] sm:text-xs ${!hasFoodData ? 'font-bold text-red-700' : 'text-amber-800/85'}`}>
+              <h3 className="line-clamp-2 text-[12px] font-bold leading-tight text-[#0B1E36] min-[390px]:text-[13px] sm:text-base">{foodTitle || t('home.food.title')}</h3>
+              <p className={`mt-0.5 ${foodIsDense ? 'line-clamp-2' : 'line-clamp-1 min-[390px]:line-clamp-2'} text-[9px] leading-[1.12] min-[390px]:text-[10px] sm:text-xs ${!hasFoodData ? 'font-bold text-red-700' : 'text-[#5B6B82]'}`}>
                 {foodHeadlineText}
               </p>
               {foodSubline && hasFoodData && (
-                <p className="mt-0.5 line-clamp-1 text-[9px] font-bold leading-[1.12] text-amber-900 min-[390px]:mt-1 min-[390px]:text-[10px] sm:text-xs">
+                <p className="mt-0.5 line-clamp-1 text-[9px] font-bold leading-[1.12] text-[#0B1E36] min-[390px]:mt-1 min-[390px]:text-[10px] sm:text-xs">
                   {foodSubline}
                 </p>
               )}
@@ -193,10 +193,10 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onHealthClick}
-            className="group relative min-h-[76px] overflow-hidden rounded-xl border border-indigo-400 bg-gradient-to-br from-indigo-100 via-violet-100 to-violet-200 p-2.5 shadow-sm shadow-indigo-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[86px] min-[390px]:rounded-2xl min-[390px]:p-3"
+            className="group relative min-h-[76px] overflow-hidden rounded-[20px] border border-[#D9E6F7] bg-gradient-to-br from-white to-[#F2F6FC] p-2.5 shadow-[0_2px_10px_-2px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(15,23,42,0.14)] active:scale-95 min-[390px]:min-h-[86px] min-[390px]:p-3"
           >
             {shouldShowAlert(colorHealth, alertHealth) && <AlertDot tone={colorHealth} />}
-            <span className={`absolute pointer-events-none transition-all group-hover:scale-105 ${healthIsDense ? denseReferenceIconClass : referenceIconClass}`}>
+            <span className={`absolute pointer-events-none opacity-100 transition-all group-hover:scale-105 ${healthIsDense ? denseReferenceIconClass : referenceIconClass}`}>
               <img
                 src={HOME_ART.banho}
                 alt=""
@@ -204,8 +204,8 @@ export function AppleControlButtons({
               />
             </span>
             <div className={`relative z-10 flex h-full flex-col justify-center text-left transition-[padding] ${healthIsDense ? denseCareCopyClass : careCopyClass}`}>
-              <h3 className="line-clamp-1 break-words text-[13px] font-semibold leading-tight text-indigo-950 min-[390px]:text-[14px] sm:text-base">Cuidados</h3>
-              <p className="mt-0.5 line-clamp-2 break-words text-[9px] leading-[1.12] text-indigo-900/80 min-[390px]:text-[10px] sm:text-xs">{healthHeadlineText}</p>
+              <h3 className="line-clamp-1 break-words text-[13px] font-semibold leading-tight text-[#0B1E36] min-[390px]:text-[14px] sm:text-base">Cuidados</h3>
+              <p className="mt-0.5 line-clamp-2 break-words text-[9px] leading-[1.12] text-[#5B6B82] min-[390px]:text-[10px] sm:text-xs">{healthHeadlineText}</p>
             </div>
           </button>
 
@@ -216,10 +216,10 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onVaccinesClick}
-            className="group relative min-h-[84px] overflow-hidden rounded-xl border border-sky-400 bg-gradient-to-br from-sky-100 via-sky-100 to-cyan-200 p-2.5 shadow-sm shadow-sky-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[96px] min-[390px]:rounded-2xl min-[390px]:p-3"
+            className="group relative min-h-[84px] overflow-hidden rounded-[20px] border border-[#D9E6F7] bg-gradient-to-br from-white to-[#F2F6FC] p-2.5 shadow-[0_2px_10px_-2px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(15,23,42,0.14)] active:scale-95 min-[390px]:min-h-[96px] min-[390px]:p-3"
           >
             {shouldShowAlert(colorVaccines, alertVaccines) && <AlertDot tone={colorVaccines} />}
-            <span className={`absolute pointer-events-none transition-all group-hover:scale-105 ${vaccineIsDense ? denseReferenceIconClass : referenceIconClass}`}>
+            <span className={`absolute pointer-events-none opacity-100 transition-all group-hover:scale-105 ${vaccineIsDense ? denseReferenceIconClass : referenceIconClass}`}>
               <img
                 src={HOME_ART.vacina}
                 alt=""
@@ -227,28 +227,27 @@ export function AppleControlButtons({
               />
             </span>
             <div className={`relative z-10 flex h-full flex-col justify-center text-left transition-[padding] ${vaccineIsDense ? denseCareCopyClass : careCopyClass}`}>
-              <h3 className="line-clamp-1 break-words text-[13px] font-semibold leading-tight text-sky-950 min-[390px]:text-[14px] sm:text-base">
+              <h3 className="line-clamp-1 break-words text-[13px] font-semibold leading-tight text-[#0B1E36] min-[390px]:text-[14px] sm:text-base">
                 Vacina
               </h3>
-              <p className="mt-0.5 line-clamp-2 break-words text-[9px] leading-[1.12] text-sky-900/80 min-[390px]:text-[10px] sm:text-xs">{vaccineHeadlineText}</p>
+              <p className="mt-0.5 line-clamp-2 break-words text-[9px] leading-[1.12] text-[#5B6B82] min-[390px]:text-[10px] sm:text-xs">{vaccineHeadlineText}</p>
             </div>
           </button>
 
-          {/* 4. SHOPPING (Loja do/da {pet}) — visual destaque deliberado:
-              borda mais grossa, gradiente mais rico (azul mais saturado que
-              o Saúde, indo até ciano pra não colidir com indigo/violet) e
-              sombra mais forte que os outros 3. É a fonte de renda dedicada
-              do app agora, então chama mais atenção que Ração/Saúde/
-              Caderneta de propósito. SEM bolinha de alerta (decisão de
-              produto, 04/09/2026): removida — o card de loja não deve
-              piscar/parecer urgente, isso é para os cards de cuidado
-              (Saúde/Vacina/Ração), não pra este. */}
+          {/* 4. SHOPPING (Loja do/da {pet}) — até 07/10/2026 tinha destaque
+              deliberado (borda grossa, gradiente azul saturado próprio,
+              sombra mais forte) por ser fonte de renda; convergido pra
+              família única do redesign premium (azul-gelo) a pedido
+              explícito do dono — "não precisam ter fundos fortes
+              completamente diferentes apenas para serem reconhecidos".
+              SEM bolinha de alerta (decisão de produto, 04/09/2026),
+              mantido: loja não deve parecer urgente. */}
           <button
             type="button"
             onClick={onShoppingClick}
-            className="group relative min-h-[84px] overflow-hidden rounded-xl border-2 border-blue-500 bg-gradient-to-br from-blue-100 via-blue-200 to-cyan-200 p-2.5 shadow-md shadow-blue-900/15 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:scale-95 min-[390px]:min-h-[96px] min-[390px]:rounded-2xl min-[390px]:p-3"
+            className="group relative min-h-[84px] overflow-hidden rounded-[20px] border border-[#D9E6F7] bg-gradient-to-br from-white to-[#F2F6FC] p-2.5 shadow-[0_2px_10px_-2px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(15,23,42,0.14)] active:scale-95 min-[390px]:min-h-[96px] min-[390px]:p-3"
           >
-            <span className={`absolute pointer-events-none transition-all group-hover:scale-105 ${shoppingIsDense ? 'right-0.5 top-0.5 h-10 w-10 opacity-80 min-[390px]:right-1 min-[390px]:top-1 min-[390px]:h-12 min-[390px]:w-12' : 'right-1 top-1 h-12 w-12 opacity-95 min-[390px]:right-1.5 min-[390px]:top-1.5 min-[390px]:h-14 min-[390px]:w-14'}`}>
+            <span className={`absolute pointer-events-none opacity-100 transition-all group-hover:scale-105 ${shoppingIsDense ? 'right-0.5 top-0.5 h-10 w-10 min-[390px]:right-1 min-[390px]:top-1 min-[390px]:h-12 min-[390px]:w-12' : 'right-1 top-1 h-12 w-12 min-[390px]:right-1.5 min-[390px]:top-1.5 min-[390px]:h-14 min-[390px]:w-14'}`}>
               <img
                 src={HOME_ART.loja}
                 alt=""
@@ -256,8 +255,8 @@ export function AppleControlButtons({
               />
             </span>
             <div className={`relative z-10 flex h-full flex-col justify-center text-left transition-[padding] ${shoppingIsDense ? 'pr-4 pt-5 min-[390px]:pr-5 min-[390px]:pt-6' : 'pr-10 pt-2 min-[390px]:pr-12 min-[390px]:pt-3'}`}>
-              <h3 className="line-clamp-2 break-words text-[13px] font-bold leading-tight text-blue-950 min-[390px]:text-[14px] sm:text-base">{shoppingTitle}</h3>
-              <p className="mt-0.5 line-clamp-2 break-words text-[9px] leading-[1.12] text-blue-900/75 min-[390px]:text-[10px] sm:text-xs">Tudo que {petName || 'seu pet'} usa</p>
+              <h3 className="line-clamp-2 break-words text-[13px] font-bold leading-tight text-[#0B1E36] min-[390px]:text-[14px] sm:text-base">{shoppingTitle}</h3>
+              <p className="mt-0.5 line-clamp-2 break-words text-[9px] leading-[1.12] text-[#5B6B82] min-[390px]:text-[10px] sm:text-xs">Tudo que {petName || 'seu pet'} usa</p>
             </div>
           </button>
 
