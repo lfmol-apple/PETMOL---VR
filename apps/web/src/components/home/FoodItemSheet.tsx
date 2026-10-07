@@ -6,7 +6,7 @@ import { Bell, ShoppingCart, X } from 'lucide-react';
 import { FoodControlTab, type FoodControlTabFormRequest, type FoodControlTabState } from '@/components/FoodControlTab';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import { SheetAvatar, SheetHeader, SheetIcon } from '@/components/ui/sheet';
-import { HOME_ART } from '@/lib/homeArt';
+import { careAssetSrc } from '@/lib/careAssets';
 import { ModalPortal } from '@/components/ModalPortal';
 import { ActivationAskSheet } from './ActivationAskSheet';
 import { usePushOneTimeAsk } from '@/features/interactions/usePushOneTimeAsk';
@@ -1314,7 +1314,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                     <div className="rounded-2xl border border-amber-200 bg-white/95 p-5 space-y-4 shadow-sm shadow-amber-100">
                       <div className="flex items-center gap-3">
                         <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-amber-50 p-2">
-                          <img src={HOME_ART.alimentacao} alt="" className="h-full w-full object-contain" />
+                          <img src={careAssetSrc('food')} alt="" className="h-full w-full object-contain" />
                         </span>
                         <div className="min-w-0">
                           <h3 className="text-[18px] font-black text-gray-900 leading-tight">Como {pet.pet_name} se alimenta?</h3>

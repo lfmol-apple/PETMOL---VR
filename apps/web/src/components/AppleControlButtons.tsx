@@ -7,7 +7,7 @@ import { petDo } from '@/lib/petGender';
 import { type HomeInactiveEligibleControlId } from '@/lib/homeControlPreferences';
 import { PetHealthPlanCard } from '@/components/home/PetHealthPlanCard';
 import { HEALTH_PLAN_CARD_ENABLED } from '@/lib/featureFlags';
-import { HOME_ART } from '@/lib/homeArt';
+import { careAssetSrc } from '@/lib/careAssets';
 
 // ── Props H1 logic preserved ──────────────────────────────────────────────────
 interface AppleControlButtonsProps {
@@ -171,7 +171,7 @@ export function AppleControlButtons({
             )}
             <span className={`absolute pointer-events-none opacity-100 transition-all group-hover:scale-105 ${foodIconClass}`}>
               <img
-                src={HOME_ART.alimentacao}
+                src={careAssetSrc('food')}
                 alt=""
                 className="h-full w-full object-contain"
               />
@@ -198,7 +198,7 @@ export function AppleControlButtons({
             {shouldShowAlert(colorHealth, alertHealth) && <AlertDot tone={colorHealth} />}
             <span className={`absolute pointer-events-none opacity-100 transition-all group-hover:scale-105 ${healthIsDense ? denseReferenceIconClass : referenceIconClass}`}>
               <img
-                src={HOME_ART.banho}
+                src={careAssetSrc('care')}
                 alt=""
                 className="h-full w-full object-contain"
               />
@@ -221,7 +221,7 @@ export function AppleControlButtons({
             {shouldShowAlert(colorVaccines, alertVaccines) && <AlertDot tone={colorVaccines} />}
             <span className={`absolute pointer-events-none opacity-100 transition-all group-hover:scale-105 ${vaccineIsDense ? denseReferenceIconClass : referenceIconClass}`}>
               <img
-                src={HOME_ART.vacina}
+                src={careAssetSrc('vaccine')}
                 alt=""
                 className="h-full w-full object-contain"
               />
@@ -249,7 +249,7 @@ export function AppleControlButtons({
           >
             <span className={`absolute pointer-events-none opacity-100 transition-all group-hover:scale-105 ${shoppingIsDense ? 'right-0.5 top-0.5 h-10 w-10 min-[390px]:right-1 min-[390px]:top-1 min-[390px]:h-12 min-[390px]:w-12' : 'right-1 top-1 h-12 w-12 min-[390px]:right-1.5 min-[390px]:top-1.5 min-[390px]:h-14 min-[390px]:w-14'}`}>
               <img
-                src={HOME_ART.loja}
+                src={careAssetSrc('store')}
                 alt=""
                 className="h-full w-full object-contain"
               />

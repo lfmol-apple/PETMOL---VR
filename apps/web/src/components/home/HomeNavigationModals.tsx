@@ -9,7 +9,7 @@ import { PetShopsNearbySheet } from '@/components/home/PetShopsNearbySheet';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { MEDICATIONS_ENABLED } from '@/lib/featureFlags';
 import type { PetHealthProfile } from '@/lib/petHealth';
-import { HOME_ART } from '@/lib/homeArt';
+import { careAssetSrc } from '@/lib/careAssets';
 
 type ControlTone = 'neutral' | 'ok' | 'warning' | 'critical';
 
@@ -143,22 +143,22 @@ export function HomeNavigationModals({
                   // azul-gelo comum pros 6 — a arte .webp é que diferencia,
                   // não mais um degradê saturado próprio por card. `icon` é
                   // fallback morto (o `image` sempre existe).
-                  { icon: '🪱', image: HOME_ART.vermifugo, label: 'Vermífugo', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
-                  { icon: '🛡️', image: HOME_ART.antipulgas, label: 'Antipulgas', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
+                  { icon: '🪱', image: careAssetSrc('dewormer'), label: 'Vermífugo', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
+                  { icon: '🛡️', image: careAssetSrc('fleaTick'), label: 'Antipulgas', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
                   // Coleira antiparasitária é uso específico de cães — outras espécies não usam
                   ...(currentPet?.species === 'dog'
-                    ? [{ icon: '📿', image: HOME_ART.coleira, label: 'Coleira', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
+                    ? [{ icon: '📿', image: careAssetSrc('collar'), label: 'Coleira', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
                     : []),
-                  { icon: '🛁', image: HOME_ART.banho, label: 'Banho e Tosa', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
+                  { icon: '🛁', image: careAssetSrc('grooming'), label: 'Banho e Tosa', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
                   // Medicamentos desativados no PETMOL 1.0 (ver
                   // docs/MEDICAMENTOS_DESATIVADOS.md) — mesmo padrão do
                   // filtro de espécie da Coleira acima, condicional na
                   // própria montagem do array.
                   ...(MEDICATIONS_ENABLED
-                    ? [{ icon: '💊', image: HOME_ART.medicacao, label: 'Medicação', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue }]
+                    ? [{ icon: '💊', image: careAssetSrc('medication'), label: 'Medicação', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue }]
                     : []),
                   // Busca de estabelecimento (Maps) — saiu da Home, é mais um card aqui em Cuidados.
-                  { icon: '🏪', image: HOME_ART.petshops, label: 'PetShops', tab: 'petshops', alert: false, tone: undefined },
+                  { icon: '🏪', image: careAssetSrc('petshops'), label: 'PetShops', tab: 'petshops', alert: false, tone: undefined },
                 ].map(({ icon, image, label, tab, alert, tone }) => {
                   const isEmergency = tab === 'emergency';
 
