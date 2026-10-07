@@ -553,45 +553,6 @@ export function HomePetHeader({
           </p>
         )}
 
-        {/* Status de Notificações/Localização — fora da foto (09/10/2026,
-            2ª rodada: a 1ª versão, ícones discretos no canto da foto,
-            ficou imperceptível demais). Visíveis SEMPRE, ativo ou não —
-            não é alerta, é status. Nunca representado como toggle: cada
-            controle é um status-button que, se já ativo, no máximo abre
-            uma confirmação (nunca desativa nada — permissão de sistema
-            não é um switch interno do app); se desativado, abre o mesmo
-            popover de explicação+ação de antes. */}
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => setPermPopup('push')}
-            aria-label={notifOff ? 'Notificações desativadas' : 'Notificações ativas'}
-            className={`flex items-center justify-center gap-1.5 rounded-xl border px-2.5 py-2 text-[12px] font-bold transition-all active:scale-95 ${
-              notifOff
-                ? 'border-amber-200 bg-amber-50 text-amber-700'
-                : 'border-[#BFD4F0] bg-[#F2F6FC] text-[#0056D2]'
-            }`}
-          >
-            {notifOff ? <BellOff className="h-4 w-4 flex-shrink-0" strokeWidth={2.2} /> : <Bell className="h-4 w-4 flex-shrink-0" strokeWidth={2.2} />}
-            <span className="truncate">Notificações</span>
-            {notifOff && <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-500" />}
-          </button>
-          <button
-            type="button"
-            onClick={() => setPermPopup('location')}
-            aria-label={locOff ? 'Localização desativada' : 'Localização ativa'}
-            className={`flex items-center justify-center gap-1.5 rounded-xl border px-2.5 py-2 text-[12px] font-bold transition-all active:scale-95 ${
-              locOff
-                ? 'border-amber-200 bg-amber-50 text-amber-700'
-                : 'border-[#BFD4F0] bg-[#F2F6FC] text-[#0056D2]'
-            }`}
-          >
-            {locOff ? <MapPinOff className="h-4 w-4 flex-shrink-0" strokeWidth={2.2} /> : <MapPin className="h-4 w-4 flex-shrink-0" strokeWidth={2.2} />}
-            <span className="truncate">Localização</span>
-            {locOff && <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-500" />}
-          </button>
-        </div>
-
         {renderSelector()}
         {renderPermPopup()}
       </div>
