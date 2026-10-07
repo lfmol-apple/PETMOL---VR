@@ -19,17 +19,20 @@ import { scheduleUniqueReminder, buildRemindAt } from '@/features/notifications/
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
 import type { ProductCategory, ScannedProduct } from '@/lib/productScanner';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
-import { CARE_AREA_THEME } from '@/lib/careAreaTheme';
 import { CARE_STATE, careStateFromDaysUntilDue } from '@/lib/careState';
 
 // CTA primário do sistema cromático PETMOL (Modelo C): sempre azul
 // institucional, nunca a cor da área.
 const PRIMARY_BTN =
   'bg-[#0056D2] hover:bg-[#004ab8] active:bg-[#003f9e] text-white shadow-sm';
+// Ação secundária/comercial — mesma família institucional do PRIMARY_BTN,
+// tratamento mais discreto (outline azul-gelo em vez de preenchido). Usado
+// em "Comprar" e afins: comprar não é "sucesso" (verde), é uma ação
+// institucional como outra qualquer — só não é a ação PRINCIPAL do sheet.
+const SECONDARY_BTN =
+  'bg-[#F2F6FC] hover:bg-[#E6EEF9] active:bg-[#DCE7F6] text-[#0056D2] border border-[#BFD4F0] shadow-sm';
 
 // ── Config por tipo ──────────────────────────────────────────────────────────
-// As cores da área vêm de CARE_AREA_THEME[type] (type já é 'dewormer' |
-// 'flea_tick' | 'collar', que são chaves diretas do tema).
 const CONFIG = {
   dewormer: {
     title: 'Vermífugo',
@@ -161,7 +164,6 @@ export function ParasiteItemSheet({
   initialMode,
 }: ParasiteItemSheetProps) {
   const cfg = CONFIG[type];
-  const theme = CARE_AREA_THEME[type];
   const petPhotoSrc = resolvePetPhotoUrl(petPhotoUrl);
   const [mode, setMode] = useState<ViewMode>(initialMode === 'buy' ? 'buy' : 'view');
   const [saving, setSaving] = useState(false);
@@ -490,9 +492,11 @@ export function ParasiteItemSheet({
   }
 
   // ── CSS helpers ───────────────────────────────────────────────────────────
-  const inputCls = `w-full min-w-0 prime-input text-gray-800 ${theme.focusRing}`;
+  const inputCls = 'w-full min-w-0 prime-input text-gray-800 focus:ring-[#0056D2]';
   const labelCls = 'block text-[10px] font-black text-gray-400 uppercase tracking-[0.16em] mb-1.5 ml-1';
-  const accentLabelCls = labelCls.replace('text-gray-400', theme.accentText);
+  // Institucional (azul), não mais a cor da área — rótulo "em destaque" (ex:
+  // dentro do card de edição) usa a mesma linguagem de ação do resto do app.
+  const accentLabelCls = labelCls.replace('text-gray-400', 'text-[#0056D2]');
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -579,7 +583,9 @@ export function ParasiteItemSheet({
 
               {/* Active product card */}
               {current && (() => {
-                const urgentBorder = status.key === 'ok' ? `${theme.accentBorder} ${theme.accentBg}` : status.row;
+                // Estado real (CARE_STATE), não a cor da área — "em dia" é
+                // teal/discreto, nunca a cor arbitrária da categoria.
+                const urgentBorder = status.row;
                 const statusPill = `${status.chip} ${status.chipText}`;
                 return (
                   <div className={`flex items-start gap-2.5 px-3 py-2 rounded-xl border ${urgentBorder}`}>
@@ -588,7 +594,7 @@ export function ParasiteItemSheet({
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Produto atual</p>
-                      <p className={`text-[13px] font-bold ${theme.accentText} leading-tight break-words`}>{current.product_name}</p>
+                      <p className="text-[13px] font-bold text-[#0B1E36] leading-tight break-words">{current.product_name}</p>
                       <p className="text-[11px] text-gray-500 leading-tight">
                         Aplicado {fmtDate(current.date_applied)}
                       </p>
@@ -668,7 +674,7 @@ export function ParasiteItemSheet({
                           key={rec.id}
                           className="flex items-center gap-3 px-4 py-2.5"
                         >
-                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-base flex-shrink-0 ${!isHistory ? theme.accentBg : 'bg-gray-100'}`}>
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-base flex-shrink-0 ${!isHistory ? 'bg-[#F2F6FC]' : 'bg-gray-100'}`}>
                             {!isHistory ? cfg.icon : '·'}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -738,7 +744,7 @@ export function ParasiteItemSheet({
                 <button
                   type="button"
                   onClick={() => setShowManualForm(true)}
-                  className={`w-full flex items-center gap-3 rounded-2xl border p-4 text-left transition-all active:scale-[0.98] ${theme.accentBorder} ${theme.accentBg}`}
+                  className="w-full flex items-center gap-3 rounded-2xl border border-[#BFD4F0] bg-[#F2F6FC] p-4 text-left transition-all active:scale-[0.98]"
                 >
                   <span className="text-2xl flex-shrink-0">🔁</span>
                   <span className="min-w-0 flex-1">
@@ -750,7 +756,7 @@ export function ParasiteItemSheet({
               )}
 
               {!showManualForm && (
-                <div className={`rounded-2xl border p-4 space-y-3 ${theme.accentBorder} ${theme.accentBg}`}>
+                <div className="rounded-2xl border border-[#D9E6F7] bg-[#F2F6FC] p-4 space-y-3">
                   <div>
                     <h3 className="text-[18px] font-black text-gray-900 leading-tight">Identifique o produto</h3>
                     <p className="text-[13px] text-gray-600 mt-1">Busque pelo nome ou marca — código de barras também funciona, se preferir.</p>
@@ -780,7 +786,7 @@ export function ParasiteItemSheet({
                 <button
                   type="button"
                   onClick={() => setMode('buy')}
-                  className="w-full py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] transition-all text-white text-[14px] font-black shadow-sm shadow-emerald-500/20 flex items-center justify-center gap-2"
+                  className={`w-full py-3 rounded-2xl active:scale-[0.98] transition-all text-[14px] font-black flex items-center justify-center gap-2 ${SECONDARY_BTN}`}
                 >
                   <span>🛒</span>
                   Ainda não comprei — {cfg.buyLabel}
@@ -853,13 +859,13 @@ export function ParasiteItemSheet({
           {mode === 'edit' && editRecord && (
             <div className="px-4 pt-2 pb-4 space-y-3">
               <div className="flex items-center gap-2">
-                <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-base ${theme.accentBg} ring-1 ${theme.accentBorder}`}>
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-base bg-[#F2F6FC] ring-1 ring-[#D9E6F7]">
                   {cfg.icon}
                 </div>
                 <h3 className="text-[16px] font-bold text-gray-900">Editar registro</h3>
               </div>
 
-              <div className={`rounded-2xl border-2 ${theme.accentBorder} ${theme.accentBg} p-3.5 space-y-3`}>
+              <div className="rounded-2xl border-2 border-[#D9E6F7] bg-[#F2F6FC] p-3.5 space-y-3">
                 <div className="flex items-start gap-2.5">
                   <div className="min-w-0 flex-1">
                     <label className={accentLabelCls}>Data</label>
@@ -928,7 +934,7 @@ export function ParasiteItemSheet({
               </button>
 
               <div className="flex items-center gap-3 mb-1">
-                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 rounded-full bg-[#F2F6FC] flex items-center justify-center flex-shrink-0">
                   <span className="text-[20px] leading-none">🛍️</span>
                 </div>
                 <div>
@@ -973,7 +979,7 @@ export function ParasiteItemSheet({
           <div className="flex-shrink-0 px-5 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] border-t border-gray-100 bg-white">
             <button
               onClick={() => setMode('buy')}
-              className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-[15px] font-black shadow-lg shadow-emerald-500/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5"
+              className={`w-full py-3.5 rounded-2xl text-[15px] font-black active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 ${SECONDARY_BTN}`}
             >
               <span>🛒</span>
               {cfg.buyLabel}

@@ -13,7 +13,6 @@ import { ReminderPicker } from '@/components/ReminderPicker';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { CARE_STATE, careStateFromDaysUntilDue } from '@/lib/careState';
-import { CARE_AREA_THEME } from '@/lib/careAreaTheme';
 import { scheduleUniqueReminder, buildRemindAt, subtractDays } from '@/features/notifications/pushService';
 import { DateField } from '@/components/ui/DateField';
 
@@ -375,8 +374,7 @@ export function GroomingItemSheet({
   }
 
   // ── CSS helpers ───────────────────────────────────────────────────────────
-  const theme = CARE_AREA_THEME.grooming;
-  const inputCls = 'w-full min-w-0 border border-[#E5E5EA] rounded-xl px-3 py-3 text-[15px] text-[#1C1C1E] bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500/30 placeholder:text-[#C7C7CC]';
+  const inputCls = 'w-full min-w-0 border border-[#E5E5EA] rounded-xl px-3 py-3 text-[15px] text-[#1C1C1E] bg-white focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30 placeholder:text-[#C7C7CC]';
   const labelCls = 'block text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wider mb-1.5';
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -730,7 +728,7 @@ export function GroomingItemSheet({
             <div className="space-y-3 px-5 pb-4 pt-3">
               <h3 className="text-[17px] font-bold text-[#1C1C1E]">Editar registro</h3>
 
-              <div className={`rounded-2xl border ${theme.accentBorder} ${theme.accentBg}/40 p-3.5 space-y-3`}>
+              <div className="rounded-2xl border border-[#D9E6F7] bg-[#F2F6FC] p-3.5 space-y-3">
                 {/* O date input nativo do iOS ignora larguras estreitas — Data
                     fica sozinha na própria linha (nunca dividindo coluna).
                     A cada/Tipo não têm esse problema (number/select

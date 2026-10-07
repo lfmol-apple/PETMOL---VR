@@ -1235,7 +1235,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                           setFormRequest({ id: Date.now(), mode: 'quick_setup' });
                           setMode('edit');
                         }}
-                        className="w-full py-3 rounded-2xl border border-emerald-200 bg-emerald-50 text-[14px] font-black text-emerald-800 active:scale-[0.98] transition-all"
+                        className="w-full py-3 rounded-2xl border border-[#BFD4F0] bg-[#F2F6FC] text-[14px] font-black text-[#0056D2] active:scale-[0.98] transition-all"
                       >
                         Já tenho a ração — registrar aqui
                       </button>
@@ -1357,7 +1357,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: null });
                             setMode('buy');
                           }}
-                          className="w-full flex items-center justify-center gap-2.5 min-h-[52px] rounded-2xl bg-emerald-500 px-4 text-[14px] font-bold text-white shadow-md shadow-emerald-500/25 active:scale-[0.98] transition-all"
+                          className="w-full flex items-center justify-center gap-2.5 min-h-[52px] rounded-2xl bg-[#F2F6FC] hover:bg-[#E6EEF9] active:bg-[#DCE7F6] border border-[#BFD4F0] px-4 text-[14px] font-bold text-[#0056D2] active:scale-[0.98] transition-all"
                         >
                           <span className="text-lg">🛒</span>
                           Comprar ração
@@ -1491,7 +1491,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                               trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
                               setMode('buy');
                             }}
-                            className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 active:scale-[0.97] transition-all text-white text-[15px] font-black shadow-md shadow-emerald-500/25 flex items-center justify-center gap-2.5"
+                            className="w-full py-3.5 rounded-2xl bg-[#F2F6FC] hover:bg-[#E6EEF9] active:bg-[#DCE7F6] border border-[#BFD4F0] active:scale-[0.97] transition-all text-[#0056D2] text-[15px] font-black flex items-center justify-center gap-2.5"
                           >
                             <span className="text-lg">🛒</span>
                             Comprar novamente
@@ -1613,7 +1613,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                                       });
                                       setMode('buy');
                                     }}
-                                    className="w-full rounded-2xl bg-emerald-500 hover:bg-emerald-600 px-4 py-3 min-h-[48px] text-[14px] font-black text-white active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                                    className="w-full rounded-2xl bg-[#F2F6FC] hover:bg-[#E6EEF9] border border-[#BFD4F0] px-4 py-3 min-h-[48px] text-[14px] font-black text-[#0056D2] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                                   >
                                     <span>🛒</span>
                                     Comprar novamente
@@ -1740,7 +1740,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                               setSubMode('main');
                               setMode('buy');
                             }}
-                            className="w-full py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] transition-all text-white text-[14px] font-black shadow-sm shadow-emerald-500/20 flex items-center justify-center gap-2"
+                            className="w-full py-3 rounded-2xl bg-[#F2F6FC] hover:bg-[#E6EEF9] border border-[#BFD4F0] active:scale-[0.98] transition-all text-[#0056D2] text-[14px] font-black flex items-center justify-center gap-2"
                           >
                             <span>🛒</span>
                             Ainda não comprei — ir para Comprar
