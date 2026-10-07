@@ -2,7 +2,7 @@
 import { useBackHandler } from '@/lib/backStack';
 import { useRef, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, BellOff, MapPin, MapPinOff, CalendarClock } from 'lucide-react';
+import { Bell, BellOff, MapPin, MapPinOff, ClipboardList } from 'lucide-react';
 
 import { useI18n } from '@/lib/I18nContext';
 import { HomeAttentionOverlays } from '@/components/home/HomeAttentionOverlays';
@@ -476,6 +476,32 @@ export function HomePetHeader({
           </button>
         </div>
 
+        {/* "Próximos cuidados" — tirado da linha de identidade (11/10/2026,
+            pedido do dono: o círculo de 50px no meio da linha apertava o
+            nome/"Adicionar pet" e pesava a tela). Vai pro canto superior
+            direito da foto, no mesmo estilo dos ícones de notificação/
+            localização do canto esquerdo — só espelhado, com ícone
+            diferente (clipboard em vez de sino, pra não parecer "mais uma
+            notificação") e badge vermelho preservando a regra de negócio
+            (número só aparece se > 0). Mesmo dado (allUpcomingReminders em
+            petCareDomain.ts), mesmo onOpenUpcoming. */}
+        <div className="absolute right-2.5 top-2.5 z-20 sm:right-3 sm:top-3">
+          <button
+            type="button"
+            onClick={onOpenUpcoming}
+            aria-label={upcomingCount > 0 ? `Próximos cuidados — ${upcomingCount} pendência${upcomingCount === 1 ? '' : 's'}` : 'Próximos cuidados'}
+            title="Próximos cuidados"
+            className="relative flex h-8 w-8 items-center justify-center rounded-full border border-white/40 bg-black/30 text-white shadow-lg backdrop-blur-md transition-all hover:bg-black/50 active:scale-90 sm:h-9 sm:w-9"
+          >
+            <ClipboardList className="h-4 w-4" strokeWidth={2.3} />
+            {upcomingCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-[16px] min-w-[16px] items-center justify-center rounded-full border-2 border-white bg-red-500 px-1 text-[9px] font-black leading-none text-white shadow-sm tabular-nums">
+                {upcomingCount > 99 ? '99+' : upcomingCount}
+              </span>
+            )}
+          </button>
+        </div>
+
         {/* Botão de ação no canto inferior direito — só "editar este pet"
             (lápis). Controle pequeno e indispensável, continua sobre a
             foto; nenhum texto informativo mora mais aqui. */}
@@ -524,32 +550,6 @@ export function HomePetHeader({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
               </svg>
             </div>
-          </button>
-          {/* "Próximos cuidados" — era o sino sobre a foto, mudou de
-              lugar (09/10/2026, depois ganhou mais presença visual numa
-              2ª rodada no mesmo dia: o ícone+número inline ficava
-              pequeno/imperceptível demais). Mesmo dado exato
-              (allUpcomingReminders: vacina/vermífugo/banho/ração/
-              medicação/eventos, ver buildPetCareReminders em
-              petCareDomain.ts), mesma regra de negócio (número só
-              aparece se > 0). Agora é um botão premium ~50px com badge
-              de verdade no canto (não mais número solto ao lado do
-              ícone) — nome do botão é "Próximos cuidados", não "Agenda"
-              (a auditoria confirmou que o dado real é cuidado do pet,
-              não uma agenda genérica). */}
-          <button
-            type="button"
-            onClick={onOpenUpcoming}
-            aria-label={upcomingCount > 0 ? `Próximos cuidados — ${upcomingCount} pendência${upcomingCount === 1 ? '' : 's'}` : 'Próximos cuidados'}
-            title="Próximos cuidados"
-            className="relative ml-1 flex h-[50px] w-[50px] flex-shrink-0 items-center justify-center rounded-full border border-[#BFD4F0] bg-white shadow-[0_2px_10px_-3px_rgba(0,86,210,0.18)] transition-all active:scale-95"
-          >
-            <CalendarClock className="h-6 w-6 text-[#0056D2]" strokeWidth={2.2} />
-            {upcomingCount > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-white bg-red-500 px-1 text-[10px] font-black leading-none text-white shadow-sm tabular-nums">
-                {upcomingCount > 99 ? '99+' : upcomingCount}
-              </span>
-            )}
           </button>
           <button
             type="button"
