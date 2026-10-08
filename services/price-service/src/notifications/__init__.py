@@ -471,7 +471,7 @@ def _medication_name(reminder) -> str:
     return " ".join(out)[:40]
 
 
-def _combine_medication_reminders(group, pet_name: Optional[str]):
+def _combine_medication_reminders(group, pet_name: Optional[str], pet_sex: Optional[str] = None):
     """Vários remédios do mesmo pet no mesmo horário viram UM aviso que lista
     todos (antes só um chegava e os outros eram descartados como 'duplicados').
     Devolve (title, body) ou None quando há um só remédio."""
@@ -483,7 +483,11 @@ def _combine_medication_reminders(group, pet_name: Optional[str]):
     if len(names) < 2:
         return None
     listed = ", ".join(names[:-1]) + " e " + names[-1]
-    title = f"💊 Hora dos remédios{' do ' + pet_name if pet_name else ''}"
+    # "do"/"da" conforme o sexo do pet (bug real reportado por um tutor:
+    # título sempre saía "Hora dos remédios do Akira" mesmo ela sendo fêmea
+    # — a função só recebia o nome, nunca o sexo, não tinha como acertar).
+    article = "da" if pet_sex == "female" else "do"
+    title = f"💊 Hora dos remédios{' ' + article + ' ' + pet_name if pet_name else ''}"
     return title, f"Hora de dar: {listed}. Toque para registrar as doses."
 
 
@@ -690,7 +694,7 @@ def send_due_reminders() -> None:
             title = reminder.title
             if reminder.type in _MED_TYPES:
                 combo = _combine_medication_reminders(
-                    med_groups.get(dedup_key, [reminder]), getattr(pet, "name", None)
+                    med_groups.get(dedup_key, [reminder]), getattr(pet, "name", None), getattr(pet, "sex", None)
                 )
                 if combo:
                     title, body = combo
