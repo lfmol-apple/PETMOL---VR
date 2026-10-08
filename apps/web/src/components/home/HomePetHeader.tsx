@@ -156,6 +156,40 @@ export function HomePetHeader({
   const [permPopup, setPermPopup] = useState<'push' | 'location' | null>(null);
   const [permBusy, setPermBusy] = useState(false);
 
+  // Aviso temporário "de tempos em tempos" sobre a foto quando push e/ou
+  // localização estão desativados (08/10/2026, pedido do dono: "tem que
+  // incomodar o tutor a ponto dele ativar" — os ícones sozinhos não
+  // bastavam). Ciclo enquanto a Home fica aberta: espera
+  // PERM_NUDGE_INTERVAL_MS, mostra por PERM_NUDGE_VISIBLE_MS, some,
+  // repete. Alterna entre os dois avisos quando ambos estão desativados.
+  // Nunca aparece com o popover de explicação já aberto (evita empilhar).
+  const [permNudge, setPermNudge] = useState<'push' | 'location' | null>(null);
+  useEffect(() => {
+    if (permPopup) setPermNudge(null);
+  }, [permPopup]);
+  useEffect(() => {
+    if (!notifOff && !locOff) { setPermNudge(null); return; }
+    const PERM_NUDGE_INTERVAL_MS = 25_000;
+    const PERM_NUDGE_VISIBLE_MS = 4_500;
+    let hideTimer: ReturnType<typeof setTimeout> | null = null;
+    const tick = () => {
+      if (permPopup) return;
+      setPermNudge((prev) => {
+        if (notifOff && locOff) return prev === 'push' ? 'location' : 'push';
+        return notifOff ? 'push' : 'location';
+      });
+      hideTimer = setTimeout(() => setPermNudge(null), PERM_NUDGE_VISIBLE_MS);
+    };
+    const firstShow = setTimeout(tick, 3_000);
+    const interval = setInterval(tick, PERM_NUDGE_INTERVAL_MS);
+    return () => {
+      clearTimeout(firstShow);
+      clearInterval(interval);
+      if (hideTimer) clearTimeout(hideTimer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notifOff, locOff]);
+
   const activatePush = async () => {
     setPermBusy(true);
     try {
@@ -262,6 +296,21 @@ export function HomePetHeader({
         </div>
       </>,
       document.body
+    );
+  };
+
+  const renderPermNudge = () => {
+    if (!permNudge) return null;
+    const isPush = permNudge === 'push';
+    const text = isPush
+      ? 'Notificações desativadas — toque no sino para ativar'
+      : 'Localização desativada — toque no pino para ativar';
+    return (
+      <div className="pointer-events-none absolute inset-x-8 bottom-2.5 z-30 flex justify-center sm:bottom-3 animate-in fade-in slide-in-from-bottom-1 duration-300">
+        <span className="rounded-full border border-red-300/70 bg-red-600/95 px-3 py-1.5 text-center text-[11px] font-bold leading-tight text-white shadow-lg backdrop-blur-md">
+          {text}
+        </span>
+      </div>
     );
   };
 
@@ -444,10 +493,11 @@ export function HomePetHeader({
             superior esquerdo (10/10/2026, correção: a versão em linha
             abaixo da foto "virou mais um botão da Home" e o estado ativo
             ficou invisível). Agora SEMPRE visíveis, os dois estados —
-            Bell/MapPin azul quando ativo, BellOff/MapPinOff âmbar quando
-            não. Nunca vermelho, nunca toggle (ver renderPermPopup: tocar
-            ativo só confirma, nunca desativa). Empilhados na vertical
-            (11/10/2026, pedido do dono) — Localização embaixo de
+            Bell/MapPin azul quando ativo. Desativado virou vermelho com
+            pulso (08/10/2026, pedido do dono: "tem que incomodar o tutor
+            a ponto dele ativar" — âmbar calmo não bastava). Nunca toggle
+            (ver renderPermPopup: tocar ativo só confirma, nunca desativa).
+            Empilhados na vertical (11/10/2026) — Localização embaixo de
             Notificações, não mais lado a lado. */}
         <div className="absolute left-2.5 top-2.5 z-20 flex flex-col items-center gap-1.5 sm:left-3 sm:top-3">
           <button
@@ -457,7 +507,7 @@ export function HomePetHeader({
             title={notifOff ? 'Notificações desativadas' : 'Notificações ativas'}
             className={`flex h-8 w-8 items-center justify-center rounded-full border shadow-lg backdrop-blur-md transition-all active:scale-90 sm:h-9 sm:w-9 ${
               notifOff
-                ? 'border-amber-200/70 bg-amber-400/90 text-amber-950 hover:bg-amber-400'
+                ? 'animate-pulse border-red-300 bg-red-500 text-white hover:bg-red-600'
                 : 'border-white/40 bg-black/30 text-white hover:bg-black/50'
             }`}
           >
@@ -470,13 +520,15 @@ export function HomePetHeader({
             title={locOff ? 'Localização desativada' : 'Localização ativa'}
             className={`flex h-8 w-8 items-center justify-center rounded-full border shadow-lg backdrop-blur-md transition-all active:scale-90 sm:h-9 sm:w-9 ${
               locOff
-                ? 'border-amber-200/70 bg-amber-400/90 text-amber-950 hover:bg-amber-400'
+                ? 'animate-pulse border-red-300 bg-red-500 text-white hover:bg-red-600'
                 : 'border-white/40 bg-black/30 text-white hover:bg-black/50'
             }`}
           >
             {locOff ? <MapPinOff className="h-4 w-4" strokeWidth={2.3} /> : <MapPin className="h-4 w-4" strokeWidth={2.3} />}
           </button>
         </div>
+
+        {renderPermNudge()}
 
         {/* "Próximos cuidados" — tirado da linha de identidade (11/10/2026,
             pedido do dono: o círculo de 50px no meio da linha apertava o
