@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Bell, Check, Home, Info, ShoppingCart, Trash2, X } from 'lucide-react';
+import { Bell, Check, Home, Info, Trash2, X } from 'lucide-react';
 import { ActivationAskSheet } from './ActivationAskSheet';
 import { usePushOneTimeAsk } from '@/features/interactions/usePushOneTimeAsk';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
@@ -26,12 +26,6 @@ import { CARE_STATE, careStateFromDaysUntilDue } from '@/lib/careState';
 // institucional, nunca a cor da área.
 const PRIMARY_BTN =
   'bg-[#0056D2] hover:bg-[#004ab8] active:bg-[#003f9e] text-white shadow-sm';
-// Ação secundária/comercial — mesma família institucional do PRIMARY_BTN,
-// tratamento mais discreto (outline azul-gelo em vez de preenchido). Usado
-// em "Comprar" e afins: comprar não é "sucesso" (verde), é uma ação
-// institucional como outra qualquer — só não é a ação PRINCIPAL do sheet.
-const SECONDARY_BTN =
-  'bg-[#F2F6FC] hover:bg-[#E6EEF9] active:bg-[#DCE7F6] text-[#0056D2] border border-[#BFD4F0] shadow-sm';
 
 // CareAssetKey correspondente a cada `type` deste sheet — só os nomes
 // divergem (flea_tick vs fleaTick), o conceito é o mesmo.
@@ -811,9 +805,9 @@ export function ParasiteItemSheet({
                 <button
                   type="button"
                   onClick={() => setMode('buy')}
-                  className={`w-full py-3 rounded-2xl active:scale-[0.98] transition-all text-[14px] font-black flex items-center justify-center gap-2 ${SECONDARY_BTN}`}
+                  className="w-full py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] transition-all text-white text-[14px] font-black shadow-sm shadow-emerald-500/20 flex items-center justify-center gap-2"
                 >
-                  <ShoppingCart className="h-4 w-4" strokeWidth={2.3} />
+                  <span>🛒</span>
                   Ainda não comprei — {cfg.buyLabel}
                 </button>
               )}
@@ -999,9 +993,9 @@ export function ParasiteItemSheet({
           <div className="flex-shrink-0 px-5 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] border-t border-gray-100 bg-white">
             <button
               onClick={() => setMode('buy')}
-              className={`w-full py-3.5 rounded-2xl text-[15px] font-black active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 ${SECONDARY_BTN}`}
+              className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-[15px] font-black shadow-lg shadow-emerald-500/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5"
             >
-              <ShoppingCart className="h-[18px] w-[18px]" strokeWidth={2.3} />
+              <span>🛒</span>
               {cfg.buyLabel}
             </button>
           </div>
