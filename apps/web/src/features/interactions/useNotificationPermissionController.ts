@@ -192,6 +192,33 @@ function writeCachedSubscribed(value: boolean): void {
   } catch { /* melhor esforço */ }
 }
 
+// Achado 08/10/2026 (mesmo dia, 3ª rodada): desativar no sininho da Home não
+// "pegava" no Perfil — porque no app nativo, QUALQUER tela que monta de novo
+// com a permissão do SO ainda concedida renova o token sozinha ("Permissão
+// já concedida → renova o token no backend silenciosamente"). Isso é certo
+// pra reabrir o app depois de conceder a permissão uma vez, mas não distingue
+// isso de "o usuário acabou de apertar Desativar": sem esse sinal, cada tela
+// nova (Home, Perfil, qualquer sheet) reativava o push sozinha, desfazendo a
+// desativação quase na hora. Esta flag é o sinal que faltava — só é tocada
+// por uma ação explícita do usuário (Desativar/Ativar), nunca por uma
+// reconfirmação automática.
+const PUSH_USER_OPTED_OUT_KEY = 'petmol_push_user_opted_out_v1';
+
+function readUserOptedOut(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.localStorage.getItem(PUSH_USER_OPTED_OUT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeUserOptedOut(value: boolean): void {
+  try {
+    if (value) window.localStorage.setItem(PUSH_USER_OPTED_OUT_KEY, '1');
+    else window.localStorage.removeItem(PUSH_USER_OPTED_OUT_KEY);
+  } catch { /* melhor esforço */ }
+}
+
 export function useNotificationPermissionController() {
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [isSupported, setIsSupported] = useState(false);
@@ -235,6 +262,7 @@ export function useNotificationPermissionController() {
       if (!token) return false;
       const ok = await registerNativePush(token);
       setIsSubscribed(ok);
+      if (ok) writeUserOptedOut(false);
       return ok;
     }
     if (!isSupported || Notification.permission !== 'granted') return null;
@@ -246,6 +274,7 @@ export function useNotificationPermissionController() {
         await postSubscription(existing);
         setSubscription(existing);
         setIsSubscribed(true);
+        writeUserOptedOut(false);
         return existing;
       }
 
@@ -266,6 +295,7 @@ export function useNotificationPermissionController() {
       await postSubscription(sub);
       setSubscription(sub);
       setIsSubscribed(true);
+      writeUserOptedOut(false);
       return sub;
     } catch (err) {
       setSubscription(null);
@@ -296,6 +326,14 @@ export function useNotificationPermissionController() {
         // aqui — mantém o último estado confirmado (cache) até a
         // reconfirmação real (reabrir o Perfil, tocar no sininho) dizer
         // algo melhor.
+        return;
+      }
+      if (readUserOptedOut()) {
+        // O usuário já desativou explicitamente numa tela (ou nesta mesma,
+        // antes de remontar) — permissão do SO continuar concedida não
+        // significa que ele quer o push de volta. Sem isso, toda tela nova
+        // (Home, Perfil, qualquer sheet) reativava sozinha o que acabou de
+        // ser desativado.
         return;
       }
       // Permissão já concedida (build anterior, ou reabertura) → renova o
@@ -383,6 +421,7 @@ export function useNotificationPermissionController() {
       const token = getToken();
       if (token) await unregisterNativePush(token);
       setIsSubscribed(false);
+      writeUserOptedOut(true);
       return;
     }
     if (!subscription) return;
@@ -392,6 +431,7 @@ export function useNotificationPermissionController() {
     } catch { /* melhor esforço */ } finally {
       setSubscription(null);
       setIsSubscribed(false);
+      writeUserOptedOut(true);
     }
   }, [isNative, subscription, setIsSubscribed]);
 
