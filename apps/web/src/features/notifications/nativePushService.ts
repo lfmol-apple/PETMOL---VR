@@ -167,7 +167,31 @@ export async function requestNativePushPermission(): Promise<NativePushPermissio
   }
 }
 
+// Achado 08/10/2026: a Home monta HomePetHeader, PermissionsNudgeCard e
+// OnboardingChecklistCard ao mesmo tempo — cada um com sua própria instância
+// de useNotificationPermissionController, e cada uma chamava
+// registerNativePush() de forma independente. Como os listeners
+// 'registration'/'registrationError' viviam num array módulo-level
+// compartilhado (_registrationHandles), a chamada mais nova removia os
+// listeners da chamada anterior AINDA EM ANDAMENTO — essa nunca ouvia a
+// resposta da Apple/Google e caía no timeout de 15s, apagando um sininho
+// que o cache já tinha mostrado certo (ativado) pouco antes. Esta trava faz
+// chamadas concorrentes esperarem a MESMA tentativa em vez de brigar pelos
+// mesmos listeners.
+let _inFlightRegistration: Promise<boolean> | null = null;
+
 export async function registerNativePush(authToken: string): Promise<boolean> {
+  if (_inFlightRegistration) return _inFlightRegistration;
+  const attempt = _registerNativePushOnce(authToken);
+  _inFlightRegistration = attempt;
+  try {
+    return await attempt;
+  } finally {
+    _inFlightRegistration = null;
+  }
+}
+
+async function _registerNativePushOnce(authToken: string): Promise<boolean> {
   if (!isNativePushPlatform()) return false;
   if (!pluginRegistered()) {
     setDiag('plugin PushNotifications não está no app');
