@@ -156,30 +156,6 @@ export function HomePetHeader({
   const [permPopup, setPermPopup] = useState<'push' | 'location' | null>(null);
   const [permBusy, setPermBusy] = useState(false);
 
-  // Aviso temporário sobre a foto quando push e/ou localização estão
-  // desativados — SÓ UMA VEZ por visita à Home (08/10/2026, pedido do
-  // dono: a versão repetindo a cada poucos segundos "ficava chato").
-  // hasShownPermNudgeRef garante isso mesmo com notifOff/locOff mudando
-  // de novo depois (ex.: ativou e desativou) — não reabre sozinho; só
-  // reaparece se a tela for remontada (nova visita à Home).
-  const [permNudge, setPermNudge] = useState<'push' | 'location' | null>(null);
-  const hasShownPermNudgeRef = useRef(false);
-  useEffect(() => {
-    if (permPopup) setPermNudge(null);
-  }, [permPopup]);
-  useEffect(() => {
-    if (hasShownPermNudgeRef.current) return;
-    if (!notifOff && !locOff) return;
-    if (permPopup) return;
-    const PERM_NUDGE_VISIBLE_MS = 4_500;
-    const showTimer = setTimeout(() => {
-      hasShownPermNudgeRef.current = true;
-      setPermNudge(notifOff ? 'push' : 'location');
-      setTimeout(() => setPermNudge(null), PERM_NUDGE_VISIBLE_MS);
-    }, 3_000);
-    return () => clearTimeout(showTimer);
-  }, [notifOff, locOff, permPopup]);
-
   const activatePush = async () => {
     setPermBusy(true);
     try {
@@ -286,21 +262,6 @@ export function HomePetHeader({
         </div>
       </>,
       document.body
-    );
-  };
-
-  const renderPermNudge = () => {
-    if (!permNudge) return null;
-    const isPush = permNudge === 'push';
-    const text = isPush
-      ? 'Notificações desativadas — toque no sino para ativar'
-      : 'Localização desativada — toque no pino para ativar';
-    return (
-      <div className="pointer-events-none absolute inset-x-8 bottom-2.5 z-30 flex justify-center sm:bottom-3 animate-in fade-in slide-in-from-bottom-1 duration-300">
-        <span className="rounded-full border border-red-300/70 bg-red-600/95 px-3 py-1.5 text-center text-[11px] font-bold leading-tight text-white shadow-lg backdrop-blur-md">
-          {text}
-        </span>
-      </div>
     );
   };
 
@@ -517,8 +478,6 @@ export function HomePetHeader({
             {locOff ? <MapPinOff className="h-4 w-4" strokeWidth={2.3} /> : <MapPin className="h-4 w-4" strokeWidth={2.3} />}
           </button>
         </div>
-
-        {renderPermNudge()}
 
         {/* "Próximos cuidados" — tirado da linha de identidade (11/10/2026,
             pedido do dono: o círculo de 50px no meio da linha apertava o

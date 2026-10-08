@@ -46,23 +46,17 @@ function shouldShowAlert(tone?: ControlTone, fallbackAlert?: boolean) {
   return fallbackAlert === true;
 }
 
+// Mesmo estilo do AlertDot da Home (AppleControlButtons.tsx) — pontinho
+// simples, canto superior DIREITO, não mais o triângulo "!" no esquerdo
+// (08/10/2026, pedido do dono: "mesma formatação da Home").
 function ControlAlertBadge({ tone = 'critical' }: { tone?: ControlTone }) {
   if (tone === 'warning') {
     return (
-      <div className="absolute top-2 left-2 w-6 h-6 flex items-center justify-center animate-pulse z-10">
-        <span
-          className="absolute inset-0 bg-amber-400 shadow-sm ring-2 ring-white"
-          style={{ clipPath: 'polygon(50% 0%, 100% 92%, 0% 92%)' }}
-        />
-        <span className="relative mt-1 text-[11px] font-black text-amber-950 leading-none">!</span>
-      </div>
+      <span className="absolute right-2.5 top-2.5 z-10 h-2 w-2 animate-pulse rounded-full bg-amber-400 ring-2 ring-amber-300/60 ring-offset-1" />
     );
   }
-
   return (
-    <div className="absolute top-2.5 left-2.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold animate-pulse shadow-sm border border-white/50 z-10">
-      !
-    </div>
+    <span className="absolute right-2.5 top-2.5 z-10 h-2 w-2 animate-pulse rounded-full bg-rose-500 ring-2 ring-rose-400/60 ring-offset-1" />
   );
 }
 
@@ -137,7 +131,7 @@ export function HomeNavigationModals({
               className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50"
               style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}
             >
-              <div className="grid grid-cols-2 gap-2 mb-1">
+              <div className="grid grid-cols-2 items-stretch gap-2 mb-1">
                 {[
                   // Reviravolta 11/10/2026 (pedido do dono): sem emoji/arte
                   // nenhuma nos 6 cards — o título carrega o card sozinho,
@@ -204,7 +198,7 @@ export function HomeNavigationModals({
                       onCloseHealthOptionsModal();
                       onOpenHealthTab(tab);
                     }}
-                    className={`group relative overflow-hidden border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] rounded-2xl p-3 h-[108px] transition-all duration-200 hover:-translate-y-1 active:scale-95 text-left flex items-start shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
+                    className={`group relative overflow-hidden border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] rounded-xl min-h-[76px] p-2.5 min-[390px]:min-h-[86px] min-[390px]:rounded-2xl min-[390px]:p-3 transition-all duration-200 hover:-translate-y-1 active:scale-95 text-left flex items-start shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
                   >
                     {shouldShowAlert(tone, alert) && <ControlAlertBadge tone={tone} />}
                     {isEmergency && (
