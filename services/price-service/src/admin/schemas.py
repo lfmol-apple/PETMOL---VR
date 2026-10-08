@@ -45,6 +45,7 @@ class PetOut(BaseModel):
     name: str
     species: str
     breed: Optional[str] = None
+    sex: Optional[str] = None  # 'male' or 'female'
     birth_date: Optional[str] = None
     weight_value: Optional[float] = None
     weight_unit: Optional[str] = None
@@ -113,6 +114,7 @@ class PetCreateRequest(BaseModel):
     name: str
     species: str
     breed: Optional[str] = None
+    sex: Optional[str] = None  # 'male' or 'female'
     birth_date: Optional[str] = None  # ISO date string
     weight_value: Optional[float] = None
     weight_unit: Optional[str] = None
@@ -124,6 +126,7 @@ class PetUpdateRequest(BaseModel):
     name: Optional[str] = None
     species: Optional[str] = None
     breed: Optional[str] = None
+    sex: Optional[str] = None  # 'male' or 'female'
     birth_date: Optional[str] = None  # ISO date string
     weight_value: Optional[float] = None
     weight_unit: Optional[str] = None
