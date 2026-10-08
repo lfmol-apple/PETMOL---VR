@@ -3,7 +3,6 @@
 import { useBackHandler } from '@/lib/backStack';
 import { useState } from 'react';
 import { useI18n } from '@/lib/I18nContext';
-import { petDo } from '@/lib/petGender';
 import { type HomeInactiveEligibleControlId } from '@/lib/homeControlPreferences';
 import { PetHealthPlanCard } from '@/components/home/PetHealthPlanCard';
 import { HEALTH_PLAN_CARD_ENABLED } from '@/lib/featureFlags';
@@ -112,7 +111,11 @@ export function AppleControlButtons({
   const { t } = useI18n();
   const [showEmergencyChoice, setShowEmergencyChoice] = useState(false);
   useBackHandler(showEmergencyChoice, () => setShowEmergencyChoice(false));
-  const shoppingTitle = petName ? `Loja ${petDo({ sex: petSex })} ${petName}` : t('home.shopping.title');
+  // Texto fixo, sem personalização por pet (pedido do dono, 08/10/2026:
+  // trocar "Loja do [pet]" por "Comprar Produtos" — era `Loja ${petDo(...)}
+  // ${petName}`, com fallback genérico só quando faltava o nome; agora é
+  // sempre o mesmo texto, direto do dicionário de i18n.
+  const shoppingTitle = t('home.shopping.title');
   const foodHeadlineText = !hasFoodData
     ? 'Cuidado em aberto'
     : (foodHeadline || t('home.food.desc'));
