@@ -1421,7 +1421,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                           <div className={`rounded-3xl border p-4 ${
                             foodTone === 'critical' ? 'border-red-200 bg-red-50/70'
                             : foodTone === 'warning' ? 'border-amber-200 bg-amber-50/70'
-                            : foodTone === 'ok' ? 'border-teal-200 bg-teal-50/70'
+                            : foodTone === 'ok' ? 'border-green-200 bg-green-50/70'
                             : 'border-[#D9E6F7] bg-[#F2F6FC]/70'
                           }`}>
                             {foodState.daysLeft !== null ? (
@@ -1523,7 +1523,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             className={`w-full py-3.5 rounded-2xl active:scale-[0.97] transition-all text-[15px] font-black flex items-center justify-center gap-2.5 ${
                               foodTone === 'critical' ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-900/20'
                               : foodTone === 'warning' ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-900/20'
-                              : foodTone === 'ok' ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-900/20'
+                              : foodTone === 'ok' ? 'bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-900/20'
                               : 'border border-[#BFD4F0] bg-[#F2F6FC] hover:bg-[#E6EEF9] active:bg-[#DCE7F6] text-[#0056D2]'
                             }`}
                           >
