@@ -348,20 +348,14 @@ export function PetSumidoSheet({
   // Cria/atualiza o alerta — roda EM BACKGROUND depois que o cartaz já
   // apareceu na tela. Antes ficava na frente do desenho do cartaz e ainda
   // esperava o backend disparar todos os web-pushes → "cartaz demora demais".
-  const submitAlert = useCallback(async (photoUrl: string | null, pendingNotice: string | null) => {
+  const submitAlert = useCallback(async (
+    photoUrl: string | null,
+    pendingNotice: string | null,
+    geoLat: number | null,
+    geoLng: number | null,
+  ) => {
     if (submitInFlightRef.current) return;
     submitInFlightRef.current = true;
-    let geoLat: number | undefined;
-    let geoLng: number | undefined;
-    try {
-      if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
-        const pos = await new Promise<GeolocationPosition>((res, rej) =>
-          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 4000, maximumAge: 120000 })
-        );
-        geoLat = pos.coords.latitude;
-        geoLng = pos.coords.longitude;
-      }
-    } catch { /* geolocation is optional */ }
 
     const _token = getToken();
 
@@ -425,6 +419,33 @@ export function PetSumidoSheet({
     setGenerating(true);
     setAlertBlocked(false);
     setPhotoIssue(null);
+    setGpsError('');
+
+    // 0) Localização é OBRIGATÓRIA pra criar o alerta (decisão de produto
+    //    08/10/2026): sem coordenada real não tem centro pra calcular o
+    //    raio, e um alerta sem raio definido não pode disparar push "sem
+    //    freio" pra qualquer um. Edição não pede de novo — o alerta já
+    //    nasceu com uma localização e o PATCH não reenvia lat/lng.
+    let geoLat: number | null = null;
+    let geoLng: number | null = null;
+    if (!isEditMode) {
+      if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+        setGpsError('Precisamos da sua localização pra criar o alerta. Ative o GPS e tente de novo.');
+        setGenerating(false);
+        return;
+      }
+      try {
+        const pos = await new Promise<GeolocationPosition>((res, rej) =>
+          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000, maximumAge: 60000 })
+        );
+        geoLat = pos.coords.latitude;
+        geoLng = pos.coords.longitude;
+      } catch {
+        setGpsError('Permita o acesso à localização pra criar o alerta — é o que garante que o aviso chegue pra quem está perto.');
+        setGenerating(false);
+        return;
+      }
+    }
 
     // 1) Foto nova? Passa pela moderação ANTES do cartaz. Recusada: fica no
     //    formulário, com o pedido gentil em vermelho, e volta pra foto do perfil
@@ -593,8 +614,8 @@ export function PetSumidoSheet({
     setStep('card');
 
     // O cartaz já está na tela — cria/atualiza o alerta em background.
-    void submitAlert(photoUrlForAlert, pendingNotice);
-  }, [pet, petPhotoUrl, photoPreview, moderatePhoto, applyPhotoRejection, lastSeenLocation, characteristics, missingDate, missingTime, contact, submitAlert]);
+    void submitAlert(photoUrlForAlert, pendingNotice, geoLat, geoLng);
+  }, [pet, petPhotoUrl, photoPreview, moderatePhoto, applyPhotoRejection, lastSeenLocation, characteristics, missingDate, missingTime, contact, isEditMode, submitAlert]);
 
   const handleShare = useCallback(async (target: 'native' | 'download') => {
     if (!cardDataUrl) return;
@@ -1033,6 +1054,11 @@ export function PetSumidoSheet({
             {photoIssue && (
               <div role="alert" className="mb-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-[13px] font-semibold leading-snug text-rose-700">
                 📷 {photoIssue}
+              </div>
+            )}
+            {!isEditMode && gpsError && (
+              <div role="alert" className="mb-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-[13px] font-semibold leading-snug text-rose-700">
+                📍 {gpsError}
               </div>
             )}
             {missingParts.length > 0 && (

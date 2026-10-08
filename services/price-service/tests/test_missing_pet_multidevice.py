@@ -79,9 +79,9 @@ def _make_mp(db, owner_id=None, lat=None, lng=None, radius=2.0):
 def test_two_devices_same_user_both_receive(_isolate):
     sent = _isolate
     with SessionLocal() as db:
-        _sub(db, "u1", "phone")
-        _sub(db, "u1", "laptop")
-        mp = _make_mp(db, owner_id="owner")
+        _sub(db, "u1", "phone", lat=10.0, lng=10.0)
+        _sub(db, "u1", "laptop", lat=10.0, lng=10.0)
+        mp = _make_mp(db, owner_id="owner", lat=10.0, lng=10.0)
         users_notified = _broadcast_missing_pet(mp)
 
     assert sorted(sent) == ["https://push.example/laptop", "https://push.example/phone"]
@@ -90,9 +90,9 @@ def test_two_devices_same_user_both_receive(_isolate):
 
 def test_invalid_subscription_disables_only_that_device(_isolate):
     with SessionLocal() as db:
-        good_id = _sub(db, "u1", "phone")
-        bad_id = _sub(db, "u1", "BAD-laptop")
-        mp = _make_mp(db, owner_id="owner")
+        good_id = _sub(db, "u1", "phone", lat=10.0, lng=10.0)
+        bad_id = _sub(db, "u1", "BAD-laptop", lat=10.0, lng=10.0)
+        mp = _make_mp(db, owner_id="owner", lat=10.0, lng=10.0)
         users_notified = _broadcast_missing_pet(mp)
 
     with SessionLocal() as db:
@@ -106,9 +106,9 @@ def test_invalid_subscription_disables_only_that_device(_isolate):
 def test_owner_never_receives(_isolate):
     sent = _isolate
     with SessionLocal() as db:
-        _sub(db, "owner", "owner-phone")
-        _sub(db, "u2", "u2-phone")
-        mp = _make_mp(db, owner_id="owner")
+        _sub(db, "owner", "owner-phone", lat=10.0, lng=10.0)
+        _sub(db, "u2", "u2-phone", lat=10.0, lng=10.0)
+        mp = _make_mp(db, owner_id="owner", lat=10.0, lng=10.0)
         _broadcast_missing_pet(mp)
     assert sent == ["https://push.example/u2-phone"]
 
@@ -126,6 +126,60 @@ def test_geo_any_device_in_radius_notifies_all_devices(_isolate):
 
     assert set(sent) == {"https://push.example/far", "https://push.example/near"}
     assert users_notified == 1
+
+
+def test_subscriber_without_any_coordinate_is_never_notified(_isolate):
+    """Achado 08/10/2026: alerta real em Pitanga/PR notificou 14 usuários
+    sem localização nenhuma (nem aparelho, nem perfil) — eram só os
+    últimos cadastros sem coordenada, de qualquer lugar do Brasil, caindo
+    num bypass "melhor do que nada" que ignorava o raio. Sem coordenada
+    não dá pra confirmar presença no raio, então agora NÃO notifica,
+    mesmo com vaga no lote (antes: `MAX_NO_COORD_SUB` liberava até 15)."""
+    sent = _isolate
+    with SessionLocal() as db:
+        _sub(db, "u1", "no-coords")  # token nativo real: nunca manda lat/lng
+        mp = _make_mp(db, owner_id="owner", lat=10.0, lng=10.0, radius=5.0)
+        users_notified = _broadcast_missing_pet(mp)
+
+    assert sent == []
+    assert users_notified == 0
+
+
+def test_subscriber_without_device_coords_uses_profile_location(_isolate):
+    """Mesmo sem lat/lng na subscription, a localização salva no perfil
+    (users.lat/lng) ainda conta — é o mesmo usuário, só que a coordenada
+    veio do GPS/endereço do perfil em vez do aparelho que mandou o push."""
+    sent = _isolate
+    from src.user_auth.models import User
+
+    try:
+        with SessionLocal() as db:
+            db.add(User(id="u1", email="u1@example.com", password_hash="x", lat=10.0, lng=10.0))
+            db.commit()
+            _sub(db, "u1", "no-coords")
+            mp = _make_mp(db, owner_id="owner", lat=10.0, lng=10.0, radius=5.0)
+            users_notified = _broadcast_missing_pet(mp)
+
+        assert sent == ["https://push.example/no-coords"]
+        assert users_notified == 1
+    finally:
+        with SessionLocal() as db:
+            db.query(User).filter_by(id="u1").delete()
+            db.commit()
+
+
+def test_alert_without_location_sends_no_nearby_push(_isolate):
+    """Alerta sem lat/lng (tutor negou geolocalização) não tem centro pra
+    medir raio — então não dispara push geolocalizado pra ninguém, em vez
+    de cair no lote cego de até 50 usuários aleatórios de antes."""
+    sent = _isolate
+    with SessionLocal() as db:
+        _sub(db, "u1", "phone", lat=10.0, lng=10.0)
+        mp = _make_mp(db, owner_id="owner")  # lat/lng=None
+        users_notified = _broadcast_missing_pet(mp)
+
+    assert sent == []
+    assert users_notified == 0
 
 
 def test_reach_counts_people_not_subscriptions(client, _isolate, monkeypatch):
@@ -500,8 +554,8 @@ def test_rebroadcast_only_reaches_new_subscribers(_isolate, monkeypatch):
     sent = _isolate
 
     with SessionLocal() as db:
-        _sub(db, "early", "early-dev")
-        mp = _make_mp(db, owner_id="owner")
+        _sub(db, "early", "early-dev", lat=10.0, lng=10.0)
+        mp = _make_mp(db, owner_id="owner", lat=10.0, lng=10.0)
         n1 = _broadcast_missing_pet(mp)
     assert n1 == 1 and sent == ["https://push.example/early-dev"]
 
@@ -512,7 +566,7 @@ def test_rebroadcast_only_reaches_new_subscribers(_isolate, monkeypatch):
     )
     sent.clear()
     with SessionLocal() as db:
-        _sub(db, "late", "late-dev")
+        _sub(db, "late", "late-dev", lat=10.0, lng=10.0)
         mp = db.query(MissingPet).filter_by(id=mp.id).one()
         n2 = _broadcast_missing_pet(mp)
     assert n2 == 1 and sent == ["https://push.example/late-dev"]
@@ -583,8 +637,8 @@ def test_rebroadcast_is_quiet(_isolate, monkeypatch):
     monkeypatch.setattr(notif, "_send_push", fake_send)
 
     with SessionLocal() as db:
-        _sub(db, "u1", "phone")
-        mp = _make_mp(db, owner_id="owner")
+        _sub(db, "u1", "phone", lat=10.0, lng=10.0)
+        mp = _make_mp(db, owner_id="owner", lat=10.0, lng=10.0)
         _broadcast_missing_pet(mp, origin="rebroadcast")
 
     assert captured["tag"] == f"missing-pet-{mp.id}"

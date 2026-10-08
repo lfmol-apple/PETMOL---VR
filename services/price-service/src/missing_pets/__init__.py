@@ -853,22 +853,26 @@ def _broadcast_missing_pet(
         sent = 0                    # USUÁRIOS notificados (>= 1 dispositivo/canal cada)
         devices_sent = 0
         skipped = 0
-        no_coord_sent = 0
-        MAX_NO_LOCATION = 50        # alertas sem localização
-        MAX_NO_COORD_SUB = 15       # assinantes sem coordenadas quando alerta TEM localização
 
+        # Achado 08/10/2026: um alerta real em Pitanga/PR notificou 14
+        # usuários marcados "nearby" que, na verdade, não tinham localização
+        # nenhuma (nem aparelho, nem perfil) — eram só os últimos cadastros
+        # sem coordenada, de qualquer lugar do Brasil. Raio só vale alguma
+        # coisa se todo lado da conta puder ser calculado: sem localização
+        # do ALERTA não tem centro pra medir distância (nenhum push geo —
+        # cartaz/link continuam existindo pra compartilhamento manual); sem
+        # localização do RECEPTOR não dá pra confirmar que ele está dentro
+        # do raio, então ele também não entra. Nenhum dos dois lados cai
+        # num lote "melhor do que nada" às cegas.
         targets: list = []          # usuários selecionados (envio em paralelo depois)
-        for user_id in candidate_user_ids:
-            if user_id in excluded or (mp.user_id and user_id == str(mp.user_id)):
-                continue
-            if not has_location and len(targets) >= MAX_NO_LOCATION:
-                skipped += 1
-                continue
+        if has_location:
+            for user_id in candidate_user_ids:
+                if user_id in excluded or (mp.user_id and user_id == str(mp.user_id)):
+                    continue
 
-            devices = subs_by_user.get(user_id, [])
-            # Geo filter — decisão POR USUÁRIO: se qualquer aparelho dele
-            # está no raio, notifica todos os canais dele.
-            if has_location:
+                devices = subs_by_user.get(user_id, [])
+                # Geo filter — decisão POR USUÁRIO: se qualquer aparelho dele
+                # está no raio, notifica todos os canais dele.
                 coords = [
                     (d["lat"], d["lng"])
                     for d in devices
@@ -882,18 +886,18 @@ def _broadcast_missing_pet(
                     if u_loc:
                         coords = [u_loc]
                 if not coords:
-                    if no_coord_sent >= MAX_NO_COORD_SUB:
-                        skipped += 1
-                        continue
-                    no_coord_sent += 1
-                else:
-                    nearest = min(_haversine_km(c_lat, c_lng, la, ln) for la, ln in coords)
-                    if nearest > radius:
-                        print(f"[broadcast]   skip {user_id[:8]} dist={nearest:.1f}km > {radius}km", flush=True)
-                        skipped += 1
-                        continue
+                    skipped += 1
+                    continue
 
-            targets.append(user_id)
+                nearest = min(_haversine_km(c_lat, c_lng, la, ln) for la, ln in coords)
+                if nearest > radius:
+                    print(f"[broadcast]   skip {user_id[:8]} dist={nearest:.1f}km > {radius}km", flush=True)
+                    skipped += 1
+                    continue
+
+                targets.append(user_id)
+        else:
+            print(f"[broadcast]   sem localização do alerta — nenhum push geolocalizado (pet={mp.id})", flush=True)
 
         # Envio em PARALELO. Antes era um push por vez: cada um é uma ida e
         # volta de rede (FCM/APNs/Web Push) — com N usuários no raio o último
