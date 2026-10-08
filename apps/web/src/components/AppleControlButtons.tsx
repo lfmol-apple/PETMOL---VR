@@ -281,6 +281,7 @@ export function AppleControlButtons({
                 <h3 className="truncate text-[12px] font-black leading-tight text-red-800 min-[390px]:text-[13px]">Pet Sumido</h3>
                 <p className="mt-0.5 truncate text-[9px] font-semibold leading-[1.1] text-red-600/80">Alerta urgente</p>
               </div>
+              <span className="flex-shrink-0 text-lg text-red-300 transition-transform group-hover:translate-x-1">›</span>
             </button>
 
             <button
@@ -311,6 +312,9 @@ export function AppleControlButtons({
                   {nearbyMissingCount === 1 ? 'Pet Sumido' : 'Pets Sumidos'} Perto de você
                 </h3>
               </div>
+              <span className={`flex-shrink-0 text-lg transition-transform group-hover:translate-x-1 ${
+                nearbyMissingCount > 0 ? 'text-rose-200' : 'text-emerald-300'
+              }`}>›</span>
             </button>
           </div>
 
