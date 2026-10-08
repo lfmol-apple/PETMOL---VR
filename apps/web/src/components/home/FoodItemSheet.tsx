@@ -330,6 +330,20 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   const hasFood  = hasFoodConfigured;
   const estEnd   = foodState.restockDate;
 
+  // Mesma régua de 3 níveis que já colore o pontinho de alerta do card
+  // Alimentação da Home (useHomeInteractionCenter: overdue/hoje = critical,
+  // até 7 dias = warning, resto = ok) — reaplicada aqui (11/10/2026, pedido
+  // do dono) pra caixa "X dias restantes" e o botão "Comprar novamente"
+  // também reagirem ao estado real, não ficarem num azul neutro sempre
+  // igual. Cor só na borda/leve tingimento, nunca a superfície toda
+  // (mesma regra já usada em ParasiteItemSheet: "evite grande superfície
+  // rosa/vermelha se uma indicação menor comunica o estado com clareza").
+  const foodTone: 'neutral' | 'critical' | 'warning' | 'ok' =
+    foodState.daysLeft === null ? 'neutral'
+    : foodState.daysLeft <= 0 ? 'critical'
+    : foodState.daysLeft <= 7 ? 'warning'
+    : 'ok';
+
   // Chute (não decisão) pra pré-destacar a opção provável na tela de
   // classificação ração x petisco — baseado no nome do produto escaneado
   // (ver guessFoodKind). O tutor sempre confirma; um falso positivo aqui só
@@ -1404,7 +1418,12 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                         {viewSection === 'racao' && (
                         <>
                           {/* 1. Status principal */}
-                          <div className="rounded-3xl border border-amber-100 bg-amber-50/70 p-4">
+                          <div className={`rounded-3xl border p-4 ${
+                            foodTone === 'critical' ? 'border-red-200 bg-red-50/70'
+                            : foodTone === 'warning' ? 'border-amber-200 bg-amber-50/70'
+                            : foodTone === 'ok' ? 'border-teal-200 bg-teal-50/70'
+                            : 'border-[#D9E6F7] bg-[#F2F6FC]/70'
+                          }`}>
                             {foodState.daysLeft !== null ? (
                               <>
                                 <div className="flex items-end gap-3">
@@ -1416,18 +1435,18 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                                       {foodState.daysLeft <= 0 ? 'Ração acabou' : 'dias restantes'}
                                     </p>
                                     {estEnd && (
-                                      <p className="text-[13px] text-amber-900/70">
+                                      <p className="text-[13px] text-gray-600">
                                         Previsão: <span className="font-semibold text-gray-800">{fmtDateShort(estEnd)}</span>
                                       </p>
                                     )}
                                     {nextReminderDate && (
-                                      <p className="text-[13px] text-amber-900/70">
+                                      <p className="text-[13px] text-gray-600">
                                         Próximo alerta: <span className="font-semibold text-gray-800">{fmtDateShort(nextReminderDate)} às {reminderTime ?? '09:00'}</span>
                                       </p>
                                     )}
                                   </div>
                                 </div>
-                                <p className="mt-3 text-[13px] text-amber-950/70 leading-snug">
+                                <p className="mt-3 text-[13px] text-gray-600 leading-snug">
                                   {foodState.daysLeft <= 0
                                     ? 'Está na hora de repor a ração e registrar o novo ciclo.'
                                     : 'Acompanhe a previsão e compre com calma antes de acabar.'}
@@ -1486,12 +1505,23 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             Registrar reposição
                           </button>
 
+                          {/* Borda/tingimento seguem o mesmo foodTone da caixa
+                              acima — quando tá crítico/em aviso, a borda
+                              engrossa (border-2) pra puxar mais atenção,
+                              igual o botão sólido de produção fazia, só que
+                              sem virar uma superfície vermelha/âmbar inteira
+                              (regra de 07/10/2026 reaproveitada). */}
                           <button type="button"
                             onClick={() => {
                               trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
                               setMode('buy');
                             }}
-                            className="w-full py-3.5 rounded-2xl bg-[#F2F6FC] hover:bg-[#E6EEF9] active:bg-[#DCE7F6] border border-[#BFD4F0] active:scale-[0.97] transition-all text-[#0056D2] text-[15px] font-black flex items-center justify-center gap-2.5"
+                            className={`w-full py-3.5 rounded-2xl active:scale-[0.97] transition-all text-[15px] font-black flex items-center justify-center gap-2.5 ${
+                              foodTone === 'critical' ? 'border-2 border-red-300 bg-red-50 hover:bg-red-100 text-red-700'
+                              : foodTone === 'warning' ? 'border-2 border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800'
+                              : foodTone === 'ok' ? 'border border-teal-200 bg-teal-50 hover:bg-teal-100 text-teal-800'
+                              : 'border border-[#BFD4F0] bg-[#F2F6FC] hover:bg-[#E6EEF9] active:bg-[#DCE7F6] text-[#0056D2]'
+                            }`}
                           >
                             <ShoppingCart className="h-[18px] w-[18px] flex-shrink-0" strokeWidth={2.3} />
                             Comprar novamente
