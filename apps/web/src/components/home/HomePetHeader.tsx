@@ -156,39 +156,29 @@ export function HomePetHeader({
   const [permPopup, setPermPopup] = useState<'push' | 'location' | null>(null);
   const [permBusy, setPermBusy] = useState(false);
 
-  // Aviso temporário "de tempos em tempos" sobre a foto quando push e/ou
-  // localização estão desativados (08/10/2026, pedido do dono: "tem que
-  // incomodar o tutor a ponto dele ativar" — os ícones sozinhos não
-  // bastavam). Ciclo enquanto a Home fica aberta: espera
-  // PERM_NUDGE_INTERVAL_MS, mostra por PERM_NUDGE_VISIBLE_MS, some,
-  // repete. Alterna entre os dois avisos quando ambos estão desativados.
-  // Nunca aparece com o popover de explicação já aberto (evita empilhar).
+  // Aviso temporário sobre a foto quando push e/ou localização estão
+  // desativados — SÓ UMA VEZ por visita à Home (08/10/2026, pedido do
+  // dono: a versão repetindo a cada poucos segundos "ficava chato").
+  // hasShownPermNudgeRef garante isso mesmo com notifOff/locOff mudando
+  // de novo depois (ex.: ativou e desativou) — não reabre sozinho; só
+  // reaparece se a tela for remontada (nova visita à Home).
   const [permNudge, setPermNudge] = useState<'push' | 'location' | null>(null);
+  const hasShownPermNudgeRef = useRef(false);
   useEffect(() => {
     if (permPopup) setPermNudge(null);
   }, [permPopup]);
   useEffect(() => {
-    if (!notifOff && !locOff) { setPermNudge(null); return; }
-    const PERM_NUDGE_INTERVAL_MS = 25_000;
+    if (hasShownPermNudgeRef.current) return;
+    if (!notifOff && !locOff) return;
+    if (permPopup) return;
     const PERM_NUDGE_VISIBLE_MS = 4_500;
-    let hideTimer: ReturnType<typeof setTimeout> | null = null;
-    const tick = () => {
-      if (permPopup) return;
-      setPermNudge((prev) => {
-        if (notifOff && locOff) return prev === 'push' ? 'location' : 'push';
-        return notifOff ? 'push' : 'location';
-      });
-      hideTimer = setTimeout(() => setPermNudge(null), PERM_NUDGE_VISIBLE_MS);
-    };
-    const firstShow = setTimeout(tick, 3_000);
-    const interval = setInterval(tick, PERM_NUDGE_INTERVAL_MS);
-    return () => {
-      clearTimeout(firstShow);
-      clearInterval(interval);
-      if (hideTimer) clearTimeout(hideTimer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [notifOff, locOff]);
+    const showTimer = setTimeout(() => {
+      hasShownPermNudgeRef.current = true;
+      setPermNudge(notifOff ? 'push' : 'location');
+      setTimeout(() => setPermNudge(null), PERM_NUDGE_VISIBLE_MS);
+    }, 3_000);
+    return () => clearTimeout(showTimer);
+  }, [notifOff, locOff, permPopup]);
 
   const activatePush = async () => {
     setPermBusy(true);
