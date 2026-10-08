@@ -2,7 +2,7 @@
 
 import { takePendingDeepLink, withDeepLinkNonce } from '@/lib/deepLinkIntent';
 import { shareAppUrl } from '@/lib/landingLinks';
-import { UserPlus, Share2 } from 'lucide-react';
+import { UserPlus, Share2, ChevronRight } from 'lucide-react';
 import { useBackHandler } from '@/lib/backStack';
 import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -2496,6 +2496,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       >
                         <UserPlus className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2.4} />
                         <span className="truncate">{shareLoading ? 'Gerando link...' : 'Convidar família'}</span>
+                        <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 opacity-60" strokeWidth={2.4} />
                       </button>
 
                       <button
@@ -2504,6 +2505,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       >
                         <Share2 className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2} />
                         <span className="truncate">Compartilhar</span>
+                        <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 opacity-60" strokeWidth={2} />
                       </button>
 
                     </div>
