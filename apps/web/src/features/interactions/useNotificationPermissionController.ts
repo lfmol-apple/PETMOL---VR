@@ -168,10 +168,38 @@ async function getSwRegistration(): Promise<ServiceWorkerRegistration> {
 // Hook
 // ---------------------------------------------------------------------------
 
+// Achado 08/10/2026: no app nativo, o estado inicial deste hook é SEMPRE
+// `false` até a confirmação assíncrona terminar (round-trip real com APNs/FCM
+// + backend, até 15s de timeout — ver registerNativePush). Toda vez que a
+// tela remonta (app voltou do background e o WebView recarregou — comum em
+// iOS sob pressão de memória), o sininho mostrava "desativado" por conta
+// desse piso, mesmo com a subscription real intacta. Guardamos o último
+// estado confirmado e partimos dele, não de `false` — só muda de verdade se
+// a reconfirmação de fato disser que está desativado.
+const PUSH_SUBSCRIBED_CACHE_KEY = 'petmol_push_last_known_subscribed_v1';
+
+function readCachedSubscribed(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.localStorage.getItem(PUSH_SUBSCRIBED_CACHE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeCachedSubscribed(value: boolean): void {
+  try {
+    window.localStorage.setItem(PUSH_SUBSCRIBED_CACHE_KEY, value ? '1' : '0');
+  } catch { /* melhor esforço */ }
+}
+
 export function useNotificationPermissionController() {
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [isSupported, setIsSupported] = useState(false);
-  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [isSubscribed, setIsSubscribedRaw] = useState(readCachedSubscribed);
+  const setIsSubscribed = useCallback((value: boolean) => {
+    setIsSubscribedRaw(value);
+    writeCachedSubscribed(value);
+  }, []);
   const [subscription, setSubscription] = useState<PushSubscription | null>(null);
 
   // Dentro do app nativo (TestFlight/App Store) o push é APNs/FCM via
@@ -245,7 +273,7 @@ export function useNotificationPermissionController() {
       console.error('[push] subscribeToPush falhou', err);
       return null;
     }
-  }, [isNative, isSupported]);
+  }, [isNative, isSupported, setIsSubscribed]);
 
   // ── App nativo (APNs/FCM): estado inicial + auto-registro do token ────────
   useEffect(() => {
@@ -255,7 +283,11 @@ export function useNotificationPermissionController() {
     void (async () => {
       const state = await checkNativePushPermission();
       setPermission(nativeToWebPermission(state));
-      if (state !== 'granted') return;
+      // Permissão negada/revogada no SO é um fato definitivo (ex.: usuário
+      // desativou em Ajustes) — ao contrário de "ainda não reconfirmei",
+      // aqui não dá pra manter o último valor otimista: sem permissão do
+      // SO, nenhum push chega mesmo, então o sininho tem que refletir isso.
+      if (state !== 'granted') { setIsSubscribed(false); return; }
       // Permissão já concedida (build anterior, ou reabertura) → renova o
       // token no backend silenciosamente.
       const token = getToken();
@@ -263,7 +295,7 @@ export function useNotificationPermissionController() {
       const ok = await registerNativePush(token);
       setIsSubscribed(ok);
     })();
-  }, [isNative]);
+  }, [isNative, setIsSubscribed]);
 
   // Detect support and initial state.
   // If a browser subscription already exists, renew it silently so the backend
@@ -334,7 +366,7 @@ export function useNotificationPermissionController() {
       document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('focus', handleVisibility);
     };
-  }, [isNative]);
+  }, [isNative, setIsSubscribed]);
 
   const unsubscribe = useCallback(async (): Promise<void> => {
     if (isNative) {
@@ -351,7 +383,7 @@ export function useNotificationPermissionController() {
       setSubscription(null);
       setIsSubscribed(false);
     }
-  }, [isNative, subscription]);
+  }, [isNative, subscription, setIsSubscribed]);
 
   const sendTestNotification = useCallback(async (): Promise<void> => {
     if (isNative) {
@@ -379,7 +411,7 @@ export function useNotificationPermissionController() {
       await postTestNotification();
       await showLocalTestNotification();
     }
-  }, [isNative, subscribeToPush]);
+  }, [isNative, subscribeToPush, setIsSubscribed]);
 
   return {
     permission,
