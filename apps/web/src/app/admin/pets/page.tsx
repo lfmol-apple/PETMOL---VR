@@ -13,6 +13,7 @@ interface Pet {
   name: string;
   species: string;
   breed?: string;
+  sex?: string;
   birth_date?: string;
   weight_value?: number;
   weight_unit?: string;
@@ -110,6 +111,7 @@ export default function AdminPetsPage() {
     name: '',
     species: '',
     breed: '',
+    sex: '',
     birth_date: '',
     weight_value: '',
     weight_unit: 'kg',
@@ -161,6 +163,7 @@ export default function AdminPetsPage() {
         name: '',
         species: '',
         breed: '',
+        sex: '',
         birth_date: '',
         weight_value: '',
         weight_unit: 'kg',
@@ -186,6 +189,7 @@ export default function AdminPetsPage() {
         name: formData.name,
         species: formData.species,
         breed: formData.breed || undefined,
+        sex: formData.sex || undefined,
         birth_date: formData.birth_date || undefined,
         weight_value: formData.weight_value ? parseFloat(formData.weight_value) : undefined,
         weight_unit: formData.weight_unit || undefined,
@@ -231,6 +235,7 @@ export default function AdminPetsPage() {
       name: '',
       species: '',
       breed: '',
+      sex: '',
       birth_date: '',
       weight_value: '',
       weight_unit: 'kg',
@@ -245,6 +250,7 @@ export default function AdminPetsPage() {
       name: pet.name,
       species: pet.species,
       breed: pet.breed || '',
+      sex: pet.sex || '',
       birth_date: pet.birth_date || '',
       weight_value: pet.weight_value?.toString() || '',
       weight_unit: pet.weight_unit || 'kg',
@@ -390,6 +396,18 @@ export default function AdminPetsPage() {
                   />
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Sexo</label>
+                  <select
+                    value={formData.sex}
+                    onChange={(e) => setFormData({ ...formData, sex: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056D2] focus:border-transparent"
+                  >
+                    <option value="">Não informado</option>
+                    <option value="male">Macho</option>
+                    <option value="female">Fêmea</option>
+                  </select>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento (opcional)</label>
                   <input
                     type="date"
@@ -478,6 +496,9 @@ export default function AdminPetsPage() {
                       Espécie/Raça
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Sexo
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Data Nascimento
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -504,6 +525,11 @@ export default function AdminPetsPage() {
                         <div className="text-sm text-gray-900">
                           {pet.species}
                           {pet.breed && <span className="text-gray-500"> • {pet.breed}</span>}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {pet.sex === 'male' ? 'Macho' : pet.sex === 'female' ? 'Fêmea' : '-'}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
