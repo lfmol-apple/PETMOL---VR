@@ -203,7 +203,7 @@ export function HomeNavigationModals({
                       onCloseHealthOptionsModal();
                       onOpenHealthTab(tab);
                     }}
-                    className={`group relative overflow-hidden border border-[#D9E6F7] bg-gradient-to-br from-white to-[#F2F6FC] rounded-[20px] p-3 h-[108px] transition-all duration-200 hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-center shadow-[0_2px_10px_-2px_rgba(15,23,42,0.08)] hover:shadow-[0_8px_24px_-6px_rgba(15,23,42,0.14)] ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
+                    className={`group relative overflow-hidden border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] rounded-2xl p-3 h-[108px] transition-all duration-200 hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-center shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
                   >
                     {shouldShowAlert(tone, alert) && <ControlAlertBadge tone={tone} />}
                     {isEmergency && (

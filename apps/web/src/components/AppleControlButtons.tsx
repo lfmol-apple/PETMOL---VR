@@ -155,7 +155,7 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onAlimentacaoClick}
-            className="group relative min-h-[76px] overflow-hidden rounded-[20px] border border-[#D9E6F7] bg-gradient-to-br from-white to-[#F2F6FC] p-3 shadow-[0_2px_10px_-2px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(15,23,42,0.14)] active:scale-95 min-[390px]:min-h-[86px] min-[390px]:p-3.5"
+            className="group relative min-h-[76px] overflow-hidden rounded-xl border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] p-2.5 shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] active:scale-95 min-[390px]:min-h-[86px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             {(!hasFoodData || shouldShowAlert(colorFood, alertFood)) && (
               <AlertDot tone={!hasFoodData ? 'critical' : colorFood} />
@@ -177,7 +177,7 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onHealthClick}
-            className="group relative min-h-[76px] overflow-hidden rounded-[20px] border border-[#D9E6F7] bg-gradient-to-br from-white to-[#F2F6FC] p-3 shadow-[0_2px_10px_-2px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(15,23,42,0.14)] active:scale-95 min-[390px]:min-h-[86px] min-[390px]:p-3.5"
+            className="group relative min-h-[76px] overflow-hidden rounded-xl border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] p-2.5 shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] active:scale-95 min-[390px]:min-h-[86px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             {shouldShowAlert(colorHealth, alertHealth) && <AlertDot tone={colorHealth} />}
             <div className="relative z-10 flex h-full flex-col justify-center text-left">
@@ -193,7 +193,7 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onVaccinesClick}
-            className="group relative min-h-[84px] overflow-hidden rounded-[20px] border border-[#D9E6F7] bg-gradient-to-br from-white to-[#F2F6FC] p-3 shadow-[0_2px_10px_-2px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(15,23,42,0.14)] active:scale-95 min-[390px]:min-h-[96px] min-[390px]:p-3.5"
+            className="group relative min-h-[84px] overflow-hidden rounded-xl border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] p-2.5 shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] active:scale-95 min-[390px]:min-h-[96px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             {shouldShowAlert(colorVaccines, alertVaccines) && <AlertDot tone={colorVaccines} />}
             <div className="relative z-10 flex h-full flex-col justify-center text-left">
@@ -215,7 +215,7 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onShoppingClick}
-            className="group relative min-h-[84px] overflow-hidden rounded-[20px] border border-[#D9E6F7] bg-gradient-to-br from-white to-[#F2F6FC] p-3 shadow-[0_2px_10px_-2px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(15,23,42,0.14)] active:scale-95 min-[390px]:min-h-[96px] min-[390px]:p-3.5"
+            className="group relative min-h-[84px] overflow-hidden rounded-xl border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] p-2.5 shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] active:scale-95 min-[390px]:min-h-[96px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             <div className="relative z-10 flex h-full flex-col justify-center text-left">
               <h3 className="line-clamp-2 break-words text-[16px] font-black leading-tight tracking-tight text-[#0B1E36] min-[390px]:text-[17px] sm:text-lg">{shoppingTitle}</h3>
