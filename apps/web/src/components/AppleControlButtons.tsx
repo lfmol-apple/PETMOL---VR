@@ -207,7 +207,7 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onVaccinesClick}
-            className="group relative min-h-[84px] overflow-hidden rounded-xl border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] p-2.5 shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] active:scale-95 min-[390px]:min-h-[96px] min-[390px]:rounded-2xl min-[390px]:p-3"
+            className="group relative min-h-[76px] overflow-hidden rounded-xl border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] p-2.5 shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] active:scale-95 min-[390px]:min-h-[86px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             {shouldShowAlert(colorVaccines, alertVaccines) && <AlertDot tone={colorVaccines} />}
             <div className="relative z-10 flex h-full items-start gap-1 text-left">
@@ -232,7 +232,7 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onShoppingClick}
-            className="group relative min-h-[84px] overflow-hidden rounded-xl border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] p-2.5 shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] active:scale-95 min-[390px]:min-h-[96px] min-[390px]:rounded-2xl min-[390px]:p-3"
+            className="group relative min-h-[76px] overflow-hidden rounded-xl border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] p-2.5 shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] active:scale-95 min-[390px]:min-h-[86px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             <div className="relative z-10 flex h-full items-start gap-1 text-left">
               <div className="min-w-0 flex-1">
