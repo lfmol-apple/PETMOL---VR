@@ -1505,21 +1505,25 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             Registrar reposição
                           </button>
 
-                          {/* Borda/tingimento seguem o mesmo foodTone da caixa
-                              acima — quando tá crítico/em aviso, a borda
-                              engrossa (border-2) pra puxar mais atenção,
-                              igual o botão sólido de produção fazia, só que
-                              sem virar uma superfície vermelha/âmbar inteira
-                              (regra de 07/10/2026 reaproveitada). */}
+                          {/* Formato sólido/preenchido igual produção (pedido
+                              explícito do dono, 11/10/2026: "padrão de
+                              exibição da produção, botão comprar verde...
+                              porém com as novas regras de cores internas que
+                              definimos hj") — mas a cor não é mais um verde
+                              fixo, segue o mesmo foodTone da caixa acima:
+                              vermelho sólido se crítico, âmbar se em aviso,
+                              verde sólido só quando realmente tá tranquilo.
+                              Sem dado ainda (neutral), mantém o contorno
+                              gelo de sempre. */}
                           <button type="button"
                             onClick={() => {
                               trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
                               setMode('buy');
                             }}
                             className={`w-full py-3.5 rounded-2xl active:scale-[0.97] transition-all text-[15px] font-black flex items-center justify-center gap-2.5 ${
-                              foodTone === 'critical' ? 'border-2 border-red-300 bg-red-50 hover:bg-red-100 text-red-700'
-                              : foodTone === 'warning' ? 'border-2 border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800'
-                              : foodTone === 'ok' ? 'border border-teal-200 bg-teal-50 hover:bg-teal-100 text-teal-800'
+                              foodTone === 'critical' ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-900/20'
+                              : foodTone === 'warning' ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-900/20'
+                              : foodTone === 'ok' ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-900/20'
                               : 'border border-[#BFD4F0] bg-[#F2F6FC] hover:bg-[#E6EEF9] active:bg-[#DCE7F6] text-[#0056D2]'
                             }`}
                           >
