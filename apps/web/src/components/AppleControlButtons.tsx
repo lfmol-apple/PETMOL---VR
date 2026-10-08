@@ -2,6 +2,7 @@
 
 import { useBackHandler } from '@/lib/backStack';
 import { useState } from 'react';
+import { ChevronRight } from 'lucide-react';
 import { useI18n } from '@/lib/I18nContext';
 import { type HomeInactiveEligibleControlId } from '@/lib/homeControlPreferences';
 import { PetHealthPlanCard } from '@/components/home/PetHealthPlanCard';
@@ -69,14 +70,17 @@ function shouldShowAlert(tone?: ControlTone, fallbackAlert?: boolean) {
   return fallbackAlert === true;
 }
 
+// Canto superior DIREITO (08/10/2026, pedido do dono: o pontinho no canto
+// esquerdo brigava com o título, que também começa ali). Padronizado nos 4
+// cards principais — nunca mais no esquerdo.
 function AlertDot({ tone = 'critical' }: { tone?: ControlTone }) {
   if (tone === 'warning') {
     return (
-      <span className="absolute left-2.5 top-2.5 z-10 h-2 w-2 animate-pulse rounded-full bg-amber-400 ring-2 ring-amber-300/60 ring-offset-1" />
+      <span className="absolute right-2.5 top-2.5 z-10 h-2 w-2 animate-pulse rounded-full bg-amber-400 ring-2 ring-amber-300/60 ring-offset-1" />
     );
   }
   return (
-    <span className="absolute left-2.5 top-2.5 z-10 h-2 w-2 animate-pulse rounded-full bg-rose-500 ring-2 ring-rose-400/60 ring-offset-1" />
+    <span className="absolute right-2.5 top-2.5 z-10 h-2 w-2 animate-pulse rounded-full bg-rose-500 ring-2 ring-rose-400/60 ring-offset-1" />
   );
 }
 
@@ -164,16 +168,19 @@ export function AppleControlButtons({
             {(!hasFoodData || shouldShowAlert(colorFood, alertFood)) && (
               <AlertDot tone={!hasFoodData ? 'critical' : colorFood} />
             )}
-            <div className="flex h-full flex-col justify-center text-left">
-              <h3 className="line-clamp-2 text-[14px] font-black leading-tight tracking-tight text-[#0B1E36] min-[390px]:text-[15px] sm:text-base">{foodTitle || t('home.food.title')}</h3>
-              <p className={`mt-1 ${foodIsDense ? 'line-clamp-2' : 'line-clamp-1 min-[390px]:line-clamp-2'} text-[11px] leading-snug min-[390px]:text-xs sm:text-sm ${!hasFoodData ? 'font-bold text-red-700' : 'text-[#5B6B82]'}`}>
-                {foodHeadlineText}
-              </p>
-              {foodSubline && hasFoodData && (
-                <p className="mt-0.5 line-clamp-1 text-[11px] font-bold leading-snug text-[#0B1E36] min-[390px]:mt-1 min-[390px]:text-xs sm:text-sm">
-                  {foodSubline}
+            <div className="relative z-10 flex h-full items-center gap-1 text-left">
+              <div className="min-w-0 flex-1">
+                <h3 className="line-clamp-2 text-[14px] font-black leading-tight tracking-tight text-[#0B1E36] min-[390px]:text-[15px] sm:text-base">{foodTitle || t('home.food.title')}</h3>
+                <p className={`mt-1 ${foodIsDense ? 'line-clamp-2' : 'line-clamp-1 min-[390px]:line-clamp-2'} text-[11px] leading-snug min-[390px]:text-xs sm:text-sm ${!hasFoodData ? 'font-bold text-red-700' : 'text-[#5B6B82]'}`}>
+                  {foodHeadlineText}
                 </p>
-              )}
+                {foodSubline && hasFoodData && (
+                  <p className="mt-0.5 line-clamp-1 text-[11px] font-bold leading-snug text-[#0B1E36] min-[390px]:mt-1 min-[390px]:text-xs sm:text-sm">
+                    {foodSubline}
+                  </p>
+                )}
+              </div>
+              <ChevronRight className="h-4 w-4 flex-shrink-0 text-[#8EA9C9] transition-transform group-hover:translate-x-0.5" strokeWidth={2.5} />
             </div>
           </button>
 
@@ -184,9 +191,12 @@ export function AppleControlButtons({
             className="group relative min-h-[76px] overflow-hidden rounded-xl border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] p-2.5 shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] active:scale-95 min-[390px]:min-h-[86px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             {shouldShowAlert(colorHealth, alertHealth) && <AlertDot tone={colorHealth} />}
-            <div className="relative z-10 flex h-full flex-col justify-center text-left">
-              <h3 className="line-clamp-1 break-words text-[17px] font-black leading-tight tracking-tight text-[#0B1E36] min-[390px]:text-[18px] sm:text-lg">Cuidados</h3>
-              <p className="mt-1 line-clamp-2 break-words text-[11px] leading-snug text-[#5B6B82] min-[390px]:text-xs sm:text-sm">{healthHeadlineText}</p>
+            <div className="relative z-10 flex h-full items-center gap-1 text-left">
+              <div className="min-w-0 flex-1">
+                <h3 className="line-clamp-1 break-words text-[14px] font-black leading-tight tracking-tight text-[#0B1E36] min-[390px]:text-[15px] sm:text-base">Cuidados</h3>
+                <p className="mt-1 line-clamp-2 break-words text-[11px] leading-snug text-[#5B6B82] min-[390px]:text-xs sm:text-sm">{healthHeadlineText}</p>
+              </div>
+              <ChevronRight className="h-4 w-4 flex-shrink-0 text-[#8EA9C9] transition-transform group-hover:translate-x-0.5" strokeWidth={2.5} />
             </div>
           </button>
 
@@ -200,11 +210,14 @@ export function AppleControlButtons({
             className="group relative min-h-[84px] overflow-hidden rounded-xl border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] p-2.5 shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] active:scale-95 min-[390px]:min-h-[96px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             {shouldShowAlert(colorVaccines, alertVaccines) && <AlertDot tone={colorVaccines} />}
-            <div className="relative z-10 flex h-full flex-col justify-center text-left">
-              <h3 className="line-clamp-1 break-words text-[17px] font-black leading-tight tracking-tight text-[#0B1E36] min-[390px]:text-[18px] sm:text-lg">
-                Vacina
-              </h3>
-              <p className="mt-1 line-clamp-2 break-words text-[11px] leading-snug text-[#5B6B82] min-[390px]:text-xs sm:text-sm">{vaccineHeadlineText}</p>
+            <div className="relative z-10 flex h-full items-center gap-1 text-left">
+              <div className="min-w-0 flex-1">
+                <h3 className="line-clamp-1 break-words text-[14px] font-black leading-tight tracking-tight text-[#0B1E36] min-[390px]:text-[15px] sm:text-base">
+                  Vacina
+                </h3>
+                <p className="mt-1 line-clamp-2 break-words text-[11px] leading-snug text-[#5B6B82] min-[390px]:text-xs sm:text-sm">{vaccineHeadlineText}</p>
+              </div>
+              <ChevronRight className="h-4 w-4 flex-shrink-0 text-[#8EA9C9] transition-transform group-hover:translate-x-0.5" strokeWidth={2.5} />
             </div>
           </button>
 
@@ -221,9 +234,12 @@ export function AppleControlButtons({
             onClick={onShoppingClick}
             className="group relative min-h-[84px] overflow-hidden rounded-xl border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] p-2.5 shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] active:scale-95 min-[390px]:min-h-[96px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
-            <div className="relative z-10 flex h-full flex-col justify-center text-left">
-              <h3 className="line-clamp-2 break-words text-[14px] font-black leading-tight tracking-tight text-[#0B1E36] min-[390px]:text-[15px] sm:text-base">{shoppingTitle}</h3>
-              <p className="mt-1 line-clamp-2 break-words text-[11px] leading-snug text-[#5B6B82] min-[390px]:text-xs sm:text-sm">Tudo que {petName || 'seu pet'} usa</p>
+            <div className="relative z-10 flex h-full items-center gap-1 text-left">
+              <div className="min-w-0 flex-1">
+                <h3 className="line-clamp-2 break-words text-[14px] font-black leading-tight tracking-tight text-[#0B1E36] min-[390px]:text-[15px] sm:text-base">{shoppingTitle}</h3>
+                <p className="mt-1 line-clamp-2 break-words text-[11px] leading-snug text-[#5B6B82] min-[390px]:text-xs sm:text-sm">Tudo que {petName || 'seu pet'} usa</p>
+              </div>
+              <ChevronRight className="h-4 w-4 flex-shrink-0 text-[#8EA9C9] transition-transform group-hover:translate-x-0.5" strokeWidth={2.5} />
             </div>
           </button>
 
