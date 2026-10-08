@@ -34,7 +34,7 @@ const DOG_BREEDS = [
   'Mastiff Napolitano', 'Mastiff Tibetano', 'Miniature Pinscher',
   'Old English Sheepdog', 'Papillón', 'Pastor Alemão',
   'Pastor Australiano', 'Pastor Belga Malinois', 'Pastor de Berna',
-  'Pekingese', 'Pinscher Miniatura', 'Pit Bull Terrier', 'Pointer',
+  'Pastor Maremmano Abruzzese', 'Pekingese', 'Pinscher Miniatura', 'Pit Bull Terrier', 'Pointer',
   'Pomerânia (Spitz Anão)', 'Poodle Gigante', 'Poodle Médio', 'Poodle Miniatura', 'Poodle Toy',
   'Pug', 'Rottweiler', 'Saluki', 'Samoyed',
   'Schnauzer Gigante', 'Schnauzer Médio', 'Schnauzer Miniatura',
@@ -384,14 +384,29 @@ function BreedPicker({ species, value, onChange }: { species: string; value: str
               >✕</button>
             </div>
             <div className="overflow-y-auto flex-1 min-h-0 overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
+              {/* Raça não listada (relatado por tutor, 08/10/2026 — "Pastor
+                  Maremmano Abruzzi" não existia aqui nem em nenhuma lista
+                  fixa): busca sem resultado oferece usar o texto digitado
+                  como raça, em vez de travar no tutor. "Outro" no fim da
+                  lista leva pro mesmo lugar (focar a busca) em vez de
+                  literalmente salvar "Outro" como raça. */}
+              {q && filtered.length === 0 && (
+                <button
+                  type="button"
+                  onClick={() => select(query.trim())}
+                  className="w-full text-left px-5 py-[18px] text-[17px] border-b border-slate-100 text-blue-700 font-semibold active:bg-blue-50 transition-colors"
+                >
+                  Usar &ldquo;{query.trim()}&rdquo; como raça
+                </button>
+              )}
               {filtered.map(b => (
                 <button
                   key={b}
                   type="button"
-                  onClick={() => select(b)}
+                  onClick={() => b === 'Outro' ? searchRef.current?.focus() : select(b)}
                   className={`w-full text-left px-5 py-[18px] text-[17px] border-b border-slate-100 last:border-b-0 active:bg-blue-50 transition-colors ${b === value ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-800'}`}
                 >
-                  {b}
+                  {b === 'Outro' ? 'Outro (digitar raça)' : b}
                 </button>
               ))}
             </div>
