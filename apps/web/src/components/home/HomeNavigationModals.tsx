@@ -2,6 +2,7 @@
 
 import { useBackHandler } from '@/lib/backStack';
 import { useState } from 'react';
+import { ChevronRight } from 'lucide-react';
 import { useI18n } from '@/lib/I18nContext';
 import { ModalPortal } from '@/components/ModalPortal';
 import { PETMOL_HEADER_BG } from '@/components/ui/sheet';
@@ -203,16 +204,21 @@ export function HomeNavigationModals({
                       onCloseHealthOptionsModal();
                       onOpenHealthTab(tab);
                     }}
-                    className={`group relative overflow-hidden border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] rounded-2xl p-3 h-[108px] transition-all duration-200 hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-center shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
+                    className={`group relative overflow-hidden border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] rounded-2xl p-3 h-[108px] transition-all duration-200 hover:-translate-y-1 active:scale-95 text-left flex items-start shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
                   >
                     {shouldShowAlert(tone, alert) && <ControlAlertBadge tone={tone} />}
                     {isEmergency && (
                       <span className="pointer-events-none absolute right-2 top-2 h-6 w-6 rounded-full bg-red-300/35 blur-md animate-pulse" />
                     )}
-                    <div className="relative">
-                      <span className={`text-[17px] font-black leading-tight block transition-transform group-hover:translate-x-0.5 ${isEmergency ? 'text-red-700' : 'text-[#0B1E36]'}`}>{label}</span>
+                    {/* Mesma formatação dos 4 cards principais da Home
+                        (08/10/2026, pedido do dono, imagem de referência):
+                        título à esquerda (peso bold, não mais black) +
+                        ">" à direita centralizado na altura do card. */}
+                    <div className="relative min-w-0 flex-1">
+                      <span className={`text-[15px] font-bold leading-tight block ${isEmergency ? 'text-red-700' : 'text-[#0B1E36]'}`}>{label}</span>
                       <span className={`text-[10px] font-black uppercase tracking-widest mt-1 block ${isEmergency ? 'text-red-500/80' : 'text-[#5B6B82]'}`}>{isEmergency ? 'Clínicas e hospitais 24h' : tab === 'petshops' ? 'Perto de você' : 'Acompanhar'}</span>
                     </div>
+                    <ChevronRight className={`h-4 w-4 flex-shrink-0 self-center transition-transform group-hover:translate-x-0.5 ${isEmergency ? 'text-red-300' : 'text-[#8EA9C9]'}`} strokeWidth={2.5} />
                   </button>
                 )})}
               </div>
