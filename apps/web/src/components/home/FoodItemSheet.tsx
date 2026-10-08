@@ -1249,7 +1249,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                           setFormRequest({ id: Date.now(), mode: 'quick_setup' });
                           setMode('edit');
                         }}
-                        className="w-full py-3 rounded-2xl border border-[#BFD4F0] bg-[#F2F6FC] text-[14px] font-black text-[#0056D2] active:scale-[0.98] transition-all"
+                        className="w-full py-3 rounded-2xl border border-emerald-200 bg-emerald-50 text-[14px] font-black text-emerald-800 active:scale-[0.98] transition-all"
                       >
                         Já tenho a ração — registrar aqui
                       </button>
@@ -1371,9 +1371,9 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: null });
                             setMode('buy');
                           }}
-                          className="w-full flex items-center justify-center gap-2.5 min-h-[52px] rounded-2xl bg-[#F2F6FC] hover:bg-[#E6EEF9] active:bg-[#DCE7F6] border border-[#BFD4F0] px-4 text-[14px] font-bold text-[#0056D2] active:scale-[0.98] transition-all"
+                          className="w-full flex items-center justify-center gap-2.5 min-h-[52px] rounded-2xl bg-emerald-500 hover:bg-emerald-600 px-4 text-[14px] font-bold text-white shadow-md shadow-emerald-500/25 active:scale-[0.98] transition-all"
                         >
-                          <ShoppingCart className="h-[18px] w-[18px] flex-shrink-0" strokeWidth={2.3} />
+                          <span className="text-lg">🛒</span>
                           Comprar ração
                         </button>
 
@@ -1505,29 +1505,27 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             Registrar reposição
                           </button>
 
-                          {/* Formato sólido/preenchido igual produção (pedido
-                              explícito do dono, 11/10/2026: "padrão de
-                              exibição da produção, botão comprar verde...
-                              porém com as novas regras de cores internas que
-                              definimos hj") — mas a cor não é mais um verde
-                              fixo, segue o mesmo foodTone da caixa acima:
-                              vermelho sólido se crítico, âmbar se em aviso,
-                              verde sólido só quando realmente tá tranquilo.
-                              Sem dado ainda (neutral), mantém o contorno
-                              gelo de sempre. */}
+                          {/* Base IDÊNTICA à produção (bg-emerald-500,
+                              shadow, emoji 🛒) — pedido explícito do dono,
+                              11/10/2026, depois de uma tentativa com
+                              green-600 que ele considerou errada. Produção
+                              não tem noção de urgência nenhuma (sempre esse
+                              mesmo verde); a única coisa nova é a régua de
+                              foodTone SOBRESCREVENDO pra vermelho/âmbar
+                              quando tá crítico/em aviso — fora isso, pixel
+                              igual ao botão de produção. */}
                           <button type="button"
                             onClick={() => {
                               trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
                               setMode('buy');
                             }}
-                            className={`w-full py-3.5 rounded-2xl active:scale-[0.97] transition-all text-[15px] font-black flex items-center justify-center gap-2.5 ${
-                              foodTone === 'critical' ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-900/20'
-                              : foodTone === 'warning' ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-900/20'
-                              : foodTone === 'ok' ? 'bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-900/20'
-                              : 'border border-[#BFD4F0] bg-[#F2F6FC] hover:bg-[#E6EEF9] active:bg-[#DCE7F6] text-[#0056D2]'
+                            className={`w-full py-3.5 rounded-2xl active:scale-[0.97] transition-all text-[15px] font-black text-white flex items-center justify-center gap-2.5 ${
+                              foodTone === 'critical' ? 'bg-red-600 hover:bg-red-700 shadow-lg shadow-red-900/20'
+                              : foodTone === 'warning' ? 'bg-amber-500 hover:bg-amber-600 shadow-lg shadow-amber-900/20'
+                              : 'bg-emerald-500 hover:bg-emerald-600 shadow-md shadow-emerald-500/25'
                             }`}
                           >
-                            <ShoppingCart className="h-[18px] w-[18px] flex-shrink-0" strokeWidth={2.3} />
+                            <span className="text-lg">🛒</span>
                             Comprar novamente
                           </button>
 
@@ -1647,9 +1645,9 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                                       });
                                       setMode('buy');
                                     }}
-                                    className="w-full rounded-2xl bg-[#F2F6FC] hover:bg-[#E6EEF9] border border-[#BFD4F0] px-4 py-3 min-h-[48px] text-[14px] font-black text-[#0056D2] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                                    className="w-full rounded-2xl bg-emerald-500 hover:bg-emerald-600 px-4 py-3 min-h-[48px] text-[14px] font-black text-white active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                                   >
-                                    <ShoppingCart className="h-4 w-4 flex-shrink-0" strokeWidth={2.3} />
+                                    <span>🛒</span>
                                     Comprar novamente
                                   </button>
                                   <button
@@ -1774,9 +1772,9 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                               setSubMode('main');
                               setMode('buy');
                             }}
-                            className="w-full py-3 rounded-2xl bg-[#F2F6FC] hover:bg-[#E6EEF9] border border-[#BFD4F0] active:scale-[0.98] transition-all text-[#0056D2] text-[14px] font-black flex items-center justify-center gap-2"
+                            className="w-full py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] transition-all text-white text-[14px] font-black shadow-sm shadow-emerald-500/20 flex items-center justify-center gap-2"
                           >
-                            <ShoppingCart className="h-4 w-4 flex-shrink-0" strokeWidth={2.3} />
+                            <span>🛒</span>
                             Ainda não comprei — ir para Comprar
                           </button>
 
