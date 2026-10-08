@@ -446,8 +446,10 @@ export function HomePetHeader({
             ficou invisível). Agora SEMPRE visíveis, os dois estados —
             Bell/MapPin azul quando ativo, BellOff/MapPinOff âmbar quando
             não. Nunca vermelho, nunca toggle (ver renderPermPopup: tocar
-            ativo só confirma, nunca desativa). */}
-        <div className="absolute left-2.5 top-2.5 z-20 flex items-center gap-1.5 sm:left-3 sm:top-3">
+            ativo só confirma, nunca desativa). Empilhados na vertical
+            (11/10/2026, pedido do dono) — Localização embaixo de
+            Notificações, não mais lado a lado. */}
+        <div className="absolute left-2.5 top-2.5 z-20 flex flex-col items-center gap-1.5 sm:left-3 sm:top-3">
           <button
             type="button"
             onClick={() => setPermPopup('push')}
