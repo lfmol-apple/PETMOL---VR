@@ -9,7 +9,6 @@ import { PetShopsNearbySheet } from '@/components/home/PetShopsNearbySheet';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { MEDICATIONS_ENABLED } from '@/lib/featureFlags';
 import type { PetHealthProfile } from '@/lib/petHealth';
-import { careAssetSrc } from '@/lib/careAssets';
 
 type ControlTone = 'neutral' | 'ok' | 'warning' | 'critical';
 
@@ -139,27 +138,26 @@ export function HomeNavigationModals({
             >
               <div className="grid grid-cols-2 gap-2 mb-1">
                 {[
-                  // Família única do redesign premium (07/10/2026): base
-                  // azul-gelo comum pros 6 — a arte .webp é que diferencia,
-                  // não mais um degradê saturado próprio por card. `icon` é
-                  // fallback morto (o `image` sempre existe).
-                  { icon: '🪱', image: careAssetSrc('dewormer'), label: 'Vermífugo', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
-                  { icon: '🛡️', image: careAssetSrc('fleaTick'), label: 'Antipulgas', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
+                  // Reviravolta 11/10/2026 (pedido do dono): sem emoji/arte
+                  // nenhuma nos 6 cards — o título carrega o card sozinho,
+                  // com mais destaque tipográfico no lugar do ícone.
+                  { label: 'Vermífugo', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
+                  { label: 'Antipulgas', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
                   // Coleira antiparasitária é uso específico de cães — outras espécies não usam
                   ...(currentPet?.species === 'dog'
-                    ? [{ icon: '📿', image: careAssetSrc('collar'), label: 'Coleira', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
+                    ? [{ label: 'Coleira', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
                     : []),
-                  { icon: '🛁', image: careAssetSrc('grooming'), label: 'Banho e Tosa', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
+                  { label: 'Banho e Tosa', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
                   // Medicamentos desativados no PETMOL 1.0 (ver
                   // docs/MEDICAMENTOS_DESATIVADOS.md) — mesmo padrão do
                   // filtro de espécie da Coleira acima, condicional na
                   // própria montagem do array.
                   ...(MEDICATIONS_ENABLED
-                    ? [{ icon: '💊', image: careAssetSrc('medication'), label: 'Medicação', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue }]
+                    ? [{ label: 'Medicação', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue }]
                     : []),
                   // Busca de estabelecimento (Maps) — saiu da Home, é mais um card aqui em Cuidados.
-                  { icon: '🏪', image: careAssetSrc('petshops'), label: 'PetShops', tab: 'petshops', alert: false, tone: undefined },
-                ].map(({ icon, image, label, tab, alert, tone }) => {
+                  { label: 'PetShops', tab: 'petshops', alert: false, tone: undefined },
+                ].map(({ label, tab, alert, tone }) => {
                   const isEmergency = tab === 'emergency';
 
                   return (
@@ -205,42 +203,15 @@ export function HomeNavigationModals({
                       onCloseHealthOptionsModal();
                       onOpenHealthTab(tab);
                     }}
-                    className={`group relative overflow-hidden border border-[#D9E6F7] bg-gradient-to-br from-white to-[#F2F6FC] rounded-[20px] p-3 h-[108px] transition-all duration-200 hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-end shadow-[0_2px_10px_-2px_rgba(15,23,42,0.08)] hover:shadow-[0_8px_24px_-6px_rgba(15,23,42,0.14)] ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
+                    className={`group relative overflow-hidden border border-[#D9E6F7] bg-gradient-to-br from-white to-[#F2F6FC] rounded-[20px] p-3 h-[108px] transition-all duration-200 hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-center shadow-[0_2px_10px_-2px_rgba(15,23,42,0.08)] hover:shadow-[0_8px_24px_-6px_rgba(15,23,42,0.14)] ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
                   >
                     {shouldShowAlert(tone, alert) && <ControlAlertBadge tone={tone} />}
-                    {image ? (
-                      // Posição/tamanho EXATAMENTE os da produção (pedido
-                      // explícito do dono, 10/10/2026) — não mais o ajuste
-                      // "óptico" feito hoje de manhã nem a redução feita hoje
-                      // à tarde, as duas ainda deixavam o ícone perto demais
-                      // do texto. Produção já tinha isso calibrado por tab
-                      // (flea_tick pequeno e mais baixo, medication não-
-                      // quadrado e mais alto) — portado ao pé da letra; só a
-                      // imagem (asset 3D novo) é diferente de produção.
-                      <span className={`absolute transition-transform duration-300 group-hover:scale-110 ${tab === 'flea_tick' ? 'top-6 right-4' : tab === 'medication' ? 'top-2 right-1' : 'top-1 right-1'}`}>
-                        <img
-                          src={image}
-                          alt=""
-                          className={
-                            tab === 'collar'
-                              ? 'h-[68px] w-[68px] object-contain'
-                              : tab === 'flea_tick'
-                                ? 'h-[32px] w-[32px] object-contain'
-                                : tab === 'medication'
-                                  ? 'h-[50px] w-[70px] object-contain'
-                                  : 'h-[62px] w-[62px] object-contain'
-                          }
-                        />
-                      </span>
-                    ) : (
-                      <span className={`absolute text-[32px] leading-none transition-transform duration-300 group-hover:scale-110 ${tab === 'medication' ? 'top-6 right-4' : 'top-1 right-1'} ${isEmergency ? 'opacity-100 drop-shadow-[0_0_10px_rgba(239,68,68,0.28)]' : 'opacity-95'}`}>{icon}</span>
-                    )}
                     {isEmergency && (
                       <span className="pointer-events-none absolute right-2 top-2 h-6 w-6 rounded-full bg-red-300/35 blur-md animate-pulse" />
                     )}
                     <div className="relative">
-                      <span className={`text-[14px] font-bold leading-tight block ${isEmergency ? 'text-red-700' : 'text-[#0B1E36]'}`}>{label}</span>
-                      <span className={`text-[9px] font-black uppercase tracking-widest mt-0.5 block ${isEmergency ? 'text-red-500/80' : 'text-[#5B6B82]'}`}>{isEmergency ? 'Clínicas e hospitais 24h' : tab === 'petshops' ? 'Perto de você' : 'Acompanhar'}</span>
+                      <span className={`text-[17px] font-black leading-tight block transition-transform group-hover:translate-x-0.5 ${isEmergency ? 'text-red-700' : 'text-[#0B1E36]'}`}>{label}</span>
+                      <span className={`text-[10px] font-black uppercase tracking-widest mt-1 block ${isEmergency ? 'text-red-500/80' : 'text-[#5B6B82]'}`}>{isEmergency ? 'Clínicas e hospitais 24h' : tab === 'petshops' ? 'Perto de você' : 'Acompanhar'}</span>
                     </div>
                   </button>
                 )})}
