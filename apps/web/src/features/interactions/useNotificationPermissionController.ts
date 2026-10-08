@@ -283,11 +283,21 @@ export function useNotificationPermissionController() {
     void (async () => {
       const state = await checkNativePushPermission();
       setPermission(nativeToWebPermission(state));
-      // Permissão negada/revogada no SO é um fato definitivo (ex.: usuário
-      // desativou em Ajustes) — ao contrário de "ainda não reconfirmei",
-      // aqui não dá pra manter o último valor otimista: sem permissão do
-      // SO, nenhum push chega mesmo, então o sininho tem que refletir isso.
-      if (state !== 'granted') { setIsSubscribed(false); return; }
+      if (state !== 'granted') {
+        // ACHADO 08/10/2026 (regressão da própria correção anterior):
+        // checkNativePushPermission() tem um timeout de 6s e, se o plugin
+        // nativo ainda não respondeu (comum logo que o app volta do
+        // background — a ponte nativa do Capacitor ainda se reconectando),
+        // ele cai em 'denied' por FALHA DE LEITURA, não porque o usuário
+        // realmente desativou nada. Tratar isso como definitivo apagava o
+        // sininho sozinho depois de alguns segundos, mesmo com o Perfil
+        // mostrando a notificação ativa. Sem um sinal confiável de recusa
+        // de verdade (ver TODO abaixo), o jeito seguro é não decidir nada
+        // aqui — mantém o último estado confirmado (cache) até a
+        // reconfirmação real (reabrir o Perfil, tocar no sininho) dizer
+        // algo melhor.
+        return;
+      }
       // Permissão já concedida (build anterior, ou reabertura) → renova o
       // token no backend silenciosamente.
       const token = getToken();

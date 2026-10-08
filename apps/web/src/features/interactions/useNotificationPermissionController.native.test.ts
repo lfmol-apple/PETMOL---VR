@@ -4,6 +4,17 @@
  * backend, até 15s) terminar. Toda vez que o WebView recarregava ao voltar
  * do background (comum em iOS sob pressão de memória), o ícone piscava
  * "desativado" por alguns segundos mesmo com a subscription real intacta.
+ *
+ * 2ª rodada (mesmo dia): a 1ª correção cacheava o último estado confirmado,
+ * mas também tratava QUALQUER retorno não-"granted" de
+ * checkNativePushPermission() como recusa definitiva — e essa checagem tem
+ * seu próprio timeout de 6s, que falha sozinho bem na hora que o app volta
+ * do background (ponte nativa do Capacitor ainda reconectando). Resultado:
+ * o sininho voltava a apagar sozinho "depois de alguns segundos" — pior que
+ * antes, porque agora sobrescrevia um cache que estava certo. Revertido
+ * pra só confirmar via registerNativePush (que de fato fala com APNs/FCM +
+ * backend); uma leitura de permissão que falhar/não vier "granted" apenas
+ * não decide nada, em vez de apagar o estado.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
@@ -49,15 +60,17 @@ describe('useNotificationPermissionController — app nativo', () => {
     await waitFor(() => expect(registerNativePush).toHaveBeenCalled());
   });
 
-  it('permissão negada no SO: desativa de verdade, mesmo com cache dizendo "ativado"', async () => {
+  it('checagem de permissão falha/retorna não-granted: NÃO apaga o cache (checkNativePushPermission tem timeout de 6s e pode falhar por leitura, não por recusa real)', async () => {
     localStorage.setItem(CACHE_KEY, '1');
     checkNativePushPermission.mockResolvedValue('denied');
 
     const { result } = renderHook(() => useNotificationPermissionController());
 
-    await waitFor(() => expect(result.current.isSubscribed).toBe(false));
+    await waitFor(() => expect(checkNativePushPermission).toHaveBeenCalled());
     expect(registerNativePush).not.toHaveBeenCalled();
-    expect(localStorage.getItem(CACHE_KEY)).toBe('0');
+    // Continua "ativado" — era isso que o cache dizia e nada confirmou o contrário.
+    expect(result.current.isSubscribed).toBe(true);
+    expect(localStorage.getItem(CACHE_KEY)).toBe('1');
   });
 
   it('permissão concedida e registro ok: confirma "ativado" e persiste no cache', async () => {
