@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState, type ChangeEvent, type Dis
 import type { VaccineRecord, VaccineType } from '@/lib/petHealth';
 import type { VaccineFormData } from '@/lib/types/homeForms';
 import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
-import { Bell, Camera, Check, Home, X } from 'lucide-react';
+import { Bell, Camera, Check, Home, Info, X } from 'lucide-react';
 import { SheetAvatar, SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { ActivationAskSheet } from './ActivationAskSheet';
 import { usePushOneTimeAsk } from '@/features/interactions/usePushOneTimeAsk';
@@ -269,16 +269,16 @@ export function VaccineItemSheet({
   type ChipDef = { label: string; type: string; name: string; icon: string; code: string; notes: string; disabled?: boolean; isOther?: boolean };
   const dogChips: ChipDef[] = [
     { label: 'Polivalente (V8 / V10)', type: 'multiple', name: 'Polivalente (V10/V8)', icon: '💉', code: 'multiple', notes: 'Cinomose, Parvovirose, Hepatite, Coronavirose, Leptospirose, Adenovirose, Parainfluenza' },
-    { label: 'Antirrábica', type: 'rabies', name: 'Antirrábica', icon: '🦠', code: 'rabies', notes: '' },
-    { label: 'Tosse dos canis', type: 'kennel_cough', name: 'Gripe Canina (Tosse dos Canis)', icon: '🫁', code: 'kennel_cough', notes: 'Bordetella bronchiseptica' },
-    { label: 'Giárdia', type: 'giardia', name: 'Giárdia', icon: '🧪', code: 'giardia', notes: '' },
-    { label: 'Leishmaniose', type: 'leishmaniasis', name: 'Leishmaniose', icon: '🛡️', code: 'leishmaniasis', notes: '' },
+    { label: 'Antirrábica', type: 'rabies', name: 'Antirrábica', icon: '💉', code: 'rabies', notes: '' },
+    { label: 'Tosse dos canis', type: 'kennel_cough', name: 'Gripe Canina (Tosse dos Canis)', icon: '💉', code: 'kennel_cough', notes: 'Bordetella bronchiseptica' },
+    { label: 'Giárdia', type: 'giardia', name: 'Giárdia', icon: '💉', code: 'giardia', notes: '' },
+    { label: 'Leishmaniose', type: 'leishmaniasis', name: 'Leishmaniose', icon: '💉', code: 'leishmaniasis', notes: '' },
     { label: 'Outro', type: 'other', name: 'Outra Vacina', icon: '➕', code: 'other', notes: '', isOther: true },
   ];
   const catChips: ChipDef[] = [
     { label: 'Polivalente (V5 / V4 / V3)', type: 'multiple', name: 'Polivalente (V5/V4/V3)', icon: '💉', code: 'multiple', notes: 'Rinotraqueíte, Calicivirose, Panleucopenia, Clamidiose' },
-    { label: 'Antirrábica', type: 'rabies', name: 'Antirrábica', icon: '🦠', code: 'rabies', notes: '' },
-    { label: 'FeLV', type: 'feline_leukemia', name: 'FeLV (Leucemia Felina)', icon: '🐱', code: 'feline_leukemia', notes: '' },
+    { label: 'Antirrábica', type: 'rabies', name: 'Antirrábica', icon: '💉', code: 'rabies', notes: '' },
+    { label: 'FeLV', type: 'feline_leukemia', name: 'FeLV (Leucemia Felina)', icon: '💉', code: 'feline_leukemia', notes: '' },
     { label: 'Outro', type: 'other', name: 'Outra Vacina', icon: '➕', code: 'other', notes: '', isOther: true },
   ];
   const chips = (petSpecies === 'cat' || petSpecies === 'cats') ? catChips : dogChips;
@@ -434,7 +434,10 @@ export function VaccineItemSheet({
           </div>
         )}
         <div className="overflow-y-auto flex-1 overscroll-contain">
-          <p className="mx-4 mt-3 mb-1 text-[11.5px] font-medium text-slate-500 text-center">ℹ️ Aqui é pra acompanhar e não esquecer os cuidados — o tratamento é sempre com o veterinário.</p>
+          <p className="mx-4 mt-3 mb-1 flex items-center justify-center gap-1 text-[11.5px] font-medium text-slate-500 text-center">
+            <Info className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2} />
+            Aqui é pra acompanhar e não esquecer os cuidados — o tratamento é sempre com o veterinário.
+          </p>
           {mode === 'view' && (
             <div className="p-5 space-y-3 pb-8">
 
@@ -489,10 +492,18 @@ export function VaccineItemSheet({
                               ? 'bg-emerald-50 border-emerald-300'
                               : chip.isOther
                                 ? 'bg-white border-dashed border-gray-200 hover:bg-gray-50'
-                                : 'bg-white border-gray-200 hover:bg-sky-50 hover:border-sky-200 shadow-sm'
+                                : 'bg-white border-gray-200 hover:bg-[#F2F6FC] hover:border-[#D9E6F7] shadow-sm'
                         }`}
                       >
-                        <span className="text-2xl flex-shrink-0">{isSaved ? '✅' : chip.icon}</span>
+                        {/* chip.icon (💉 uniforme em todas) não aparece mais
+                            aqui — é redundante quando toda opção mostra o
+                            mesmo símbolo; continua sendo salvo no registro
+                            (linha abaixo, onDirectSaveVaccine), só a
+                            renderização mudou. "Outro" mantém ➕ (distinto,
+                            informação real: "adicionar"). */}
+                        {(isSaved || chip.isOther) && (
+                          <span className="text-2xl flex-shrink-0">{isSaved ? '✅' : '➕'}</span>
+                        )}
                         <span className={`flex-1 text-[14px] font-bold ${chip.disabled ? 'text-gray-400' : chip.isOther ? 'text-gray-500' : 'text-slate-800'}`}>
                           {isSaved ? 'Registrado!' : isSaving ? 'Registrando...' : chip.label}
                         </span>
@@ -553,15 +564,15 @@ export function VaccineItemSheet({
 
             {/* ── PRÓXIMAS (sempre visível) ──────────────────────────────── */}
             {upcoming.length > 0 && (
-              <div className="rounded-2xl border border-sky-200 overflow-hidden">
-                <div className="px-4 py-3 bg-sky-50 flex items-center gap-2">
+              <div className="rounded-2xl border border-[#D9E6F7] overflow-hidden">
+                <div className="px-4 py-3 bg-[#F2F6FC] flex items-center gap-2">
                   <span className="text-sm flex-shrink-0">📅</span>
-                  <p className="text-sm font-bold text-sky-700 flex-1 truncate">
+                  <p className="text-sm font-bold text-[#0056D2] flex-1 truncate">
                     {upcoming.length === 1 ? (
                       <>
                         {upcoming[0].vaccine_name}
                         {diffDays(upcoming[0].next_dose_date) !== null && (
-                          <span className="font-normal text-sky-600 ml-1">· {fmtRelativeDays(diffDays(upcoming[0].next_dose_date))}</span>
+                          <span className="font-normal text-[#5B6B82] ml-1">· {fmtRelativeDays(diffDays(upcoming[0].next_dose_date))}</span>
                         )}
                       </>
                     ) : (
@@ -569,7 +580,7 @@ export function VaccineItemSheet({
                     )}
                   </p>
                 </div>
-                <div className="divide-y divide-sky-100">
+                <div className="divide-y divide-[#D9E6F7]">
                   {upcoming.slice(0, 3).map(v => (
                     <VaccineRow
                       key={v.id}
@@ -579,8 +590,8 @@ export function VaccineItemSheet({
                       onEdit={onEditVaccine}
                       onConfirm={onConfirmVaccine}
                       onDeleteClick={handleDeleteClick}
-                      borderColor="border-l-sky-500"
-                      statusBadge={<span className="text-[10px] bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full font-semibold">⏰ Próxima</span>}
+                      borderColor="border-l-[#0056D2]"
+                      statusBadge={<span className="text-[10px] bg-[#F2F6FC] text-[#0056D2] px-2 py-0.5 rounded-full font-semibold">⏰ Próxima</span>}
                     />
                   ))}
                 </div>
@@ -618,7 +629,7 @@ export function VaccineItemSheet({
                       <button
                         type="button"
                         onClick={() => setHistoryShowAll(true)}
-                        className="w-full py-2.5 text-xs font-semibold text-sky-600 hover:text-sky-700 bg-gray-50"
+                        className="w-full py-2.5 text-xs font-semibold text-[#0056D2] hover:text-[#004ab8] bg-gray-50"
                       >
                         Ver todas ({applied.length - 3} restantes)
                       </button>
@@ -647,14 +658,14 @@ export function VaccineItemSheet({
                 href="https://www.google.com/maps/search/clínica+veterinária+vacina+perto+de+mim"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full flex items-center gap-3 p-4 bg-sky-50 border border-sky-200 rounded-2xl hover:bg-sky-100 transition-all active:scale-[0.98]"
+                className="w-full flex items-center gap-3 p-4 bg-[#F2F6FC] border border-[#D9E6F7] rounded-2xl hover:bg-[#E6EEF9] transition-all active:scale-[0.98]"
               >
-                <div className="w-9 h-9 rounded-xl bg-sky-100 flex items-center justify-center text-lg flex-shrink-0">📍</div>
+                <div className="w-9 h-9 rounded-xl bg-[#E6EEF9] flex items-center justify-center text-lg flex-shrink-0">📍</div>
                 <div className="text-left flex-1">
-                  <p className="text-[13px] font-bold text-sky-900">Procurar lugar para vacinar</p>
-                  <p className="text-[11px] text-sky-700/70">Clínicas e hospitais próximos</p>
+                  <p className="text-[13px] font-bold text-[#0B1E36]">Procurar lugar para vacinar</p>
+                  <p className="text-[11px] text-[#5B6B82]">Clínicas e hospitais próximos</p>
                 </div>
-                <span className="text-sky-400 text-lg font-bold">›</span>
+                <span className="text-[#0056D2]/50 text-lg font-bold">›</span>
               </a>
             </div>
 
@@ -963,7 +974,7 @@ function VaccineRow({
         <div className="flex items-center gap-1 flex-shrink-0">
           <button
             onClick={() => onEdit(v)}
-            className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center text-xs hover:bg-sky-100 transition-colors"
+            className="w-8 h-8 rounded-xl bg-[#F2F6FC] text-[#0056D2] flex items-center justify-center text-xs hover:bg-[#E6EEF9] transition-colors"
             title="Editar"
           >
             ✏️

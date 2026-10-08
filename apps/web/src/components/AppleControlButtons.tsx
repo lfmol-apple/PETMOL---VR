@@ -2,12 +2,11 @@
 
 import { useBackHandler } from '@/lib/backStack';
 import { useState } from 'react';
+import { ChevronRight } from 'lucide-react';
 import { useI18n } from '@/lib/I18nContext';
-import { petDo } from '@/lib/petGender';
 import { type HomeInactiveEligibleControlId } from '@/lib/homeControlPreferences';
 import { PetHealthPlanCard } from '@/components/home/PetHealthPlanCard';
 import { HEALTH_PLAN_CARD_ENABLED } from '@/lib/featureFlags';
-import { HOME_ART } from '@/lib/homeArt';
 
 // ── Props H1 logic preserved ──────────────────────────────────────────────────
 interface AppleControlButtonsProps {
@@ -71,14 +70,17 @@ function shouldShowAlert(tone?: ControlTone, fallbackAlert?: boolean) {
   return fallbackAlert === true;
 }
 
+// Canto superior DIREITO (08/10/2026, pedido do dono: o pontinho no canto
+// esquerdo brigava com o título, que também começa ali). Padronizado nos 4
+// cards principais — nunca mais no esquerdo.
 function AlertDot({ tone = 'critical' }: { tone?: ControlTone }) {
   if (tone === 'warning') {
     return (
-      <span className="absolute left-2.5 top-2.5 z-10 h-2 w-2 animate-pulse rounded-full bg-amber-400 ring-2 ring-amber-300/60 ring-offset-1" />
+      <span className="absolute right-2.5 top-2.5 z-10 h-2 w-2 animate-pulse rounded-full bg-amber-400 ring-2 ring-amber-300/60 ring-offset-1" />
     );
   }
   return (
-    <span className="absolute left-2.5 top-2.5 z-10 h-2 w-2 animate-pulse rounded-full bg-rose-500 ring-2 ring-rose-400/60 ring-offset-1" />
+    <span className="absolute right-2.5 top-2.5 z-10 h-2 w-2 animate-pulse rounded-full bg-rose-500 ring-2 ring-rose-400/60 ring-offset-1" />
   );
 }
 
@@ -113,7 +115,11 @@ export function AppleControlButtons({
   const { t } = useI18n();
   const [showEmergencyChoice, setShowEmergencyChoice] = useState(false);
   useBackHandler(showEmergencyChoice, () => setShowEmergencyChoice(false));
-  const shoppingTitle = petName ? `Loja ${petDo({ sex: petSex })} ${petName}` : t('home.shopping.title');
+  // Texto fixo, sem personalização por pet (pedido do dono, 08/10/2026:
+  // trocar "Loja do [pet]" por "Comprar Produtos" — era `Loja ${petDo(...)}
+  // ${petName}`, com fallback genérico só quando faltava o nome; agora é
+  // sempre o mesmo texto, direto do dicionário de i18n.
+  const shoppingTitle = t('home.shopping.title');
   const foodHeadlineText = !hasFoodData
     ? 'Cuidado em aberto'
     : (foodHeadline || t('home.food.desc'));
@@ -140,52 +146,41 @@ export function AppleControlButtons({
   const healthHeadlineText = careStatusText(healthHeadline, colorHealth, alertHealth, 'Toque para revisar');
   const vaccineHeadlineText = careStatusText(vaccineHeadline, colorVaccines, alertVaccines, 'Sem vacina registrada');
   const foodIsDense = isDenseCardCopy(foodTitle || t('home.food.title'), foodHeadlineText, foodSubline);
-  const healthIsDense = isDenseCardCopy('Cuidados', healthHeadlineText);
-  const vaccineIsDense = isDenseCardCopy('Vacina', vaccineHeadlineText);
-  const shoppingIsDense = isDenseCardCopy(shoppingTitle, `Tudo que ${petName || 'seu pet'} usa`);
-  const foodIconClass = foodIsDense
-    ? 'right-0.5 top-0.5 h-9 w-9 opacity-75 min-[390px]:right-1 min-[390px]:top-1 min-[390px]:h-10 min-[390px]:w-10'
-    : 'right-1 top-1 h-10 w-10 opacity-95 min-[390px]:right-1.5 min-[390px]:top-1.5 min-[390px]:h-12 min-[390px]:w-12';
-  const referenceIconClass = 'right-1 top-1 h-12 w-12 opacity-95 min-[390px]:right-1.5 min-[390px]:top-1.5 min-[390px]:h-14 min-[390px]:w-14';
-  const denseReferenceIconClass = 'right-0.5 top-0.5 h-10 w-10 opacity-75 min-[390px]:right-1 min-[390px]:top-1 min-[390px]:h-12 min-[390px]:w-12';
-  const foodCopyClass = foodIsDense
-    ? 'pr-3 pt-5 min-[390px]:pr-4 min-[390px]:pt-6'
-    : 'pr-6 pt-2 min-[390px]:pr-7 min-[390px]:pt-3';
-  const careCopyClass = 'pr-7 pt-2 min-[390px]:pr-9 min-[390px]:pt-3';
-  const denseCareCopyClass = 'pr-3 pt-5 min-[390px]:pr-4 min-[390px]:pt-6';
 
   return (
     <>
-      {/* Grid 2×2: Alimentação | Saúde | Vacina | Shopping */}
+      {/* Grid 2×2: Alimentação | Saúde | Vacina | Shopping — items-stretch
+          explícito (08/10/2026, pedido do dono: cards com tamanhos
+          diferentes no celular real) porque o <button> como item de grid
+          às vezes não herda align-items:stretch por padrão em alguns
+          WebKit/Safari, mesmo sendo o comportamento padrão do CSS Grid. */}
       <div className="relative">
-        <div className="grid grid-cols-2 gap-2 min-[390px]:gap-2.5">
+        <div className="grid grid-cols-2 items-stretch gap-2 min-[390px]:gap-2.5">
 
-          {/* 1. ALIMENTAÇÃO */}
+          {/* 1. ALIMENTAÇÃO — reviravolta 11/10/2026 (pedido do dono): sem
+              emoji/arte nenhuma nos 4 cards principais, título com mais
+              peso tipográfico carregando o card sozinho. */}
           <button
             type="button"
             onClick={onAlimentacaoClick}
-            className="group relative min-h-[76px] overflow-hidden rounded-xl border border-amber-400 bg-gradient-to-br from-amber-100 via-yellow-100 to-orange-200 p-2.5 shadow-sm shadow-amber-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[86px] min-[390px]:rounded-2xl min-[390px]:p-3"
+            className="group relative min-h-[76px] overflow-hidden rounded-xl border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] p-2.5 shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] active:scale-95 min-[390px]:min-h-[86px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             {(!hasFoodData || shouldShowAlert(colorFood, alertFood)) && (
               <AlertDot tone={!hasFoodData ? 'critical' : colorFood} />
             )}
-            <span className={`absolute pointer-events-none transition-all group-hover:scale-105 ${foodIconClass}`}>
-              <img
-                src={HOME_ART.alimentacao}
-                alt=""
-                className="h-full w-full object-contain"
-              />
-            </span>
-            <div className={`flex h-full flex-col justify-center text-left transition-[padding] ${foodCopyClass}`}>
-              <h3 className="line-clamp-2 text-[12px] font-bold leading-tight text-amber-950 min-[390px]:text-[13px] sm:text-base">{foodTitle || t('home.food.title')}</h3>
-              <p className={`mt-0.5 ${foodIsDense ? 'line-clamp-2' : 'line-clamp-1 min-[390px]:line-clamp-2'} text-[9px] leading-[1.12] min-[390px]:text-[10px] sm:text-xs ${!hasFoodData ? 'font-bold text-red-700' : 'text-amber-800/85'}`}>
-                {foodHeadlineText}
-              </p>
-              {foodSubline && hasFoodData && (
-                <p className="mt-0.5 line-clamp-1 text-[9px] font-bold leading-[1.12] text-amber-900 min-[390px]:mt-1 min-[390px]:text-[10px] sm:text-xs">
-                  {foodSubline}
+            <div className="relative z-10 flex h-full items-start gap-1 text-left">
+              <div className="min-w-0 flex-1">
+                <h3 className="line-clamp-2 text-[13px] font-bold leading-tight tracking-tight text-[#0B1E36] min-[390px]:text-[14px] sm:text-sm">{foodTitle || t('home.food.title')}</h3>
+                <p className={`mt-1 ${foodIsDense ? 'line-clamp-2' : 'line-clamp-1 min-[390px]:line-clamp-2'} text-[10px] leading-snug min-[390px]:text-[11px] sm:text-xs ${!hasFoodData ? 'font-bold text-red-700' : 'text-[#5B6B82]'}`}>
+                  {foodHeadlineText}
                 </p>
-              )}
+                {foodSubline && hasFoodData && (
+                  <p className="mt-0.5 line-clamp-1 text-[10px] font-bold leading-snug text-[#0B1E36] min-[390px]:mt-1 min-[390px]:text-[11px] sm:text-xs">
+                    {foodSubline}
+                  </p>
+                )}
+              </div>
+              <ChevronRight className="h-4 w-4 flex-shrink-0 self-center text-[#8EA9C9] transition-transform group-hover:translate-x-0.5" strokeWidth={2.5} />
             </div>
           </button>
 
@@ -193,19 +188,15 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onHealthClick}
-            className="group relative min-h-[76px] overflow-hidden rounded-xl border border-indigo-400 bg-gradient-to-br from-indigo-100 via-violet-100 to-violet-200 p-2.5 shadow-sm shadow-indigo-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[86px] min-[390px]:rounded-2xl min-[390px]:p-3"
+            className="group relative min-h-[76px] overflow-hidden rounded-xl border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] p-2.5 shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] active:scale-95 min-[390px]:min-h-[86px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             {shouldShowAlert(colorHealth, alertHealth) && <AlertDot tone={colorHealth} />}
-            <span className={`absolute pointer-events-none transition-all group-hover:scale-105 ${healthIsDense ? denseReferenceIconClass : referenceIconClass}`}>
-              <img
-                src={HOME_ART.banho}
-                alt=""
-                className="h-full w-full object-contain"
-              />
-            </span>
-            <div className={`relative z-10 flex h-full flex-col justify-center text-left transition-[padding] ${healthIsDense ? denseCareCopyClass : careCopyClass}`}>
-              <h3 className="line-clamp-1 break-words text-[13px] font-semibold leading-tight text-indigo-950 min-[390px]:text-[14px] sm:text-base">Cuidados</h3>
-              <p className="mt-0.5 line-clamp-2 break-words text-[9px] leading-[1.12] text-indigo-900/80 min-[390px]:text-[10px] sm:text-xs">{healthHeadlineText}</p>
+            <div className="relative z-10 flex h-full items-start gap-1 text-left">
+              <div className="min-w-0 flex-1">
+                <h3 className="line-clamp-1 break-words text-[13px] font-bold leading-tight tracking-tight text-[#0B1E36] min-[390px]:text-[14px] sm:text-sm">Cuidados</h3>
+                <p className="mt-1 line-clamp-2 break-words text-[10px] leading-snug text-[#5B6B82] min-[390px]:text-[11px] sm:text-xs">{healthHeadlineText}</p>
+              </div>
+              <ChevronRight className="h-4 w-4 flex-shrink-0 self-center text-[#8EA9C9] transition-transform group-hover:translate-x-0.5" strokeWidth={2.5} />
             </div>
           </button>
 
@@ -216,48 +207,39 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onVaccinesClick}
-            className="group relative min-h-[84px] overflow-hidden rounded-xl border border-sky-400 bg-gradient-to-br from-sky-100 via-sky-100 to-cyan-200 p-2.5 shadow-sm shadow-sky-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[96px] min-[390px]:rounded-2xl min-[390px]:p-3"
+            className="group relative min-h-[76px] overflow-hidden rounded-xl border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] p-2.5 shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] active:scale-95 min-[390px]:min-h-[86px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             {shouldShowAlert(colorVaccines, alertVaccines) && <AlertDot tone={colorVaccines} />}
-            <span className={`absolute pointer-events-none transition-all group-hover:scale-105 ${vaccineIsDense ? denseReferenceIconClass : referenceIconClass}`}>
-              <img
-                src={HOME_ART.vacina}
-                alt=""
-                className="h-full w-full object-contain"
-              />
-            </span>
-            <div className={`relative z-10 flex h-full flex-col justify-center text-left transition-[padding] ${vaccineIsDense ? denseCareCopyClass : careCopyClass}`}>
-              <h3 className="line-clamp-1 break-words text-[13px] font-semibold leading-tight text-sky-950 min-[390px]:text-[14px] sm:text-base">
-                Vacina
-              </h3>
-              <p className="mt-0.5 line-clamp-2 break-words text-[9px] leading-[1.12] text-sky-900/80 min-[390px]:text-[10px] sm:text-xs">{vaccineHeadlineText}</p>
+            <div className="relative z-10 flex h-full items-start gap-1 text-left">
+              <div className="min-w-0 flex-1">
+                <h3 className="line-clamp-1 break-words text-[13px] font-bold leading-tight tracking-tight text-[#0B1E36] min-[390px]:text-[14px] sm:text-sm">
+                  Vacina
+                </h3>
+                <p className="mt-1 line-clamp-2 break-words text-[10px] leading-snug text-[#5B6B82] min-[390px]:text-[11px] sm:text-xs">{vaccineHeadlineText}</p>
+              </div>
+              <ChevronRight className="h-4 w-4 flex-shrink-0 self-center text-[#8EA9C9] transition-transform group-hover:translate-x-0.5" strokeWidth={2.5} />
             </div>
           </button>
 
-          {/* 4. SHOPPING (Loja do/da {pet}) — visual destaque deliberado:
-              borda mais grossa, gradiente mais rico (azul mais saturado que
-              o Saúde, indo até ciano pra não colidir com indigo/violet) e
-              sombra mais forte que os outros 3. É a fonte de renda dedicada
-              do app agora, então chama mais atenção que Ração/Saúde/
-              Caderneta de propósito. SEM bolinha de alerta (decisão de
-              produto, 04/09/2026): removida — o card de loja não deve
-              piscar/parecer urgente, isso é para os cards de cuidado
-              (Saúde/Vacina/Ração), não pra este. */}
+          {/* 4. SHOPPING (Loja do/da {pet}) — até 07/10/2026 tinha destaque
+              deliberado (borda grossa, gradiente azul saturado próprio,
+              sombra mais forte) por ser fonte de renda; convergido pra
+              família única do redesign premium (azul-gelo) a pedido
+              explícito do dono — "não precisam ter fundos fortes
+              completamente diferentes apenas para serem reconhecidos".
+              SEM bolinha de alerta (decisão de produto, 04/09/2026),
+              mantido: loja não deve parecer urgente. */}
           <button
             type="button"
             onClick={onShoppingClick}
-            className="group relative min-h-[84px] overflow-hidden rounded-xl border-2 border-blue-500 bg-gradient-to-br from-blue-100 via-blue-200 to-cyan-200 p-2.5 shadow-md shadow-blue-900/15 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:scale-95 min-[390px]:min-h-[96px] min-[390px]:rounded-2xl min-[390px]:p-3"
+            className="group relative min-h-[76px] overflow-hidden rounded-xl border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] p-2.5 shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] active:scale-95 min-[390px]:min-h-[86px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
-            <span className={`absolute pointer-events-none transition-all group-hover:scale-105 ${shoppingIsDense ? 'right-0.5 top-0.5 h-10 w-10 opacity-80 min-[390px]:right-1 min-[390px]:top-1 min-[390px]:h-12 min-[390px]:w-12' : 'right-1 top-1 h-12 w-12 opacity-95 min-[390px]:right-1.5 min-[390px]:top-1.5 min-[390px]:h-14 min-[390px]:w-14'}`}>
-              <img
-                src={HOME_ART.loja}
-                alt=""
-                className="h-full w-full object-contain"
-              />
-            </span>
-            <div className={`relative z-10 flex h-full flex-col justify-center text-left transition-[padding] ${shoppingIsDense ? 'pr-4 pt-5 min-[390px]:pr-5 min-[390px]:pt-6' : 'pr-10 pt-2 min-[390px]:pr-12 min-[390px]:pt-3'}`}>
-              <h3 className="line-clamp-2 break-words text-[13px] font-bold leading-tight text-blue-950 min-[390px]:text-[14px] sm:text-base">{shoppingTitle}</h3>
-              <p className="mt-0.5 line-clamp-2 break-words text-[9px] leading-[1.12] text-blue-900/75 min-[390px]:text-[10px] sm:text-xs">Tudo que {petName || 'seu pet'} usa</p>
+            <div className="relative z-10 flex h-full items-start gap-1 text-left">
+              <div className="min-w-0 flex-1">
+                <h3 className="line-clamp-2 break-words text-[13px] font-bold leading-tight tracking-tight text-[#0B1E36] min-[390px]:text-[14px] sm:text-sm">{shoppingTitle}</h3>
+                <p className="mt-1 line-clamp-2 break-words text-[10px] leading-snug text-[#5B6B82] min-[390px]:text-[11px] sm:text-xs">Tudo que {petName || 'seu pet'} usa</p>
+              </div>
+              <ChevronRight className="h-4 w-4 flex-shrink-0 self-center text-[#8EA9C9] transition-transform group-hover:translate-x-0.5" strokeWidth={2.5} />
             </div>
           </button>
 
@@ -299,6 +281,7 @@ export function AppleControlButtons({
                 <h3 className="truncate text-[12px] font-black leading-tight text-red-800 min-[390px]:text-[13px]">Pet Sumido</h3>
                 <p className="mt-0.5 truncate text-[9px] font-semibold leading-[1.1] text-red-600/80">Alerta urgente</p>
               </div>
+              <span className="flex-shrink-0 text-lg text-red-300 transition-transform group-hover:translate-x-1">›</span>
             </button>
 
             <button
@@ -329,6 +312,9 @@ export function AppleControlButtons({
                   {nearbyMissingCount === 1 ? 'Pet Sumido' : 'Pets Sumidos'} Perto de você
                 </h3>
               </div>
+              <span className={`flex-shrink-0 text-lg transition-transform group-hover:translate-x-1 ${
+                nearbyMissingCount > 0 ? 'text-rose-200' : 'text-emerald-300'
+              }`}>›</span>
             </button>
           </div>
 

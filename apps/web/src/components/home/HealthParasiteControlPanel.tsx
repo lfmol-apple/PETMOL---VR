@@ -1,6 +1,7 @@
 'use client';
 
 import type { Dispatch, SetStateAction } from 'react';
+import { MapPin, Shield } from 'lucide-react';
 import { useI18n } from '@/lib/I18nContext';
 import { PremiumPanelShell } from '@/components/premium';
 import { IosSwitch } from '@/components/ui/IosSwitch';
@@ -27,13 +28,12 @@ interface HealthParasiteControlPanelProps {
 const PARASITE_TYPES: Array<{
   value: ParasiteControlType;
   labelKey: 'parasite.dewormer' | 'parasite.flea_tick' | 'parasite.collar';
-  icon: string;
   frequencyDays: number;
   applicationForm: ParasiteFormData['application_form'];
 }> = [
-  { value: 'dewormer', labelKey: 'parasite.dewormer', icon: '🪱', frequencyDays: 90, applicationForm: 'oral' },
-  { value: 'flea_tick', labelKey: 'parasite.flea_tick', icon: '🦟', frequencyDays: 30, applicationForm: 'topical' },
-  { value: 'collar', labelKey: 'parasite.collar', icon: '⭕', frequencyDays: 180, applicationForm: 'collar' },
+  { value: 'dewormer', labelKey: 'parasite.dewormer', frequencyDays: 90, applicationForm: 'oral' },
+  { value: 'flea_tick', labelKey: 'parasite.flea_tick', frequencyDays: 30, applicationForm: 'topical' },
+  { value: 'collar', labelKey: 'parasite.collar', frequencyDays: 180, applicationForm: 'collar' },
 ];
 
 function createLocalDate(dateStr: string): Date {
@@ -68,22 +68,21 @@ export function HealthParasiteControlPanel({
   );
 
   return (
-    <PremiumPanelShell title={t('health.parasite_control')} icon="💊" subtitle={petName}>
+    <PremiumPanelShell title={t('health.parasite_control')} subtitle={petName}>
       <div className="space-y-6">
         {!showParasiteForm && (
           <button
             onClick={() => setShowParasiteForm(true)}
-            className="w-full bg-gradient-to-r from-amber-400 to-orange-400 text-white py-3 px-4 rounded-lg font-semibold hover:from-amber-500 hover:to-orange-500 transition-all shadow-md"
+            className="w-full bg-[#0056D2] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#004ab8] transition-all shadow-md"
           >
             ➕ {t('parasite.register_application')}
           </button>
         )}
 
         {showParasiteForm && (
-          <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 space-y-3">
+          <div className="bg-[#F2F6FC] border-2 border-[#D9E6F7] rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                <span>🦠</span>
+              <h3 className="font-bold text-gray-800">
                 {editingParasite ? t('parasite.edit_record') : t('parasite.new_record')}
               </h3>
               <button onClick={resetParasiteForm} className="text-gray-400 hover:text-gray-700 text-lg">✕</button>
@@ -112,13 +111,12 @@ export function HealthParasiteControlPanel({
                         if (formElement) formElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
                       }, 150);
                     }}
-                    className={`flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg border-2 transition-all ${
+                    className={`flex items-center justify-center py-2.5 px-1 rounded-lg border-2 transition-all ${
                       parasiteFormData.type === type.value
-                        ? 'border-amber-500 bg-amber-100 text-amber-900'
-                        : 'border-gray-200 bg-white text-gray-700 hover:border-amber-300'
+                        ? 'border-[#0056D2] bg-[#F2F6FC] text-[#0056D2]'
+                        : 'border-gray-200 bg-white text-gray-700 hover:border-[#BFD4F0]'
                     }`}
                   >
-                    <span className="text-xl">{type.icon}</span>
                     <span className="text-[11px] font-semibold leading-tight text-center">{t(type.labelKey)}</span>
                   </button>
                 ))}
@@ -127,9 +125,9 @@ export function HealthParasiteControlPanel({
 
             <div data-parasite-form>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                {parasiteFormData.type === 'dewormer' && `🪱 ${t('parasite.dewormer')} *`}
-                {parasiteFormData.type === 'flea_tick' && `🦟 ${t('parasite.flea_tick')} *`}
-                {parasiteFormData.type === 'collar' && `⭕ ${t('parasite.collar')} *`}
+                {parasiteFormData.type === 'dewormer' && `${t('parasite.dewormer')} *`}
+                {parasiteFormData.type === 'flea_tick' && `${t('parasite.flea_tick')} *`}
+                {parasiteFormData.type === 'collar' && `${t('parasite.collar')} *`}
                 {!parasiteFormData.type && 'Produto *'}
               </label>
               <input
@@ -138,7 +136,7 @@ export function HealthParasiteControlPanel({
                 value={parasiteFormData.product_name}
                 onChange={(e) => setParasiteFormData((prev) => ({ ...prev, product_name: e.target.value }))}
                 placeholder={t('parasite.type_or_choose')}
-                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm"
+                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056D2] focus:border-transparent text-sm"
                 autoComplete="off"
               />
               <datalist id={`products-${parasiteFormData.type}`}>
@@ -156,7 +154,7 @@ export function HealthParasiteControlPanel({
                 <DateField
                   value={parasiteFormData.date_applied}
                   onChange={(iso) => setParasiteFormData((prev) => ({ ...prev, date_applied: iso }))}
-                  inputClassName="w-full p-2 pr-10 border border-gray-300 rounded-lg tabular-nums focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm"
+                  inputClassName="w-full p-2 pr-10 border border-gray-300 rounded-lg tabular-nums focus:ring-2 focus:ring-[#0056D2] focus:border-transparent text-sm"
                 />
               </div>
               <div>
@@ -172,7 +170,7 @@ export function HealthParasiteControlPanel({
                         setParasiteFormData((prev) => ({ ...prev, frequency_days: value }));
                       }
                     }}
-                    className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm"
+                    className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056D2] focus:border-transparent text-sm"
                   >
                     <option value={0}>Personalizado</option>
                     <option value={15}>15 dias</option>
@@ -192,7 +190,7 @@ export function HealthParasiteControlPanel({
                     max="999"
                     value={parasiteFormData.frequency_days}
                     onChange={(e) => setParasiteFormData((prev) => ({ ...prev, frequency_days: parseInt(e.target.value, 10) || 30 }))}
-                    className="w-14 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 text-center font-semibold text-sm"
+                    className="w-14 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056D2] text-center font-semibold text-sm"
                   />
                 </div>
               </div>
@@ -213,10 +211,10 @@ export function HealthParasiteControlPanel({
                   <select
                     value={parasiteFormData.application_form}
                     onChange={(e) => setParasiteFormData((prev) => ({ ...prev, application_form: e.target.value as ParasiteFormData['application_form'] }))}
-                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm"
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056D2] focus:border-transparent text-sm"
                   >
-                    {parasiteFormData.type === 'dewormer' && (<><option value="oral">💊 Comprimido/Oral</option><option value="topical">💧 Pasta/Suspensão</option></>)}
-                    {parasiteFormData.type === 'flea_tick' && (<><option value="topical">💧 Pipeta/Tópico</option><option value="oral">💊 Comprimido</option>{species === 'dog' && <option value="collar">⭕ Coleira</option>}</>)}
+                    {parasiteFormData.type === 'dewormer' && (<><option value="oral">Comprimido/Oral</option><option value="topical">Pasta/Suspensão</option></>)}
+                    {parasiteFormData.type === 'flea_tick' && (<><option value="topical">Pipeta/Tópico</option><option value="oral">Comprimido</option>{species === 'dog' && <option value="collar">Coleira</option>}</>)}
                   </select>
                 </div>
                 <div>
@@ -229,7 +227,7 @@ export function HealthParasiteControlPanel({
                       parasiteFormData.application_form === 'topical' ? '1 pipeta' :
                       parasiteFormData.application_form === 'oral' ? '1 comprimido' : 'dose/qtd'
                     }
-                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm"
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056D2] focus:border-transparent text-sm"
                   />
                 </div>
               </div>
@@ -238,7 +236,7 @@ export function HealthParasiteControlPanel({
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Formato</label>
                 <select value="collar" disabled className="w-full p-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-500">
-                  <option value="collar">⭕ Coleira (Leishmaniose)</option>
+                  <option value="collar">Coleira (Leishmaniose)</option>
                 </select>
               </div>
             )}
@@ -300,11 +298,14 @@ export function HealthParasiteControlPanel({
                   onChange={(e) => setParasiteFormData((prev) => ({ ...prev, cost: parseFloat(e.target.value) || 0 }))}
                   placeholder="0.00"
                   step="0.01"
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm"
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056D2] focus:border-transparent text-sm"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">🏪 Local <span className="text-gray-400 font-normal text-xs">(opcional)</span></label>
+                <label className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-gray-400" strokeWidth={2.2} />
+                  Local <span className="text-gray-400 font-normal text-xs">(opcional)</span>
+                </label>
                 <input
                   type="text"
                   list="purchase-locations"
@@ -312,7 +313,7 @@ export function HealthParasiteControlPanel({
                   value={parasiteFormData.purchase_location || ''}
                   onChange={(e) => setParasiteFormData((prev) => ({ ...prev, purchase_location: e.target.value.toUpperCase() }))}
                   placeholder="Cobasi, Petz…"
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm"
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056D2] focus:border-transparent text-sm"
                 />
                 <datalist id="purchase-locations">
                   <option value="Cobasi" /><option value="Petz" /><option value="Mercado Livre" /><option value="Shopee" /><option value="Loja física" /><option value="Clínica veterinária" /><option value="Outro" />
@@ -327,7 +328,7 @@ export function HealthParasiteControlPanel({
             <div className="sticky bottom-0 bg-white z-10 pt-3 pb-3 -mx-4 px-4 border-t border-gray-100 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] flex gap-2">
               <button
                 onClick={handleSaveParasite}
-                className="flex-1 bg-gradient-to-r from-amber-400 to-orange-400 text-white py-3 px-4 rounded-xl font-semibold hover:from-amber-500 hover:to-orange-500 transition-all text-base"
+                className="flex-1 bg-[#0056D2] text-white py-3 px-4 rounded-xl font-semibold hover:bg-[#004ab8] transition-all text-base"
               >
                 {editingParasite ? `💾 ${t('common.save')}` : `✅ ${t('common.save')}`}
               </button>
@@ -346,7 +347,11 @@ export function HealthParasiteControlPanel({
 
           {parasiteControls.length === 0 && !showParasiteForm && (
             <div className="text-center py-8 text-gray-500">
-              <div className="text-4xl mb-2">🦠</div>
+              {/* Aqui é o agregado (Vermífugo+Antipulgas+Coleira juntos,
+                  nenhum tipo específico escolhido ainda) — não existe asset
+                  3D dedicado pro conceito agregado, Shield (Lucide) é o
+                  melhor equivalente disponível. */}
+              <Shield className="mx-auto mb-2 h-10 w-10 text-gray-300" strokeWidth={1.8} />
               <p>Nenhum registro ainda</p>
               <p className="text-sm">Clique em &quot;Registrar Aplicação&quot; para começar</p>
             </div>
@@ -387,14 +392,11 @@ export function HealthParasiteControlPanel({
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <div className="relative">
-                        <span className="text-2xl">
-                          {control.type === 'dewormer' && '🪱'}
-                          {control.type === 'flea_tick' && '🦟'}
-                          {control.type === 'heartworm' && '❤️'}
-                          {control.type === 'collar' && '⭕'}
-                          {control.type === 'leishmaniasis' && '💉'}
-                        </span>
+                      {/* Tipo já aparece como texto logo ao lado (linhas
+                          abaixo) — emoji aqui era redundante, removido.
+                          Wrapper com tamanho fixo só pra ancorar os badges
+                          de atraso/urgência que continuam absolute. */}
+                      <div className="relative h-2 w-2">
                         {isOverdue && (
                           <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold animate-pulse shadow-sm border border-white/50 z-10">
                             !
@@ -421,10 +423,10 @@ export function HealthParasiteControlPanel({
                         </div>
                         {control.application_form && (
                           <div className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
-                            {control.application_form === 'oral' && '💊 Comprimido'}
-                            {control.application_form === 'topical' && '💧 Pipeta'}
-                            {control.application_form === 'collar' && '⭕ Coleira'}
-                            {control.application_form === 'injection' && '💉 Injeção'}
+                            {control.application_form === 'oral' && 'Comprimido'}
+                            {control.application_form === 'topical' && 'Pipeta'}
+                            {control.application_form === 'collar' && 'Coleira'}
+                            {control.application_form === 'injection' && 'Injeção'}
                           </div>
                         )}
                       </div>
@@ -439,13 +441,18 @@ export function HealthParasiteControlPanel({
                       </div>
                       {control.type === 'collar' && control.collar_expiry_date && (
                         <div className="text-[#0047ad] font-medium">
-                          ⭕ {t('health.collar_expiry')}: {createLocalDate(control.collar_expiry_date).toLocaleDateString(locale)}
+                          {t('health.collar_expiry')}: {createLocalDate(control.collar_expiry_date).toLocaleDateString(locale)}
                         </div>
                       )}
-                      {control.dosage && <div>💊 Dose: {control.dosage}</div>}
+                      {control.dosage && <div>Dose: {control.dosage}</div>}
                       {control.veterinarian && <div>👨‍⚕️ {control.veterinarian}</div>}
                       {control.cost && control.cost > 0 && <div>💰 R$ {control.cost.toFixed(2)}</div>}
-                      {control.purchase_location && <div className="text-sm text-gray-600">🏪 {control.purchase_location}</div>}
+                      {control.purchase_location && (
+                        <div className="flex items-center gap-1 text-sm text-gray-600">
+                          <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" strokeWidth={2.2} />
+                          {control.purchase_location}
+                        </div>
+                      )}
                       <div className="flex items-center gap-2 mt-2">
                         {control.reminder_enabled !== false ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-300">

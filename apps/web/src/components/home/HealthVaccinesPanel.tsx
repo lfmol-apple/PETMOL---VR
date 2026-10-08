@@ -63,11 +63,11 @@ export function HealthVaccinesPanel({
   }).length;
 
   return (
-    <PremiumPanelShell title={t('health.vaccines')} icon="💉" subtitle={petName}>
+    <PremiumPanelShell title={t('health.vaccines')} subtitle={petName}>
       <div className="space-y-4 sm:space-y-5">
         <PremiumCard variant="info">
-          <h3 className="font-bold text-blue-800 mb-3 flex items-center gap-2">
-            💉 Central de Vacinas
+          <h3 className="font-bold text-blue-800 mb-3">
+            Central de Vacinas
           </h3>
           <p className="text-sm text-slate-700 leading-relaxed">
             O fluxo canônico de vacinas agora fica na central atual. Importação de cartão, preenchimento
@@ -106,7 +106,7 @@ export function HealthVaccinesPanel({
               onClick={onOpenVaccineCenter}
               className="w-full py-4 rounded-2xl bg-brand-DEFAULT hover:bg-brand-dark text-white text-[15px] font-bold shadow-md shadow-brand-DEFAULT/20 transition-all active:scale-[0.98]"
             >
-              💉 Abrir central de vacinas
+              Abrir central de vacinas
             </button>
           </div>
         </PremiumCard>

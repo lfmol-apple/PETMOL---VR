@@ -2,6 +2,7 @@
 
 import { takePendingDeepLink, withDeepLinkNonce } from '@/lib/deepLinkIntent';
 import { shareAppUrl } from '@/lib/landingLinks';
+import { UserPlus, Share2, ChevronRight } from 'lucide-react';
 import { useBackHandler } from '@/lib/backStack';
 import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -1880,7 +1881,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
       searchParams.get('native_start') === '1' ||
       Boolean(searchParams.get('modal') && searchParams.get('petId'));
     if (isNativeOrPushBoot) {
-      return <div className="min-h-screen bg-gradient-to-b from-amber-50/40 via-white to-gray-50" />;
+      return <div className="min-h-screen bg-gradient-to-b from-[#F2F6FC] via-white to-[#F6F9FD]" />;
     }
     // Mesmo splash azul do boot — continuidade com o splash nativo e com a
     // tela '/' enquanto resolve a sessão. Sem 🐾 girando nem "Carregando".
@@ -2006,7 +2007,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
   return (
     <div
-      className="min-h-screen bg-gradient-to-b from-amber-50/40 via-white to-gray-50"
+      className="min-h-screen bg-gradient-to-b from-[#F2F6FC] via-white to-[#F6F9FD]"
       onTouchStart={(e) => {
         // Só ativa pull-to-refresh se o scroll já estiver no topo
         if (window.scrollY === 0) {
@@ -2082,7 +2083,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           )}
         </div>
       </div>
-      <div className="relative mx-auto max-w-2xl px-2 py-3 min-[390px]:px-3 sm:px-4 sm:py-4">
+      <div className="relative mx-auto max-w-2xl px-2 py-3 min-[390px]:px-3 sm:px-4 sm:py-4 lg:max-w-3xl">
         {/* Pílula de status de sync — FLUTUA sobre o topo (absolute), não
             reserva espaço próprio. Antes era um slot fixo de h-9 sempre
             montado → 48px de vazio permanente entre o header e o card do pet
@@ -2317,7 +2318,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
         {/* Pet Management - if pets exist */}
         {pets.length > 0 ? (
-          <div className="mx-auto max-w-2xl space-y-3 rounded-[26px] border border-slate-200 bg-gradient-to-b from-[#F0F4F8] to-[#E2E8F0] p-2 shadow-2xl min-[390px]:space-y-4 min-[390px]:rounded-3xl min-[390px]:p-2.5 sm:p-4">
+          <div className="mx-auto max-w-2xl space-y-3 rounded-[26px] border border-slate-200 bg-gradient-to-b from-[#F0F4F8] to-[#E2E8F0] p-2 shadow-2xl min-[390px]:space-y-4 min-[390px]:rounded-3xl min-[390px]:p-2.5 sm:p-4 lg:max-w-3xl">
             {(() => {
               const currentPet = pets.find(p => p.pet_id === selectedPetId);
               if (!currentPet) return null;
@@ -2471,24 +2472,40 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       onOpenUpcoming={() => setShowUpcomingSheet(true)}
                     />
 
-                  {/* Compartilhar cuidado — só para o dono do pet */}
+                  {/* Compartilhar cuidado — só para o dono do pet. Compacto,
+                      raio de controle (12px, careVisualTokens.CARE_RADIUS.
+                      control), Lucide em vez de emoji. Mesmo tamanho,
+                      alinhamento e peso de fonte dos dois (10/10/2026,
+                      pedido explícito — a hierarquia 60/40 anterior saiu,
+                      e o texto do Compartilhar estava fino/apagado
+                      perto do Convidar): os dois flex-1, font-bold, mesmo
+                      padding/altura; só a cor continua diferenciando ação
+                      principal (azul-gelo) de secundária (branco). Um
+                      teste anterior pôs 3 logos de rede social no botão
+                      (Instagram/WhatsApp/Facebook) — removido, não ficou
+                      bom visualmente; voltou ao ícone genérico Share2.
+                      handleShareApp() já abre o share sheet nativo do
+                      sistema com qualquer app instalado, sem precisar de
+                      indicação extra aqui. */}
                   {currentPet && loggedUserId && (currentPet.owner_user_id ?? loggedUserId) === loggedUserId && (
                     <div className="flex flex-row gap-2 px-2 pb-1 min-[390px]:px-3 sm:px-4 sm:pb-2">
                       <button
                         onClick={handleSharePet}
                         disabled={shareLoading}
-                        className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-2 py-2 text-[11px] font-semibold text-amber-700 transition-opacity active:opacity-70 disabled:opacity-40 sm:rounded-2xl sm:py-2.5 sm:text-[13px]"
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#BFD4F0] bg-[#F2F6FC] px-2 py-1.5 text-[11px] font-bold text-[#0056D2] transition-opacity active:opacity-70 disabled:opacity-40 sm:py-2 sm:text-[12px] lg:py-2.5 lg:text-[13px]"
                       >
-                        <span className="text-sm sm:text-base">🐾</span>
-                        {shareLoading ? 'Gerando link...' : 'Convidar família'}
+                        <UserPlus className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2.4} />
+                        <span className="truncate">{shareLoading ? 'Gerando link...' : 'Convidar família'}</span>
+                        <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 opacity-60" strokeWidth={2.4} />
                       </button>
 
                       <button
                         onClick={() => void handleShareApp()}
-                        className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-2 py-2 text-[11px] font-semibold text-blue-700 transition-opacity active:opacity-70 sm:rounded-2xl sm:py-2.5 sm:text-[13px]"
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#E5E9F0] bg-white px-2 py-1.5 text-[11px] font-bold text-[#8792A2] transition-opacity active:opacity-70 sm:py-2 sm:text-[12px] lg:py-2.5 lg:text-[13px]"
                       >
-                        <span className="text-sm sm:text-base">📤</span>
-                        Compartilhar o PETMOL
+                        <Share2 className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2} />
+                        <span className="truncate">Compartilhar</span>
+                        <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 opacity-60" strokeWidth={2} />
                       </button>
 
                     </div>

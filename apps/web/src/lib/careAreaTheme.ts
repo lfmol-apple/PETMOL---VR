@@ -40,16 +40,20 @@ export interface CareAreaTheme {
   focusRing: string;
 }
 
-/** Azul institucional PETMOL — CTA primário e foco padrão. */
+/** Azul institucional PETMOL — CTA primário e foco padrão.
+ * Valor vem de `careVisualTokens.CARE_BLUE` (fonte única, ver diagnóstico
+ * 07/10/2026 — este é o azul realmente usado hoje, não o `#003DA8` morto
+ * de brandTokens.ts). Classes seguem fixas (hardcoded) de propósito: Tailwind
+ * precisa do literal `bg-[#0056D2]` em tempo de build, não aceita variável. */
 export const PETMOL_ACCENT = {
-  text: 'text-[#0056D2]',
-  bg: 'bg-[#0056D2]',
-  ring: 'focus:ring-[#0056D2]',
+  text: 'text-[#0056D2]', // = CARE_BLUE
+  bg: 'bg-[#0056D2]', // = CARE_BLUE
+  ring: 'focus:ring-[#0056D2]', // = CARE_BLUE
 } as const;
 
 export const CARE_AREA_THEME: Record<CareAreaKey, CareAreaTheme> = {
   food: {
-    label: 'Alimentação', emoji: '🍽️',
+    label: 'Alimentação', emoji: '🥣',
     accentText: 'text-amber-600', accentBg: 'bg-amber-50', accentBorder: 'border-amber-200',
     focusRing: 'focus:ring-amber-400',
   },

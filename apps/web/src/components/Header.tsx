@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLogout } from '@/hooks/useLogout';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { User } from 'lucide-react';
 import { ContentMenu } from '@/components/ContentMenu';
 
 export function Header() {
@@ -20,8 +21,6 @@ export function Header() {
   const homeHref = hasSession ? '/home' : '/';
   const profileHref = '/profile';
   const helpHref = `https://wa.me/?text=${encodeURIComponent('Olá, preciso de ajuda com o PETMOL.')}`;
-  const brandCaption = hasSession ? (pathname === '/home' ? 'você está na home' : 'voltar à home') : 'início';
-  const profileCaption = pathname === '/profile' ? 'perfil aberto' : 'abrir perfil';
 
   // Animação de entrada da logo
   useEffect(() => {
@@ -37,11 +36,18 @@ export function Header() {
   return (
     <>
       <header
-        className="bg-white border-b-2 border-[#0056D2]/20 sticky top-0 z-50 shadow-[0_2px_12px_rgba(0,86,210,0.10)] transition-shadow duration-300 py-3"
-        style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
+        className="bg-white border-b-2 border-[#0056D2]/20 sticky top-0 z-50 shadow-[0_2px_12px_rgba(0,86,210,0.10)] transition-shadow duration-300 pb-2.5 lg:pb-3 pt-[calc(0.625rem+env(safe-area-inset-top))] lg:pt-[calc(0.75rem+env(safe-area-inset-top))]"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
-          {/* Marca alinhada à esquerda */}
+          {/* Marca alinhada à esquerda — clicável, volta pra Home/início.
+              A legenda "você está na home" foi removida (09/10/2026): com
+              "Início" agora também no menu ☰, a marca não precisa mais
+              carregar essa explicação sozinha, e o header ganha altura.
+              Desktop (lg:) ganha presença de marca moderada — text-2xl→3xl,
+              mesma proporção interna (texto+patinha escalam juntos, aspecto
+              do logo preservado) — e o header ganha +2px de padding em cada
+              borda (pb-2.5→3, pt equivalente) só o suficiente pra acomodar
+              a fonte maior sem voltar ao header alto antigo. */}
           <Link
             href={homeHref}
             title={hasSession ? 'Ir para a home' : 'Ir para o início'}
@@ -49,16 +55,8 @@ export function Header() {
               showLogo ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
             }`}
           >
-            <span className="flex flex-col leading-none">
-              <span className="text-2xl font-black text-[#0056D2] tracking-tight flex items-center gap-1.5">
-                Petmol<span className="ml-1">🐾</span>
-              </span>
-              {/* Já existia, mas só aparecia em telas ≥480px — no celular
-                  (a maioria < 480px) nunca aparecia, e ninguém sabia que
-                  tocar na marca volta pra home. Achado real, 02/10/2026. */}
-              <span className="mt-0.5 block whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.24em] text-[#0056D2]/65">
-                {brandCaption}
-              </span>
+            <span className="text-2xl lg:text-3xl font-black text-[#0056D2] tracking-tight flex items-center gap-1.5">
+              Petmol<span className="ml-1">🐾</span>
             </span>
           </Link>
 
@@ -67,37 +65,29 @@ export function Header() {
             showLogo ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'
           }`} style={{ transitionDelay: '200ms' }}>
 
-            {/* Menu de conteúdo (Guias / Recommendations) */}
-            <ContentMenu />
+            {/* Menu de conteúdo (Início / Guias / Recommendations / Sair) */}
+            <ContentMenu homeHref={hasSession ? homeHref : undefined} onLogout={hasSession ? handleLogout : undefined} />
 
-            {/* User Auth */}
+            {/* User Auth — perfil compacto: ícone + nome, sem 2ª linha.
+                "Sair" saiu daqui e foi para o menu ☰ (09/10/2026). */}
             {userLabel ? (
               <div className="flex items-center gap-3">
                 <Link
                   href={profileHref}
                   title="Abrir o perfil"
-                  className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-[#0056D2] text-white text-sm font-bold hover:bg-[#0047ad] shadow-md transition-all active:scale-95"
+                  className="inline-flex items-center gap-2 h-9 px-3 rounded-xl bg-[#0056D2] text-white text-sm font-bold hover:bg-[#0047ad] shadow-md transition-all active:scale-95"
                 >
-                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/20 text-base">👤</span>
-                  <span className="flex flex-col items-start leading-none">
-                    <span>{userLabel}</span>
-                    <span className="text-[10px] font-black uppercase tracking-[0.22em] text-white/70">{profileCaption}</span>
-                  </span>
+                  <User className="h-4 w-4" strokeWidth={2.4} />
+                  <span>{userLabel}</span>
                 </Link>
                 <a
                   href={helpHref}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center h-10 px-3 rounded-xl bg-white text-slate-600 border border-slate-200 text-xs font-bold hover:bg-slate-50 transition-all active:scale-95"
+                  className="inline-flex items-center h-9 px-3 rounded-xl bg-white text-slate-600 border border-slate-200 text-xs font-bold hover:bg-slate-50 transition-all active:scale-95"
                 >
                   Ajuda
                 </a>
-                <button
-                  onClick={handleLogout}
-                  className="inline-flex items-center h-10 px-3 rounded-xl bg-white text-slate-500 border border-slate-200 text-xs font-semibold hover:bg-slate-50 hover:text-slate-700 transition-all active:scale-95"
-                >
-                  {t('common.logout')}
-                </button>
               </div>
             ) : (
               !isLandingPage && (
@@ -116,35 +106,23 @@ export function Header() {
             showLogo ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'
           }`} style={{ transitionDelay: '200ms' }}>
 
-            {/* Menu de conteúdo (Guias / Recommendations) */}
-            <ContentMenu />
+            {/* Menu de conteúdo (Início / Guias / Recommendations / Sair) */}
+            <ContentMenu homeHref={hasSession ? homeHref : undefined} onLogout={hasSession ? handleLogout : undefined} />
 
-            {/* Mobile User Auth */}
+            {/* Mobile User Auth — só ícone + nome truncado, sem 2ª linha
+                e sem botão "Sair" próprio (foi para o menu ☰, 09/10/2026).
+                Em telas muito estreitas o nome prioriza o ícone: encolhe
+                primeiro que o resto do header. */}
             {userLabel ? (
-              <div className="flex items-center gap-2">
-                <Link
-                  href={profileHref}
-                  title="Abrir o perfil"
-                  className="inline-flex items-center gap-2 h-10 px-3 rounded-xl bg-[#0056D2] text-white text-sm font-bold hover:bg-[#0047ad] shadow-md transition-all active:scale-95"
-                  aria-label="Perfil"
-                >
-                  <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white/20 text-sm">👤</span>
-                  {/* Legenda embaixo do nome — a versão desktop já tinha
-                      "abrir perfil"/"perfil aberto" (linha ~81), só a
-                      mobile ficava sem nenhuma pista de que aquilo é
-                      tocável (pedido explícito do dono). */}
-                  <span className="flex min-w-0 flex-col items-start leading-none">
-                    <span className="truncate max-w-[110px]">{userLabel}</span>
-                    <span className="text-[8px] font-black uppercase tracking-[0.18em] text-white/70">{profileCaption}</span>
-                  </span>
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="inline-flex items-center h-10 px-2.5 rounded-xl bg-white text-slate-500 border border-slate-200 text-[11px] font-semibold hover:bg-slate-50 hover:text-slate-700 transition-all active:scale-95"
-                >
-                  Sair
-                </button>
-              </div>
+              <Link
+                href={profileHref}
+                title="Abrir o perfil"
+                className="inline-flex min-w-0 items-center gap-1.5 h-9 px-2.5 rounded-xl bg-[#0056D2] text-white text-xs font-bold hover:bg-[#0047ad] shadow-md transition-all active:scale-95"
+                aria-label="Perfil"
+              >
+                <User className="h-4 w-4 flex-shrink-0" strokeWidth={2.4} />
+                <span className="truncate max-w-[72px]">{userLabel}</span>
+              </Link>
             ) : (
               !isLandingPage && (
                 <Link

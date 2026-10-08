@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Bell, Check, Home, Trash2, X } from 'lucide-react';
+import { Bell, Check, Home, Info, Trash2, X } from 'lucide-react';
 import { ActivationAskSheet } from './ActivationAskSheet';
 import { usePushOneTimeAsk } from '@/features/interactions/usePushOneTimeAsk';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
@@ -19,7 +19,7 @@ import { scheduleUniqueReminder, buildRemindAt } from '@/features/notifications/
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
 import type { ProductCategory, ScannedProduct } from '@/lib/productScanner';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
-import { CARE_AREA_THEME } from '@/lib/careAreaTheme';
+import { careAssetSrc } from '@/lib/careAssets';
 import { CARE_STATE, careStateFromDaysUntilDue } from '@/lib/careState';
 
 // CTA primário do sistema cromático PETMOL (Modelo C): sempre azul
@@ -27,9 +27,15 @@ import { CARE_STATE, careStateFromDaysUntilDue } from '@/lib/careState';
 const PRIMARY_BTN =
   'bg-[#0056D2] hover:bg-[#004ab8] active:bg-[#003f9e] text-white shadow-sm';
 
+// CareAssetKey correspondente a cada `type` deste sheet — só os nomes
+// divergem (flea_tick vs fleaTick), o conceito é o mesmo.
+const CARE_KEY_BY_TYPE = {
+  dewormer: 'dewormer',
+  flea_tick: 'fleaTick',
+  collar: 'collar',
+} as const;
+
 // ── Config por tipo ──────────────────────────────────────────────────────────
-// As cores da área vêm de CARE_AREA_THEME[type] (type já é 'dewormer' |
-// 'flea_tick' | 'collar', que são chaves diretas do tema).
 const CONFIG = {
   dewormer: {
     title: 'Vermífugo',
@@ -161,7 +167,6 @@ export function ParasiteItemSheet({
   initialMode,
 }: ParasiteItemSheetProps) {
   const cfg = CONFIG[type];
-  const theme = CARE_AREA_THEME[type];
   const petPhotoSrc = resolvePetPhotoUrl(petPhotoUrl);
   const [mode, setMode] = useState<ViewMode>(initialMode === 'buy' ? 'buy' : 'view');
   const [saving, setSaving] = useState(false);
@@ -490,9 +495,11 @@ export function ParasiteItemSheet({
   }
 
   // ── CSS helpers ───────────────────────────────────────────────────────────
-  const inputCls = `w-full min-w-0 prime-input text-gray-800 ${theme.focusRing}`;
+  const inputCls = 'w-full min-w-0 prime-input text-gray-800 focus:ring-[#0056D2]';
   const labelCls = 'block text-[10px] font-black text-gray-400 uppercase tracking-[0.16em] mb-1.5 ml-1';
-  const accentLabelCls = labelCls.replace('text-gray-400', theme.accentText);
+  // Institucional (azul), não mais a cor da área — rótulo "em destaque" (ex:
+  // dentro do card de edição) usa a mesma linguagem de ação do resto do app.
+  const accentLabelCls = labelCls.replace('text-gray-400', 'text-[#0056D2]');
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -570,7 +577,10 @@ export function ParasiteItemSheet({
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
           {mode === 'view' && (
-            <p className="mx-4 mt-2 mb-0 text-[11.5px] font-medium text-slate-500 text-center">ℹ️ Aqui é pra acompanhar e não esquecer os cuidados — o tratamento é sempre com o veterinário.</p>
+            <p className="mx-4 mt-2 mb-0 flex items-center justify-center gap-1 text-[11.5px] font-medium text-slate-500 text-center">
+              <Info className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2} />
+              Aqui é pra acompanhar e não esquecer os cuidados — o tratamento é sempre com o veterinário.
+            </p>
           )}
 
           {/* ── VIEW MODE ─────────────────────────────────────────────────── */}
@@ -579,16 +589,29 @@ export function ParasiteItemSheet({
 
               {/* Active product card */}
               {current && (() => {
-                const urgentBorder = status.key === 'ok' ? `${theme.accentBorder} ${theme.accentBg}` : status.row;
+                // Estado real (CARE_STATE), tratamento "muito discreto" —
+                // o card inteiro NÃO vira uma superfície vermelha/verde
+                // grande; a cor do estado fica só na borda (fina) e no
+                // badge/texto já existentes abaixo (pedido do dono,
+                // 07/10/2026: "evite grande superfície rosa/vermelha se
+                // uma indicação menor comunica o estado com clareza").
+                const urgentBorder = status.key === 'critical'
+                  ? 'border-red-200 bg-white'
+                  : status.key === 'attention'
+                    ? 'border-amber-200 bg-white'
+                    : status.key === 'ok'
+                      ? 'border-teal-200 bg-white'
+                      : 'border-[#D9E6F7] bg-white';
                 const statusPill = `${status.chip} ${status.chipText}`;
                 return (
                   <div className={`flex items-start gap-2.5 px-3 py-2 rounded-xl border ${urgentBorder}`}>
-                    <div className="w-8 h-8 rounded-lg bg-white/80 flex items-center justify-center text-base flex-shrink-0">
-                      {cfg.icon}
-                    </div>
+                    {/* ~32px é pequeno demais pro asset 3D (regra do dono,
+                        propagada do piloto Antipulgas em 07/10/2026) — sem
+                        informação funcional pra acrescentar aqui, removido
+                        nos 3 tipos (o título do sheet já diz a categoria). */}
                     <div className="flex-1 min-w-0">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Produto atual</p>
-                      <p className={`text-[13px] font-bold ${theme.accentText} leading-tight break-words`}>{current.product_name}</p>
+                      <p className="text-[13px] font-bold text-[#0B1E36] leading-tight break-words">{current.product_name}</p>
                       <p className="text-[11px] text-gray-500 leading-tight">
                         Aplicado {fmtDate(current.date_applied)}
                       </p>
@@ -611,7 +634,9 @@ export function ParasiteItemSheet({
               {/* Empty state — responde o que é, por que preencher e o que fazer */}
               {!current && (
                 <div className="rounded-2xl border border-gray-100 bg-gray-50 p-6 text-center">
-                  <p className="text-4xl mb-3">{cfg.icon}</p>
+                  {/* Aqui tem espaço de verdade (~64px) — asset premium em
+                      vez do emoji de categoria, nos 3 tipos. */}
+                  <img src={careAssetSrc(CARE_KEY_BY_TYPE[type])} alt="" className="mx-auto mb-3 h-16 w-16 object-contain" />
                   <p className="text-sm font-semibold text-gray-700">
                     {petName ? `${petName} usa proteção contra ` : 'Proteção contra '}
                     {type === 'dewormer' ? 'vermes?' : type === 'collar' ? 'parasitas com coleira?' : 'pulgas e carrapatos?'}
@@ -668,8 +693,8 @@ export function ParasiteItemSheet({
                           key={rec.id}
                           className="flex items-center gap-3 px-4 py-2.5"
                         >
-                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-base flex-shrink-0 ${!isHistory ? theme.accentBg : 'bg-gray-100'}`}>
-                            {!isHistory ? cfg.icon : '·'}
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-base flex-shrink-0 ${!isHistory ? 'bg-[#F2F6FC]' : 'bg-gray-100'}`}>
+                            {!isHistory ? '' : '·'}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
@@ -738,7 +763,7 @@ export function ParasiteItemSheet({
                 <button
                   type="button"
                   onClick={() => setShowManualForm(true)}
-                  className={`w-full flex items-center gap-3 rounded-2xl border p-4 text-left transition-all active:scale-[0.98] ${theme.accentBorder} ${theme.accentBg}`}
+                  className="w-full flex items-center gap-3 rounded-2xl border border-[#BFD4F0] bg-[#F2F6FC] p-4 text-left transition-all active:scale-[0.98]"
                 >
                   <span className="text-2xl flex-shrink-0">🔁</span>
                   <span className="min-w-0 flex-1">
@@ -750,7 +775,7 @@ export function ParasiteItemSheet({
               )}
 
               {!showManualForm && (
-                <div className={`rounded-2xl border p-4 space-y-3 ${theme.accentBorder} ${theme.accentBg}`}>
+                <div className="rounded-2xl border border-[#D9E6F7] bg-[#F2F6FC] p-4 space-y-3">
                   <div>
                     <h3 className="text-[18px] font-black text-gray-900 leading-tight">Identifique o produto</h3>
                     <p className="text-[13px] text-gray-600 mt-1">Busque pelo nome ou marca — código de barras também funciona, se preferir.</p>
@@ -852,14 +877,9 @@ export function ParasiteItemSheet({
           {/* ── EDIT FORM ─────────────────────────────────────────────────── */}
           {mode === 'edit' && editRecord && (
             <div className="px-4 pt-2 pb-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-base ${theme.accentBg} ring-1 ${theme.accentBorder}`}>
-                  {cfg.icon}
-                </div>
-                <h3 className="text-[16px] font-bold text-gray-900">Editar registro</h3>
-              </div>
+              <h3 className="text-[16px] font-bold text-gray-900">Editar registro</h3>
 
-              <div className={`rounded-2xl border-2 ${theme.accentBorder} ${theme.accentBg} p-3.5 space-y-3`}>
+              <div className="rounded-2xl border-2 border-[#D9E6F7] bg-[#F2F6FC] p-3.5 space-y-3">
                 <div className="flex items-start gap-2.5">
                   <div className="min-w-0 flex-1">
                     <label className={accentLabelCls}>Data</label>
@@ -928,7 +948,7 @@ export function ParasiteItemSheet({
               </button>
 
               <div className="flex items-center gap-3 mb-1">
-                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 rounded-full bg-[#F2F6FC] flex items-center justify-center flex-shrink-0">
                   <span className="text-[20px] leading-none">🛍️</span>
                 </div>
                 <div>

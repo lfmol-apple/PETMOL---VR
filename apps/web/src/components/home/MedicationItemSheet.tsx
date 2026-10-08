@@ -6,7 +6,7 @@ import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { parsePetEventExtraData, type PetEventRecord } from '@/lib/petEvents';
 import { extractMedicationBarcode } from '@/lib/petCareDomain';
-import { Bell, Check, Home, Trash2, X } from 'lucide-react';
+import { Bell, Check, Home, Info, ShoppingCart, Trash2, X } from 'lucide-react';
 import { ActivationAskSheet } from './ActivationAskSheet';
 import { usePushOneTimeAsk } from '@/features/interactions/usePushOneTimeAsk';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
@@ -14,6 +14,7 @@ import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/s
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { CARE_STATE } from '@/lib/careState';
 import { CARE_AREA_THEME } from '@/lib/careAreaTheme';
+import { careAssetSrc } from '@/lib/careAssets';
 import { listReminders, deleteReminder, createReminder, refreshSubscription } from '@/features/notifications/pushService';
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
 import { DateField } from '@/components/ui/DateField';
@@ -341,7 +342,7 @@ type Mode = 'view' | 'add' | 'edit' | 'buy';
 const medTheme = CARE_AREA_THEME.medication;
 const labelCls = 'block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5';
 const inputCls =
-  `w-full min-w-0 border border-gray-200 rounded-xl px-3 py-3 text-sm bg-white focus:outline-none focus:ring-2 ${medTheme.focusRing}`;
+  `w-full min-w-0 border border-gray-200 rounded-xl px-3 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0056D2]`;
 
 // ── Component ────────────────────────────────────────────────────────────────
 export function MedicationItemSheet({
@@ -846,7 +847,10 @@ export function MedicationItemSheet({
 
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain bg-gradient-to-b from-sky-50 via-white to-violet-50">
-          <p className="mx-4 mt-3 mb-1 text-[11.5px] font-medium text-slate-500 text-center">ℹ️ Aqui é pra acompanhar e não esquecer os cuidados — o tratamento é sempre com o veterinário.</p>
+          <p className="mx-4 mt-3 mb-1 flex items-center justify-center gap-1 text-[11.5px] font-medium text-slate-500 text-center">
+            <Info className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2} />
+            Aqui é pra acompanhar e não esquecer os cuidados — o tratamento é sempre com o veterinário.
+          </p>
 
           {/* ── VIEW MODE ─────────────────────────────────────────────────── */}
           {mode === 'view' && (
@@ -872,7 +876,7 @@ export function MedicationItemSheet({
               {/* Empty state — o que é, por que preencher, o que fazer */}
               {!eventsLoading && medications.length === 0 && (
                 <div className="rounded-2xl border border-gray-100 bg-gray-50 p-6 text-center">
-                  <p className="text-4xl mb-3">💊</p>
+                  <img src={careAssetSrc('medication')} alt="" className="mx-auto mb-3 h-16 w-16 object-contain" />
                   <p className="text-sm font-semibold text-gray-700">Nenhum remédio em andamento</p>
                   <p className="text-xs text-gray-500 mt-2 leading-relaxed">
                     Se {petName || 'seu pet'} está tomando algum medicamento, registre aqui: o PETMOL
@@ -1220,14 +1224,15 @@ export function MedicationItemSheet({
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={openAdd}
-                  className="w-full py-3 rounded-2xl border border-purple-200 bg-white text-sm font-semibold text-purple-700 hover:bg-purple-50 active:scale-95 transition-all"
+                  className="w-full py-3 rounded-2xl text-sm font-black active:scale-95 transition-all bg-[#0056D2] hover:bg-[#004ab8] active:bg-[#003f9e] text-white shadow-sm"
                 >
                   Nova medicação
                 </button>
                 <button
                   onClick={() => setMode('buy')}
-                  className="w-full py-3 rounded-2xl bg-[#0056D2] hover:bg-[#004ab8] text-white text-sm font-black shadow-md shadow-blue-500/25 active:scale-95 transition-all"
+                  className="w-full py-3 rounded-2xl text-sm font-black active:scale-95 transition-all bg-[#F2F6FC] hover:bg-[#E6EEF9] active:bg-[#DCE7F6] text-[#0056D2] border border-[#BFD4F0] shadow-sm flex items-center justify-center gap-1.5"
                 >
+                  <ShoppingCart className="h-4 w-4 flex-shrink-0" strokeWidth={2.3} />
                   Comprar medicamento
                 </button>
               </div>
@@ -1285,7 +1290,7 @@ export function MedicationItemSheet({
           {(mode === 'add' || mode === 'edit') && (
             <div className="px-4 pt-3 pb-4 space-y-3">
               {!showManualForm && mode === 'add' && (
-                <div className={`rounded-2xl border ${medTheme.accentBorder} ${medTheme.accentBg}/40 p-4 space-y-3`}>
+                <div className={`rounded-2xl border border-[#D9E6F7] bg-[#F2F6FC]/40 p-4 space-y-3`}>
                   <div>
                     <h3 className="text-[18px] font-black text-gray-900 leading-tight">Identifique o medicamento</h3>
                     <p className="text-[13px] text-gray-600 mt-1">Busque pelo nome ou marca — código de barras também funciona, se preferir.</p>
@@ -1310,7 +1315,7 @@ export function MedicationItemSheet({
 
               {showManualForm && (
               <>
-              <div className={`rounded-2xl border ${medTheme.accentBorder} ${medTheme.accentBg}/40 p-3.5 space-y-3`}>
+              <div className={`rounded-2xl border border-[#D9E6F7] bg-[#F2F6FC]/40 p-3.5 space-y-3`}>
                 <div>
                   <label className={labelCls}>Nome do medicamento *</label>
                   <input
@@ -1395,7 +1400,7 @@ export function MedicationItemSheet({
                 </div>
 
                 {form.frequency === 'vezes_dia' && (
-                  <div className={`grid grid-cols-[92px_1fr] gap-2.5 rounded-2xl border ${medTheme.accentBorder} ${medTheme.accentBg} p-3`}>
+                  <div className={`grid grid-cols-[92px_1fr] gap-2.5 rounded-2xl border border-[#D9E6F7] bg-[#F2F6FC] p-3`}>
                     <div className="min-w-0">
                       <label className={labelCls}>Vezes/dia</label>
                       <input
@@ -1403,14 +1408,14 @@ export function MedicationItemSheet({
                         min="1"
                         max="12"
                         placeholder="2"
-                        className={`w-full min-w-0 border ${medTheme.accentBorder} rounded-xl px-2 py-3 text-sm text-center bg-white focus:outline-none focus:ring-2 ${medTheme.focusRing}`}
+                        className={`w-full min-w-0 border border-[#D9E6F7] rounded-xl px-2 py-3 text-sm text-center bg-white focus:outline-none focus:ring-2 focus:ring-[#0056D2]`}
                         value={form.times_per_day}
                         onChange={e => setForm(f => ({ ...f, times_per_day: e.target.value }))}
                       />
                     </div>
                     <div className="min-w-0">
                       <label className={labelCls}>Próximos</label>
-                      <div className={`min-h-[46px] flex items-center rounded-xl border ${medTheme.accentBorder} bg-white px-3 py-2 text-[12px] font-semibold ${medTheme.accentText} leading-snug`}>
+                      <div className={`min-h-[46px] flex items-center rounded-xl border border-[#D9E6F7] bg-white px-3 py-2 text-[12px] font-semibold text-[#0B1E36] leading-snug`}>
                         {getDailyDoseTimes(form.times_per_day, form.first_dose_time).slice(0, 4).join(' · ')}
                       </div>
                     </div>
@@ -1418,7 +1423,7 @@ export function MedicationItemSheet({
                 )}
 
                 {form.frequency === 'intervalo' && (
-                  <div className={`grid grid-cols-2 gap-3 rounded-2xl border ${medTheme.accentBorder} ${medTheme.accentBg} p-3`}>
+                  <div className={`grid grid-cols-2 gap-3 rounded-2xl border border-[#D9E6F7] bg-[#F2F6FC] p-3`}>
                     <div className="min-w-0">
                       <label className={labelCls}>Horas</label>
                       <input
@@ -1427,7 +1432,7 @@ export function MedicationItemSheet({
                         min="0"
                         max="168"
                         placeholder="8"
-                        className={`w-full border ${medTheme.accentBorder} rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 ${medTheme.focusRing}`}
+                        className={`w-full border border-[#D9E6F7] rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0056D2]`}
                         value={form.interval_hours}
                         onChange={e => setForm(f => ({ ...f, interval_hours: e.target.value }))}
                       />
@@ -1440,7 +1445,7 @@ export function MedicationItemSheet({
                         min="0"
                         max="59"
                         placeholder="0"
-                        className={`w-full border ${medTheme.accentBorder} rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 ${medTheme.focusRing}`}
+                        className={`w-full border border-[#D9E6F7] rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0056D2]`}
                         value={form.interval_minutes}
                         onChange={e => setForm(f => ({ ...f, interval_minutes: e.target.value }))}
                       />
@@ -1457,7 +1462,7 @@ export function MedicationItemSheet({
                     total_doses/custom_interval_days — só faltava este
                     formulário pra preenchê-los de novo. */}
                 {form.frequency === 'intervalo_dias' && (
-                  <div className={`grid grid-cols-2 gap-3 rounded-2xl border ${medTheme.accentBorder} ${medTheme.accentBg} p-3`}>
+                  <div className={`grid grid-cols-2 gap-3 rounded-2xl border border-[#D9E6F7] bg-[#F2F6FC] p-3`}>
                     <div className="min-w-0">
                       <label className={labelCls}>A cada (dias)</label>
                       <input
@@ -1466,7 +1471,7 @@ export function MedicationItemSheet({
                         min="1"
                         max="365"
                         placeholder="15"
-                        className={`w-full border ${medTheme.accentBorder} rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 ${medTheme.focusRing}`}
+                        className={`w-full border border-[#D9E6F7] rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0056D2]`}
                         value={form.custom_interval_days}
                         onChange={e => setForm(f => ({ ...f, custom_interval_days: e.target.value }))}
                       />
@@ -1479,7 +1484,7 @@ export function MedicationItemSheet({
                         min="1"
                         max="60"
                         placeholder="2"
-                        className={`w-full border ${medTheme.accentBorder} rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 ${medTheme.focusRing}`}
+                        className={`w-full border border-[#D9E6F7] rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0056D2]`}
                         value={form.total_doses}
                         onChange={e => setForm(f => ({ ...f, total_doses: e.target.value }))}
                       />

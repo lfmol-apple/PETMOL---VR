@@ -2,6 +2,7 @@
 
 import { useBackHandler } from '@/lib/backStack';
 import { useState } from 'react';
+import { ChevronRight } from 'lucide-react';
 import { useI18n } from '@/lib/I18nContext';
 import { ModalPortal } from '@/components/ModalPortal';
 import { PETMOL_HEADER_BG } from '@/components/ui/sheet';
@@ -9,7 +10,6 @@ import { PetShopsNearbySheet } from '@/components/home/PetShopsNearbySheet';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { MEDICATIONS_ENABLED } from '@/lib/featureFlags';
 import type { PetHealthProfile } from '@/lib/petHealth';
-import { HOME_ART } from '@/lib/homeArt';
 
 type ControlTone = 'neutral' | 'ok' | 'warning' | 'critical';
 
@@ -46,23 +46,17 @@ function shouldShowAlert(tone?: ControlTone, fallbackAlert?: boolean) {
   return fallbackAlert === true;
 }
 
+// Mesmo estilo do AlertDot da Home (AppleControlButtons.tsx) — pontinho
+// simples, canto superior DIREITO, não mais o triângulo "!" no esquerdo
+// (08/10/2026, pedido do dono: "mesma formatação da Home").
 function ControlAlertBadge({ tone = 'critical' }: { tone?: ControlTone }) {
   if (tone === 'warning') {
     return (
-      <div className="absolute top-2 left-2 w-6 h-6 flex items-center justify-center animate-pulse z-10">
-        <span
-          className="absolute inset-0 bg-amber-400 shadow-sm ring-2 ring-white"
-          style={{ clipPath: 'polygon(50% 0%, 100% 92%, 0% 92%)' }}
-        />
-        <span className="relative mt-1 text-[11px] font-black text-amber-950 leading-none">!</span>
-      </div>
+      <span className="absolute right-2.5 top-2.5 z-10 h-2 w-2 animate-pulse rounded-full bg-amber-400 ring-2 ring-amber-300/60 ring-offset-1" />
     );
   }
-
   return (
-    <div className="absolute top-2.5 left-2.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold animate-pulse shadow-sm border border-white/50 z-10">
-      !
-    </div>
+    <span className="absolute right-2.5 top-2.5 z-10 h-2 w-2 animate-pulse rounded-full bg-rose-500 ring-2 ring-rose-400/60 ring-offset-1" />
   );
 }
 
@@ -104,7 +98,7 @@ export function HomeNavigationModals({
       {showHealthOptionsModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn" onClick={onCloseHealthOptionsModal}>
           <div
-            className="bg-slate-50 rounded-[32px] shadow-2xl w-full max-w-sm max-h-[92dvh] flex flex-col overflow-hidden animate-scaleIn"
+            className="bg-[#F2F6FC] rounded-[26px] shadow-2xl w-full max-w-sm max-h-[92dvh] flex flex-col overflow-hidden animate-scaleIn"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header Mini-Home — bloco azul PETMOL, mesma linguagem dos sheets do pet */}
@@ -137,27 +131,28 @@ export function HomeNavigationModals({
               className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50"
               style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}
             >
-              <div className="grid grid-cols-2 gap-2 mb-1">
+              <div className="grid grid-cols-2 items-stretch gap-2 mb-1">
                 {[
-                  // Cards vivos, na mesma linguagem da Home: borda saturada +
-                  // degradê forte + rótulo tingido. A arte .webp continua por cima.
-                  { icon: '🪱', image: HOME_ART.vermifugo, label: 'Vermífugo', gradient: 'border-amber-400 bg-gradient-to-br from-amber-100 via-yellow-100 to-orange-200 shadow-amber-900/10', text: 'text-amber-950', sub: 'text-amber-900/60', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
-                  { icon: '🛡️', image: HOME_ART.antipulgas, label: 'Antipulgas', gradient: 'border-emerald-400 bg-gradient-to-br from-emerald-100 via-emerald-100 to-teal-200 shadow-emerald-900/10', text: 'text-emerald-950', sub: 'text-emerald-900/60', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
+                  // Reviravolta 11/10/2026 (pedido do dono): sem emoji/arte
+                  // nenhuma nos 6 cards — o título carrega o card sozinho,
+                  // com mais destaque tipográfico no lugar do ícone.
+                  { label: 'Vermífugo', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
+                  { label: 'Antipulgas', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
                   // Coleira antiparasitária é uso específico de cães — outras espécies não usam
                   ...(currentPet?.species === 'dog'
-                    ? [{ icon: '📿', image: HOME_ART.coleira, label: 'Coleira', gradient: 'border-orange-400 bg-gradient-to-br from-orange-100 via-orange-200 to-red-200 shadow-orange-900/10', text: 'text-orange-950', sub: 'text-orange-900/60', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
+                    ? [{ label: 'Coleira', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
                     : []),
-                  { icon: '🛁', image: HOME_ART.banho, label: 'Banho e Tosa', gradient: 'border-cyan-400 bg-gradient-to-br from-cyan-100 via-sky-100 to-cyan-200 shadow-cyan-900/10', text: 'text-cyan-950', sub: 'text-cyan-900/60', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
+                  { label: 'Banho e Tosa', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
                   // Medicamentos desativados no PETMOL 1.0 (ver
                   // docs/MEDICAMENTOS_DESATIVADOS.md) — mesmo padrão do
                   // filtro de espécie da Coleira acima, condicional na
                   // própria montagem do array.
                   ...(MEDICATIONS_ENABLED
-                    ? [{ icon: '💊', image: HOME_ART.medicacao, label: 'Medicação', gradient: 'border-purple-400 bg-gradient-to-br from-purple-100 via-fuchsia-100 to-purple-200 shadow-purple-900/10', text: 'text-purple-950', sub: 'text-purple-900/60', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue }]
+                    ? [{ label: 'Medicação', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue }]
                     : []),
                   // Busca de estabelecimento (Maps) — saiu da Home, é mais um card aqui em Cuidados.
-                  { icon: '🏪', image: HOME_ART.petshops, label: 'PetShops', gradient: 'border-blue-400 bg-gradient-to-br from-blue-100 via-sky-100 to-blue-200 shadow-blue-900/10', text: 'text-blue-950', sub: 'text-blue-900/60', tab: 'petshops', alert: false, tone: undefined },
-                ].map(({ icon, image, label, gradient, text, sub, tab, alert, tone }) => {
+                  { label: 'PetShops', tab: 'petshops', alert: false, tone: undefined },
+                ].map(({ label, tab, alert, tone }) => {
                   const isEmergency = tab === 'emergency';
 
                   return (
@@ -203,35 +198,21 @@ export function HomeNavigationModals({
                       onCloseHealthOptionsModal();
                       onOpenHealthTab(tab);
                     }}
-                    className={`group relative overflow-hidden ${gradient} border rounded-2xl p-3 h-[108px] transition-all duration-200 hover:shadow-lg hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-end shadow-sm ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
+                    className={`group relative overflow-hidden border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] rounded-xl min-h-[76px] p-2.5 min-[390px]:min-h-[86px] min-[390px]:rounded-2xl min-[390px]:p-3 transition-all duration-200 hover:-translate-y-1 active:scale-95 text-left flex items-start shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
                   >
                     {shouldShowAlert(tone, alert) && <ControlAlertBadge tone={tone} />}
-                    {image ? (
-                      <span className={`absolute opacity-95 transition-transform duration-300 group-hover:scale-110 ${tab === 'flea_tick' ? 'top-6 right-4' : tab === 'medication' ? 'top-2 right-1' : 'top-1 right-1'}`}>
-                        <img
-                          src={image}
-                          alt=""
-                          className={
-                            tab === 'collar'
-                              ? 'h-[68px] w-[68px] object-contain'
-                              : tab === 'flea_tick'
-                                ? 'h-[32px] w-[32px] object-contain'
-                                : tab === 'medication'
-                                  ? 'h-[50px] w-[70px] object-contain'
-                                  : 'h-[62px] w-[62px] object-contain'
-                          }
-                        />
-                      </span>
-                    ) : (
-                      <span className={`absolute text-[32px] leading-none transition-transform duration-300 group-hover:scale-110 ${tab === 'medication' ? 'top-6 right-4' : 'top-1 right-1'} ${isEmergency ? 'opacity-100 drop-shadow-[0_0_10px_rgba(239,68,68,0.28)]' : 'opacity-95'}`}>{icon}</span>
-                    )}
                     {isEmergency && (
                       <span className="pointer-events-none absolute right-2 top-2 h-6 w-6 rounded-full bg-red-300/35 blur-md animate-pulse" />
                     )}
-                    <div className="relative">
-                      <span className={`text-[14px] font-bold leading-tight block ${isEmergency ? 'text-red-700' : text}`}>{label}</span>
-                      <span className={`text-[9px] font-black uppercase tracking-widest mt-0.5 block ${isEmergency ? 'text-red-500/80' : sub}`}>{isEmergency ? 'Clínicas e hospitais 24h' : tab === 'petshops' ? 'Perto de você' : 'Acompanhar'}</span>
+                    {/* Mesma formatação dos 4 cards principais da Home
+                        (08/10/2026, pedido do dono, imagem de referência):
+                        título à esquerda (peso bold, não mais black) +
+                        ">" à direita centralizado na altura do card. */}
+                    <div className="relative min-w-0 flex-1">
+                      <span className={`text-[15px] font-bold leading-tight block ${isEmergency ? 'text-red-700' : 'text-[#0B1E36]'}`}>{label}</span>
+                      <span className={`text-[10px] font-black uppercase tracking-widest mt-1 block ${isEmergency ? 'text-red-500/80' : 'text-[#5B6B82]'}`}>{isEmergency ? 'Clínicas e hospitais 24h' : tab === 'petshops' ? 'Perto de você' : 'Acompanhar'}</span>
                     </div>
+                    <ChevronRight className={`h-4 w-4 flex-shrink-0 self-center transition-transform group-hover:translate-x-0.5 ${isEmergency ? 'text-red-300' : 'text-[#8EA9C9]'}`} strokeWidth={2.5} />
                   </button>
                 )})}
               </div>

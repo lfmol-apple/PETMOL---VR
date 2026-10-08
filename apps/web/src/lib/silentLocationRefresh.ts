@@ -27,14 +27,25 @@ export function forgetLocationRefresh(): void {
   try { localStorage.removeItem(STORAGE_KEY); } catch { /* best effort */ }
 }
 
-async function geolocationIsGranted(): Promise<boolean> {
+export type GeolocationPermissionState = 'granted' | 'denied' | 'prompt' | 'unsupported';
+
+/** Lê o estado real da permissão de geolocalização via Permissions API —
+ *  só LEITURA, nunca dispara o diálogo nativo (query() é passivo). Usado
+ *  pelo indicador de permissões da Home (canto da foto do pet) pra
+ *  distinguir "nunca perguntado" de "negado pelo usuário/SO", sem
+ *  duplicar a chamada já existente abaixo. */
+export async function queryGeolocationPermission(): Promise<GeolocationPermissionState> {
   try {
-    if (!navigator.permissions?.query) return false;
+    if (typeof navigator === 'undefined' || !navigator.permissions?.query) return 'unsupported';
     const status = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
-    return status.state === 'granted';
+    return status.state as GeolocationPermissionState;
   } catch {
-    return false;
+    return 'unsupported';
   }
+}
+
+async function geolocationIsGranted(): Promise<boolean> {
+  return (await queryGeolocationPermission()) === 'granted';
 }
 
 export async function refreshLocationSilently(now: number = Date.now()): Promise<RefreshOutcome> {

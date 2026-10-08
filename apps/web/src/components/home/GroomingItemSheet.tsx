@@ -12,8 +12,8 @@ import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/s
 import { ReminderPicker } from '@/components/ReminderPicker';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
+import { careAssetSrc } from '@/lib/careAssets';
 import { CARE_STATE, careStateFromDaysUntilDue } from '@/lib/careState';
-import { CARE_AREA_THEME } from '@/lib/careAreaTheme';
 import { scheduleUniqueReminder, buildRemindAt, subtractDays } from '@/features/notifications/pushService';
 import { DateField } from '@/components/ui/DateField';
 
@@ -42,15 +42,6 @@ function diffDays(dateStr?: string | null): number | null {
   return Math.round((target.getTime() - now.getTime()) / 86400000);
 }
 
-function hasLaterGroomingRecord(records: GroomingRecord[], record: GroomingRecord): boolean {
-  const recordTime = new Date(record.date).getTime();
-  return records.some((candidate) => {
-    if (candidate.id === record.id || candidate.type !== record.type) return false;
-    const candidateTime = new Date(candidate.date).getTime();
-    return !Number.isNaN(candidateTime) && (Number.isNaN(recordTime) || candidateTime > recordTime);
-  });
-}
-
 function fmtDate(s?: string | null): string {
   if (!s) return '—';
   const clean = s.split('T')[0];
@@ -60,9 +51,9 @@ function fmtDate(s?: string | null): string {
 }
 
 const TYPE_LABELS: Record<GroomingType, string> = {
-  bath: '🚿 Banho',
-  grooming: '✂️ Tosa',
-  bath_grooming: '🛁 Banho + Tosa',
+  bath: 'Banho',
+  grooming: 'Tosa',
+  bath_grooming: 'Banho + Tosa',
 };
 
 const FREQ_DEFAULTS: Record<GroomingType, number> = {
@@ -375,8 +366,7 @@ export function GroomingItemSheet({
   }
 
   // ── CSS helpers ───────────────────────────────────────────────────────────
-  const theme = CARE_AREA_THEME.grooming;
-  const inputCls = 'w-full min-w-0 border border-[#E5E5EA] rounded-xl px-3 py-3 text-[15px] text-[#1C1C1E] bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500/30 placeholder:text-[#C7C7CC]';
+  const inputCls = 'w-full min-w-0 border border-[#E5E5EA] rounded-xl px-3 py-3 text-[15px] text-[#1C1C1E] bg-white focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30 placeholder:text-[#C7C7CC]';
   const labelCls = 'block text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wider mb-1.5';
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -521,7 +511,7 @@ export function GroomingItemSheet({
                                 href={`https://www.google.com/search?tbm=shop&q=${encodeURIComponent(productName + ' pet')}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-[14px] font-medium text-cyan-700 truncate max-w-[55%] text-right"
+                                className="text-[14px] font-medium text-[#0056D2] truncate max-w-[55%] text-right"
                               >
                                 {productName}
                               </a>
@@ -539,7 +529,7 @@ export function GroomingItemSheet({
                 </div>
               ) : (
                 <div className="bg-white rounded-2xl p-8 text-center shadow-sm">
-                  <p className="text-4xl mb-3">🛁</p>
+                  <img src={careAssetSrc('grooming')} alt="" className="mx-auto mb-3 h-16 w-16 object-contain" />
                   <p className="text-[15px] font-semibold text-[#1C1C1E]">Nenhum serviço registrado</p>
                   <p className="text-[13px] text-[#8E8E93] mt-1">Registre o primeiro serviço abaixo</p>
                 </div>
@@ -576,14 +566,10 @@ export function GroomingItemSheet({
                   </p>
                   <div className="bg-white rounded-2xl overflow-hidden shadow-sm divide-y divide-[#F2F2F7]">
                     {sorted.map((rec) => {
-                      const isHistory = hasLaterGroomingRecord(sorted, rec);
                       return (
                         <div key={rec.id} className="flex items-center gap-3 px-4 py-3">
-                          <div className={`w-9 h-9 rounded-[10px] flex items-center justify-center text-[17px] flex-shrink-0 ${!isHistory ? 'bg-[#F2F2F7]' : 'bg-[#F2F2F7]'}`}>
-                            {TYPE_LABELS[rec.type].split(' ')[0]}
-                          </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-[14px] font-medium text-[#1C1C1E]">{TYPE_LABELS[rec.type].replace(/^[^\s]+ /, '')}</p>
+                            <p className="text-[14px] font-medium text-[#1C1C1E]">{TYPE_LABELS[rec.type]}</p>
                             <p className="text-[12px] text-[#8E8E93]">
                               {fmtDate(rec.date)}
                               {rec.cost != null ? ` · R$ ${rec.cost.toFixed(2).replace('.', ',')}` : ''}
@@ -648,9 +634,9 @@ export function GroomingItemSheet({
                     frequency_days: String(FREQ_DEFAULTS[e.target.value as GroomingType]),
                   }))}
                 >
-                  <option value="bath">🚿 Somente Banho</option>
-                  <option value="grooming">✂️ Somente Tosa</option>
-                  <option value="bath_grooming">🛁 Banho + Tosa</option>
+                  <option value="bath">Somente Banho</option>
+                  <option value="grooming">Somente Tosa</option>
+                  <option value="bath_grooming">Banho + Tosa</option>
                 </select>
               </div>
 
@@ -730,7 +716,7 @@ export function GroomingItemSheet({
             <div className="space-y-3 px-5 pb-4 pt-3">
               <h3 className="text-[17px] font-bold text-[#1C1C1E]">Editar registro</h3>
 
-              <div className={`rounded-2xl border ${theme.accentBorder} ${theme.accentBg}/40 p-3.5 space-y-3`}>
+              <div className="rounded-2xl border border-[#D9E6F7] bg-[#F2F6FC] p-3.5 space-y-3">
                 {/* O date input nativo do iOS ignora larguras estreitas — Data
                     fica sozinha na própria linha (nunca dividindo coluna).
                     A cada/Tipo não têm esse problema (number/select
@@ -765,9 +751,9 @@ export function GroomingItemSheet({
                       value={editForm.type}
                       onChange={e => setEditForm(f => ({ ...f, type: e.target.value as GroomingType }))}
                     >
-                      <option value="bath">🚿 Somente Banho</option>
-                      <option value="grooming">✂️ Somente Tosa</option>
-                      <option value="bath_grooming">🛁 Banho + Tosa</option>
+                      <option value="bath">Somente Banho</option>
+                      <option value="grooming">Somente Tosa</option>
+                      <option value="bath_grooming">Banho + Tosa</option>
                     </select>
                   </div>
                 </div>

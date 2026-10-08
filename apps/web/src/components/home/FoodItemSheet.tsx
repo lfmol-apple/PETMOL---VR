@@ -6,6 +6,7 @@ import { Bell, ShoppingCart, X } from 'lucide-react';
 import { FoodControlTab, type FoodControlTabFormRequest, type FoodControlTabState } from '@/components/FoodControlTab';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import { SheetAvatar, SheetHeader, SheetIcon } from '@/components/ui/sheet';
+import { careAssetSrc } from '@/lib/careAssets';
 import { ModalPortal } from '@/components/ModalPortal';
 import { ActivationAskSheet } from './ActivationAskSheet';
 import { usePushOneTimeAsk } from '@/features/interactions/usePushOneTimeAsk';
@@ -328,6 +329,20 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
 
   const hasFood  = hasFoodConfigured;
   const estEnd   = foodState.restockDate;
+
+  // Mesma régua de 3 níveis que já colore o pontinho de alerta do card
+  // Alimentação da Home (useHomeInteractionCenter: overdue/hoje = critical,
+  // até 7 dias = warning, resto = ok) — reaplicada aqui (11/10/2026, pedido
+  // do dono) pra caixa "X dias restantes" e o botão "Comprar novamente"
+  // também reagirem ao estado real, não ficarem num azul neutro sempre
+  // igual. Cor só na borda/leve tingimento, nunca a superfície toda
+  // (mesma regra já usada em ParasiteItemSheet: "evite grande superfície
+  // rosa/vermelha se uma indicação menor comunica o estado com clareza").
+  const foodTone: 'neutral' | 'critical' | 'warning' | 'ok' =
+    foodState.daysLeft === null ? 'neutral'
+    : foodState.daysLeft <= 0 ? 'critical'
+    : foodState.daysLeft <= 7 ? 'warning'
+    : 'ok';
 
   // Chute (não decisão) pra pré-destacar a opção provável na tela de
   // classificação ração x petisco — baseado no nome do produto escaneado
@@ -1312,7 +1327,9 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                   {(!hasFood || showFreshChoice) && (
                     <div className="rounded-2xl border border-amber-200 bg-white/95 p-5 space-y-4 shadow-sm shadow-amber-100">
                       <div className="flex items-center gap-3">
-                        <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-[22px]">🍽️</span>
+                        <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-amber-50 p-2">
+                          <img src={careAssetSrc('food')} alt="" className="h-full w-full object-contain" />
+                        </span>
                         <div className="min-w-0">
                           <h3 className="text-[18px] font-black text-gray-900 leading-tight">Como {pet.pet_name} se alimenta?</h3>
                           <p className="text-[12.5px] text-gray-500 mt-0.5">Busque pelo nome ou marca — sem código de barras à mão também dá.</p>
@@ -1354,7 +1371,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: null });
                             setMode('buy');
                           }}
-                          className="w-full flex items-center justify-center gap-2.5 min-h-[52px] rounded-2xl bg-emerald-500 px-4 text-[14px] font-bold text-white shadow-md shadow-emerald-500/25 active:scale-[0.98] transition-all"
+                          className="w-full flex items-center justify-center gap-2.5 min-h-[52px] rounded-2xl bg-emerald-500 hover:bg-emerald-600 px-4 text-[14px] font-bold text-white shadow-md shadow-emerald-500/25 active:scale-[0.98] transition-all"
                         >
                           <span className="text-lg">🛒</span>
                           Comprar ração
@@ -1401,7 +1418,12 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                         {viewSection === 'racao' && (
                         <>
                           {/* 1. Status principal */}
-                          <div className="rounded-3xl border border-amber-100 bg-amber-50/70 p-4">
+                          <div className={`rounded-3xl border p-4 ${
+                            foodTone === 'critical' ? 'border-red-200 bg-red-50/70'
+                            : foodTone === 'warning' ? 'border-amber-200 bg-amber-50/70'
+                            : foodTone === 'ok' ? 'border-green-200 bg-green-50/70'
+                            : 'border-[#D9E6F7] bg-[#F2F6FC]/70'
+                          }`}>
                             {foodState.daysLeft !== null ? (
                               <>
                                 <div className="flex items-end gap-3">
@@ -1413,18 +1435,18 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                                       {foodState.daysLeft <= 0 ? 'Ração acabou' : 'dias restantes'}
                                     </p>
                                     {estEnd && (
-                                      <p className="text-[13px] text-amber-900/70">
+                                      <p className="text-[13px] text-gray-600">
                                         Previsão: <span className="font-semibold text-gray-800">{fmtDateShort(estEnd)}</span>
                                       </p>
                                     )}
                                     {nextReminderDate && (
-                                      <p className="text-[13px] text-amber-900/70">
+                                      <p className="text-[13px] text-gray-600">
                                         Próximo alerta: <span className="font-semibold text-gray-800">{fmtDateShort(nextReminderDate)} às {reminderTime ?? '09:00'}</span>
                                       </p>
                                     )}
                                   </div>
                                 </div>
-                                <p className="mt-3 text-[13px] text-amber-950/70 leading-snug">
+                                <p className="mt-3 text-[13px] text-gray-600 leading-snug">
                                   {foodState.daysLeft <= 0
                                     ? 'Está na hora de repor a ração e registrar o novo ciclo.'
                                     : 'Acompanhe a previsão e compre com calma antes de acabar.'}
@@ -1483,12 +1505,25 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             Registrar reposição
                           </button>
 
+                          {/* Base IDÊNTICA à produção (bg-emerald-500,
+                              shadow, emoji 🛒) — pedido explícito do dono,
+                              11/10/2026, depois de uma tentativa com
+                              green-600 que ele considerou errada. Produção
+                              não tem noção de urgência nenhuma (sempre esse
+                              mesmo verde); a única coisa nova é a régua de
+                              foodTone SOBRESCREVENDO pra vermelho/âmbar
+                              quando tá crítico/em aviso — fora isso, pixel
+                              igual ao botão de produção. */}
                           <button type="button"
                             onClick={() => {
                               trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
                               setMode('buy');
                             }}
-                            className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 active:scale-[0.97] transition-all text-white text-[15px] font-black shadow-md shadow-emerald-500/25 flex items-center justify-center gap-2.5"
+                            className={`w-full py-3.5 rounded-2xl active:scale-[0.97] transition-all text-[15px] font-black text-white flex items-center justify-center gap-2.5 ${
+                              foodTone === 'critical' ? 'bg-red-600 hover:bg-red-700 shadow-lg shadow-red-900/20'
+                              : foodTone === 'warning' ? 'bg-amber-500 hover:bg-amber-600 shadow-lg shadow-amber-900/20'
+                              : 'bg-emerald-500 hover:bg-emerald-600 shadow-md shadow-emerald-500/25'
+                            }`}
                           >
                             <span className="text-lg">🛒</span>
                             Comprar novamente

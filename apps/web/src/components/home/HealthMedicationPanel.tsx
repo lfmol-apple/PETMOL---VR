@@ -56,7 +56,7 @@ export function HealthMedicationPanel({
   };
 
   return (
-    <PremiumPanelShell title="Medicação" icon="💊" subtitle={petName}>
+    <PremiumPanelShell title="Medicação" subtitle={petName}>
       <div className="space-y-4">
         {/* Formulário de nova medicação */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 space-y-3">
@@ -65,11 +65,8 @@ export function HealthMedicationPanel({
           </h4>
 
           {/* Tipo fixo: Prescrição / Medicação */}
-          <div className="bg-gradient-to-r from-purple-50 to-purple-100/50 border border-purple-200 rounded-xl p-3">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">💊</span>
-              <span className="font-semibold text-gray-800">Prescrição / Medicação</span>
-            </div>
+          <div className="bg-[#F2F6FC] border border-[#D9E6F7] rounded-xl p-3">
+            <span className="font-semibold text-[#0B1E36]">Prescrição / Medicação</span>
           </div>
 
           {/* Escanear é a via principal de identificação — mais preciso que
@@ -99,7 +96,7 @@ export function HealthMedicationPanel({
               placeholder="Ex: Amoxicilina, Prednisolona..."
               value={eventFormData.title}
               onChange={e => setEventFormData(prev => ({ ...prev, title: e.target.value }))}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30"
             />
           </div>
 
@@ -110,7 +107,7 @@ export function HealthMedicationPanel({
               type="datetime-local"
               value={eventFormData.scheduled_at}
               onChange={e => setEventFormData(prev => ({ ...prev, scheduled_at: e.target.value }))}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30"
             />
           </div>
 
@@ -126,7 +123,7 @@ export function HealthMedicationPanel({
               onChange={e =>
                 setEventFormData(prev => ({ ...prev, professional_name: e.target.value }))
               }
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30"
             />
           </div>
 
@@ -139,7 +136,7 @@ export function HealthMedicationPanel({
                 placeholder="Ex: 1 comprimido, 5ml"
                 value={eventFormData.dose}
                 onChange={e => setEventFormData(prev => ({ ...prev, dose: e.target.value }))}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30"
               />
             </div>
             <div>
@@ -147,7 +144,7 @@ export function HealthMedicationPanel({
               <select
                 value={eventFormData.route}
                 onChange={e => setEventFormData(prev => ({ ...prev, route: e.target.value }))}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30"
               >
                 <option value="oral">💊 Oral</option>
                 <option value="injetavel">💉 Injetável</option>
@@ -165,9 +162,9 @@ export function HealthMedicationPanel({
             <select
               value={eventFormData.frequency}
               onChange={e => setEventFormData(prev => ({ ...prev, frequency: e.target.value }))}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30"
             >
-              <option value="dose_unica">💊 Dose única</option>
+              <option value="dose_unica">Dose única</option>
               <option value="1x_dia">1× ao dia</option>
               <option value="2x_dia">2× ao dia</option>
               <option value="3x_dia">3× ao dia</option>
@@ -181,7 +178,7 @@ export function HealthMedicationPanel({
           </div>
 
           {eventFormData.frequency === 'personalizado' && (
-            <div className="grid grid-cols-2 gap-2 p-3 bg-purple-50 rounded-xl border border-purple-200">
+            <div className="grid grid-cols-2 gap-2 p-3 bg-purple-50 rounded-xl border border-[#D9E6F7]">
               <div>
                 <label className="text-xs text-gray-500 font-medium block mb-1">
                   Próxima dose em
@@ -194,7 +191,7 @@ export function HealthMedicationPanel({
                     placeholder="15"
                     value={eventFormData.custom_interval_days}
                     onChange={e => applyCustomInterval(e.target.value)}
-                    className="w-full border border-purple-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 bg-white"
+                    className="w-full border border-[#D9E6F7] rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30 bg-white"
                   />
                   <span className="text-xs text-gray-500 whitespace-nowrap">dias</span>
                 </div>
@@ -210,7 +207,7 @@ export function HealthMedicationPanel({
                   placeholder="2"
                   value={eventFormData.total_doses}
                   onChange={e => setEventFormData(prev => ({ ...prev, total_doses: e.target.value }))}
-                  className="w-full border border-purple-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 bg-white"
+                  className="w-full border border-[#D9E6F7] rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30 bg-white"
                 />
               </div>
             </div>
@@ -391,7 +388,7 @@ export function HealthMedicationPanel({
                 placeholder="0,00"
                 value={eventFormData.cost}
                 onChange={e => setEventFormData(prev => ({ ...prev, cost: e.target.value }))}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30"
               />
             </div>
             {!eventFormData.reminder_enabled && (
@@ -404,7 +401,7 @@ export function HealthMedicationPanel({
                   onChange={(iso) =>
                     setEventFormData(prev => ({ ...prev, next_due_date: iso }))
                   }
-                  inputClassName="w-full border border-gray-200 rounded-xl px-3 py-2 pr-10 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-purple-300"
+                  inputClassName="w-full border border-gray-200 rounded-xl px-3 py-2 pr-10 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30"
                 />
               </div>
             )}
@@ -492,8 +489,7 @@ export function HealthMedicationPanel({
                 return (
                   <div key={ev.id} className="bg-white rounded-xl border border-gray-200 p-3">
                     <div className="flex items-start gap-3">
-                      <div className="relative flex-shrink-0 mt-0.5">
-                        <span className="text-2xl leading-none">💊</span>
+                      <div className="relative flex-shrink-0 mt-0.5 h-2 w-2">
                         {(() => {
                           const todayStr = localTodayISO();
                           const eventDateStr = (ev.scheduled_at || '').split('T')[0] || (ev.scheduled_at || '').split(' ')[0];
@@ -534,7 +530,7 @@ export function HealthMedicationPanel({
                     <div className="flex gap-2 mt-2 pl-9">
                       <button
                         onClick={() => openEditEvent(ev)}
-                        className="flex-1 text-xs font-medium text-purple-600 border border-purple-200 bg-purple-50 hover:bg-purple-100 rounded-lg py-1.5 transition-colors"
+                        className="flex-1 text-xs font-medium text-purple-600 border border-[#D9E6F7] bg-purple-50 hover:bg-purple-100 rounded-lg py-1.5 transition-colors"
                       >
                         ✏️ Editar
                       </button>

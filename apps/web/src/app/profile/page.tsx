@@ -1,6 +1,6 @@
 'use client';
 import { getToken, clearToken } from '@/lib/auth-token';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { API_BASE_URL } from '@/lib/api';
@@ -72,6 +72,8 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [tutorData, setTutorData] = useState<TutorData | null>(null);
   const [editMode, setEditMode] = useState(false);
+  const editModeRef = useRef(editMode);
+  editModeRef.current = editMode;
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -213,6 +215,20 @@ export default function ProfilePage() {
 
   useEffect(() => {
     loadTutorData();
+    // A Home tem sua própria cópia do estado de localização (foto do pet) —
+    // desativar lá não atualiza este Perfil ao vivo, e a navegação pode
+    // trazer o Perfil de volta sem remontar. Reconfere ao voltar o foco.
+    const handleVisibility = () => {
+      // Não pisa em edição em andamento (campos de endereço etc.) ao voltar
+      // o foco — só reconfere quando a tela está em modo de leitura.
+      if (document.visibilityState === 'visible' && !editModeRef.current) loadTutorData();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleVisibility);
+    };
   }, []);
 
   useEffect(() => {
