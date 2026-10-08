@@ -145,9 +145,13 @@ export function AppleControlButtons({
 
   return (
     <>
-      {/* Grid 2×2: Alimentação | Saúde | Vacina | Shopping */}
+      {/* Grid 2×2: Alimentação | Saúde | Vacina | Shopping — items-stretch
+          explícito (08/10/2026, pedido do dono: cards com tamanhos
+          diferentes no celular real) porque o <button> como item de grid
+          às vezes não herda align-items:stretch por padrão em alguns
+          WebKit/Safari, mesmo sendo o comportamento padrão do CSS Grid. */}
       <div className="relative">
-        <div className="grid grid-cols-2 gap-2 min-[390px]:gap-2.5">
+        <div className="grid grid-cols-2 items-stretch gap-2 min-[390px]:gap-2.5">
 
           {/* 1. ALIMENTAÇÃO — reviravolta 11/10/2026 (pedido do dono): sem
               emoji/arte nenhuma nos 4 cards principais, título com mais
@@ -161,7 +165,7 @@ export function AppleControlButtons({
               <AlertDot tone={!hasFoodData ? 'critical' : colorFood} />
             )}
             <div className="flex h-full flex-col justify-center text-left">
-              <h3 className="line-clamp-2 text-[16px] font-black leading-tight tracking-tight text-[#0B1E36] min-[390px]:text-[17px] sm:text-lg">{foodTitle || t('home.food.title')}</h3>
+              <h3 className="line-clamp-2 text-[14px] font-black leading-tight tracking-tight text-[#0B1E36] min-[390px]:text-[15px] sm:text-base">{foodTitle || t('home.food.title')}</h3>
               <p className={`mt-1 ${foodIsDense ? 'line-clamp-2' : 'line-clamp-1 min-[390px]:line-clamp-2'} text-[11px] leading-snug min-[390px]:text-xs sm:text-sm ${!hasFoodData ? 'font-bold text-red-700' : 'text-[#5B6B82]'}`}>
                 {foodHeadlineText}
               </p>
@@ -218,7 +222,7 @@ export function AppleControlButtons({
             className="group relative min-h-[84px] overflow-hidden rounded-xl border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] p-2.5 shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] active:scale-95 min-[390px]:min-h-[96px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             <div className="relative z-10 flex h-full flex-col justify-center text-left">
-              <h3 className="line-clamp-2 break-words text-[16px] font-black leading-tight tracking-tight text-[#0B1E36] min-[390px]:text-[17px] sm:text-lg">{shoppingTitle}</h3>
+              <h3 className="line-clamp-2 break-words text-[14px] font-black leading-tight tracking-tight text-[#0B1E36] min-[390px]:text-[15px] sm:text-base">{shoppingTitle}</h3>
               <p className="mt-1 line-clamp-2 break-words text-[11px] leading-snug text-[#5B6B82] min-[390px]:text-xs sm:text-sm">Tudo que {petName || 'seu pet'} usa</p>
             </div>
           </button>
