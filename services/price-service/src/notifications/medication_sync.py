@@ -44,6 +44,25 @@ def expected_slots(extra: dict, start_day: date, now_utc: datetime) -> list:
     end_utc = now_utc + _HORIZON
     slots: list = []
 
+    applied_dates = set(extra.get("applied_dates") or [])
+    skipped_dates = set(extra.get("skipped_dates") or [])
+    applied_slots = extra.get("applied_slots") or {}
+    skipped_slots = extra.get("skipped_slots") or {}
+
+    # Regra antiga restaurada (pedido do dono 11/10/2026, achado via e-mail de
+    # suporte da Karol): pular o DIA inteiro de um remédio não é descontar
+    # uma dose do tratamento — é adiar. Cada dia pulado (skipped_dates; um
+    # skip de slot específico em skipped_slots não conta, só pulou aquele
+    # horário, não o dia) soma +1 no fim da janela, pra o total de doses
+    # realmente tomadas continuar batendo com treatment_days (a checagem de
+    # "tratamento completo" em events/router.py já conta por DOSE aplicada,
+    # não por dia corrido — só faltava a janela de geração dar a chance da
+    # dose repor). Só afeta `vezes_dia`/`intervalo`, os dois modos com
+    # janela em dias; `intervalo_dias`/`dose_unica` contam por total_doses
+    # direto, pular não "economiza" dia nenhum pra devolver.
+    if mode in ("vezes_dia", "intervalo"):
+        days += len(skipped_dates)
+
     if mode == "dose_unica":
         slots = [_local_dt(start_day, first)]
     elif mode == "intervalo_dias":
@@ -66,11 +85,6 @@ def expected_slots(extra: dict, start_day: date, now_utc: datetime) -> list:
             cur = cur + timedelta(minutes=step_min)
     else:
         return []
-
-    applied_dates = set(extra.get("applied_dates") or [])
-    skipped_dates = set(extra.get("skipped_dates") or [])
-    applied_slots = extra.get("applied_slots") or {}
-    skipped_slots = extra.get("skipped_slots") or {}
     multi = mode in ("vezes_dia", "intervalo") and (len(times) > 1 or mode == "intervalo")
 
     out = []
