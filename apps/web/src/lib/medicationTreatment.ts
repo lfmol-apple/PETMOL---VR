@@ -29,17 +29,27 @@ function parseIsoDay(s: string): Date | null {
   return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
 }
 
-/** Último dia previsto do tratamento (yyyy-mm-dd) ou null se não dá pra saber. */
+/** Último dia previsto do tratamento (yyyy-mm-dd) ou null se não dá pra saber.
+ *
+ * Regra antiga restaurada (11/10/2026, espelha expected_slots no backend
+ * services/price-service/src/notifications/medication_sync.py): pular o DIA
+ * inteiro do remédio (skipped_dates — um skip de horário específico em
+ * skipped_slots não conta, só pulou aquele slot, não o dia) empurra o fim do
+ * tratamento +1 dia, pra o total de doses realmente tomadas continuar
+ * batendo com treatment_days. Sem espelhar aqui, a UI diria "tratamento
+ * encerrado" um dia antes do servidor realmente parar de lembrar. */
 export function treatmentNominalEnd(scheduledAt: string | null | undefined, ex: Record<string, unknown>): string | null {
   const start = parseIsoDay(String(scheduledAt || '').replace(' ', 'T').split('T')[0]);
   if (!start) return null;
+  const skippedWholeDays = Array.isArray(ex.skipped_dates) ? (ex.skipped_dates as string[]).length : 0;
   const days = parseInt(String(ex.treatment_days), 10) || 0;
   const customDoses = parseInt(String(ex.total_doses), 10) || 0;
   const interval = parseInt(String(ex.custom_interval_days), 10) || 1;
-  const span = days > 0 ? days : customDoses > 0 ? customDoses * interval : 0;
+  const effectiveDays = days > 0 ? days + skippedWholeDays : 0;
+  const span = effectiveDays > 0 ? effectiveDays : customDoses > 0 ? customDoses * interval : 0;
   if (span <= 0) return null;
   const end = new Date(start);
-  end.setDate(end.getDate() + (days > 0 ? span - 1 : (customDoses - 1) * interval));
+  end.setDate(end.getDate() + (effectiveDays > 0 ? span - 1 : (customDoses - 1) * interval));
   return iso(end);
 }
 
@@ -117,8 +127,12 @@ export function medicationDosesToday(
   if (start) {
     const dayIndex = Math.round((today.getTime() - start.getTime()) / 86400000);
     if (dayIndex < 0) return { due: 0, done: 0 };
+    const skippedWholeDays = Array.isArray(ex.skipped_dates) ? (ex.skipped_dates as string[]).length : 0;
     const days = parseInt(String(ex.treatment_days), 10) || 0;
-    if (days > 0 && dayIndex >= days) return { due: 0, done: 0 };
+    // +skippedWholeDays: mesma extensão de treatmentNominalEnd (dia pulado
+    // por inteiro empurra o fim do tratamento) — sem isso o card de "doses
+    // de hoje" sumia no dia extra mesmo com o servidor mandando lembrete.
+    if (days > 0 && dayIndex >= days + skippedWholeDays) return { due: 0, done: 0 };
     const customInterval = parseInt(String(ex.custom_interval_days), 10) || 0;
     const totalDoses = parseInt(String(ex.total_doses), 10) || 0;
     if (customInterval > 0) {

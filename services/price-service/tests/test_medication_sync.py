@@ -46,6 +46,32 @@ def test_applied_and_skipped_slots_are_not_reminded():
     assert "20 16:00" not in horas and "21 00:00" not in horas and "21 08:00" in horas
 
 
+def test_skipping_a_whole_day_extends_treatment_by_one_day():
+    """Regra antiga restaurada (11/10/2026, achado via suporte real): pular o
+    DIA inteiro do remédio soma +1 no fim do tratamento, em vez de só
+    reduzir o total de doses tomadas. Tratamento de 2 dias (19 e 20/09) com
+    o 1º pulado por inteiro: sem a extensão, às 20/09 15:00 ambos os dias já
+    passaram (dose é 08:00) e não sobra nenhum lembrete; com a extensão
+    (2 configurados + 1 pulado = 3), o 21/09 08:00 ainda está no horizonte
+    de 36h e aparece."""
+    extra = {"frequency_mode": "vezes_dia", "times_per_day": 1, "first_dose_time": "08:00",
+             "reminder_times": ["08:00"], "treatment_days": 2,
+             "skipped_dates": ["2026-09-19"]}
+    horas = [s.strftime("%Y-%m-%d %H:%M") for s in expected_slots(extra, datetime(2026, 9, 19).date(), _now())]
+    assert horas == ["2026-09-21 08:00"]
+
+
+def test_skipping_a_single_slot_does_not_extend_treatment():
+    """Pular só um horário específico (skipped_slots) não é pular o dia —
+    não deve estender o tratamento, diferente de um skip sem horário
+    (skipped_dates, o dia inteiro)."""
+    extra = {"frequency_mode": "vezes_dia", "times_per_day": 1, "first_dose_time": "08:00",
+             "reminder_times": ["08:00"], "treatment_days": 2,
+             "skipped_slots": {"2026-09-19": ["08:00"]}}
+    horas = [s.strftime("%Y-%m-%d %H:%M") for s in expected_slots(extra, datetime(2026, 9, 19).date(), _now())]
+    assert horas == []
+
+
 def test_no_reminders_after_treatment_ends_or_for_as_needed():
     fim = {"frequency_mode": "vezes_dia", "reminder_times": ["08:00"], "first_dose_time": "08:00", "treatment_days": 2}
     assert expected_slots(fim, datetime(2026, 9, 10).date(), _now()) == []

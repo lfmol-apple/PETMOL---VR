@@ -25,6 +25,18 @@ describe('isMedicationTreatmentStale', () => {
   it('7 dias a partir de 15/09 termina em 21/09', () => {
     expect(treatmentNominalEnd('2026-09-15', { treatment_days: 7 })).toBe('2026-09-21');
   });
+  it('pular 1 dia inteiro empurra o fim +1 dia (regra antiga restaurada 11/10/2026)', () => {
+    expect(treatmentNominalEnd('2026-09-15', { treatment_days: 7, skipped_dates: ['2026-09-17'] })).toBe('2026-09-22');
+  });
+  it('pular 2 dias inteiros empurra +2 dias', () => {
+    expect(treatmentNominalEnd('2026-09-15', { treatment_days: 7, skipped_dates: ['2026-09-17', '2026-09-19'] })).toBe('2026-09-23');
+  });
+  it('pular só um horário (skipped_slots) não empurra o fim — não é o dia inteiro', () => {
+    expect(treatmentNominalEnd('2026-09-15', { treatment_days: 7, skipped_slots: { '2026-09-17': ['08:00'] } })).toBe('2026-09-21');
+  });
+  it('intervalo personalizado (total_doses) não é afetado por skipped_dates — não tem janela em dias pra estender', () => {
+    expect(treatmentNominalEnd('2026-01-01', { total_doses: 3, custom_interval_days: 10, skipped_dates: ['2026-01-05'] })).toBe('2026-01-21');
+  });
 });
 
 const TODAY = '2026-09-19';
@@ -100,6 +112,15 @@ describe('medicationDosesToday (card da Home: alerta vermelho só com dose atras
   it('dose pulada conta como resolvida', () => {
     const ex = { ...diaria19, skipped_dates: [HOJE] };
     expect(medicationDosesToday('2026-09-19', ex, HOJE, '20:00')).toEqual({ due: 1, done: 1 });
+  });
+  it('dia inteiro pulado no início empurra a janela — dose do 3º dia extra ainda conta como devida (regra antiga restaurada 11/10/2026)', () => {
+    const ex = { frequency_mode: 'vezes_dia', times_per_day: 1, first_dose_time: '08:00', reminder_times: ['08:00'], treatment_days: 2, skipped_dates: ['2026-09-19'] };
+    // dia 19 (pulado) e 20 já passaram; sem a extensão o tratamento (2 dias) já teria acabado em 20/09
+    expect(medicationDosesToday('2026-09-19', ex, '2026-09-21', '09:00')).toEqual({ due: 1, done: 0 });
+  });
+  it('pular só um horário (skipped_slots) não estende — 3º dia fica fora da janela normalmente', () => {
+    const ex = { frequency_mode: 'vezes_dia', times_per_day: 1, first_dose_time: '08:00', reminder_times: ['08:00'], treatment_days: 2, skipped_slots: { '2026-09-19': ['08:00'] } };
+    expect(medicationDosesToday('2026-09-19', ex, '2026-09-21', '09:00')).toEqual({ due: 0, done: 0 });
   });
   it('tratamento que ainda não começou, já terminou, ou SOS → nada devido', () => {
     expect(medicationDosesToday('2026-09-22', diaria19, HOJE, '23:00')).toEqual({ due: 0, done: 0 });
