@@ -13,7 +13,6 @@ from src.notifications import PushSubscription, Reminder
 from src.notifications.medication_sync import reconcile_medication_reminders
 
 BRT = timezone(timedelta(hours=-3))
-CID = "cid-med-e2e"
 
 
 @pytest.fixture()
@@ -22,7 +21,11 @@ def ctx(client, monkeypatch):
     monkeypatch.setattr(notif, "_send_push", lambda sub, payload: (sent.append(payload) or (True, False)))
     monkeypatch.setattr(notif, "apns_configured", lambda: False)
     email = f"med.e2e.{uuid.uuid4().hex[:8]}@example.com"
-    h0 = {"X-PETMOL-CLIENT-ID": CID}
+    # client-id único por teste (não um CID fixo de módulo) — o rate limiter
+    # de /auth/signup agrupa por X-PETMOL-CLIENT-ID (5 req/300s); um CID
+    # compartilhado por todo o arquivo tropeça sozinho quando o arquivo passa
+    # de 5 testes que usam `ctx` (achado real ao adicionar o 6º, 11/10/2026).
+    h0 = {"X-PETMOL-CLIENT-ID": f"cid-med-e2e-{uuid.uuid4().hex[:8]}"}
     su = client.post("/auth/signup", json={"name": "Tutor E2E", "email": email, "password": "senha123", "terms_accepted": True}, headers=h0)
     assert su.status_code in (200, 201), su.text
     tok = client.post("/auth/login", json={"email": email, "password": "senha123"}, headers=h0).json()["access_token"]
@@ -148,6 +151,43 @@ def test_reminder_falls_back_and_tries_again_without_destination(ctx, monkeypatc
     _due_now(c)
     notif.send_due_reminders()
     assert any(not r.sent for r in _reminders(c) if _aware(r.remind_at) <= datetime.now(timezone.utc))
+
+
+def test_reminder_without_destination_after_2h_notifies_tutor(ctx, monkeypatch):
+    """Achado real (11/10/2026): 4 tutores com conta nova nunca tinham
+    registrado push em nenhum canal — o único aviso ia pro admin, ninguém
+    avisava o próprio tutor. Depois de 2h sem destino, além do e-mail interno
+    (_alert_admin_medication_lost) agora também sai um e-mail pro tutor
+    citando o remédio específico (_notify_tutor_medication_lost)."""
+    c = ctx
+    with SessionLocal() as db:
+        db.query(PushSubscription).filter(PushSubscription.user_id == c.uid).delete()
+        db.commit()
+    monkeypatch.setattr(notif, "apns_configured", lambda: True)  # canal existe, mas o tutor não tem token
+
+    sent_mails = []
+    monkeypatch.setattr("src.mailer.send_mail", lambda **kw: (sent_mails.append(kw) or True))
+
+    t = _now_hhmm_plus(30)
+    _create(c, "Apoquel 16mg", {"frequency_mode": "vezes_dia", "times_per_day": 1, "first_dose_time": t, "reminder_times": [t], "treatment_days": 5})
+    reconcile_medication_reminders()
+    with SessionLocal() as db:
+        for r in db.query(Reminder).filter(Reminder.pet_id == c.pid, Reminder.sent == False):  # noqa: E712
+            r.remind_at = datetime.now(timezone.utc) - timedelta(hours=2, minutes=1)
+        db.commit()
+
+    notif.send_due_reminders()
+
+    assert all(r.sent for r in _reminders(c))
+    # 1 e-mail pro admin (_alert_admin_medication_lost) + 1 pro tutor (_notify_tutor_medication_lost)
+    assert len(sent_mails) == 2, sent_mails
+    admin_mail = next(m for m in sent_mails if "não entregue" in m["subject"])
+    tutor_mail = next(m for m in sent_mails if m is not admin_mail)
+    assert tutor_mail["to"] == c.client.get("/auth/me", headers=c.h).json()["email"]
+    assert "Baby" in tutor_mail["subject"]
+    assert "Apoquel" in tutor_mail["subject"]
+    assert "Ativar notificações" in tutor_mail["body_text"]
+    assert tutor_mail.get("body_html") and "Apoquel" in tutor_mail["body_html"]
 
 
 def test_deleting_medication_event_purges_its_pending_reminders(ctx):
