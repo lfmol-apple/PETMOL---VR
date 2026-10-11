@@ -532,6 +532,100 @@ def _alert_admin_medication_lost(db, group, reason: str) -> None:
         logger.warning(f"alerta de remédio perdido falhou: {exc}")
 
 
+def _tutor_medication_lost_copy(tutor_first: str, pet: str, meds: list) -> tuple:
+    """Mesmo tom/estrutura da campanha de ativação push+localização (texto
+    original escrito pelo dono, 03/10/2026, em admin/activation_campaign_router.py)
+    — só trocando o motivo genérico pelo remédio específico que ficou sem avisar."""
+    from html import escape
+
+    if len(meds) > 2:
+        med = ", ".join(meds[:-1]) + " e " + meds[-1]
+    elif len(meds) == 2:
+        med = " e ".join(meds)
+    else:
+        med = meds[0] if meds else "medicação"
+    plural_med = len(meds) > 1
+    do_remedio = "dos remédios" if plural_med else "do remédio"
+    o_remedio = "os remédios" if plural_med else "o remédio"
+    saudacao = f"Oi, {tutor_first}!" if tutor_first else "Oi!"
+
+    subject = f"⚠️ {pet} está sem receber o lembrete de {med}"
+    body_text = (
+        f"{saudacao}\n\n"
+        f"{pet} toma {med} em horário certo — e o PETMOL tentou avisar isso nos "
+        "últimos dias, mas o aviso não chegou porque as notificações do app estão "
+        "desativadas no seu aparelho.\n\n"
+        "O app é gratuito, sem anúncios. E sabemos como é chato receber notificação o "
+        "tempo todo só pra vender alguma coisa. Esse não é o nosso caso.\n\n"
+        f"Pedimos que você ative as notificações pra não perder a hora certa {do_remedio} "
+        f"de {pet} — e também os outros avisos importantes, como vacina e ração.\n\n"
+        f"Com as notificações desativadas, {pet} pode ficar sem {o_remedio} na hora "
+        "certa sem você nem saber.\n\n"
+        'Leva só 10 segundos: abra o PETMOL, toque no seu perfil e depois em "Ativar '
+        'notificações".\n\n'
+        f"{pet} já tem o mais importante: o seu carinho. Deixe o PETMOL ajudar você a "
+        "cuidar dos detalhes.\n\n"
+        "Equipe PETMOL"
+    )
+    pet_html = escape(pet)
+    med_html = escape(med)
+    body_html = (
+        '<div style="font-family:Arial,sans-serif;font-size:15px;color:#1f2937;line-height:1.6;max-width:480px">'
+        f"<p>{escape(saudacao)}</p>"
+        f"<p>{pet_html} toma <strong>{med_html}</strong> em horário certo — e o PETMOL "
+        "tentou avisar isso nos últimos dias, mas o aviso não chegou porque as "
+        "notificações do app estão desativadas no seu aparelho.</p>"
+        "<p>O app é gratuito, sem anúncios. E sabemos como é chato receber notificação "
+        "o tempo todo só pra vender alguma coisa. Esse não é o nosso caso.</p>"
+        f"<p><strong>Pedimos que você ative as notificações pra não perder a hora certa "
+        f"{do_remedio} de {pet_html}</strong> — e também os outros avisos importantes, "
+        "como vacina e ração.</p>"
+        f"<p>Com as notificações desativadas, {pet_html} pode ficar sem {o_remedio} na "
+        "hora certa sem você nem saber.</p>"
+        '<p><strong>Leva só 10 segundos: abra o PETMOL, toque no seu perfil e depois em '
+        '"Ativar notificações".</strong></p>'
+        f"<p>{pet_html} já tem o mais importante: o seu carinho. Deixe o PETMOL ajudar "
+        "você a cuidar dos detalhes. 💛</p>"
+        "<p>Equipe PETMOL</p>"
+        "</div>"
+    )
+    return subject, body_text, body_html
+
+
+def _notify_tutor_medication_lost(db, group) -> None:
+    """Quando o tutor não tem NENHUM destino de push ativo (reason == "sem
+    destino ativo por mais de 2h"), o aviso ao admin sozinho não resolve nada
+    — ninguém mexe no aparelho do tutor por ele. Manda um e-mail direto pro
+    tutor citando o remédio específico que ficou sem notificação, pedindo pra
+    ativar. Pedido do dono (11/10/2026) depois de confirmar via
+    /admin/debug/user que 4 tutores reais (contas novas, criadas na mesma
+    semana) tinham push_subscriptions=[] e native_push_tokens=[] — nunca
+    completaram o registro de notificação, não é o caso de token expirado.
+    Só chamada no branch "sem destino ativo"; no branch de hard_fail após
+    _MAX_RETRY tentativas o tutor JÁ tem um destino cadastrado (só a entrega
+    técnica que falhou), então pedir pra "ativar notificações" seria
+    confuso — esse caso continua só no e-mail interno pro admin investigar."""
+    try:
+        from ..mailer import send_mail
+        from ..user_auth.models import User
+
+        first = group[0]
+        if not first.user_id:
+            return
+        tutor = db.query(User).filter(User.id == first.user_id).first()
+        if not tutor or not tutor.email:
+            return
+        pet = db.query(Pet).filter(Pet.id == first.pet_id).first() if first.pet_id else None
+        pet_name = getattr(pet, "name", None) or "seu pet"
+        meds = list(dict.fromkeys(_medication_name(r) for r in group))
+        tutor_first = (tutor.name or "").split(" ")[0] if tutor.name else ""
+
+        subject, body_text, body_html = _tutor_medication_lost_copy(tutor_first, pet_name, meds)
+        send_mail(to=tutor.email, subject=subject, body_text=body_text, body_html=body_html)
+    except Exception as exc:  # nunca deixa o aviso ao tutor derrubar o scheduler
+        logger.warning(f"aviso de remédio ao tutor falhou: {exc}")
+
+
 def _live_medication_pet_titles(db) -> set:
     """(pet_id, título do aviso) de toda medicação viva — não excluída, não
     cancelada/concluída. Um lembrete que não bate com nenhum destes é órfão:
@@ -761,7 +855,9 @@ def send_due_reminders() -> None:
                     logger.info(f"Reminder {reminder.id}: sem destino ativo — mantido pra tentar de novo")
                 else:
                     reminder.sent = True
-                    _alert_admin_medication_lost(db, med_groups.get(dedup_key, [reminder]), "sem destino ativo por mais de 2h")
+                    group = med_groups.get(dedup_key, [reminder])
+                    _alert_admin_medication_lost(db, group, "sem destino ativo por mais de 2h")
+                    _notify_tutor_medication_lost(db, group)
             elif ok_count > 0 or not hard_fail:
                 reminder.sent = True
             else:
