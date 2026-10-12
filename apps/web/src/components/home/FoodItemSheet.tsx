@@ -1,7 +1,7 @@
 'use client';
 
 import { useBackHandler } from '@/lib/backStack';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bell, ShoppingCart, X } from 'lucide-react';
 import { FoodControlTab, type FoodControlTabFormRequest, type FoodControlTabState } from '@/components/FoodControlTab';
 import type { PetHealthProfile } from '@/lib/petHealth';
@@ -12,10 +12,9 @@ import { ActivationAskSheet } from './ActivationAskSheet';
 import { usePushOneTimeAsk } from '@/features/interactions/usePushOneTimeAsk';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
 import { trackV1Metric } from '@/lib/v1Metrics';
-import { API_BACKEND_BASE, API_BASE_URL } from '@/lib/api';
+import { API_BACKEND_BASE } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { localTodayISO } from '@/lib/localDate';
-import { scheduleFoodReminder, cancelFoodRemindersForPet, buildRemindAt } from '@/features/notifications/pushService';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { petDo } from '@/lib/petGender';
 import { CoachMark } from '@/components/CoachMark';
@@ -147,7 +146,7 @@ function clearPendingScannedProduct(): void {
 
 // ── component ─────────────────────────────────────────────────────────────────
 
-export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, petPhotoUrl, racaoEventId }: FoodItemSheetProps) {
+export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, petPhotoUrl }: FoodItemSheetProps) {
   const { permission: pushPermission, requestPermission: requestPushPermission, subscribeToPush } = useNotificationPermissionController();
   const pushAsk = usePushOneTimeAsk('petmol_food_push_ask_v1', pushPermission === 'default');
 
@@ -168,7 +167,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   const [formRequest, setFormRequest]       = useState<FoodControlTabFormRequest | null>(null);
 
   // UI state
-  const [busy, setBusy]                           = useState(false);
+  const [, setBusy]                               = useState(false);
   const [feedback, setFeedback]                   = useState<{ msg: string; tone: 'green' | 'blue' | 'red' } | null>(null);
   const [successMessage, setSuccessMessage]       = useState<string | null>(null);
   const [justSaved, setJustSaved]                 = useState(false);
@@ -723,36 +722,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
     } finally {
       setDeletingSecondaryId(null);
     }
-  };
-
-  const upsertRacaoEvent = async (date: string) => {
-    const brand = foodBrand || 'Ração';
-    const headers = { 'Content-Type': 'application/json', ...authH() };
-    if (racaoEventId) {
-      await fetch(`${API_BASE_URL}/events/${racaoEventId}`, {
-        method: 'PATCH',
-        headers,
-        credentials: 'include',
-        body: JSON.stringify({ title: brand, scheduled_at: `${date}T00:00:00`, status: 'active' }),
-      });
-    } else {
-      await fetch(`${API_BASE_URL}/events`, {
-        method: 'POST',
-        headers,
-        credentials: 'include',
-        body: JSON.stringify({ pet_id: pet.pet_id, type: 'racao', title: brand, scheduled_at: `${date}T00:00:00`, status: 'active', source: 'manual' }),
-      });
-    }
-  };
-
-  const callAdjust = async (targetDate: string) => {
-    const r = await fetch(`${API_BACKEND_BASE}/health/pets/${pet.pet_id}/feeding/plan/adjust`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', ...authH() },
-      credentials: 'include',
-      body: JSON.stringify({ action: 'set_end_date', days: 0, target_date: targetDate }),
-    });
-    return r.ok;
   };
 
   // ── Action handlers ────────────────────────────────────────────────────────
