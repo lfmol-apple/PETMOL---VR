@@ -21,6 +21,9 @@
 		AA01B1C1D1E1F10100000022 /* petmol.caf in Resources */ = {isa = PBXBuildFile; fileRef = AA01B1C1D1E1F10100000020 /* petmol.caf */; };
 		AA01B1C1D1E1F10100000023 /* latido.caf in Resources */ = {isa = PBXBuildFile; fileRef = AA01B1C1D1E1F10100000021 /* latido.caf */; };
 		AA01B1C1D1E1F10100000025 /* download.caf in Resources */ = {isa = PBXBuildFile; fileRef = AA01B1C1D1E1F10100000024 /* download.caf */; };
+		AA01B1C1D1E1F10100000030 /* TikTokEventsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01B1C1D1E1F10100000033 /* TikTokEventsPlugin.swift */; };
+		AA01B1C1D1E1F10100000031 /* PetmolBridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01B1C1D1E1F10100000034 /* PetmolBridgeViewController.swift */; };
+		AA01B1C1D1E1F10100000032 /* TikTokBusinessSDK in Frameworks */ = {isa = PBXBuildFile; productRef = AA01B1C1D1E1F10100000037 /* TikTokBusinessSDK */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -39,6 +42,9 @@
 		AA01B1C1D1E1F10100000020 /* petmol.caf */ = {isa = PBXFileReference; lastKnownFileType = audio.caf; path = petmol.caf; sourceTree = "<group>"; };
 		AA01B1C1D1E1F10100000021 /* latido.caf */ = {isa = PBXFileReference; lastKnownFileType = audio.caf; path = latido.caf; sourceTree = "<group>"; };
 		AA01B1C1D1E1F10100000024 /* download.caf */ = {isa = PBXFileReference; lastKnownFileType = audio.caf; path = download.caf; sourceTree = "<group>"; };
+		AA01B1C1D1E1F10100000033 /* TikTokEventsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TikTokEventsPlugin.swift; sourceTree = "<group>"; };
+		AA01B1C1D1E1F10100000034 /* PetmolBridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetmolBridgeViewController.swift; sourceTree = "<group>"; };
+		AA01B1C1D1E1F10100000035 /* release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = release.xcconfig; path = ../release.xcconfig; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -48,6 +54,7 @@
 			files = (
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
 				AA01B1C1D1E1F10100000010 /* FacebookCore in Frameworks */,
+				AA01B1C1D1E1F10100000032 /* TikTokBusinessSDK in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -58,6 +65,7 @@
 			isa = PBXGroup;
 			children = (
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
+				AA01B1C1D1E1F10100000035 /* release.xcconfig */,
 				504EC3061FED79650016851F /* App */,
 				504EC3051FED79650016851F /* Products */,
 			);
@@ -75,6 +83,8 @@
 			isa = PBXGroup;
 			children = (
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
+				AA01B1C1D1E1F10100000033 /* TikTokEventsPlugin.swift */,
+				AA01B1C1D1E1F10100000034 /* PetmolBridgeViewController.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -110,6 +120,7 @@
 			packageProductDependencies = (
 				4D22ABE82AF431CB00220026 /* CapApp-SPM */,
 				AA01B1C1D1E1F10100000011 /* FacebookCore */,
+				AA01B1C1D1E1F10100000037 /* TikTokBusinessSDK */,
 			);
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* App.app */;
@@ -143,6 +154,7 @@
 			packageReferences = (
 				D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */,
 				AA01B1C1D1E1F10100000012 /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */,
+				AA01B1C1D1E1F10100000036 /* XCRemoteSwiftPackageReference "tiktok-business-ios-sdk" */,
 			);
 			productRefGroup = 504EC3051FED79650016851F /* Products */;
 			projectDirPath = "";
@@ -180,6 +192,8 @@
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
+				AA01B1C1D1E1F10100000030 /* TikTokEventsPlugin.swift in Sources */,
+				AA01B1C1D1E1F10100000031 /* PetmolBridgeViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -321,7 +335,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_TEAM = 6NQ46SR2C7;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
@@ -341,11 +355,12 @@
 		};
 		504EC3181FED79650016851F /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = AA01B1C1D1E1F10100000035 /* release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 9;
 				DEVELOPMENT_TEAM = 6NQ46SR2C7;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
@@ -401,6 +416,14 @@
 				minimumVersion = 18.1.1;
 			};
 		};
+		AA01B1C1D1E1F10100000036 /* XCRemoteSwiftPackageReference "tiktok-business-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/tiktok/tiktok-business-ios-sdk";
+			requirement = {
+				kind = upToNextMinorVersion;
+				minimumVersion = 1.7.2;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -413,6 +436,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AA01B1C1D1E1F10100000012 /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */;
 			productName = FacebookCore;
+		};
+		AA01B1C1D1E1F10100000037 /* TikTokBusinessSDK */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA01B1C1D1E1F10100000036 /* XCRemoteSwiftPackageReference "tiktok-business-ios-sdk" */;
+			productName = TikTokBusinessSDK;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

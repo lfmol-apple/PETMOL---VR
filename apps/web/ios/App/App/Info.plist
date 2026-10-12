@@ -47,8 +47,20 @@
 	<true/>
 	<key>FacebookAdvertiserIDCollectionEnabled</key>
 	<true/>
+	<!-- TikTok App Events SDK: o Access Token vem do build setting TIKTOK_ACCESS_TOKEN
+	     (ios/Secrets.xcconfig, fora do git). Vazio = SDK do TikTok não inicia. -->
+	<key>TikTokAccessToken</key>
+	<string>$(TIKTOK_ACCESS_TOKEN)</string>
 	<key>SKAdNetworkItems</key>
 	<array>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>238da6jt44.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>22mmun2rn5.skadnetwork</string>
+		</dict>
 		<dict>
 			<key>SKAdNetworkIdentifier</key>
 			<string>v9wttpbfk9.skadnetwork</string>
@@ -59,7 +71,7 @@
 		</dict>
 	</array>
 	<key>NSUserTrackingUsageDescription</key>
-	<string>Usamos essa permissão para mostrar anúncios mais relevantes para você.</string>
+	<string>Usamos essa permissão para medir de forma anônima quais anúncios trouxeram você ao PETMOL.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>O PETMOL usa a câmera para fotografar seu pet, escanear produtos, ler carteirinhas de vacinação e gravar o vídeo de prova de quem encontrou um pet perdido.</string>
 	<key>NSMicrophoneUsageDescription</key>

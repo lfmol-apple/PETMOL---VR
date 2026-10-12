@@ -19,3 +19,8 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# TikTok Business SDK (o próprio SDK já traz estas regras; repetidas aqui por segurança caso o R8 seja ligado)
+-keep class com.tiktok.** { *; }
+-dontwarn com.tiktok.**
+-keep class com.android.installreferrer.** { *; }
