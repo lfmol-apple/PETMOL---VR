@@ -40,7 +40,7 @@ export interface FoodItemSheetProps {
 type SheetMode = 'view' | 'edit' | 'buy';
 
 // Internal submodes within view — no router.push, no sheet close
-type FoodSubMode = 'main' | 'adjustDuration' | 'finished' | 'channel';
+type FoodSubMode = 'main' | 'finished' | 'channel';
 
 type PurchaseChannel = 'cobasi' | 'petz' | 'mercadolivre' | 'shopee' | 'loja_fisica' | 'outro';
 
@@ -248,7 +248,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   const [feedback, setFeedback]                   = useState<{ msg: string; tone: 'green' | 'blue' | 'red' } | null>(null);
   const [successMessage, setSuccessMessage]       = useState<string | null>(null);
   const [justSaved, setJustSaved]                 = useState(false);
-  const [selectedDays, setSelectedDays]           = useState(7);
   const [hasFoodConfigured, setHasFoodConfigured] = useState(false);
   // Declaração explícita "não uso ração" (mode !== 'kibble' + no_consumption_control) —
   // não confundir com "ainda não configurou": aqui o tutor já disse que não quer
@@ -834,88 +833,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
 
   // ── Action handlers ────────────────────────────────────────────────────────
 
-  // "📦 Ajustar previsão" → set_end_date from today + days
-  const handleAdjustDuration = async (targetDate: string) => {
-    if (busy) return;
-    setBusy(true);
-    setFeedback(null);
-    const prevEnd = estEnd;
-    const prevDailyG = foodState.dailyConsumptionG;
-    const daysFromNow = Math.round(
-      (new Date(targetDate + 'T00:00:00').getTime() - new Date(localTodayISO() + 'T00:00:00').getTime()) / 86400000
-    );
-    try {
-      trackV1Metric('food_still_has_food', { pet_id: pet.pet_id, days_from_now: daysFromNow, source: 'adjust_duration' });
-      trackV1Metric('food_duration_adjusted', {
-        pet_id: pet.pet_id,
-        new_end_date: targetDate,
-        previous_end_date: prevEnd,
-        days_from_now: daysFromNow,
-        old_daily_consumption_g: prevDailyG,
-        package_size_kg: foodState.packageSizeKg,
-        old_estimated_end_date: prevEnd,
-        new_estimated_end_date: targetDate,
-        delta_days: daysFromNow - (foodState.daysLeft ?? 0),
-      });
-      const ok = await callAdjust(targetDate);
-      if (ok) {
-        void upsertRacaoEvent(localTodayISO());
-        onSaved?.();
-        const refreshed = await refreshFoodPlan();
-        dispatchFoodPlanUpdated();
-        if (refreshed?.recommendedAlertDate) {
-          const t = getToken();
-          if (t) void scheduleFoodReminder({ pet_id: pet.pet_id, type: 'food', title: `🛒 Comprar ração de ${pet.pet_name}`, body: `O estoque de ${refreshed.brand || 'ração'} de ${pet.pet_name} está acabando. Hora de comprar!`, remind_at: buildRemindAt(refreshed.recommendedAlertDate, refreshed.reminderTime ?? '09:00') }, t);
-        }
-        showSuccessAndReturnToMain('Previsão ajustada');
-      }
-      else {
-        setFeedback({ msg: 'Não foi possível ajustar. Tente novamente.', tone: 'red' });
-      }
-    } catch {
-      setFeedback({ msg: 'Sem conexão. Tente novamente.', tone: 'red' });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  // "⚠️ Acabou" → mark as finished today and go straight to buy screen
-  const handleFinishedNow = async () => {
-    if (busy) return;
-    setBusy(true);
-    setFeedback(null);
-    const today = localTodayISO();
-    try {
-      trackV1Metric('food_finished_early', {
-        pet_id: pet.pet_id,
-        finished_date: today,
-        old_estimated_end_date: estEnd,
-        new_estimated_end_date: today,
-        old_daily_consumption_g: foodState.dailyConsumptionG,
-        package_size_kg: foodState.packageSizeKg,
-        delta_days: -(foodState.daysLeft ?? 0),
-      });
-      const ok = await callAdjust(today);
-      if (ok) {
-        void upsertRacaoEvent(today);
-        onSaved?.();
-        await refreshFoodPlan();
-        dispatchFoodPlanUpdated();
-        const t = getToken();
-        if (t) void cancelFoodRemindersForPet(pet.pet_id, t);
-        setSubMode('main');
-        setMode('buy');
-        setFeedback(null);
-      } else {
-        setFeedback({ msg: 'Não foi possível atualizar. Tente novamente.', tone: 'red' });
-      }
-    } catch {
-      setFeedback({ msg: 'Sem conexão. Tente novamente.', tone: 'red' });
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const handleChannelSelect = (channel: PurchaseChannel) => {
     trackV1Metric('purchase_channel_selected', {
       pet_id: pet.pet_id,
@@ -1367,14 +1284,19 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                               fica só um, lá dentro. */}
                           <button type="button"
                             onClick={() => { setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
-                            className="w-full flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-800 shadow-sm active:scale-[0.98] transition-all"
+                            className="w-full flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-left shadow-sm hover:bg-gray-50 active:scale-[0.98] transition-all"
                           >
-                            <span className="text-xl">✏️</span>
-                            <span className="flex-1 text-left">
-                              <span className="block">Editar plano</span>
-                              <span className="block text-[12px] font-semibold text-blue-700/70">Código de barras, peso, duração ou datas</span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-gray-500 flex-shrink-0" aria-hidden="true">
+                              <path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3z" />
+                              <path d="M14.5 7.5l3 3" />
+                            </svg>
+                            <span className="flex-1 min-w-0">
+                              <span className="block text-[15px] font-bold text-gray-900">Editar plano</span>
+                              <span className="block text-[12px] font-medium text-gray-500">Produto, peso, duração, datas ou fim da ração</span>
                             </span>
-                            <span className="text-blue-300 text-lg">›</span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-gray-400 flex-shrink-0" aria-hidden="true">
+                              <path d="M9 6l6 6-6 6" />
+                            </svg>
                           </button>
 
                           {/* Feedback banner */}
@@ -1400,25 +1322,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             </button>
                           )}
 
-                          {/* 4. Ajustes rápidos */}
-                          <div className="grid grid-cols-2 gap-2">
-                            <button type="button"
-                              onClick={() => {
-                                setSelectedDays(Math.max(1, Math.min(Math.round(foodState.daysLeft ?? 7), 90)));
-                                setSubMode('adjustDuration');
-                                setFeedback(null);
-                              }}
-                              disabled={busy}
-                              className="py-2.5 min-h-[44px] rounded-2xl bg-white border border-gray-200 text-[11px] font-medium text-gray-500 active:scale-95 transition-all disabled:opacity-50">
-                              Ainda vai durar
-                            </button>
-                            <button type="button"
-                              onClick={() => { void handleFinishedNow(); }}
-                              disabled={busy}
-                              className="py-2.5 min-h-[44px] rounded-2xl bg-white border border-gray-200 text-[11px] font-medium text-gray-500 active:scale-95 transition-all disabled:opacity-50">
-                              {busy ? '…' : 'Acabou'}
-                            </button>
-                          </div>
                         </>
                         )}
 
@@ -1505,39 +1408,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                         </>
                         )}
                         </>
-                      )}
-
-                      {/* ─── SUBMODE: adjustDuration ────────────────────────── */}
-                      {subMode === 'adjustDuration' && (
-                        <div className="space-y-5 pt-1">
-                          <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Ajustar previsão</p>
-                            <h3 className="text-[20px] font-black text-gray-900 leading-tight mt-1">
-                              Por quantos dias a ração ainda deve durar?
-                            </h3>
-                            <p className="text-[13px] text-gray-500 mt-1">
-                              Arraste para selecionar os dias restantes
-                            </p>
-                          </div>
-
-                          <DaysScrollPicker
-                            value={selectedDays}
-                            onChange={setSelectedDays}
-                            min={1}
-                            max={90}
-                          />
-
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => void handleAdjustDuration(isoPlus(selectedDays))}
-                            className="w-full py-4 rounded-2xl bg-[#0056D2] text-white text-[16px] font-black shadow-lg shadow-blue-500/25 hover:bg-[#004ab8] active:scale-[0.97] transition-all disabled:opacity-50"
-                          >
-                            {busy ? 'Ajustando…' : `Confirmar ${selectedDays} dia${selectedDays !== 1 ? 's' : ''}`}
-                          </button>
-
-                          <FeedbackBanner />
-                        </div>
                       )}
 
                       {/* ─── SUBMODE: channel ───────────────────────────────── */}
