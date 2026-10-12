@@ -893,6 +893,7 @@ export function MedicationItemSheet({
                     // horários do dia (mesma getDailyDoseTimes do form);
                     // cada toque marca o PRÓXIMO horário ainda não feito.
                     let totalDays = 0;
+                    let extendByTreatmentDays = false;
                     let intervalDays = 1;
                     let dosesPerDay = 1;
                     let firstDoseTime = '08:00';
@@ -907,6 +908,7 @@ export function MedicationItemSheet({
                       if (typeof ex.first_dose_time === 'string' && ex.first_dose_time) firstDoseTime = ex.first_dose_time;
                       if (treatmentDays > 0) {
                         totalDays = treatmentDays;
+                        extendByTreatmentDays = true;
                         intervalDays = 1;
                         const freqMode = String(ex.frequency_mode || '');
                         if (freqMode === 'vezes_dia') {
@@ -931,7 +933,12 @@ export function MedicationItemSheet({
                     const daySlots = dosesPerDay > 1 ? getDailyDoseTimes(String(dosesPerDay), firstDoseTime) : [];
 
                     const allDayDates: string[] = [];
-                    for (let i = 0; i < totalDays; i++) {
+                    // Dia pulado empurra o fim do tratamento em +1 dia (mesma regra do
+                    // servidor/medicationTreatment.ts): o calendário ganha um quadradinho
+                    // no fim por cada pulo, pra repor a dose. O progresso (x/total) segue
+                    // contando o total prescrito.
+                    const gridDays = totalDays + (extendByTreatmentDays ? skippedDates.length : 0);
+                    for (let i = 0; i < gridDays; i++) {
                       const d = new Date(startDate);
                       d.setDate(d.getDate() + i * intervalDays);
                       allDayDates.push(dateToLocalISO(d));
@@ -1509,8 +1516,10 @@ export function MedicationItemSheet({
           </div>
         )}
     </SheetShell>
+    {/* z ACIMA da tela principal (SHEET_Z.top): com SHEET_Z.nested (90) o menu abria
+        escondido atrás dela e o toque no dia parecia não fazer nada (12/10/2026). */}
     {doseMenuFor && (
-      <SheetShell open onClose={() => setDoseMenuFor(null)} variant="center" size="sm" z={SHEET_Z.nested}>
+      <SheetShell open onClose={() => setDoseMenuFor(null)} variant="center" size="sm" z={SHEET_Z.top + 10}>
         <SheetShell.Body className="space-y-2.5 pt-5">
           <p className="text-center text-[13px] font-semibold text-gray-500 -mb-1">{doseMenuFor.dateLabel}</p>
           <button
