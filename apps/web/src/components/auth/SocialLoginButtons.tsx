@@ -64,6 +64,27 @@ export function SocialLoginButtons({ onSuccess, onError }: SocialLoginButtonsPro
     setNativeApp(isNativeAppClient());
   }, []);
 
+  // O <Script src="..."> do Next dedup por src — se a página anterior
+  // (ex: login) já tiver carregado o mesmo script, o onLoad NÃO dispara
+  // de novo aqui numa navegação client-side pro cadastro, e o botão nunca
+  // aparece (achado real, 12/10/2026: "só tem a opção com a Apple" — o
+  // script do Google já estava carregado de outra tela). Checa o objeto
+  // global direto no mount e faz um polling curto como rede de segurança,
+  // em vez de confiar só no onLoad.
+  useEffect(() => {
+    if (nativeApp) return;
+    if (window.google) { setGoogleReady(true); }
+    if (window.AppleID) { setAppleReady(true); }
+    if (window.google && window.AppleID) return;
+    const interval = setInterval(() => {
+      if (window.google) setGoogleReady(true);
+      if (window.AppleID) setAppleReady(true);
+      if (window.google && window.AppleID) clearInterval(interval);
+    }, 150);
+    const timeout = setTimeout(() => clearInterval(interval), 5000);
+    return () => { clearInterval(interval); clearTimeout(timeout); };
+  }, [nativeApp]);
+
   useEffect(() => {
     if (!googleReady || !GOOGLE_CLIENT_ID || nativeApp) return;
     const container = googleContainerRef.current;
@@ -79,8 +100,14 @@ export function SocialLoginButtons({ onSuccess, onError }: SocialLoginButtonsPro
         }
       },
     });
+    // O botão do Google é um <iframe> — CSS do nosso lado não alcança o
+    // conteúdo dele, então "w-full" não funciona aqui. A única forma de
+    // fazer caber a largura certa é medir o container e passar em px pro
+    // próprio renderButton (pedido do dono, 12/10/2026: os dois botões
+    // precisam ficar do mesmo tamanho).
     window.google.accounts.id.renderButton(container, {
-      theme: 'outline', size: 'large', shape: 'pill', text: 'continue_with', logo_alignment: 'center',
+      theme: 'outline', size: 'large', shape: 'pill', text: 'continue_with',
+      logo_alignment: 'center', width: String(Math.round(container.offsetWidth)),
     });
   }, [googleReady, nativeApp, loginWithSocial, onSuccess, onError]);
 
@@ -132,7 +159,12 @@ export function SocialLoginButtons({ onSuccess, onError }: SocialLoginButtonsPro
             strategy="afterInteractive"
             onLoad={() => setGoogleReady(true)}
           />
-          <div ref={googleContainerRef} className="flex w-full justify-center [&>div]:!w-full" />
+          {/* h-11 (44px) pra bater com a altura mínima de toque que todo
+              botão do app já usa (min-h-[44px]) — o próprio botão do
+              Google só tem 3 tamanhos fixos (o maior, "large", é 40px),
+              então aqui só centralizamos ele dentro de uma linha de 44px
+              pra bater com o da Apple, que já nasce nessa altura. */}
+          <div ref={googleContainerRef} className="flex h-11 w-full items-center justify-center" />
         </>
       )}
 
@@ -147,9 +179,9 @@ export function SocialLoginButtons({ onSuccess, onError }: SocialLoginButtonsPro
             type="button"
             onClick={handleAppleClick}
             disabled={appleBusy || !appleReady}
-            className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-black py-3.5 text-white font-bold text-sm disabled:opacity-50 active:scale-[0.98] transition-all"
+            className="h-11 w-full flex items-center justify-center gap-2.5 rounded-full bg-black text-white font-bold text-sm disabled:opacity-50 active:scale-[0.98] transition-all"
           >
-            <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="currentColor" aria-hidden="true">
+            <svg viewBox="0 0 24 24" className="h-[16px] w-[16px]" fill="currentColor" aria-hidden="true">
               <path d="M16.365 1.43c0 1.14-.46 2.1-1.14 2.82-.75.82-1.98 1.45-3.02 1.37-.12-1.11.46-2.26 1.1-2.98.75-.84 2.03-1.46 3.06-1.21zM20.6 17.16c-.55 1.28-.81 1.85-1.52 2.98-.98 1.56-2.37 3.5-4.1 3.52-1.53.02-1.93-1-4.01-.99-2.08.01-2.52 1.01-4.05.99-1.73-.02-3.05-1.77-4.03-3.33C.3 16.8-.6 12.56 1.38 9.6c.99-1.48 2.75-2.41 4.44-2.44 1.56-.03 3.04 1.05 4.01 1.05.97 0 2.76-1.3 4.66-1.11.79.03 3.03.32 4.47 2.42-.12.07-2.67 1.56-2.64 4.65.03 3.69 3.24 4.92 3.28 4.94-.03.09-.52 1.78-1.72 3.05-.01.01-.01.01 0 0-.02 0 .22-.32 0 0z" />
             </svg>
             {appleBusy ? 'Entrando...' : 'Continuar com a Apple'}
