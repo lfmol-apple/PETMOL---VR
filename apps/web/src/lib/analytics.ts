@@ -79,6 +79,10 @@ type EventName =
   | 'onboarding_dewormer_completed'
   | 'onboarding_skipped'
   | 'onboarding_completed'
+  | 'onboarding_food_step_viewed'
+  | 'onboarding_food_step_started'
+  | 'onboarding_food_step_completed'
+  | 'onboarding_food_step_skipped'
   | 'account_deleted'
   | 'feedback_submitted';
 

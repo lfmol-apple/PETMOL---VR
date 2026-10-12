@@ -36,7 +36,12 @@ const VaccineItemSheet = dynamic(() => import('@/components/home/VaccineItemShee
 const MedicationItemSheet = dynamic(() => import('@/components/home/MedicationItemSheet').then(m => ({ default: m.MedicationItemSheet })), { ssr: false });
 const FoodItemSheet = dynamic(() => import('@/components/home/FoodItemSheet').then(m => ({ default: m.FoodItemSheet })), { ssr: false });
 const GroomingItemSheet = dynamic(() => import('@/components/home/GroomingItemSheet').then(m => ({ default: m.GroomingItemSheet })), { ssr: false });
-const OnboardingChecklistCard = dynamic(() => import('@/components/home/OnboardingChecklistCard').then(m => ({ default: m.OnboardingChecklistCard })), { ssr: false });
+// OnboardingChecklistCard (multi-item: vacina+antipulgas+vermífugo+ração de
+// uma vez) não é mais disparado automaticamente na jornada inicial —
+// substituído por FoodOnboardingCard, só alimentação (pedido do dono
+// 12/10/2026). O componente continua no código, só não é mais importado
+// aqui; os demais controles seguem acessíveis pela Home normalmente.
+const FoodOnboardingCard = dynamic(() => import('@/components/home/FoodOnboardingCard').then(m => ({ default: m.FoodOnboardingCard })), { ssr: false });
 const HomeFeedbackFab = dynamic(() => import('@/components/home/HomeFeedbackFab').then(m => ({ default: m.HomeFeedbackFab })), { ssr: false });
 const PermissionsNudgeCard = dynamic(() => import('@/components/home/PermissionsNudgeCard').then(m => ({ default: m.PermissionsNudgeCard })), { ssr: false });
 const PetSumidoSheet = dynamic(() => import('@/components/home/PetSumidoSheet').then(m => ({ default: m.PetSumidoSheet })), { ssr: false });
@@ -70,7 +75,7 @@ import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { commonVaccines } from '@/data/vaccineInfo';
 
 import { hasCompletedOnboarding, getOwnerProfile } from '@/lib/ownerProfile';
-import { isOnboardingActiveFlag } from '@/lib/onboardingProgress';
+import { hasFoodData, isOnboardingActiveFlag, readOnboardingStore } from '@/lib/onboardingProgress';
 import { needsLeishmaniaseAwareness } from '@/lib/leishmaniaseAwareness';
 import { API_BACKEND_BASE, API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
@@ -2400,29 +2405,30 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     );
                   })()}
 
-                  {/* Camada de orientação do novato — some sozinha quando os
-                      dados reais do pet resolvem os 5 itens, ou quando o tutor
-                      fecha o card. Deriva progresso de vaccines/parasiteControls/
-                      feedingPlan já carregados. Só monta depois que o plano
-                      alimentar do pet atual teve uma resposta definitiva
-                      (feedingPlanAttempted) — sem isso, o card podia piscar
-                      "onboarding incompleto" por um instante com feedingPlan
-                      ainda no estado inicial vazio, mesmo pra quem já tinha
-                      tudo cadastrado. */}
-                  {feedingPlanAttempted.has(currentPet.pet_id) && (
-                  <OnboardingChecklistCard
+                  {/* Passo focado de alimentação (pedido do dono 12/10/2026 —
+                      ver FoodOnboardingCard.tsx): substitui o checklist
+                      multi-item antigo como o que aparece sozinho logo após
+                      o 1º pet. Mostra só quando ainda não há dado real de
+                      alimentação NEM uma declaração salva ("depois") — uma
+                      vez resolvido (dado real ou "depois"), nunca mais
+                      aparece sozinho pra esse pet. Os demais controles
+                      (vacina/antipulgas/vermífugo/coleira/higiene) seguem
+                      disponíveis o tempo todo pelos cards permanentes da
+                      Home (HomePetDashboard), sem pedido automático. Só
+                      monta depois que o plano alimentar teve resposta
+                      definitiva (feedingPlanAttempted) — mesmo motivo do
+                      card antigo: evitar piscar "sem alimentação" por um
+                      instante com feedingPlan ainda no estado inicial vazio. */}
+                  {feedingPlanAttempted.has(currentPet.pet_id) &&
+                    !hasFoodData(feedingPlan[currentPet.pet_id] ?? null) &&
+                    readOnboardingStore(currentPet.pet_id).food == null && (
+                  <FoodOnboardingCard
                     petId={currentPet.pet_id}
                     petName={currentPet.pet_name}
                     petSex={currentPet.sex}
                     petPhotoSrc={getPhotoUrl(currentPet.photo, currentPet.pet_id, photoVersions) ?? undefined}
-                    hasPet={pets.length > 0}
-                    vaccinesCount={vaccines.length}
-                    parasiteControls={parasiteControls}
-                    feedingPlan={feedingPlan[currentPet.pet_id] ?? null}
-                    onOpenFood={handleOpenFood}
-                    onOpenVaccines={handleOpenVaccines}
-                    onOpenFlea={handleOpenAntipulgas}
-                    onOpenDewormer={handleOpenVermifugo}
+                    species={currentPet.species as 'dog' | 'cat' | undefined}
+                    onDone={handleFoodSaved}
                     suppressed={showFoodSheet || showVaccineSheet || showAntipulgasSheet || showVermifugoSheet}
                   />
                   )}
