@@ -20,6 +20,9 @@ interface AuthContextType {
   token: string | null; // Mantido para compatibilidade, mas não usado
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string, phone?: string, termsAccepted?: boolean, address?: { postal_code?: string; street?: string; number?: string; complement?: string; neighborhood?: string; city?: string; state?: string; country?: string }, prefs?: { whatsapp?: boolean; monthly_checkin_day?: number; monthly_checkin_hour?: number; monthly_checkin_minute?: number }) => Promise<void>;
+  /** Login/cadastro num só passo via Google/Apple — o backend acha ou cria
+   *  a conta pelo `sub` do provedor (ver POST /auth/google|apple). */
+  loginWithSocial: (provider: 'google' | 'apple', idToken: string, name?: string) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
   isOfflineMode: boolean;
@@ -148,6 +151,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await fetchTutorData();
   };
 
+  const loginWithSocial = async (provider: 'google' | 'apple', idToken: string, name?: string): Promise<void> => {
+    let response: Response;
+    try {
+      response = await fetch(`${API_URL}/auth/${provider}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_token: idToken, name }),
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '';
+      if (!msg || msg === 'Load failed' || msg === 'Failed to fetch' || msg.toLowerCase().includes('network')) {
+        throw new Error('Sem conexão. Verifique sua internet e tente novamente.');
+      }
+      throw new Error(msg || 'Erro ao entrar.');
+    }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({})) as { detail?: string };
+      throw new Error(error.detail || 'Não foi possível entrar com essa conta.');
+    }
+
+    const data = await response.json();
+    if (data.access_token) {
+      setAuthToken(data.access_token);
+      setToken(data.access_token);
+    }
+    await fetchTutorData();
+  };
+
   const register = async (
     name: string,
     email: string,
@@ -237,6 +269,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         token,
         login,
         register,
+        loginWithSocial,
         logout,
         isLoading,
         isOfflineMode,
