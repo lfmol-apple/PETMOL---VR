@@ -221,40 +221,6 @@ function DaysScrollPicker({ value, onChange, min = 1, max = 90 }: {
   );
 }
 
-// ── pet photo bubble ─────────────────────────────────────────────────────────
-// Hoisted to module scope on purpose: this was previously declared *inside*
-// FoodItemSheet's body, so every re-render (any state change anywhere in a
-// component with dozens of useState calls, not just photo-related ones)
-// produced a brand-new function reference. React then treated <PhotoBubble>
-// as a different component type each time and remounted it from scratch —
-// destroying and recreating the <img> DOM node, which made the browser
-// re-fetch/redecode the photo and visibly flash. A stable module-level
-// component reference fixes that: only its props change now, no remount.
-function PhotoBubble({
-  size, photoSrc, photoFailed, onPhotoError, species, petName,
-}: {
-  size: number;
-  photoSrc: string | null;
-  photoFailed: boolean;
-  onPhotoError: () => void;
-  species?: string;
-  petName?: string;
-}) {
-  return (
-    <div
-      className="rounded-full overflow-hidden bg-amber-100 flex items-center justify-center flex-shrink-0 shadow-sm ring-2 ring-white"
-      style={{ width: size, height: size, fontSize: size * 0.45 }}
-    >
-      {photoSrc && !photoFailed ? (
-        <img src={photoSrc} alt={petName} className="w-full h-full object-cover" loading="lazy"
-          onError={onPhotoError} />
-      ) : (
-        <span>{species === 'cat' ? '🐱' : '🐶'}</span>
-      )}
-    </div>
-  );
-}
-
 // ── component ─────────────────────────────────────────────────────────────────
 
 export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, petPhotoUrl, racaoEventId }: FoodItemSheetProps) {
@@ -280,7 +246,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   // UI state
   const [busy, setBusy]                           = useState(false);
   const [feedback, setFeedback]                   = useState<{ msg: string; tone: 'green' | 'blue' | 'red' } | null>(null);
-  const [photoLoadFailed, setPhotoLoadFailed]     = useState(false);
   const [successMessage, setSuccessMessage]       = useState<string | null>(null);
   const [justSaved, setJustSaved]                 = useState(false);
   const [selectedDays, setSelectedDays]           = useState(7);
@@ -1005,7 +970,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => { setPhotoLoadFailed(false); }, [petPhotoSrc]);
 
   // Reset submode when switching to view
   useEffect(() => { if (mode === 'view') { setSubMode('main'); setViewSection('racao'); } }, [mode]);
@@ -1014,21 +978,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   useEffect(() => {
     scrollBodyRef.current?.scrollTo({ top: 0, behavior: 'instant' });
   }, [subMode]);
-
-  // ── Back button (shared) ───────────────────────────────────────────────────
-
-  const BackBtn = ({ onClick }: { onClick: () => void }) => (
-    <button
-      type="button"
-      onClick={onClick}
-      className="relative z-10 pointer-events-auto flex items-center gap-1.5 h-11 px-3 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all flex-shrink-0 text-sm font-semibold"
-      aria-label="Voltar">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4 flex-shrink-0">
-        <path d="M15 18l-6-6 6-6" />
-      </svg>
-      <span className="leading-none">Voltar</span>
-    </button>
-  );
 
   // ── Feedback banner ────────────────────────────────────────────────────────
 
