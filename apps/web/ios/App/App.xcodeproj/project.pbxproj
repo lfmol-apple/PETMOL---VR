@@ -21,7 +21,7 @@
 		AA01B1C1D1E1F10100000022 /* petmol.caf in Resources */ = {isa = PBXBuildFile; fileRef = AA01B1C1D1E1F10100000020 /* petmol.caf */; };
 		AA01B1C1D1E1F10100000023 /* latido.caf in Resources */ = {isa = PBXBuildFile; fileRef = AA01B1C1D1E1F10100000021 /* latido.caf */; };
 		AA01B1C1D1E1F10100000025 /* download.caf in Resources */ = {isa = PBXBuildFile; fileRef = AA01B1C1D1E1F10100000024 /* download.caf */; };
-		AA01B1C1D1E1F10100000030 /* TikTokEventsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01B1C1D1E1F10100000033 /* TikTokEventsPlugin.swift */; };
+		AA01B1C1D1E1F10100000030 /* AdEventsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01B1C1D1E1F10100000033 /* AdEventsPlugin.swift */; };
 		AA01B1C1D1E1F10100000031 /* PetmolBridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01B1C1D1E1F10100000034 /* PetmolBridgeViewController.swift */; };
 		AA01B1C1D1E1F10100000032 /* TikTokBusinessSDK in Frameworks */ = {isa = PBXBuildFile; productRef = AA01B1C1D1E1F10100000037 /* TikTokBusinessSDK */; };
 /* End PBXBuildFile section */
@@ -42,7 +42,7 @@
 		AA01B1C1D1E1F10100000020 /* petmol.caf */ = {isa = PBXFileReference; lastKnownFileType = audio.caf; path = petmol.caf; sourceTree = "<group>"; };
 		AA01B1C1D1E1F10100000021 /* latido.caf */ = {isa = PBXFileReference; lastKnownFileType = audio.caf; path = latido.caf; sourceTree = "<group>"; };
 		AA01B1C1D1E1F10100000024 /* download.caf */ = {isa = PBXFileReference; lastKnownFileType = audio.caf; path = download.caf; sourceTree = "<group>"; };
-		AA01B1C1D1E1F10100000033 /* TikTokEventsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TikTokEventsPlugin.swift; sourceTree = "<group>"; };
+		AA01B1C1D1E1F10100000033 /* AdEventsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdEventsPlugin.swift; sourceTree = "<group>"; };
 		AA01B1C1D1E1F10100000034 /* PetmolBridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetmolBridgeViewController.swift; sourceTree = "<group>"; };
 		AA01B1C1D1E1F10100000035 /* release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = release.xcconfig; path = ../release.xcconfig; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
@@ -83,7 +83,7 @@
 			isa = PBXGroup;
 			children = (
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
-				AA01B1C1D1E1F10100000033 /* TikTokEventsPlugin.swift */,
+				AA01B1C1D1E1F10100000033 /* AdEventsPlugin.swift */,
 				AA01B1C1D1E1F10100000034 /* PetmolBridgeViewController.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
@@ -192,7 +192,7 @@
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
-				AA01B1C1D1E1F10100000030 /* TikTokEventsPlugin.swift in Sources */,
+				AA01B1C1D1E1F10100000030 /* AdEventsPlugin.swift in Sources */,
 				AA01B1C1D1E1F10100000031 /* PetmolBridgeViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

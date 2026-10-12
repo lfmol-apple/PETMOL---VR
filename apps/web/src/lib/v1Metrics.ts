@@ -1,4 +1,5 @@
 import { track } from '@/lib/analytics';
+import { isAdEventKind, trackAdEvent } from '@/lib/adEvents';
 
 // Primary analytics facade for PETMOL V1.
 // Use this module for product metrics in the current V1 experience.
@@ -66,6 +67,8 @@ export type V1MetricEvent =
 
 export function trackV1Metric(name: V1MetricEvent, properties: Record<string, unknown> = {}): void {
   track(name, properties);
+  // Eventos de negócio também vão aos SDKs de anúncio (Meta/TikTok) no app nativo.
+  if (isAdEventKind(name)) trackAdEvent(name);
 }
 
 export function trackReminderActionCompleted(properties: Record<string, unknown> = {}): void {

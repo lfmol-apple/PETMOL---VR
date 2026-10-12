@@ -7,7 +7,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         // Plugins locais precisam ser registrados antes do super.onCreate.
-        registerPlugin(TikTokEventsPlugin.class);
+        registerPlugin(AdEventsPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
