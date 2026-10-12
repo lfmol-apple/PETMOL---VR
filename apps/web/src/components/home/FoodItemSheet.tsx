@@ -90,12 +90,6 @@ type FeedingPlanApiResponse = {
 
 // ── utils ─────────────────────────────────────────────────────────────────────
 
-function isoPlus(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   const [, m, d] = iso.split('-').map(Number);
@@ -149,76 +143,6 @@ function clearPendingScannedProduct(): void {
   } catch {
     // non-blocking
   }
-}
-
-// ── Drum-roller days picker ────────────────────────────────────────────────────
-
-function DaysScrollPicker({ value, onChange, min = 1, max = 90 }: {
-  value: number;
-  onChange: (days: number) => void;
-  min?: number;
-  max?: number;
-}) {
-  const ITEM_H = 52;
-  const VISIBLE = 5;
-  const PAD = ITEM_H * Math.floor(VISIBLE / 2);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const days = useMemo(() => Array.from({ length: max - min + 1 }, (_, i) => min + i), [min, max]);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    el.scrollTop = (value - min) * ITEM_H;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const readValue = useCallback(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const idx = Math.round(el.scrollTop / ITEM_H);
-    onChange(days[Math.max(0, Math.min(idx, days.length - 1))]);
-  }, [days, onChange]);
-
-  const handleScroll = useCallback(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(readValue, 80);
-  }, [readValue]);
-
-  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
-
-  return (
-    <div className="relative select-none" style={{ height: ITEM_H * VISIBLE }}>
-      <div className="absolute inset-x-0 top-0 pointer-events-none z-10"
-        style={{ height: PAD, background: 'linear-gradient(to bottom, white 60%, transparent)' }} />
-      <div className="absolute inset-x-0 bottom-0 pointer-events-none z-10"
-        style={{ height: PAD, background: 'linear-gradient(to top, white 60%, transparent)' }} />
-      <div className="absolute inset-x-8 bg-blue-50 border border-blue-200 rounded-2xl pointer-events-none z-0"
-        style={{ top: PAD, height: ITEM_H }} />
-      <div
-        ref={containerRef}
-        className="absolute inset-0 overflow-y-scroll [&::-webkit-scrollbar]:hidden"
-        style={{
-          scrollSnapType: 'y mandatory',
-          paddingTop: PAD,
-          paddingBottom: PAD,
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',
-        } as React.CSSProperties}
-        onScroll={handleScroll}
-      >
-        {days.map((d) => (
-          <div
-            key={d}
-            style={{ height: ITEM_H, scrollSnapAlign: 'center' }}
-            className="flex items-center justify-center text-[18px] font-bold text-gray-800"
-          >
-            {d} dia{d !== 1 ? 's' : ''}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 // ── component ─────────────────────────────────────────────────────────────────
