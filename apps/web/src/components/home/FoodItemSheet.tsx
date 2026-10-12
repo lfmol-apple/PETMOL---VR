@@ -40,7 +40,7 @@ export interface FoodItemSheetProps {
 type SheetMode = 'view' | 'edit' | 'buy';
 
 // Internal submodes within view — no router.push, no sheet close
-type FoodSubMode = 'main' | 'adjustDuration' | 'finished' | 'channel' | 'restockConfirm';
+type FoodSubMode = 'main' | 'adjustDuration' | 'finished' | 'channel';
 
 type PurchaseChannel = 'cobasi' | 'petz' | 'mercadolivre' | 'shopee' | 'loja_fisica' | 'outro';
 
@@ -307,12 +307,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   // secundário (petisco) em vez do item primário (ração) — ver botão
   // "🛒 Comprar" na seção "Outros alimentos".
   const [buyTargetItem, setBuyTargetItem] = useState<{ label: string; query: string; gtin: string | null; packageSizeKg: number | null } | null>(null);
-  const [deletingPlan, setDeletingPlan] = useState(false);
   const [deletingSecondaryId, setDeletingSecondaryId] = useState<string | null>(null);
-  // "Não uso mais"/"Excluir plano" são ações raras — ficam atrás do "⋯" ao
-  // lado de "Editar plano" em vez de sempre visíveis, pra tela caber sem
-  // rolar no caso comum.
-  const [showMoreFoodActions, setShowMoreFoodActions] = useState(false);
   // Alterna qual seção a tela principal mostra — ração (controle de peso/
   // tempo) ou petiscos (compra esporádica, sem contagem). Pedido do tutor:
   // as duas seções empilhadas numa rolagem só ficavam confusas pra um
@@ -802,34 +797,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
     }
   };
 
-  // "🗑️ Excluir plano" — ação direta na tela principal em vez de enterrada
-  // dentro de "Editar plano" → "Editar manualmente" → rolar até achar o
-  // botão. Remove ração principal E todos os petiscos (o backend só tem um
-  // DELETE de plano inteiro, não por item — mesmo comportamento do "Excluir
-  // controle" que já existia dentro do formulário).
-  const handleDeletePlan = async () => {
-    const accepted = await requestUserDecision(
-      `Excluir o plano de alimentação ${petDo(pet)} ${pet.pet_name}? Isso remove a ração principal e todos os petiscos salvos — não dá pra desfazer.`,
-      { title: 'Excluir plano de alimentação', tone: 'danger', confirmLabel: 'Excluir plano' },
-    );
-    if (!accepted) return;
-    setDeletingPlan(true);
-    try {
-      await fetch(`${API_BACKEND_BASE}/health/pets/${pet.pet_id}/feeding/plan`, {
-        method: 'DELETE',
-        headers: authH(),
-        credentials: 'include',
-      });
-      dispatchFoodPlanUpdated();
-      onSaved?.();
-      await refreshFoodPlan();
-    } catch {
-      setFeedback({ msg: 'Não deu pra excluir agora. Tente de novo.', tone: 'red' });
-    } finally {
-      setDeletingPlan(false);
-    }
-  };
-
   // "🗑️" por item na aba Petiscos — o backend substitui items_json inteiro
   // a cada save (create_or_update_feeding_plan nunca faz merge), então
   // excluir um item significa: buscar o plano atual, tirar só esse item da
@@ -890,16 +857,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
     }
   };
 
-  const callRestock = async () => {
-    const r = await fetch(`${API_BACKEND_BASE}/health/pets/${pet.pet_id}/feeding/plan/restock`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authH() },
-      credentials: 'include',
-      body: JSON.stringify({ refill_date: localTodayISO() }),
-    });
-    return r.ok;
-  };
-
   const callAdjust = async (targetDate: string) => {
     const r = await fetch(`${API_BACKEND_BASE}/health/pets/${pet.pet_id}/feeding/plan/adjust`, {
       method: 'PATCH',
@@ -911,33 +868,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   };
 
   // ── Action handlers ────────────────────────────────────────────────────────
-
-  const handleCompreiMesmoPacote = async () => {
-    if (busy) return;
-    setBusy(true);
-    setFeedback(null);
-    try {
-      trackV1Metric('food_restock_confirmed', { pet_id: pet.pet_id, source: 'sheet' });
-      trackV1Metric('food_purchase_confirmed', { pet_id: pet.pet_id, source: 'sheet', channel: 'same_package' });
-      const ok = await callRestock();
-      if (ok) {
-        void upsertRacaoEvent(localTodayISO());
-        onSaved?.();
-        const refreshed = await refreshFoodPlan();
-        dispatchFoodPlanUpdated();
-        if (refreshed?.recommendedAlertDate) {
-          const t = getToken();
-          if (t) void scheduleFoodReminder({ pet_id: pet.pet_id, type: 'food', title: `🛒 Comprar ração de ${pet.pet_name}`, body: `O estoque de ${refreshed.brand || 'ração'} de ${pet.pet_name} está acabando. Hora de comprar!`, remind_at: buildRemindAt(refreshed.recommendedAlertDate, refreshed.reminderTime ?? '09:00') }, t);
-        }
-        showSuccessAndReturnToMain('Compra registrada');
-      }
-      else setFeedback({ msg: 'Não foi possível registrar. Tente novamente.', tone: 'red' });
-    } catch {
-      setFeedback({ msg: 'Sem conexão. Tente novamente.', tone: 'red' });
-    } finally {
-      setBusy(false);
-    }
-  };
 
   // "📦 Ajustar previsão" → set_end_date from today + days
   const handleAdjustDuration = async (targetDate: string) => {
@@ -1475,120 +1405,51 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             </div>
                           )}
 
+                          {/* 3. Editar plano — logo abaixo do produto, ação
+                              principal e única em destaque durante o uso
+                              normal (pedido do dono, 12/10/2026: tela
+                              carregada demais; "Registrar reposição" e
+                              "Comprar novamente" saem daqui por ora —
+                              Comprar volta sozinho quando a ração estiver
+                              realmente perto de acabar, abaixo). O painel
+                              "⋯" (Não uso mais / Excluir plano) saiu — dois
+                              caminhos de exclusão (aqui + "Excluir
+                              controle" dentro de Editar plano) confundiam;
+                              fica só um, lá dentro. */}
+                          <button type="button"
+                            onClick={() => { setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
+                            className="w-full flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-800 shadow-sm active:scale-[0.98] transition-all"
+                          >
+                            <span className="text-xl">✏️</span>
+                            <span className="flex-1 text-left">
+                              <span className="block">Editar plano</span>
+                              <span className="block text-[12px] font-semibold text-blue-700/70">Código de barras, peso, duração ou datas</span>
+                            </span>
+                            <span className="text-blue-300 text-lg">›</span>
+                          </button>
+
                           {/* Feedback banner */}
                           <FeedbackBanner />
 
-                          {/* 3. Ações principais (18/09/2026, pedido do dono
-                              — "assim como na coleira tem um botão registrar
-                              aplicação sempre visível, temos que agir da
-                              mesma forma para a ração"). "Registrar
-                              reposição" é o caminho rápido de quem JÁ COMPROU
-                              o saco reserva — reconecta a tela "Você comprou
-                              novamente? / Mesmo pacote / Outro pacote"
-                              (subMode='restockConfirm') e o handler
-                              handleCompreiMesmoPacote, que já existiam prontos
-                              no código mas ficaram órfãos, sem nenhum botão
-                              que os chamasse, num redesenho anterior.
-                              "Comprar novamente" continua sempre visível
-                              também (pedido explícito: o botão comprar tem
-                              que estar em todo fluxo) pra quem ainda não
-                              comprou. */}
-                          <button type="button"
-                            onClick={() => {
-                              trackV1Metric('food_restock_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
-                              setFeedback(null);
-                              setSubMode('restockConfirm');
-                            }}
-                            className="w-full py-4 rounded-2xl bg-[#0056D2] hover:bg-[#004ab8] active:scale-[0.97] transition-all text-white text-[16px] font-black shadow-lg shadow-blue-900/20 flex items-center justify-center gap-3"
-                          >
-                            <span className="text-xl">🔁</span>
-                            Registrar reposição
-                          </button>
-
-                          {/* Base IDÊNTICA à produção (bg-emerald-500,
-                              shadow, emoji 🛒) — pedido explícito do dono,
-                              11/10/2026, depois de uma tentativa com
-                              green-600 que ele considerou errada. Produção
-                              não tem noção de urgência nenhuma (sempre esse
-                              mesmo verde); a única coisa nova é a régua de
-                              foodTone SOBRESCREVENDO pra vermelho/âmbar
-                              quando tá crítico/em aviso — fora isso, pixel
-                              igual ao botão de produção. */}
-                          <button type="button"
-                            onClick={() => {
-                              trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
-                              setMode('buy');
-                            }}
-                            className={`w-full py-3.5 rounded-2xl active:scale-[0.97] transition-all text-[15px] font-black text-white flex items-center justify-center gap-2.5 ${
-                              foodTone === 'critical' ? 'bg-red-600 hover:bg-red-700 shadow-lg shadow-red-900/20'
-                              : foodTone === 'warning' ? 'bg-amber-500 hover:bg-amber-600 shadow-lg shadow-amber-900/20'
-                              : 'bg-emerald-500 hover:bg-emerald-600 shadow-md shadow-emerald-500/25'
-                            }`}
-                          >
-                            <span className="text-lg">🛒</span>
-                            Comprar novamente
-                          </button>
-
-                          {/* O botão "Editar" e o painel de opções (escanear/
-                              editar manualmente/não uso mais ração) nunca
-                              ficam visíveis ao mesmo tempo — um substitui o
-                              outro, em vez de empilhar duas UIs de "editar"
-                              na mesma tela (confuso, reportado pelo tutor).
-                              "Excluir" fica direto ao lado — ação decisiva,
-                              sem precisar entrar no painel pra achar. */}
-                          {/* Feedback do usuário: "Atualizar" e "Editar plano" eram
-                              dois botões pro mesmo lugar, com um passo
-                              intermediário no meio — confuso. O botão
-                              principal agora vai direto pra mode='edit',
-                              que já escaneia código de barras (linha ~1280)
-                              além de peso/duração/datas — não precisa de
-                              painel de escolha antes. "Não uso mais este
-                              produto" e "Excluir" ficam como ações
-                              secundárias, sempre visíveis. */}
-                          <div className="space-y-2">
-                            <div className="flex gap-2">
-                              <button type="button"
-                                onClick={() => { setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
-                                className="flex-1 flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-800 shadow-sm active:scale-[0.98] transition-all"
-                              >
-                                <span className="text-xl">✏️</span>
-                                <span className="flex-1 text-left">
-                                  <span className="block">Editar plano</span>
-                                  <span className="block text-[12px] font-semibold text-blue-700/70">Código de barras, peso, duração ou datas</span>
-                                </span>
-                                <span className="text-blue-300 text-lg">›</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setShowMoreFoodActions((v) => !v)}
-                                aria-label="Mais ações"
-                                className="flex-shrink-0 w-11 rounded-2xl border border-gray-200 bg-white text-gray-500 text-lg font-black active:scale-[0.98] transition-all"
-                              >
-                                ⋯
-                              </button>
-                            </div>
-                            {showMoreFoodActions && (
-                              <div className="grid grid-cols-2 gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => { void handleDeclareNonKibble(); }}
-                                  disabled={declaringNonKibble}
-                                  className="w-full py-2 min-h-[40px] rounded-xl bg-white border border-gray-200 text-gray-600 text-[12px] font-semibold hover:bg-gray-50 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                                >
-                                  <span>🍲</span>
-                                  {declaringNonKibble ? 'Salvando...' : 'Não uso mais'}
-                                </button>
-                                <button type="button"
-                                  onClick={() => { void handleDeletePlan(); }}
-                                  disabled={deletingPlan}
-                                  className="w-full py-2 min-h-[40px] rounded-xl bg-white border border-red-100 text-red-500 text-[12px] font-semibold hover:bg-red-50 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                                >
-                                  <span>🗑️</span>
-                                  {deletingPlan ? 'Excluindo...' : 'Excluir plano'}
-                                </button>
-                              </div>
-                            )}
-                          </div>
+                          {/* "Comprar novamente" só aparece quando a ração
+                              está mesmo perto de acabar (foodTone
+                              'warning'/'critical') — antes disso, o botão só
+                              ocupava espaço sem necessidade real ainda. */}
+                          {(foodTone === 'critical' || foodTone === 'warning') && (
+                            <button type="button"
+                              onClick={() => {
+                                trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
+                                setMode('buy');
+                              }}
+                              className={`w-full py-3.5 rounded-2xl active:scale-[0.97] transition-all text-[15px] font-black text-white flex items-center justify-center gap-2.5 ${
+                                foodTone === 'critical' ? 'bg-red-600 hover:bg-red-700 shadow-lg shadow-red-900/20'
+                                : 'bg-amber-500 hover:bg-amber-600 shadow-lg shadow-amber-900/20'
+                              }`}
+                            >
+                              <span className="text-lg">🛒</span>
+                              Comprar novamente
+                            </button>
+                          )}
 
                           {/* 4. Ajustes rápidos */}
                           <div className="grid grid-cols-2 gap-2">
@@ -1724,58 +1585,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             className="w-full py-4 rounded-2xl bg-[#0056D2] text-white text-[16px] font-black shadow-lg shadow-blue-500/25 hover:bg-[#004ab8] active:scale-[0.97] transition-all disabled:opacity-50"
                           >
                             {busy ? 'Ajustando…' : `Confirmar ${selectedDays} dia${selectedDays !== 1 ? 's' : ''}`}
-                          </button>
-
-                          <FeedbackBanner />
-                        </div>
-                      )}
-
-                      {/* ─── SUBMODE: restockConfirm ─────────────────────── */}
-                      {subMode === 'restockConfirm' && (
-                        <div className="space-y-4 pt-1">
-                          <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Novo ciclo</p>
-                            <h3 className="text-[20px] font-black text-gray-900 leading-tight mt-1">Você comprou novamente?</h3>
-                          </div>
-
-                          <div className="space-y-2">
-                            <button
-                              type="button"
-                              onClick={handleCompreiMesmoPacote}
-                              disabled={busy}
-                              className="w-full py-3.5 rounded-2xl border border-green-200 bg-green-50 text-[15px] font-semibold text-green-800 text-left px-5 hover:bg-green-100 active:scale-[0.98] transition-all disabled:opacity-50"
-                            >
-                              Mesmo pacote
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setFormRequest({ id: Date.now(), mode: 'edit' });
-                                setMode('edit');
-                                setSubMode('main');
-                              }}
-                              disabled={busy}
-                              className="w-full py-3.5 rounded-2xl border border-gray-200 bg-white text-[15px] font-semibold text-gray-800 text-left px-5 hover:bg-gray-50 active:scale-[0.98] transition-all disabled:opacity-50"
-                            >
-                              Outro pacote
-                            </button>
-                          </div>
-
-                          {/* Comprar continua acessível mesmo aqui — pedido
-                              do dono: o botão comprar tem que estar em todo
-                              fluxo, pra quem abriu "Registrar reposição" mas
-                              na verdade ainda não comprou. */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
-                              setSubMode('main');
-                              setMode('buy');
-                            }}
-                            className="w-full py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] transition-all text-white text-[14px] font-black shadow-sm shadow-emerald-500/20 flex items-center justify-center gap-2"
-                          >
-                            <span>🛒</span>
-                            Ainda não comprei — ir para Comprar
                           </button>
 
                           <FeedbackBanner />
