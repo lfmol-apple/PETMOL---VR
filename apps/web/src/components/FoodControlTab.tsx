@@ -1097,8 +1097,10 @@ export function FoodControlTab({
                       principal (mais preciso que digitar a mão e resolve
                       oferta comercial por GTIN exato, AwinFeedProvider). A
                       regra de controle (peso/duração, abaixo) só faz sentido
-                      depois que o produto já está identificado. */}
-                  {showSearch ? (
+                      depois que o produto já está identificado. Sem "Trocar produto" ao
+                      editar (pedido do dono, 12/10/2026): produto errado = excluir o
+                      controle e criar outro. */}
+                  {showSearch && (
                     <ProductBarcodeScanner
                       label="Escanear código de barras"
                       expectedCategory="food"
@@ -1109,14 +1111,6 @@ export function FoodControlTab({
                       onManualEntry={isQuickSetup ? () => revealSearch(item.id) : undefined}
                       manualEntryLabel="Não encontrei — digitar manualmente"
                     />
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => revealSearch(item.id)}
-                      className="text-xs font-bold text-blue-600 hover:text-blue-700 active:opacity-70 transition-opacity"
-                    >
-                      🔁 Trocar produto
-                    </button>
                   )}
 
                   {!hideUntilProductChosen && (
