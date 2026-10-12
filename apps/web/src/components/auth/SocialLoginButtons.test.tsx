@@ -6,15 +6,16 @@ import { useEffect } from 'react';
 // arquivo) — pra cada teste poder ligar/desligar Google/Apple de forma
 // isolada, reimportamos o componente a cada vez (vi.resetModules +
 // import dinâmico) depois de ajustar as envs com vi.stubEnv.
-vi.mock('next/script', () => ({
-  // Simula o script já carregado assim que o componente monta — não há
-  // rede de verdade em teste. onLoad roda num efeito (não durante o
-  // render) pra não disparar o aviso do React de setState-durante-render.
-  default: (props: { onLoad?: () => void }) => {
-    useEffect(() => { props.onLoad?.(); }, [props]);
-    return null;
-  },
-}));
+// Simula o script já carregado assim que o componente monta — não há rede
+// de verdade em teste. onLoad roda num efeito (não durante o render) pra
+// não disparar o aviso do React de setState-durante-render. Precisa de
+// nome em PascalCase pro eslint (react-hooks/rules-of-hooks) reconhecer
+// como componente e aceitar o useEffect lá dentro.
+function MockNextScript(props: { onLoad?: () => void }) {
+  useEffect(() => { props.onLoad?.(); }, [props]);
+  return null;
+}
+vi.mock('next/script', () => ({ default: MockNextScript }));
 
 const mockIsNativeAppClient = vi.fn(() => false);
 vi.mock('@/lib/nativeApp', () => ({ isNativeAppClient: () => mockIsNativeAppClient() }));
