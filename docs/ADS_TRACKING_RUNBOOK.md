@@ -14,9 +14,16 @@ O Android nunca teve o SDK da Meta (só o iOS) — por isso a Meta atribuía zer
 | 2 | TikTok > fonte **PETMOL Android** (App ID 7695103016026062900) | Confirmar o **App Secret** | `scripts/ads-tracking.sh set-android-secret <secret>` (só se mudou) |
 | 3 | TikTok for Business Developers (doc do SDK iOS) | Conferir a lista **oficial de SKAdNetwork** | Hoje há `238da6jt44` e `22mmun2rn5` (fonte não oficial). Se faltar algum, pedir para adicionar em `ios/App/App/Info.plist` |
 | 4 | Meta (app 976747438068822) > Configurações > Android | Pacote `br.com.petmol.app`, classe `br.com.petmol.app.MainActivity`, **Key Hashes** (`scripts/ads-tracking.sh hashes`) | Ajuda a Meta a reconhecer o app (não era a causa do problema) |
-| 5 | Play Console > Integridade do app | Ver o SHA-1 da **chave de assinatura do app** (Play App Signing) | Se for outro, converter para Key Hash e cadastrar na Meta |
+| 5 | Play Console | ✅ **Feito** (lido da conta em 12/10/2026) | Ver "Chaves" abaixo |
 
-Key Hashes calculadas (do keystore de produção em `~/Desktop/petmol-android-release-keystore`, 19/09): ver `scripts/ads-tracking.sh hashes`. O keystore de 12/09 em `~/.petmol-mobile-keys` é outro certificado — o de produção é o do Desktop (a impressão digital SHA-256 bate com a anotada para a Play Console).
+## Chaves (conferidas na Play Console em 12/10/2026)
+- **Chave de assinatura do app** (a que está nos celulares de quem instala da Play Store — **esta é a Key Hash para a Meta**):
+  SHA-1 `94:D4:5C:2D:DF:7F:D0:EB:2D:65:B4:77:02:E5:88:CB:FA:E0:36:F2` → **Key Hash Meta `lNRcLd9/0OstZbR3AuWIy/rgNvI=`**
+  (SHA-256 `FE:B6:B8:E9:8A:CE:EF:AD:F6:E6:9D:EA:28:0C:82:AD:EB:AD:FE:FA:C7:1E:C9:C3:2B:C4:AA:A0:32:30:36:89`)
+- **Chave de upload** (a que assina o AAB enviado): SHA-1 `DC:3A:BB:98:…` = keystore `~/.petmol-mobile-keys/petmol-release.jks` (12/09). **O AAB de produção precisa ser assinado com ESSE**, não com o do Desktop (19/09), que a Play não conhece.
+- Debug (builds de teste): Key Hash `bnbncXL5CYjZ9VKrhiH2tlOwvxo=`.
+- Cadastre na Meta: a de assinatura do app (`lNRc…`) + a de debug. A de upload não é necessária.
+- Pelo Chrome: Meta e TikTok Ads **não estavam logados**; a Play Console estava.
 
 ## Depois dos itens 1–3
 1. `scripts/ads-tracking.sh check` (diz o que ainda falta).

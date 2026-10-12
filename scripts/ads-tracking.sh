@@ -25,14 +25,14 @@ case "${1:-}" in
     if [ -f "$CREDS" ]; then
       SP="$(grep '^STORE_PASS=' "$CREDS" | cut -d= -f2- | tr -d '\r"'"'"' ')"; AL="$(grep '^KEY_ALIAS=' "$CREDS" | cut -d= -f2- | tr -d '\r"'"'"' ')"
       k="$HOME/.petmol-mobile-keys/petmol-release.jks"
-      [ -f "$k" ] && { echo "== Release (.petmol-mobile-keys, 12/09): $k"; keyhash "$k" "$SP" "$AL"; }
+      [ -f "$k" ] && { echo "== UPLOAD KEY — assina o AAB da Play (.petmol-mobile-keys, 12/09): $k"; keyhash "$k" "$SP" "$AL"; }
     else echo "(sem $CREDS: release de 12/09 não calculado)"; fi
     N="$HOME/Desktop/petmol-android-release-keystore/LEIA-E-GUARDE-COM-SEGURANCA.txt"; K2="$HOME/Desktop/petmol-android-release-keystore/petmol-release.keystore"
     if [ -f "$N" ] && [ -f "$K2" ]; then
       SP2="$(grep -i '^Senha' "$N" | head -1 | sed 's/^[^:]*:[[:space:]]*//' | tr -d '\r')"; AL2="$(grep -i '^Alias:' "$N" | head -1 | sed 's/^[^:]*:[[:space:]]*//' | tr -d '\r ')"
-      echo "== Release (Desktop, 19/09 — 'de produção'): $K2"; keyhash "$K2" "$SP2" "$AL2"
+      echo "== Desktop 19/09 (NÃO é a da Play — não usar para o AAB): $K2"; keyhash "$K2" "$SP2" "$AL2"
     fi
-    echo; echo "Se o app usa Play App Signing, vale o SHA-1 da 'Chave de assinatura do app' na Play Console (Integridade do app)."
+    echo; echo "Play App Signing ativo: a Key Hash que vale para a Meta é a da CHAVE DE ASSINATURA DO APP = lNRcLd9/0OstZbR3AuWIy/rgNvI= (conferida na Play Console). O keystore de 12/09 é a chave de UPLOAD (assina o AAB); o do Desktop (19/09) a Play não conhece."
     ;;
   set-ios-token)
     [ -n "${2:-}" ] || { echo "uso: $0 set-ios-token <ACCESS_TOKEN_TIKTOK_IOS>"; exit 1; }
