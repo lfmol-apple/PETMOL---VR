@@ -354,14 +354,17 @@ export function FoodControlTab({
   const [methodChosen, setMethodChosen] = useState(false);
   const [deleteFeedback, setDeleteFeedback] = useState<string | null>(null);
   const [apiEstimate, setApiEstimate] = useState<{ estimated_end_date: string | null; estimated_days_left: number | null } | null>(null);
-  // No quick_setup (onboarding), a tela começa só com buscar/escanear — os
-  // campos de marca/data/duração só aparecem depois que um produto foi
-  // achado OU o tutor disse explicitamente que não encontrou (pedido do
-  // dono, 12/10/2026: "deixe apenas o campo buscar produto ou escanear
-  // ativos e caso não encontre o produto correto abra o campo para
-  // digitação manual" — tela carregada de campos de uma vez foi apontada
-  // como confusa).
-  const [quickSetupManual, setQuickSetupManual] = useState(false);
+  // Uma vez que um item JÁ tem produto (brand preenchido), buscar/escanear
+  // deixa de fazer sentido na tela — vira um link discreto "Trocar
+  // produto" em vez do bloco inteiro (pedido do dono, 12/10/2026, a
+  // partir da tela "Editar plano": "se o usuário já selecionou a ração, o
+  // botão buscar não é mais necessário"). Por item (não um bool só), via
+  // o id: cobre tanto reabrir a busca manualmente quanto o caso de
+  // quick_setup, onde o item começa sem produto algum — aí o bloco de
+  // busca já aparece sozinho e os demais campos (marca/data/duração) só
+  // surgem depois de escolhido ou de um "não encontrei, digitar manual".
+  const [searchOverrideIds, setSearchOverrideIds] = useState<Set<string>>(new Set());
+  const revealSearch = (itemId: string) => setSearchOverrideIds((ids) => new Set(ids).add(itemId));
 
   // Extraído como função pura (não mexe em state) pra poder tanto atualizar
   // um item já existente (applyScannedProduct) quanto construir um item
@@ -1055,7 +1058,9 @@ export function FoodControlTab({
             ).map((item, index) => {
               const itemMetrics = getItemMetrics(item);
               const isQuickSetup = formMode === 'quick_setup';
-              const hideUntilProductChosen = isQuickSetup && !quickSetupManual && !item.brand.trim();
+              const searchOverridden = searchOverrideIds.has(item.id);
+              const hideUntilProductChosen = isQuickSetup && !searchOverridden && !item.brand.trim();
+              const showSearch = !item.brand.trim() || searchOverridden;
               return (
                 <div key={item.id} className="rounded-2xl border border-slate-200 p-2.5 space-y-2 bg-slate-50">
                   <div className="flex items-start justify-between gap-2">
@@ -1093,16 +1098,26 @@ export function FoodControlTab({
                       oferta comercial por GTIN exato, AwinFeedProvider). A
                       regra de controle (peso/duração, abaixo) só faz sentido
                       depois que o produto já está identificado. */}
-                  <ProductBarcodeScanner
-                    label="Escanear código de barras"
-                    expectedCategory="food"
-                    defaultMode="scan"
-                    petId={petId}
-                    petName={_petName}
-                    onProductConfirmed={(product) => applyScannedProduct(item.id, product)}
-                    onManualEntry={isQuickSetup ? () => setQuickSetupManual(true) : undefined}
-                    manualEntryLabel="Não encontrei — digitar manualmente"
-                  />
+                  {showSearch ? (
+                    <ProductBarcodeScanner
+                      label="Escanear código de barras"
+                      expectedCategory="food"
+                      defaultMode="scan"
+                      petId={petId}
+                      petName={_petName}
+                      onProductConfirmed={(product) => applyScannedProduct(item.id, product)}
+                      onManualEntry={isQuickSetup ? () => revealSearch(item.id) : undefined}
+                      manualEntryLabel="Não encontrei — digitar manualmente"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => revealSearch(item.id)}
+                      className="text-xs font-bold text-blue-600 hover:text-blue-700 active:opacity-70 transition-opacity"
+                    >
+                      🔁 Trocar produto
+                    </button>
+                  )}
 
                   {!hideUntilProductChosen && (
                   <>
