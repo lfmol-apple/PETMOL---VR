@@ -1,7 +1,7 @@
 'use client';
 
 import { medicationTreatmentState, EXPIRED_UNCONFIRMED_LABEL } from '@/lib/medicationTreatment';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { parsePetEventExtraData, type PetEventRecord } from '@/lib/petEvents';
@@ -385,6 +385,11 @@ export function MedicationItemSheet({
   // dispensar o scanner, ou escolher preencher na mão — scan é o caminho
   // feliz, não só uma opção ao lado de um form já visível.
   const [showManualForm, setShowManualForm] = useState(false);
+  // Menu de "tomou ou pulou" pro dia atrasado (achado real 11/10/2026): o
+  // pulo era só toque-e-segure, sem nenhum indício visível além de um texto
+  // pequeno embaixo da grade — "difícil demais pro tutor adivinhar" (dono).
+  // Agora o toque no dia atrasado abre este menu com as duas opções à vista.
+  const [doseMenuFor, setDoseMenuFor] = useState<{ evId: string; dateStr: string; dateLabel: string } | null>(null);
 
   const { permission: pushPermission, requestPermission: requestPushPermission, subscribeToPush } = useNotificationPermissionController();
   const pushAsk = usePushOneTimeAsk('petmol_medication_push_ask_v1', pushPermission === 'default');
@@ -649,30 +654,6 @@ export function MedicationItemSheet({
       }
     } finally {
       setSaving(false);
-    }
-  }
-
-  // Toque-e-segure num círculo pendente da grade de dias marca como pulado
-  // em vez de aplicado — permite as duas ações sem precisar de um segundo
-  // botão fora do círculo (ver grade abaixo em "Cronograma"). longPressFiredRef
-  // evita que o "click" que o navegador dispara ao soltar o dedo, depois de
-  // já ter disparado a ação de segurar, aplique a dose por cima do que
-  // acabou de ser marcado como pulado.
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressFiredRef = useRef(false);
-
-  function startLongPress(action: () => void) {
-    longPressFiredRef.current = false;
-    longPressTimerRef.current = setTimeout(() => {
-      longPressFiredRef.current = true;
-      action();
-    }, 480);
-  }
-
-  function cancelLongPress() {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
     }
   }
 
@@ -1064,9 +1045,11 @@ export function MedicationItemSheet({
                             preenchimento apagado só pra alinhar a grade.
                             Dias aplicados/pulados ficam sólidos (verde/
                             âmbar) pra saltar aos olhos mesmo fora do dia de
-                            hoje. Toque marca a dose na hora; toque e segure
-                            pula o dia; toque de novo num dia já
-                            aplicado/pulado desfaz. */}
+                            hoje. Dia atrasado/hoje sem dose ainda: toque abre
+                            o menu "tomou ou pulou" (antes era toque-e-segure
+                            escondido, achado real 11/10/2026 — "difícil
+                            demais pro tutor adivinhar"). Dia já
+                            aplicado/pulado: toque de novo desfaz. */}
                         <div className="px-3 pb-3 border-t border-purple-50 pt-2.5 space-y-4">
                           {visibleMonthGroups.map((group) => (
                             <div key={group.key}>
@@ -1121,8 +1104,8 @@ export function MedicationItemSheet({
                                       : isPartial
                                         ? `${dateLabel}, ${doseWord} — toque pra marcar a próxima`
                                         : needsDose
-                                          ? `${dateLabel}, precisa registrar a dose`
-                                          : `${dateLabel} — toque pra marcar aplicada, toque e segure pra pular`;
+                                          ? `${dateLabel} — toque pra marcar tomada ou pular o dia`
+                                          : `${dateLabel} — toque pra marcar aplicada`;
 
                                   return (
                                     <button
@@ -1132,8 +1115,15 @@ export function MedicationItemSheet({
                                       title={label}
                                       aria-label={label}
                                       onClick={() => {
-                                        if (longPressFiredRef.current) { longPressFiredRef.current = false; return; }
                                         if (isSkipped) { handleApplyDose(ev.id, 'unskip', dateStr); return; }
+                                        // Dia atrasado/hoje sem nenhuma dose ainda: abre o
+                                        // menu com as duas opções à vista (achado real
+                                        // 11/10/2026 — o pulo só por toque-e-segure, sem
+                                        // nenhum botão visível, era "difícil demais pro
+                                        // tutor adivinhar"). Dia com progresso parcial
+                                        // continua registrando a próxima dose direto —
+                                        // não dá pra "pular o resto do dia" nesse modelo.
+                                        if (needsDose) { setDoseMenuFor({ evId: ev.id, dateStr, dateLabel }); return; }
                                         if (dosesPerDay > 1) {
                                           if (isFullyApplied) {
                                             // Desfaz a última dose registrada do dia.
@@ -1150,13 +1140,6 @@ export function MedicationItemSheet({
                                         if (isFullyApplied) handleApplyDose(ev.id, 'remove', dateStr);
                                         else handleApplyDose(ev.id, 'apply', dateStr);
                                       }}
-                                      onPointerDown={() => {
-                                        if (doneToday > 0 || isSkipped || isFuture) return;
-                                        startLongPress(() => handleApplyDose(ev.id, 'skip', dateStr));
-                                      }}
-                                      onPointerUp={cancelLongPress}
-                                      onPointerLeave={cancelLongPress}
-                                      onPointerCancel={cancelLongPress}
                                       className={`aspect-square rounded-lg text-[10px] font-bold transition-all active:scale-90 flex flex-col items-center justify-center ${cls} ${isFuture ? 'cursor-default opacity-50' : 'cursor-pointer'} disabled:opacity-40`}
                                     >
                                       <span>{dayNum}</span>
@@ -1171,7 +1154,7 @@ export function MedicationItemSheet({
                             </div>
                           ))}
                           <div className="flex items-center justify-between gap-2">
-                            <p className="text-[10px] text-gray-400">Toque marca a dose · toque e segure pula o dia</p>
+                            <p className="text-[10px] text-gray-400">Toque no dia pra marcar tomada ou pular</p>
                             {needsMonthCollapse && (
                               <button
                                 type="button"
@@ -1526,6 +1509,44 @@ export function MedicationItemSheet({
           </div>
         )}
     </SheetShell>
+    {doseMenuFor && (
+      <SheetShell open onClose={() => setDoseMenuFor(null)} variant="center" size="sm" z={SHEET_Z.nested}>
+        <SheetShell.Body className="space-y-2.5 pt-5">
+          <p className="text-center text-[13px] font-semibold text-gray-500 -mb-1">{doseMenuFor.dateLabel}</p>
+          <button
+            type="button"
+            onClick={() => {
+              handleApplyDose(doseMenuFor.evId, 'apply', doseMenuFor.dateStr);
+              setDoseMenuFor(null);
+            }}
+            disabled={saving}
+            className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl bg-[#0056D2] hover:bg-[#004ab8] active:scale-[0.98] transition-all text-white font-black text-[15px] shadow-lg shadow-blue-500/20 disabled:opacity-60"
+          >
+            <span className="text-xl">✔</span>
+            <span>Marcar como tomada</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              handleApplyDose(doseMenuFor.evId, 'skip', doseMenuFor.dateStr);
+              setDoseMenuFor(null);
+            }}
+            disabled={saving}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border border-amber-200 bg-amber-50 text-amber-800 font-bold text-[14px] active:scale-[0.98] transition-all disabled:opacity-60"
+          >
+            <span className="text-lg">↷</span>
+            <span>Pular este dia</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setDoseMenuFor(null)}
+            className="w-full py-2 text-center text-[12px] text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            Cancelar
+          </button>
+        </SheetShell.Body>
+      </SheetShell>
+    )}
     </>
   );
 }
