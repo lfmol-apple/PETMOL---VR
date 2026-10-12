@@ -22,6 +22,23 @@ vi.mock('@/components/FoodControlTab', () => ({
   },
 }));
 
+// Pedido do dono (12/10/2026): concluir a alimentação sem push ativo deve
+// perguntar de novo, mesmo que outra tela já tenha dispensado o pedido
+// global. `permissionState` começa 'granted' (caminho feliz, sem interromper
+// as demais asserções) — os testes de push ajustam pra 'default'.
+const { permissionState, requestPermission, subscribeToPush } = vi.hoisted(() => ({
+  permissionState: { value: 'granted' as 'default' | 'granted' | 'denied' },
+  requestPermission: vi.fn(async () => true),
+  subscribeToPush: vi.fn(async () => true),
+}));
+vi.mock('@/features/interactions/useNotificationPermissionController', () => ({
+  useNotificationPermissionController: () => ({
+    permission: permissionState.value,
+    requestPermission,
+    subscribeToPush,
+  }),
+}));
+
 afterEach(() => {
   cleanup();
   window.localStorage.clear();
@@ -30,6 +47,9 @@ afterEach(() => {
 
 beforeEach(() => {
   trackV1Metric.mockClear();
+  permissionState.value = 'granted';
+  requestPermission.mockClear();
+  subscribeToPush.mockClear();
 });
 
 const baseProps = {
@@ -78,6 +98,46 @@ describe('FoodOnboardingCard', () => {
     act(() => { capturedOnSaved!(); });
     expect(trackV1Metric).toHaveBeenCalledWith('onboarding_food_step_completed', { pet_id: 'pet-123' });
     expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
+  it('se o push ainda não foi decidido, salvar NÃO conclui direto — pergunta notificação antes', () => {
+    permissionState.value = 'default';
+    const onDone = vi.fn();
+    render(<FoodOnboardingCard {...baseProps} onDone={onDone} />);
+    act(() => { capturedOnSaved!(); });
+    expect(trackV1Metric).toHaveBeenCalledWith('onboarding_food_step_completed', { pet_id: 'pet-123' });
+    // ainda não fechou nem chamou onDone — o pedido de notificação aparece primeiro
+    expect(onDone).not.toHaveBeenCalled();
+    expect(screen.getByText('Ative as notificações')).toBeTruthy();
+  });
+
+  it('dispensar o pedido de notificação ("Agora não") conclui o onboarding mesmo assim', async () => {
+    permissionState.value = 'default';
+    const onDone = vi.fn();
+    render(<FoodOnboardingCard {...baseProps} onDone={onDone} />);
+    act(() => { capturedOnSaved!(); });
+    await act(async () => { fireEvent.click(screen.getByText('Agora não')); });
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
+  it('ativar notificações no pedido chama requestPermission/subscribeToPush e conclui o onboarding', async () => {
+    permissionState.value = 'default';
+    const onDone = vi.fn();
+    render(<FoodOnboardingCard {...baseProps} onDone={onDone} />);
+    act(() => { capturedOnSaved!(); });
+    await act(async () => { fireEvent.click(screen.getByText('Ativar notificações')); });
+    expect(requestPermission).toHaveBeenCalledTimes(1);
+    expect(subscribeToPush).toHaveBeenCalledTimes(1);
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
+  it('se o push já foi decidido (concedido), salvar conclui direto, sem perguntar de novo', () => {
+    permissionState.value = 'granted';
+    const onDone = vi.fn();
+    render(<FoodOnboardingCard {...baseProps} onDone={onDone} />);
+    act(() => { capturedOnSaved!(); });
+    expect(onDone).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Ative as notificações')).toBeNull();
   });
 
   it('fechar pelo X do cabeçalho conta como "fazer depois" (mesma gravação, não é dado como perdido sem motivo)', () => {
