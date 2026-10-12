@@ -97,6 +97,37 @@ describe('SheetHeader', () => {
     expect(statusLine!.className).toContain('uppercase');
   });
 
+  it('status longo corta com reticências em vez de estourar atrás do botão de fechar (achado real 12/10/2026)', () => {
+    const { container } = render(
+      <SheetHeader
+        tone="petmol"
+        title="Vacinas"
+        subtitle="Princesa"
+        status={{ label: 'Pode estar na hora de revisar 1 registro', tone: 'danger' }}
+        onClose={() => {}}
+      />,
+    );
+    // .find() pegaria o <span> wrapper primeiro (vem antes no DOM e seu
+    // textContent também inclui o texto do filho) — pega o ÚLTIMO span cujo
+    // texto bate, que é o <span> de texto mais interno, não o wrapper.
+    const matches = Array.from(container.querySelectorAll('span')).filter(
+      (s) => s.textContent === 'Pode estar na hora de revisar 1 registro',
+    );
+    const statusTextSpan = matches[matches.length - 1]!;
+    expect(statusTextSpan).toBeTruthy();
+    // precisa das três classes juntas pra truncate funcionar dentro de um
+    // flex row: min-w-0 (aceita encolher abaixo do conteúdo), flex-1 (ocupa
+    // o espaço restante, não o tamanho do texto) e truncate (corta com "...").
+    expect(statusTextSpan.className).toContain('min-w-0');
+    expect(statusTextSpan.className).toContain('flex-1');
+    expect(statusTextSpan.className).toContain('truncate');
+    // o wrapper precisa ser "flex" (bloco), não "inline-flex" — um elemento
+    // inline não ganha uma caixa encolhível de verdade só com min-w-0 no pai.
+    const wrapper = statusTextSpan.parentElement!;
+    expect(wrapper.className).toContain('flex');
+    expect(wrapper.className).not.toContain('inline-flex');
+  });
+
   it('wrapTitle deixa o título quebrar (sem truncate)', () => {
     const { container } = render(
       <SheetHeader tone="petmol" wrapTitle title="Continue os cuidados da Nine Mol" onClose={() => {}} />,
