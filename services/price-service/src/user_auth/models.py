@@ -51,6 +51,13 @@ class User(Base):
     # Email verification
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # Login social (web, Out/2026) — `sub` estável do provedor. Nulo pra
+    # quem nunca usou esse provedor; uma vez ligado, é o que identifica a
+    # conta em logins seguintes (sub nunca muda; email pode, inclusive pra
+    # um alias de retransmissão privada da Apple).
+    google_sub: Mapped[Optional[str]] = mapped_column(String(255), unique=True, nullable=True, index=True)
+    apple_sub: Mapped[Optional[str]] = mapped_column(String(255), unique=True, nullable=True, index=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

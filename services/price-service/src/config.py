@@ -148,6 +148,24 @@ class Settings(BaseSettings):
     # in the server's env file.
     admin_ops_api_key: Optional[str] = None
 
+    # ── Login social web (Google/Apple) — Out/2026 ────────────────────────
+    # Sem segredo nosso: o SDK do Google/Apple no navegador devolve um
+    # id_token já assinado por ELES; aqui só validamos contra a chave
+    # pública deles (JWKS) e conferimos que `aud` bate com o client_id
+    # abaixo. Cada um é o MESMO valor usado no frontend
+    # (NEXT_PUBLIC_GOOGLE_CLIENT_ID / NEXT_PUBLIC_APPLE_SERVICES_ID) — não é
+    # secreto, pode ficar exposto no bundle do navegador. Sem isso
+    # configurado, os botões correspondentes simplesmente não aparecem.
+    # Google: console.cloud.google.com → Credenciais → Criar ID do cliente
+    # OAuth → "Aplicativo da Web" → origens JavaScript autorizadas =
+    # https://www.petmol.com.br.
+    # Apple: developer.apple.com → Certificates, Identifiers & Profiles →
+    # Identifiers → Services IDs → criar um, ativar "Sign in with Apple",
+    # associar ao App ID existente, registrar domínio petmol.com.br + URL
+    # de retorno https://www.petmol.com.br/login.
+    google_oauth_client_id: Optional[str] = None
+    apple_services_id: Optional[str] = None
+
     # ── Storage ──────────────────────────────────────────────────────────
     storage_backend: str = "local"     # "local" | "r2"
     uploads_dir: str = "uploads"

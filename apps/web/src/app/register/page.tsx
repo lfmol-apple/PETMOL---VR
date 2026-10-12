@@ -8,6 +8,7 @@ import { getToken } from '@/lib/auth-token';
 import { API_BASE_URL } from '@/lib/api';
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
 import { trackV1Metric } from '@/lib/v1Metrics';
+import { SocialLoginButtons } from '@/components/auth/SocialLoginButtons';
 
 type FieldKey = 'name' | 'email' | 'password' | 'terms';
 
@@ -45,6 +46,7 @@ export default function RegisterPage() {
   const [checkinDays, setCheckinDays] = useState(DEFAULT_CHECKIN_DAYS);
   const [checkinTime, setCheckinTime] = useState(DEFAULT_CHECKIN_TIME);
   const [loading, setLoading] = useState(false);
+  const [socialError, setSocialError] = useState('');
   const [errors, setErrors] = useState<Record<FieldKey, string>>({ name: '', email: '', password: '', terms: '' });
   const [currentField, setCurrentField] = useState<FieldKey>('name');
   const [emailPanelOpen, setEmailPanelOpen] = useState(false);
@@ -96,6 +98,31 @@ export default function RegisterPage() {
 
       setFieldValidation('name', 'Informe seu nome.');
       focusField('name');
+    }
+  };
+
+  const handleSocialSuccess = async () => {
+    // Mesma lógica de destino do handleSubmit (email/senha): aceita convite
+    // pendente se houver, depois /welcome (1ª conta) ou o redirect pedido.
+    if (inviteToken) {
+      try {
+        const authToken = getToken();
+        if (authToken) {
+          await fetch(`${API_BASE_URL}/family/join/${inviteToken}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+          });
+        }
+      } catch {
+        // non-blocking
+      }
+    }
+    const dest = redirectAfter || (inviteToken ? '/home' : null);
+    if (dest) {
+      router.push(dest);
+    } else {
+      trackV1Metric('register_completed', { method: 'social' });
+      router.push('/welcome');
     }
   };
 
@@ -259,6 +286,13 @@ export default function RegisterPage() {
               <p className="text-center text-sm text-slate-500">
                 Já tem conta? <Link href={`/login${redirectAfter ? `?redirect=${encodeURIComponent(redirectAfter)}` : ''}`} className="text-blue-600 font-bold hover:underline">Entrar</Link>
               </p>
+
+              {socialError && (
+                <div className="p-3 bg-rose-50 border border-rose-100 rounded-2xl text-rose-700 text-xs font-bold flex items-center gap-2">
+                  <span>⚠️</span>{socialError}
+                </div>
+              )}
+              <SocialLoginButtons onSuccess={handleSocialSuccess} onError={setSocialError} />
             </div>
           ) : (
             <div className="space-y-5">

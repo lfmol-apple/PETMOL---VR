@@ -22,11 +22,13 @@ from .schemas import (
     PasswordResetConfirm,
     PasswordResetRequest,
     PasswordResetResponse,
+    SocialLoginRequest,
     TokenData,
     UserCreate,
     UserOut,
 )
 from .security import create_access_token, decode_token, hash_password, verify_password
+from .social_auth import SocialClaims, verify_apple_id_token, verify_google_id_token
 
 
 def _geocode_user_city_async(user_id: str, city: str, state: Optional[str]) -> None:
@@ -171,6 +173,89 @@ def login(payload: LoginRequest, response: Response, request: Request, db: Sessi
     token = create_access_token(user_id=str(user.id))
     response.set_cookie(COOKIE_NAME, token, **_cookie_settings())
     logger.info(f"Login success - User: {hash_email(payload.email)}")
+    return LoginResponse(id=user.id, email=user.email, created_at=user.created_at, access_token=token, email_verified=user.email_verified)
+
+
+def _find_or_create_social_user(
+    db: Session,
+    request: Request,
+    provider: str,
+    claims: SocialClaims,
+    name_hint: Optional[str],
+) -> User:
+    """Acha a conta pelo `sub` do provedor; na 1ª vez, tenta ligar a uma
+    conta já existente com o mesmo email (ex: quem já tinha conta por
+    email/senha e agora usa "Continuar com Google" pela 1ª vez); senão,
+    cria uma conta nova. `password_hash` precisa de algum valor (coluna
+    NOT NULL) mesmo pra quem nunca vai usar login por senha — mesmo padrão
+    já usado pras contas de convidado (ver pets/router.py::guest_join)."""
+    sub_field = "google_sub" if provider == "google" else "apple_sub"
+
+    existing_by_sub = db.query(User).filter(getattr(User, sub_field) == claims["sub"]).first()
+    if existing_by_sub:
+        return existing_by_sub
+
+    email = (claims.get("email") or "").strip().lower() or None
+    if email:
+        existing_by_email = db.query(User).filter(User.email == email).first()
+        if existing_by_email:
+            setattr(existing_by_email, sub_field, claims["sub"])
+            if claims.get("email_verified") and not existing_by_email.email_verified:
+                existing_by_email.email_verified = True
+            db.commit()
+            db.refresh(existing_by_email)
+            return existing_by_email
+
+    name = (name_hint or claims.get("name") or "").strip()[:120] or None
+    user = User(
+        email=email or f"{provider}_{claims['sub']}@petmol.social",
+        password_hash=hash_password(secrets.token_urlsafe(32)),
+        name=name,
+        email_verified=bool(claims.get("email_verified")),
+        # O botão "Continuar com Google/Apple" só aparece junto do aviso de
+        # Termos/Privacidade na tela de login (sem checkbox separado — é o
+        # padrão exigido pelos dois provedores); continuar == aceitar.
+        terms_accepted=True,
+        terms_version="2026-02-03",
+        terms_accepted_at=datetime.now(timezone.utc),
+        **{sub_field: claims["sub"]},
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    try:
+        from ..admin_alerts import notify_account_created
+        from ..analytics.router import _real_client_ip
+
+        notify_account_created(str(user.id), _real_client_ip(request))
+    except Exception:
+        pass
+
+    return user
+
+
+@router.post("/google", response_model=LoginResponse)
+def login_with_google(payload: SocialLoginRequest, response: Response, request: Request, db: Session = Depends(get_db)):
+    allowed, _, _ = rate_limiter.check_rate_limit(request, max_requests=10, window_seconds=60)
+    if not allowed:
+        raise HTTPException(status_code=429, detail="Muitas tentativas. Aguarde um momento.")
+    claims = verify_google_id_token(payload.id_token)
+    user = _find_or_create_social_user(db, request, "google", claims, payload.name)
+    token = create_access_token(user_id=str(user.id))
+    response.set_cookie(COOKIE_NAME, token, **_cookie_settings())
+    return LoginResponse(id=user.id, email=user.email, created_at=user.created_at, access_token=token, email_verified=user.email_verified)
+
+
+@router.post("/apple", response_model=LoginResponse)
+def login_with_apple(payload: SocialLoginRequest, response: Response, request: Request, db: Session = Depends(get_db)):
+    allowed, _, _ = rate_limiter.check_rate_limit(request, max_requests=10, window_seconds=60)
+    if not allowed:
+        raise HTTPException(status_code=429, detail="Muitas tentativas. Aguarde um momento.")
+    claims = verify_apple_id_token(payload.id_token)
+    user = _find_or_create_social_user(db, request, "apple", claims, payload.name)
+    token = create_access_token(user_id=str(user.id))
+    response.set_cookie(COOKIE_NAME, token, **_cookie_settings())
     return LoginResponse(id=user.id, email=user.email, created_at=user.created_at, access_token=token, email_verified=user.email_verified)
 
 

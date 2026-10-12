@@ -34,6 +34,14 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class SocialLoginRequest(BaseModel):
+    id_token: str = Field(min_length=10)
+    # Apple só manda o nome UMA vez, no 1º login, fora do id_token (o SDK
+    # devolve num campo `user.name` separado) — o frontend repassa aqui
+    # quando disponível. Ignorado em logins seguintes.
+    name: Optional[str] = Field(default=None, max_length=120)
+
+
 class PasswordResetRequest(BaseModel):
     email: EmailStr
 

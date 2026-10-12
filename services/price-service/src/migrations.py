@@ -119,6 +119,12 @@ def run_pg_migrations(engine: Engine) -> None:
         _pg_add_column_if_missing(conn, "users", "lng", "DOUBLE PRECISION")
         _pg_add_column_if_missing(conn, "users", "location_source", "TEXT")  # gps | city | ip
         _pg_add_column_if_missing(conn, "users", "location_updated_at", "TIMESTAMPTZ")
+
+        # users: login social web (Google/Apple) — Out/2026
+        _pg_add_column_if_missing(conn, "users", "google_sub", "TEXT")
+        _pg_add_column_if_missing(conn, "users", "apple_sub", "TEXT")
+        conn.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON "users" (google_sub) WHERE google_sub IS NOT NULL'))
+        conn.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_apple_sub ON "users" (apple_sub) WHERE apple_sub IS NOT NULL'))
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS password_reset_tokens (
                 id          TEXT PRIMARY KEY,
@@ -790,6 +796,8 @@ def run_sqlite_migrations(engine: Engine) -> None:
         changed |= _sqlite_add_column_if_missing(conn, "users", "lng", "REAL")
         changed |= _sqlite_add_column_if_missing(conn, "users", "location_source", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "users", "location_updated_at", "DATETIME")
+        changed |= _sqlite_add_column_if_missing(conn, "users", "google_sub", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "users", "apple_sub", "TEXT")
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS password_reset_tokens (
                 id          TEXT PRIMARY KEY,

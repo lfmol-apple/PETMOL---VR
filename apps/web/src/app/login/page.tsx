@@ -8,6 +8,7 @@ import Link from 'next/link';
 const API_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
+import { SocialLoginButtons } from '@/components/auth/SocialLoginButtons';
 
 function isSafeRedirect(value: string): boolean {
   return value.startsWith('/') && !value.startsWith('//') && !value.startsWith('/login');
@@ -148,6 +149,13 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+
+          <div className="mt-6">
+            <SocialLoginButtons
+              onSuccess={() => router.replace(redirectTo)}
+              onError={(msg) => setError(msg)}
+            />
+          </div>
 
           <div className="mt-8 text-center border-t border-slate-100 pt-8">
             <p className="text-slate-500 text-sm font-medium">
