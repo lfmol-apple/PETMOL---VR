@@ -53,6 +53,14 @@ export type V1MetricEvent =
   | 'onboarding_dewormer_completed'
   | 'onboarding_skipped'
   | 'onboarding_completed'
+  // Passo focado de alimentação no onboarding inicial (12/10/2026) — ver
+  // FoodOnboardingCard.tsx. Distinto dos onboarding_food_* acima (que são
+  // do checklist multi-item antigo, ainda existente no código mas não mais
+  // disparado na jornada inicial).
+  | 'onboarding_food_step_viewed'
+  | 'onboarding_food_step_started'
+  | 'onboarding_food_step_completed'
+  | 'onboarding_food_step_skipped'
   | 'account_deleted'
   | 'feedback_submitted';
 
