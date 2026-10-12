@@ -17,12 +17,14 @@
  * cálculo/validação duplicado aqui, só a moldura de onboarding por cima.
  */
 import { useEffect, useRef, useState } from 'react';
-import { PawPrint } from 'lucide-react';
+import { Bell, PawPrint } from 'lucide-react';
 import { petDo } from '@/lib/petGender';
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { writeOnboardingStore } from '@/lib/onboardingProgress';
 import { FoodControlTab } from '@/components/FoodControlTab';
+import { ActivationAskSheet } from '@/components/home/ActivationAskSheet';
+import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
 
 interface FoodOnboardingCardProps {
   petId: string;
@@ -49,8 +51,15 @@ export function FoodOnboardingCard({
   suppressed = false,
 }: FoodOnboardingCardProps) {
   const [closed, setClosed] = useState(false);
+  const [showPushAsk, setShowPushAsk] = useState(false);
   const name = petName || 'seu pet';
   const artigo = petDo({ sex: petSex });
+  // Lembrete de ração só serve se o push funcionar — pedido do dono
+  // (12/10/2026): mesmo que o tutor já tenha dispensado o pedido de
+  // notificação em outra tela (flag global de usePushOneTimeAsk), pergunta
+  // de novo aqui especificamente, porque concluir o cadastro de alimentação
+  // sem push ativo é a causa raiz real que já gerou lembretes perdidos.
+  const { permission: pushPermission, requestPermission: requestPushPermission, subscribeToPush } = useNotificationPermissionController();
 
   useEffect(() => {
     trackV1Metric('onboarding_food_step_viewed', { pet_id: petId });
@@ -71,15 +80,36 @@ export function FoodOnboardingCard({
     onDone();
   };
 
-  const handleSaved = () => {
-    trackV1Metric('onboarding_food_step_completed', { pet_id: petId });
+  const finish = () => {
     setClosed(true);
     onDone();
+  };
+
+  const handleSaved = () => {
+    trackV1Metric('onboarding_food_step_completed', { pet_id: petId });
+    if (pushPermission === 'default') {
+      setShowPushAsk(true);
+      return;
+    }
+    finish();
   };
 
   if (closed) return null;
 
   return (
+    <>
+    <ActivationAskSheet
+      open={showPushAsk}
+      icon={<Bell className="h-5 w-5" strokeWidth={2.2} />}
+      title="Ative as notificações"
+      body={`Pra você não perder a hora de comprar ração de novo — o PETMOL avisa sozinho quando o estoque ${artigo} ${name} estiver acabando.`}
+      ctaLabel="Ativar notificações"
+      onActivate={async () => {
+        const granted = await requestPushPermission();
+        if (granted) await subscribeToPush();
+      }}
+      onDismiss={finish}
+    />
     <SheetShell open={!suppressed} onClose={handleSkip} tone="grey" variant="center" size="sm" z={SHEET_Z.raised} hideHandle>
       <SheetHeader
         tone="petmol"
@@ -112,5 +142,6 @@ export function FoodOnboardingCard({
         </div>
       </SheetShell.Body>
     </SheetShell>
+    </>
   );
 }
