@@ -103,6 +103,29 @@ describe('MedicationItemSheet — dia atrasado abre menu "tomou ou pulou" (em ve
     expect(screen.getByText('Pular este dia')).toBeTruthy();
   });
 
+  it('o menu abre ACIMA da tela principal (senão fica escondido e o toque parece não fazer nada)', () => {
+    renderSheet({ eventsLoading: false, petEvents: [medEvent()] });
+    fireEvent.click(screen.getByTitle('12/10 — toque pra marcar tomada ou pular o dia'));
+    const menuZ = Number((screen.getByText('Pular este dia').closest('[role="dialog"]') as HTMLElement).style.zIndex);
+    const allZ = screen.getAllByRole('dialog').map((d) => Number((d as HTMLElement).style.zIndex));
+    // O menu precisa ser a camada mais alta; empatar ou ficar abaixo = escondido.
+    expect(menuZ).toBe(Math.max(...allZ));
+    expect(allZ.filter((v) => v === menuZ).length).toBe(1);
+  });
+
+  it('dia pulado ganha um quadradinho a mais no fim do calendário (repõe a dose)', () => {
+    const ev = medEvent();
+    const base = { ...JSON.parse(ev.extra_data as string), treatment_days: 10 };
+    const lastDay = (extra: object) => {
+      cleanup();
+      renderSheet({ eventsLoading: false, petEvents: [{ ...ev, extra_data: JSON.stringify(extra) } as PetEventRecord] });
+      return screen.getAllByRole('button').filter((b) => /^\d{2}\/\d{2}/.test(b.getAttribute('title') || '')).length;
+    };
+    const semPulo = lastDay(base);
+    const comPulo = lastDay({ ...base, skipped_dates: ['2026-10-06'] });
+    expect(comPulo).toBe(semPulo + 1);
+  });
+
   it('"Pular este dia" chama skip-dose com a data certa', async () => {
     renderSheet({ eventsLoading: false, petEvents: [medEvent()] });
     fireEvent.click(screen.getByTitle('12/10 — toque pra marcar tomada ou pular o dia'));
