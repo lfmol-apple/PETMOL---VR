@@ -1195,26 +1195,24 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                           {/* Feedback banner */}
                           <FeedbackBanner />
 
-                          {/* "Comprar novamente" só aparece quando a ração
-                              está mesmo perto de acabar (foodTone
-                              'warning'/'critical') — antes disso, o botão só
-                              ocupava espaço sem necessidade real ainda. */}
-                          {(foodTone === 'critical' || foodTone === 'warning') && (
-                            <button type="button"
-                              onClick={() => {
-                                trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
-                                setMode('buy');
-                              }}
-                              className={`w-full py-3.5 rounded-2xl active:scale-[0.97] transition-all text-[15px] font-black text-white flex items-center justify-center gap-2.5 ${
-                                foodTone === 'critical' ? 'bg-red-600 hover:bg-red-700 shadow-lg shadow-red-900/20'
-                                : 'bg-amber-500 hover:bg-amber-600 shadow-lg shadow-amber-900/20'
-                              }`}
-                            >
-                              <span className="text-lg">🛒</span>
-                              Comprar novamente
-                            </button>
-                          )}
-
+                          {/* "Comprar novamente" sempre visível (pedido do dono,
+                              12/10/2026): dá pra comprar agora, sem esperar a
+                              ração acabar. Verde no estado normal; âmbar/vermelho
+                              quando está perto de acabar (foodTone). */}
+                          <button type="button"
+                            onClick={() => {
+                              trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
+                              setMode('buy');
+                            }}
+                            className={`w-full py-3.5 rounded-2xl active:scale-[0.97] transition-all text-[15px] font-black text-white flex items-center justify-center gap-2.5 ${
+                              foodTone === 'critical' ? 'bg-red-600 hover:bg-red-700 shadow-lg shadow-red-900/20'
+                              : foodTone === 'warning' ? 'bg-amber-500 hover:bg-amber-600 shadow-lg shadow-amber-900/20'
+                              : 'bg-emerald-500 hover:bg-emerald-600 shadow-md shadow-emerald-500/25'
+                            }`}
+                          >
+                            <span className="text-lg">🛒</span>
+                            Comprar novamente
+                          </button>
                         </>
                         )}
 
