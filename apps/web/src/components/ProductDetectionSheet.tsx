@@ -2000,26 +2000,86 @@ export function ProductDetectionSheetGold({
         </button>
       )}
 
-      <div className={`grid gap-2 ${allowScanning && manualUnlocked ? 'grid-cols-2' : 'grid-cols-1'}`}>
-        {allowScanning && (
-          <button
-            type="button"
-            onClick={startScanner}
-            className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-[12px] font-bold text-blue-800 transition-all active:scale-[0.98]"
-          >
-            📷 Escanear código
-          </button>
-        )}
-        {manualUnlocked && (
-          <button
-            type="button"
-            onClick={() => setStep('manual')}
-            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[12px] font-bold text-slate-700 transition-all active:scale-[0.98]"
-          >
-            ✏️ Buscar pelo nome
-          </button>
-        )}
-      </div>
+      {/* Catálogo curado + "usados recentemente" — morava só na tela
+          'manual' (atrás de um 2º tap em "Buscar pelo nome"), que não
+          fazia mais nada além de abrir OUTRO campo de busca igual a este.
+          Botão duplicado removido (feedback do dono, 12/10/2026); o
+          conteúdo que só existia lá (listas de produtos comuns/recentes)
+          agora aparece direto aqui, sem o tap a mais. */}
+      {(() => {
+        if (!hint) return null;
+        const catalog = CURATED_CATALOG[hint];
+        if (!catalog) return null;
+        const q = query.trim().toLowerCase();
+        const filtered = q
+          ? catalog.filter(item =>
+              item.name.toLowerCase().includes(q) ||
+              (item.brand?.toLowerCase().includes(q) ?? false),
+            )
+          : catalog;
+        if (filtered.length === 0) return null;
+
+        return (
+          <div>
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">
+              {q ? 'Produtos comuns' : 'Escolha ou busque o produto'}
+            </p>
+            <div className="space-y-1.5">
+              {filtered.map((item, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onMouseDown={() => selectManual(item.name)}
+                  className="w-full rounded-xl border border-gray-100 bg-white px-4 py-3 text-left shadow-sm transition-all active:scale-[0.98]"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="flex-shrink-0 text-xl">{CATEGORY_EMOJI[hint]}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-gray-800">{item.name}</p>
+                      {item.brand && <p className="truncate text-xs text-gray-400">{item.brand}</p>}
+                    </div>
+                    <span className="flex-shrink-0 text-lg text-gray-200">›</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {suggestions.length > 0 && (
+        <div>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">
+            {query.trim() ? 'Sugestões' : 'Usados recentemente'}
+          </p>
+          <div className="space-y-1.5">
+            {suggestions.map((suggestion, index) => (
+              <button
+                key={index}
+                type="button"
+                onClick={() => selectManual(suggestion)}
+                className="w-full rounded-xl border border-gray-100 bg-white px-4 py-3 text-left shadow-sm transition-all active:scale-[0.98]"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="flex-shrink-0 text-xl">{hint ? CATEGORY_EMOJI[hint] : '📦'}</span>
+                  <span className="flex-1 truncate text-sm font-medium text-gray-800">{suggestion}</span>
+                  <span className="flex-shrink-0 text-lg text-gray-200">›</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {allowScanning && (
+        <button
+          type="button"
+          onClick={startScanner}
+          className="w-full rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-[12px] font-bold text-blue-800 transition-all active:scale-[0.98]"
+        >
+          📷 Escanear código
+        </button>
+      )}
 
       {photoUnlocked && (
         <button
