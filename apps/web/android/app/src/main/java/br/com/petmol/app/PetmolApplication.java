@@ -7,6 +7,7 @@ import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Build;
 import android.util.Log;
+import com.facebook.appevents.AppEventsLogger;
 import com.tiktok.TikTokBusinessSdk;
 
 public class PetmolApplication extends Application {
@@ -52,6 +53,14 @@ public class PetmolApplication extends Application {
         }
 
         initTikTok();
+
+        // Meta SDK inicia sozinho (AutoInitEnabled); activateApp registra instalação/abertura
+        // com o Advertising ID e o install referrer já disponíveis.
+        try {
+            AppEventsLogger.activateApp(this);
+        } catch (Throwable t) {
+            Log.e(TAG, "Falha ao ativar o Meta SDK (ignorada)", t);
+        }
 
         // google-services.json não é versionado (como o keystore) e builds locais/CI podem
         // não ter Firebase configurado. Nesse caso, FirebaseApp nunca inicializa, e a chamada
