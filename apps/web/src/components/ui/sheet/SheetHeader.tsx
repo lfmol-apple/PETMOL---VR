@@ -103,10 +103,17 @@ export function SheetHeader({
 
   const dotMap = isPetmol ? STATUS_DOT_ON_PETMOL : STATUS_DOT;
 
+  // Achado real (12/10/2026): status longo ("Pode estar na hora de revisar
+  // 1 registro") estourava por trás do botão de fechar em vez de cortar com
+  // reticências. `truncate` num <span> dentro de "inline-flex" não constrange
+  // largura de forma confiável (elemento inline não ganha uma caixa
+  // encolhível só por min-w-0 no pai) — precisa ser um flex *block* com o
+  // próprio span de texto virando item flex (min-w-0 flex-1) pra herdar a
+  // largura disponível de verdade.
   const statusNode = status && (
-    <span className="inline-flex min-w-0 items-center gap-1.5">
+    <span className="flex min-w-0 items-center gap-1.5">
       <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${dotMap[status.tone ?? 'neutral']}`} />
-      <span className="truncate">{status.label}</span>
+      <span className="min-w-0 flex-1 truncate">{status.label}</span>
     </span>
   );
 
