@@ -14,6 +14,11 @@ export const SUPPORT_WHATSAPP_URL =
   'https://wa.me/5531971527644?text=' +
   encodeURIComponent('Olá, equipe PETMOL! Sou usuário do app e quero contar uma ideia ou um problema: ');
 
+// TEMPORÁRIO (13/10/2026, pedido do dono): o balão some até 00h de 14/10 (Brasília) para
+// tirar os screenshots das lojas sem ele cobrindo os cards. Depois dessa hora volta sozinho;
+// pode apagar esta constante e o `if` abaixo na próxima limpeza.
+export const FEEDBACK_FAB_HIDDEN_UNTIL = Date.UTC(2026, 9, 14, 3, 0, 0);
+
 const OPTIONS: Array<{ key: Category; label: string }> = [
   { key: 'suggestion', label: 'Tenho uma ideia ou sugestão' },
   { key: 'bug', label: 'Algo não funcionou como eu esperava' },
@@ -62,6 +67,8 @@ export function HomeFeedbackFab() {
       setState('error');
     }
   };
+
+  if (Date.now() < FEEDBACK_FAB_HIDDEN_UNTIL) return null;
 
   return (
     <>

@@ -4,14 +4,18 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 vi.mock('@/lib/auth-token', () => ({ getToken: () => 'tok' }));
 vi.mock('@/lib/v1Metrics', () => ({ trackV1Metric: vi.fn() }));
 
-import { HomeFeedbackFab, SUPPORT_WHATSAPP_URL } from './HomeFeedbackFab';
+import { FEEDBACK_FAB_HIDDEN_UNTIL, HomeFeedbackFab, SUPPORT_WHATSAPP_URL } from './HomeFeedbackFab';
 
 let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
+  // depois do período em que o balão fica escondido de propósito
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(FEEDBACK_FAB_HIDDEN_UNTIL + 24 * 3600 * 1000);
   fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
   vi.stubGlobal('fetch', fetchMock);
 });
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   vi.unstubAllGlobals();
 });
@@ -19,6 +23,12 @@ afterEach(() => {
 const openSheet = () => fireEvent.click(screen.getByRole('button', { name: /Contar uma ideia ou um problema/ }));
 
 describe('HomeFeedbackFab', () => {
+  it('fica escondido enquanto vale o período temporário (screenshots das lojas)', () => {
+    vi.setSystemTime(FEEDBACK_FAB_HIDDEN_UNTIL - 1000);
+    render(<HomeFeedbackFab />);
+    expect(screen.queryByText('Sua opinião')).toBeNull();
+  });
+
   it('mostra só o botão flutuante até a pessoa tocar', () => {
     render(<HomeFeedbackFab />);
     expect(screen.getByText('Sua opinião')).toBeTruthy();
