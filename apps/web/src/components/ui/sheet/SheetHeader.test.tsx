@@ -121,4 +121,15 @@ describe('SheetAvatar', () => {
     const { container } = render(<SheetAvatar fallback="🐶" />);
     expect((container.firstElementChild as HTMLElement).className).toContain('ring-white/70');
   });
+
+  it('status longo é limitado pela coluna (flex + truncate), não vaza sob o botão de fechar', () => {
+    const long = 'Pode estar na hora de revisar 12 registros do histórico completo';
+    const { getByText } = render(
+      <SheetHeader tone="petmol" title="Vacinas" subtitle="Marley" status={{ label: long, tone: 'danger' }} onClose={() => {}} />,
+    );
+    const label = getByText(long);
+    expect(label.className).toContain('truncate');
+    expect(label.parentElement?.className).toContain('max-w-full');
+    expect(label.parentElement?.className).not.toContain('inline-flex');
+  });
 });

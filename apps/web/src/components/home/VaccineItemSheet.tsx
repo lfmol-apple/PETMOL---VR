@@ -68,7 +68,7 @@ function computeStatus(overdue: number, nextDiff: number | null) {
   let label: string;
   if (overdue > 0) {
     key = 'critical';
-    label = `Pode estar na hora de revisar ${overdue} registro${overdue !== 1 ? 's' : ''}`;
+    label = `${overdue} registro${overdue !== 1 ? 's' : ''} para revisar`;
   } else if (nextDiff === null) {
     key = 'neutral';
     label = 'Sem data de revisão definida';
