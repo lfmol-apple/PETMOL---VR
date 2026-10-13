@@ -104,9 +104,12 @@ export function SheetHeader({
   const dotMap = isPetmol ? STATUS_DOT_ON_PETMOL : STATUS_DOT;
 
   const statusNode = status && (
-    <span className="inline-flex min-w-0 items-center gap-1.5">
+    // `flex` (não inline-flex) + max-w-full: o `truncate` do texto só funciona se este
+    // contêiner for limitado pela coluna. Com inline-flex o status longo (ex.: Vacinas)
+    // vazava por baixo do botão de fechar no cabeçalho azul.
+    <span className="flex min-w-0 max-w-full items-center gap-1.5">
       <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${dotMap[status.tone ?? 'neutral']}`} />
-      <span className="truncate">{status.label}</span>
+      <span className="truncate" title={status.label}>{status.label}</span>
     </span>
   );
 
