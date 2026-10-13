@@ -7,6 +7,7 @@
 	<key>NSPrivacyTrackingDomains</key>
 	<array>
 		<string>ep1.facebook.com</string>
+		<string>business-api.tiktok.com</string>
 	</array>
 	<key>NSPrivacyCollectedDataTypes</key>
 	<array>

@@ -21,6 +21,8 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // TikTok Business SDK (Android) é distribuído pelo JitPack, não pelo Maven Central.
+        maven { url 'https://jitpack.io' }
     }
 }
 

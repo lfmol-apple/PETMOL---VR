@@ -8,6 +8,7 @@ import { getToken } from '@/lib/auth-token';
 import { API_BASE_URL } from '@/lib/api';
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
 import { trackV1Metric } from '@/lib/v1Metrics';
+import { trackTikTokRegistration } from '@/lib/tiktokAppEvents';
 import { SocialLoginButtons } from '@/components/auth/SocialLoginButtons';
 
 type FieldKey = 'name' | 'email' | 'password' | 'terms';
@@ -117,6 +118,7 @@ export default function RegisterPage() {
         // non-blocking
       }
     }
+    trackTikTokRegistration();
     const dest = redirectAfter || (inviteToken ? '/home' : null);
     if (dest) {
       router.push(dest);
@@ -195,6 +197,7 @@ export default function RegisterPage() {
       // ao concluir o checklist "Primeiros passos" (OnboardingChecklistCard)
       // ou, pra quem pula isso, pelo card de segunda chance na Home
       // (PermissionsNudgeCard) — nunca mais às cegas no meio do cadastro.
+      trackTikTokRegistration();
       const dest = redirectAfter || (inviteToken ? '/home' : null);
       if (dest) {
         router.push(dest);

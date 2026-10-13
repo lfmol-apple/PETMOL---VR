@@ -7,6 +7,7 @@ import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Build;
 import android.util.Log;
+import com.tiktok.TikTokBusinessSdk;
 
 public class PetmolApplication extends Application {
 
@@ -50,6 +51,8 @@ public class PetmolApplication extends Application {
             }
         }
 
+        initTikTok();
+
         // google-services.json não é versionado (como o keystore) e builds locais/CI podem
         // não ter Firebase configurado. Nesse caso, FirebaseApp nunca inicializa, e a chamada
         // nativa de @capacitor/push-notifications (PushNotifications.register(), disparada ao
@@ -69,6 +72,28 @@ public class PetmolApplication extends Application {
                 defaultHandler.uncaughtException(thread, throwable);
             }
         });
+    }
+
+    // TikTok App Events SDK: instalação (InstallApp) e abertura (LaunchApp) são automáticas.
+    // appId = pacote do app; ttAppId = "TikTok App ID" da fonte de dados PETMOL Android;
+    // o App Secret entra como access token via BuildConfig (ver app/build.gradle).
+    // Debug (aba "Testar evento") só em build de desenvolvimento.
+    private void initTikTok() {
+        try {
+            if (BuildConfig.TIKTOK_APP_SECRET.isEmpty()) {
+                Log.w(TAG, "TikTok SDK não iniciado: PETMOL_TIKTOK_APP_SECRET ausente neste build.");
+                return;
+            }
+            TikTokBusinessSdk.TTConfig config = new TikTokBusinessSdk.TTConfig(this, BuildConfig.TIKTOK_APP_SECRET)
+                .setAppId(getPackageName())
+                .setTTAppId(BuildConfig.TIKTOK_APP_ID);
+            if (BuildConfig.DEBUG) {
+                config.setLogLevel(TikTokBusinessSdk.LogLevel.DEBUG).openDebugMode();
+            }
+            TikTokBusinessSdk.initializeSdk(config);
+        } catch (Throwable t) {
+            Log.e(TAG, "Falha ao iniciar o TikTok SDK (ignorada)", t);
+        }
     }
 
     private void createSoundChannel(NotificationManager manager, String id, String name, String rawName) {

@@ -2,6 +2,7 @@ import UIKit
 import Capacitor
 import AppTrackingTransparency
 import FacebookCore
+import TikTokBusinessSDK
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -65,9 +66,34 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                     }
                     // Registra a ativação (instalação/abertura) já com o status do ATT decidido.
                     AppEvents.shared.activateApp()
+                    // TikTok: inicia só com o ATT já decidido (o SDK lê o status ao enviar), o que
+                    // registra InstallApp/LaunchApp corretamente. Idempotente.
+                    self?.startTikTok()
                 }
             }
         }
+    }
+
+    // MARK: - TikTok App Events SDK
+    // appId = App Store ID; tiktokAppId = "TikTok App ID" da fonte de dados PETMOL iOS.
+    // O Access Token (Gerenciador de Eventos do TikTok) NÃO fica no código: vem do Info.plist
+    // (TikTokAccessToken <- build setting TIKTOK_ACCESS_TOKEN, ver ios/App/Secrets.xcconfig).
+    // Sem token o SDK não inicia e o app segue normal. Debug ("Testar evento") só em builds DEBUG.
+
+    private var tiktokStarted = false
+
+    private func startTikTok() {
+        guard !tiktokStarted else { return }
+        let token = (Bundle.main.object(forInfoDictionaryKey: "TikTokAccessToken") as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !token.isEmpty, !token.hasPrefix("$(") else { return }
+        guard let config = TikTokConfig(accessToken: token, appId: "6809570555", tiktokAppId: "7690157868766560262") else { return }
+        #if DEBUG
+        config.enableDebugMode()
+        config.setLogLevel(TikTokLogLevelDebug)
+        #endif
+        tiktokStarted = true
+        TikTokBusiness.initializeSdk(config)
     }
 
     // MARK: - Push Notifications (APNs)
