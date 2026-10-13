@@ -26,6 +26,8 @@ import {
 import { AffiliateCatalogSearch } from './AffiliateCatalogSearch';
 import { fetchPetzDirectLink, formatBRLPrice, hasReliablePrice, merchantLabel, offerOriginLabel, offerPriceLabel, preferCobasiOffer, type CommerceOffer, type PetzDirectLink } from './productPricing';
 import { useCommerceOffers } from './useCommerceOffers';
+import { isNativeAppClient } from '@/lib/nativeApp';
+import { amazonDisclosure } from './affiliateDisclosure';
 import {
   buildReorderCards,
   buildPetStoreTitle,
@@ -136,7 +138,14 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, currentPet.pet_id]);
 
-  const visibleStorePartners = useMemo(() => HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea), []);
+  // Amazon: links dentro de app só valem se o app for aprovado pela Amazon
+// (Mobile Application Policy). Até lá o cartão fica só na web.
+  const visibleStorePartners = useMemo(
+    () => HOME_SHOPPING_PARTNERS
+      .filter(isPartnerVisibleInStoreArea)
+      .filter((partner) => !(partner.id === 'amazon' && isNativeAppClient())),
+    [],
+  );
 
   const visibleQuickBuyPartners = useMemo(
     () =>
@@ -490,6 +499,9 @@ function PartnerStoreGrid({
           </button>
         ))}
       </div>
+      {partners.some((partner) => partner.id === 'amazon') && (
+        <p className="mt-2.5 text-center text-[11px] text-white/70">{amazonDisclosure.requiredStatement}</p>
+      )}
     </div>
   );
 }
