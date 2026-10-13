@@ -4,4 +4,8 @@
     <string name="title_activity_main">PETMOL</string>
     <string name="package_name">br.com.petmol.app</string>
     <string name="custom_url_scheme">br.com.petmol.app</string>
+    <!-- Meta (Facebook) SDK. App ID e Client Token são públicos por design (vão dentro do app);
+         mesmos valores do iOS (ios/App/App/Info.plist). -->
+    <string name="facebook_app_id">976747438068822</string>
+    <string name="facebook_client_token">c04d35b6e11d36dad855f88bc0acd35e</string>
 </resources>
