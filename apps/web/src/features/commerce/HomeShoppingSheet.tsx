@@ -490,6 +490,9 @@ function PartnerStoreGrid({
           </button>
         ))}
       </div>
+      {partners.some((partner) => partner.id === 'amazon') && (
+        <p className="mt-2.5 text-center text-[11px] text-white/70">{amazonDisclosure.requiredStatement}</p>
+      )}
     </div>
   );
 }
