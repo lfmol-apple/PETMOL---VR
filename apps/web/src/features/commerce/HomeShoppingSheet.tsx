@@ -26,6 +26,7 @@ import {
 import { AffiliateCatalogSearch } from './AffiliateCatalogSearch';
 import { fetchPetzDirectLink, formatBRLPrice, hasReliablePrice, merchantLabel, offerOriginLabel, offerPriceLabel, preferCobasiOffer, type CommerceOffer, type PetzDirectLink } from './productPricing';
 import { useCommerceOffers } from './useCommerceOffers';
+import { amazonDisclosure } from './affiliateDisclosure';
 import {
   buildReorderCards,
   buildPetStoreTitle,
