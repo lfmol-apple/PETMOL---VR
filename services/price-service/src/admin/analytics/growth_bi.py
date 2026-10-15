@@ -246,7 +246,23 @@ def growth_funnel(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
                 slot[key] += 1
         if uid in complete:
             slot["complete"] += 1
-    campaigns_activation = sorted(camp.values(), key=lambda c: -c["cadastros"])[:15]
+    # Gasto lançado por campanha no mesmo período → custo por tutor que COMPLETOU a meta.
+    # Campanha com gasto e nenhum cadastro também aparece: dinheiro sem retorno.
+    spend_rows = [
+        r for r in campaign_bi.campaign_summary(db, since=since, until=until, platform=f.platform)["campaigns"]
+        if r["gasto_brl"]
+    ]
+    spend_by_name: dict[str, float] = {r["utm_campaign"].lower(): r["gasto_brl"] for r in spend_rows}
+    for r in spend_rows:
+        key = r["utm_campaign"].lower()
+        camp.setdefault(key, {"name": r["utm_campaign"], "cadastros": 0, "pet": 0, "feeding": 0,
+                              "push": 0, "location": 0, "complete": 0})
+    for key, slot in camp.items():
+        spent = spend_by_name.get(key)
+        slot["gasto_brl"] = spent
+        slot["custo_por_cadastro"] = round(spent / slot["cadastros"], 2) if spent and slot["cadastros"] else None
+        slot["custo_por_ativado"] = round(spent / slot["complete"], 2) if spent and slot["complete"] else None
+    campaigns_activation = sorted(camp.values(), key=lambda c: (-c["cadastros"], -(c["gasto_brl"] or 0)))[:15]
 
     n_acessos = len(sessions)
     n_visitantes = len({ident for _, ident, _, _ in sessions if ident})

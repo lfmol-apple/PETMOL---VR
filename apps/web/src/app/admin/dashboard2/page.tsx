@@ -504,10 +504,13 @@ function PermissionsBlock() {
   );
 }
 
+const brl = (v: number | null | undefined) =>
+  v == null ? '—' : `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 function CampaignActivationTable({ rows }: { rows: CampaignActivationRow[] }) {
   return (
     <Card title="Meta por campanha de origem"
-      subtitle="Das pessoas que vieram de cada campanha, quantas chegaram a pet, ração, notificação e localização. Mostra qual campanha traz gente que realmente ativa.">
+      subtitle="Das pessoas que vieram de cada campanha, quantas chegaram a pet, ração, notificação e localização, e quanto custou cada tutor que completou a meta.">
       <div className="overflow-x-auto">
         <table className="w-full text-[13px]">
           <thead>
@@ -518,7 +521,10 @@ function CampaignActivationTable({ rows }: { rows: CampaignActivationRow[] }) {
               <th className="px-2 text-right">Ração</th>
               <th className="px-2 text-right">Notificação</th>
               <th className="px-2 text-right">GPS</th>
-              <th className="pl-2 text-right">Meta completa</th>
+              <th className="px-2 text-right">Meta completa</th>
+              <th className="px-2 text-right">Gasto</th>
+              <th className="px-2 text-right">Custo por cadastro</th>
+              <th className="pl-2 text-right">Custo por tutor ativado</th>
             </tr>
           </thead>
           <tbody>
@@ -531,17 +537,23 @@ function CampaignActivationTable({ rows }: { rows: CampaignActivationRow[] }) {
                     {numberFmt(n)} <span className="text-slate-400">({pct(r.cadastros ? n / r.cadastros : null)})</span>
                   </td>
                 ))}
-                <td className="pl-2 text-right font-bold text-slate-800">
+                <td className="px-2 text-right font-bold text-slate-800">
                   {numberFmt(r.complete)} <span className="font-medium text-slate-400">({pct(r.cadastros ? r.complete / r.cadastros : null)})</span>
+                </td>
+                <td className="px-2 text-right">{brl(r.gasto_brl)}</td>
+                <td className="px-2 text-right">{brl(r.custo_por_cadastro)}</td>
+                <td className={`pl-2 text-right font-bold ${r.gasto_brl && !r.complete ? 'text-rose-600' : 'text-slate-800'}`}>
+                  {r.custo_por_ativado != null ? brl(r.custo_por_ativado) : r.gasto_brl ? 'nenhum ativado' : '—'}
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && <tr><td colSpan={7} className="py-6 text-center text-slate-400">Nenhum cadastro no período.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={10} className="py-6 text-center text-slate-400">Nenhum cadastro no período.</td></tr>}
           </tbody>
         </table>
       </div>
       <p className="mt-2 text-[11px] text-slate-500">
-        &quot;(sem origem rastreada)&quot; = cadastro sem aparelho ligado a um acesso medido; &quot;(direto/orgânico)&quot; = sem campanha em nenhum toque.
+        Gasto é o que você lança em Locais, no Mission Control; sem gasto lançado, sem custo. Em vermelho: dinheiro gasto sem nenhum tutor ativado.
+        {' '}&quot;(sem origem rastreada)&quot; = cadastro sem aparelho ligado a um acesso medido; &quot;(direto/orgânico)&quot; = sem campanha em nenhum toque.
       </p>
     </Card>
   );

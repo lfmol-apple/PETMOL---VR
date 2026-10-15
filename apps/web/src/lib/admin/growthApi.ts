@@ -36,6 +36,7 @@ export interface GrowthActivation {
 export interface CampaignActivationRow {
   name: string; cadastros: number; pet: number; feeding: number;
   push: number; location: number; complete: number;
+  gasto_brl: number | null; custo_por_cadastro: number | null; custo_por_ativado: number | null;
 }
 
 export interface GrowthResponse {

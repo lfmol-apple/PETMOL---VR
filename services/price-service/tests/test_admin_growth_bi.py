@@ -160,3 +160,31 @@ def test_growth_activation_by_campaign_of_origin(client):
     assert rows["instagram_out"]["cadastros"] == 1
     assert rows["instagram_out"]["pet"] == 1 and rows["instagram_out"]["feeding"] == 1
     assert sum(c["cadastros"] for c in rows.values()) == 3
+
+
+def test_growth_cost_per_activated_tutor_and_spend_without_return(client):
+    from src.analytics.spend_models import CampaignSpend
+    headers = _admin_headers()
+    _seed()
+    db = SessionLocal()
+    try:
+        c = db.query(User).filter(User.name == "c").first()
+        c.location_source = "gps"
+        c.lat, c.lng = -23.5, -46.6
+        db.add(AnalyticsProductEvent(event_id=f"cp-{uuid4().hex[:6]}", event_name="app_open", user_id=c.id,
+                                      anonymous_id="anon-c2", utm_campaign="instagram_out", utm_source="instagram",
+                                      platform="ios_capacitor", received_at=NOW - timedelta(hours=5)))
+        today = (NOW - timedelta(hours=1)).date()
+        db.add(CampaignSpend(utm_campaign="instagram_out", spent_on=today, amount_cents=10000))
+        db.add(CampaignSpend(utm_campaign="tiktok_sem_retorno", spent_on=today, amount_cents=5000))
+        db.commit()
+    finally:
+        db.close()
+    r = client.get("/v1/admin/analytics/growth?period_days=7", headers=headers)
+    assert r.status_code == 200, r.text
+    rows = {c["name"]: c for c in r.json()["campaigns_activation"]}
+    assert rows["instagram_out"]["gasto_brl"] == 100.0
+    assert rows["instagram_out"]["custo_por_cadastro"] == 100.0
+    assert rows["instagram_out"]["custo_por_ativado"] is None   # ninguém completou a meta (falta notificação)
+    assert rows["tiktok_sem_retorno"]["cadastros"] == 0
+    assert rows["tiktok_sem_retorno"]["gasto_brl"] == 50.0
