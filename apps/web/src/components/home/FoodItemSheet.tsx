@@ -1,7 +1,7 @@
 'use client';
 
 import { useBackHandler } from '@/lib/backStack';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Bell, ShoppingCart, X } from 'lucide-react';
 import { FoodControlTab, type FoodControlTabFormRequest, type FoodControlTabState } from '@/components/FoodControlTab';
 import type { PetHealthProfile } from '@/lib/petHealth';
@@ -25,6 +25,8 @@ import { MonetizedOffersList } from '@/features/commerce/MonetizedOffersList';
 import { AffiliateCatalogSearch } from '@/features/commerce/AffiliateCatalogSearch';
 import { requestUserDecision } from '@/features/interactions/userPromptChannel';
 
+import type { FeedingPlanEntry } from '@/lib/types/homeForms';
+
 export interface FoodItemSheetProps {
   pet: PetHealthProfile;
   onClose: () => void;
@@ -33,6 +35,8 @@ export interface FoodItemSheetProps {
   initialMode?: 'view' | 'buy';
   petPhotoUrl?: string | null;
   racaoEventId?: string | null;
+  /** Plano já carregado pela Home — evita abrir vazio enquanto o fetch volta. */
+  initialPlan?: FeedingPlanEntry | null;
 }
 
 // Sheet-level navigation (page swaps)
@@ -146,7 +150,7 @@ function clearPendingScannedProduct(): void {
 
 // ── component ─────────────────────────────────────────────────────────────────
 
-export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, petPhotoUrl }: FoodItemSheetProps) {
+export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, petPhotoUrl, initialPlan }: FoodItemSheetProps) {
   const { permission: pushPermission, requestPermission: requestPushPermission, subscribeToPush } = useNotificationPermissionController();
   const pushAsk = usePushOneTimeAsk('petmol_food_push_ask_v1', pushPermission === 'default');
 
@@ -545,6 +549,15 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
 
       if (!response.ok) return null;
       const payload: FeedingPlanApiResponse = await response.json();
+      return applyFeedingPayload(payload);
+    } catch {
+      // Preserve current view state on transient failures
+      return null;
+    }
+  };
+
+  const applyFeedingPayload = (payload: FeedingPlanApiResponse): RefreshedPlanAlert => {
+    {
       const plan = payload.plan;
       const estimate = payload.estimate;
 
@@ -617,9 +630,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
       });
 
       return { recommendedAlertDate: nextReminder, reminderTime: plan?.reminder_time ?? null, brand };
-    } catch {
-      // Preserve current view state on transient failures
-      return null;
     }
   };
 
@@ -747,6 +757,22 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [handleClose]);
+
+  // Pinta o plano que a Home já tem em memória ANTES do primeiro frame, pra
+  // o sheet não abrir no estado "sem ração" enquanto o fetch abaixo volta.
+  // O fetch segue rodando e sobrescreve com o dado fresco.
+  useLayoutEffect(() => {
+    if (!initialPlan) return;
+    applyFeedingPayload({
+      plan: initialPlan as FeedingPlanApiResponse['plan'],
+      estimate: {
+        estimated_end_date: initialPlan.estimated_end_date ?? null,
+        estimated_days_left: initialPlan.estimated_days_left ?? null,
+        recommended_alert_date: initialPlan.next_reminder_date ?? null,
+      },
+    } as FeedingPlanApiResponse);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pet.pet_id]);
 
   useEffect(() => {
     void refreshFoodPlan();
