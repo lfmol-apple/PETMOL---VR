@@ -13,10 +13,10 @@ import { useAdmin } from '@/hooks/useAdmin';
 import { adminGet, type CampaignsResponse, type GlobalFilter } from '@/lib/admin/analyticsApi';
 import {
   PLATFORM_LABEL, pct,
-  type GrowthPlatformRow, type GrowthResponse, type GrowthSeriesPoint, type GrowthStep,
+  type ActivationItem, type GrowthPlatformRow, type GrowthResponse, type GrowthSeriesPoint, type GrowthStep,
 } from '@/lib/admin/growthApi';
 import { useAsync, Loading, ErrorBox, numberFmt } from '@/components/admin/sections/sections';
-import { TutorsSection } from './TutorsSection';
+import { TutorsSection, type TutorsPreset } from './TutorsSection';
 import { fmtSpDate, spDayBounds, spStartOfToday, spYesterdayRange } from '@/lib/analytics/spTime';
 
 type PresetKey = '24h' | 'today' | 'yesterday' | '7d' | '30d' | '90d' | 'all' | 'custom';
@@ -59,6 +59,8 @@ export default function AdminDashboard2Page() {
   const [preset, setPreset] = useState<PresetKey>('30d');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [preset2, setPreset2] = useState<TutorsPreset | undefined>(undefined);
+  const focusTutors = (goal: TutorsPreset['goal']) => setPreset2({ goal, nonce: Date.now() });
 
   useEffect(() => {
     if (isLoading) return;
@@ -103,8 +105,8 @@ export default function AdminDashboard2Page() {
           filter={filter} setFilter={setFilter} preset={preset} applyPreset={applyPreset}
           from={from} to={to} setFrom={setFrom} setTo={setTo} applyRange={applyRange}
         />
-        <GrowthBody filter={filter} />
-        <TutorsSection filter={filter} />
+        <GrowthBody filter={filter} onFocusTutors={focusTutors} />
+        <TutorsSection filter={filter} preset={preset2} />
       </div>
     </PremiumScreenShell>
   );
@@ -174,7 +176,7 @@ function FilterBar({
 
 // ── Corpo ─────────────────────────────────────────────────────────────────
 
-function GrowthBody({ filter }: { filter: GlobalFilter }) {
+function GrowthBody({ filter, onFocusTutors }: { filter: GlobalFilter; onFocusTutors: (g: TutorsPreset['goal']) => void }) {
   const { data, error, loading } = useAsync<GrowthResponse>(
     () => adminGet('/growth', {
       period_days: filter.period_days, since: filter.since, until: filter.until,
@@ -188,6 +190,7 @@ function GrowthBody({ filter }: { filter: GlobalFilter }) {
 
   return (
     <>
+      <ActivationCard data={data} onFocusTutors={onFocusTutors} />
       <LeakBanner data={data} />
       <FunnelCard data={data} />
       <StuckCards data={data} />
@@ -207,6 +210,60 @@ function Card({ title, subtitle, children }: { title: string; subtitle?: string;
       {!subtitle && <div className="mb-3" />}
       {children}
     </section>
+  );
+}
+
+function ActivationCard({ data, onFocusTutors }: { data: GrowthResponse; onFocusTutors: (g: TutorsPreset['goal']) => void }) {
+  const a = data.activation;
+  const weakest = a.items.find((i) => i.key === a.weakest);
+  return (
+    <section className="rounded-2xl border-2 border-[#0056D2] bg-white p-4 shadow-sm sm:p-5">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-[#0056D2]">Meta do PETMOL</p>
+      <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-[34px] font-extrabold leading-none text-slate-900">{pct(a.complete_pct)}</p>
+          <p className="mt-1 text-[13px] text-slate-600">
+            {numberFmt(a.complete)} de {numberFmt(a.total)} cadastrados têm pet, ração, notificação e localização.
+          </p>
+        </div>
+        <button type="button" onClick={() => onFocusTutors('incomplete')}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-600 hover:border-blue-300">
+          Ver quem falta
+        </button>
+      </div>
+
+      <ul className="mt-4 space-y-2">
+        {a.items.map((i) => <ActivationRow key={i.key} item={i} weakest={i.key === a.weakest} onFocusTutors={onFocusTutors} />)}
+      </ul>
+
+      {weakest && (
+        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[13px] text-amber-900">
+          <strong>Maior lacuna: {weakest.label.toLowerCase()}</strong> — {numberFmt(weakest.missing)} pessoas sem isso
+          ({numberFmt(weakest.only_missing)} só precisam desta etapa para completar). {weakest.where_to_act}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function ActivationRow({ item, weakest, onFocusTutors }: {
+  item: ActivationItem; weakest: boolean; onFocusTutors: (g: TutorsPreset['goal']) => void;
+}) {
+  return (
+    <li className="flex items-center gap-3">
+      <div className="w-52 shrink-0 text-[13px] font-semibold text-slate-700">{item.label}</div>
+      <div className="h-6 flex-1 rounded-md bg-slate-100">
+        <div className={`h-6 rounded-md ${weakest ? 'bg-amber-500' : 'bg-emerald-500'}`}
+          style={{ width: `${Math.min((item.pct ?? 0) * 100, 100)}%` }} />
+      </div>
+      <div className="w-24 shrink-0 text-right text-[13px] font-extrabold text-slate-900">
+        {pct(item.pct)} <span className="font-medium text-slate-400">({numberFmt(item.n)})</span>
+      </div>
+      <button type="button" onClick={() => onFocusTutors(item.key)}
+        className="w-24 shrink-0 text-right text-[11px] font-semibold text-[#0056D2] hover:underline">
+        {numberFmt(item.missing)} faltam
+      </button>
+    </li>
   );
 }
 
@@ -322,6 +379,9 @@ function PlatformTable({ rows }: { rows: GrowthPlatformRow[] }) {
               <th className="px-2 text-right">Cadastros</th>
               <th className="px-2 text-right">Com pet</th>
               <th className="px-2 text-right">Com ração</th>
+              <th className="px-2 text-right">Notificação</th>
+              <th className="px-2 text-right">GPS</th>
+              <th className="px-2 text-right">Meta completa</th>
               <th className="pl-2 text-right">Download → cadastro</th>
             </tr>
           </thead>
@@ -334,6 +394,11 @@ function PlatformTable({ rows }: { rows: GrowthPlatformRow[] }) {
                 <td className="px-2 text-right">{numberFmt(r.cadastros)}</td>
                 <td className="px-2 text-right">{numberFmt(r.pet)}</td>
                 <td className="px-2 text-right">{numberFmt(r.feeding)}</td>
+                <td className="px-2 text-right">{numberFmt(r.push)}</td>
+                <td className="px-2 text-right">{numberFmt(r.location)}</td>
+                <td className="px-2 text-right font-semibold text-slate-800">
+                  {numberFmt(r.complete)}{r.cadastros ? <span className="font-medium text-slate-400"> ({pct(r.complete / r.cadastros)})</span> : null}
+                </td>
                 <td className="pl-2 text-right text-slate-500">
                   {r.downloads ? pct(r.cadastros / r.downloads) : '—'}
                 </td>

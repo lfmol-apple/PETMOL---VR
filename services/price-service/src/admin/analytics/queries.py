@@ -996,6 +996,7 @@ def list_users(
     location: Optional[str] = None, has_pet: Optional[str] = None,
     has_feeding: Optional[str] = None, activity: Optional[str] = None,
     email_verified: Optional[str] = None,
+    activated: Optional[str] = None, missing: Optional[str] = None,
 ) -> dict[str, Any]:
     now = _utcnow()
     page = max(1, page)
@@ -1055,6 +1056,22 @@ def list_users(
         feeding_ids = _feeding_configured_pet_ids(db)
         feeding_exists = db.query(Pet.id).filter(Pet.user_id == User.id, Pet.id.in_(feeding_ids or {"__none__"})).exists()
         q = q.filter(feeding_exists if has_feeding == "yes" else ~feeding_exists)
+    # Meta do PETMOL: tutor com pet + ração + notificação + localização (GPS).
+    if activated or missing:
+        feeding_ids_all = _feeding_configured_pet_ids(db)
+        conds = {
+            "pet": db.query(Pet.id).filter(Pet.user_id == User.id).exists(),
+            "feeding": db.query(Pet.id).filter(
+                Pet.user_id == User.id, Pet.id.in_(feeding_ids_all or {"__none__"})).exists(),
+            "push": permissions_bi.has_any_push(User.id),
+            "location": permissions_bi.shares_location(),
+        }
+        if activated == "yes":
+            q = q.filter(and_(*conds.values()))
+        elif activated == "no":
+            q = q.filter(~and_(*conds.values()))
+        if missing in conds:
+            q = q.filter(~conds[missing])
     if email_verified == "yes":
         q = q.filter(User.email_verified.is_(True))
     elif email_verified == "no":

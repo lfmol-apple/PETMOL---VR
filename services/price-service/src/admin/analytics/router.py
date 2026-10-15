@@ -378,6 +378,8 @@ def get_users(
     has_feeding: Optional[str] = Query(None, pattern="^(yes|no)$"),
     activity: Optional[str] = Query(None, pattern="^(active|recent|cooling|dormant|no_analytics)$"),
     email_verified: Optional[str] = Query(None, pattern="^(yes|no)$"),
+    activated: Optional[str] = Query(None, pattern="^(yes|no)$", description="pet + ração + notificação + GPS"),
+    missing: Optional[str] = Query(None, pattern="^(pet|feeding|push|location)$", description="falta esta etapa"),
     db: Session = Depends(get_db),
     f: AnalyticsFilters = Depends(_filters),
     _=_Auth,
@@ -387,6 +389,7 @@ def get_users(
         sort=sort, direction=direction,
         push=push, push_platform=push_platform, location=location, has_pet=has_pet,
         has_feeding=has_feeding, activity=activity, email_verified=email_verified,
+        activated=activated, missing=missing,
     )
 
 

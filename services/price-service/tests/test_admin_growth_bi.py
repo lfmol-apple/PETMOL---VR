@@ -100,3 +100,43 @@ def test_growth_funnel_city_filter_flags_that_acessos_are_not_filtered(client):
     assert body["filters_applied"]["city"]["acessos"] is False
     assert body["filters_applied"]["city"]["downloads"] is True
     assert any("localização" in note for note in body["notes"])
+
+
+def test_growth_activation_goal_pet_feeding_push_gps(client):
+    headers = _admin_headers()
+    _seed()  # A só conta; B pet; C pet + ração
+
+    db = SessionLocal()
+    try:
+        c = db.query(User).filter(User.name == "c").first()
+        c.location_source = "gps"
+        c.lat, c.lng = -23.5, -46.6
+        db.commit()
+    finally:
+        db.close()
+
+    r = client.get("/v1/admin/analytics/growth?period_days=7", headers=headers)
+    assert r.status_code == 200, r.text
+    act = r.json()["activation"]
+    items = {i["key"]: i for i in act["items"]}
+
+    assert act["total"] == 3
+    assert items["pet"]["n"] == 2
+    assert items["feeding"]["n"] == 1
+    assert items["push"]["n"] == 0
+    assert items["location"]["n"] == 1       # só C compartilha GPS
+    assert act["complete"] == 0               # ninguém tem notificação ainda
+    assert act["weakest"] == "push"
+    assert items["push"]["only_missing"] == 1  # C só não tem notificação
+    assert items["push"]["where_to_act"]
+
+
+def test_users_list_filters_by_activation_goal(client):
+    headers = _admin_headers()
+    _seed()
+    r = client.get("/v1/admin/analytics/users?activated=yes", headers=headers)
+    assert r.status_code == 200, r.text
+    assert r.json()["total"] == 0
+    r = client.get("/v1/admin/analytics/users?missing=pet", headers=headers)
+    names = {i["name"] for i in r.json()["items"]}
+    assert "a" in names and "b" not in names and "c" not in names

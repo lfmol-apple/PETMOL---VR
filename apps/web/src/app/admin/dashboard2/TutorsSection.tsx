@@ -19,15 +19,20 @@ interface Extra {
   hasPet: Tri; hasFeeding: Tri; emailVerified: Tri;
   activity: '' | 'active' | 'recent' | 'cooling' | 'dormant' | 'no_analytics';
   push: '' | 'active' | 'none';
+  /** meta de ativação: completa, incompleta ou falta exatamente uma etapa */
+  goal: '' | 'complete' | 'incomplete' | 'pet' | 'feeding' | 'push' | 'location';
 }
-const NO_EXTRA: Extra = { hasPet: '', hasFeeding: '', emailVerified: '', activity: '', push: '' };
+const NO_EXTRA: Extra = { hasPet: '', hasFeeding: '', emailVerified: '', activity: '', push: '', goal: '' };
+
+/** Pedido vindo de fora (clique no painel de ativação): filtra e rola até a tabela. */
+export interface TutorsPreset { goal: Extra['goal']; nonce: number }
 
 const ACTIVITY_LABEL: Record<string, string> = {
   active: 'Ativo', recent: 'Recente', cooling: 'Esfriando', dormant: 'Adormecido', no_analytics: 'Sem dados',
 };
 const PLATFORM_LABEL: Record<string, string> = { iphone: 'iPhone', ipad: 'iPad', android: 'Android', desktop: 'Desktop', outros: 'Outros' };
 
-export function TutorsSection({ filter }: { filter: GlobalFilter }) {
+export function TutorsSection({ filter, preset }: { filter: GlobalFilter; preset?: TutorsPreset }) {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
@@ -39,6 +44,11 @@ export function TutorsSection({ filter }: { filter: GlobalFilter }) {
   const filterKey = JSON.stringify(filter);
   const extraKey = JSON.stringify(extra);
   useEffect(() => { setPage(1); }, [debounced, filterKey, extraKey]);
+  useEffect(() => {
+    if (!preset) return;
+    setExtra({ ...NO_EXTRA, goal: preset.goal });
+    document.getElementById('tutores')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [preset]);
 
   const { data, error, loading } = useAsync<TutorsListResponse>(
     () => adminGet('/users', {
@@ -47,6 +57,8 @@ export function TutorsSection({ filter }: { filter: GlobalFilter }) {
       has_pet: extra.hasPet || undefined, has_feeding: extra.hasFeeding || undefined,
       email_verified: extra.emailVerified || undefined, activity: extra.activity || undefined,
       push: extra.push || undefined,
+      activated: extra.goal === 'complete' ? 'yes' : extra.goal === 'incomplete' ? 'no' : undefined,
+      missing: ['pet', 'feeding', 'push', 'location'].includes(extra.goal) ? extra.goal : undefined,
     }),
     [page, debounced, filterKey, extraKey, version],
   );
@@ -55,7 +67,7 @@ export function TutorsSection({ filter }: { filter: GlobalFilter }) {
   const sel = 'rounded-md border border-slate-200 bg-white px-2 py-1 text-[12px]';
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+    <section id="tutores" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <h2 className="text-[15px] font-extrabold text-slate-800">Tutores</h2>
       <p className="mb-3 mt-0.5 text-[12px] text-slate-500">
         Quem se cadastrou no período, com os dados de conta. Clique em Editar para corrigir uma conta a pedido do usuário.
@@ -64,6 +76,16 @@ export function TutorsSection({ filter }: { filter: GlobalFilter }) {
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar nome ou e-mail"
           className="w-56 rounded-md border border-slate-200 px-2.5 py-1 text-[12px]" />
+        <select className={`${sel} font-semibold`} value={extra.goal} aria-label="Meta de ativação"
+          onChange={(e) => set('goal', e.target.value as Extra['goal'])}>
+          <option value="">Meta: todos</option>
+          <option value="complete">Ativação completa</option>
+          <option value="incomplete">Ativação incompleta</option>
+          <option value="pet">Falta o pet</option>
+          <option value="feeding">Falta a ração</option>
+          <option value="push">Falta a notificação</option>
+          <option value="location">Falta a localização</option>
+        </select>
         <select className={sel} value={extra.hasPet} onChange={(e) => set('hasPet', e.target.value as Tri)}>
           <option value="">Pet: todos</option><option value="yes">Com pet</option><option value="no">Sem pet</option>
         </select>
@@ -100,7 +122,7 @@ export function TutorsSection({ filter }: { filter: GlobalFilter }) {
                   <th className="px-2">Local</th>
                   <th className="px-2">Conta</th>
                   <th className="px-2">Atividade</th>
-                  <th className="px-2">Notificação / GPS</th>
+                  <th className="px-2">Meta</th>
                   <th className="px-2">Pets</th>
                   <th className="px-2">Dispositivo</th>
                   <th className="pl-2" />
@@ -170,8 +192,10 @@ function TutorRowView({ u, onEdit }: { u: TutorRow; onEdit: () => void }) {
       </td>
       <td className="px-2">
         <div className="flex flex-wrap gap-1">
-          <Chip tone={u.push_active ? 'good' : 'warn'}>{u.push_active ? 'notificação ativa' : 'sem notificação'}</Chip>
-          <Chip tone={u.location_shared ? 'good' : 'muted'}>{u.location_shared ? 'GPS' : 'sem GPS'}</Chip>
+          <Chip tone={u.pets > 0 ? 'good' : 'warn'}>pet</Chip>
+          <Chip tone={u.has_feeding ? 'good' : 'warn'}>ração</Chip>
+          <Chip tone={u.push_active ? 'good' : 'warn'}>notificação</Chip>
+          <Chip tone={u.location_shared ? 'good' : 'warn'}>GPS</Chip>
         </div>
       </td>
       <td className="px-2">
@@ -179,9 +203,7 @@ function TutorRowView({ u, onEdit }: { u: TutorRow; onEdit: () => void }) {
           <PetAvatarStack pets={u.pet_thumbnails} size={26} />
           <span className="text-slate-600">{u.pets}</span>
         </div>
-        <div className="mt-0.5 text-[11px] text-slate-400">
-          {u.has_feeding ? 'com ração' : 'sem ração'} · {u.active_control_pets} controle(s)
-        </div>
+        <div className="mt-0.5 text-[11px] text-slate-400">{u.active_control_pets} controle(s) ativo(s)</div>
       </td>
       <td className="px-2 whitespace-nowrap">
         <div>{u.device_type ? PLATFORM_LABEL[u.device_type] : '—'}</div>
