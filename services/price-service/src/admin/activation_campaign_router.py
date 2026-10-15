@@ -60,7 +60,7 @@ from ..pets.models import Pet
 from ..user_auth.models import User
 from .analytics.permissions_bi import _aware, has_any_push, shares_location
 from .analytics.queries import _activity_status, _feeding_configured_pet_ids
-from .deps import get_current_admin_or_readonly_key
+from .deps import get_current_admin, get_current_admin_or_readonly_key
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +84,51 @@ class ActivationCampaignContact(Base):
     sent_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
+class ActivationOptOut(Base):
+    """Quem pediu para não receber mais lembretes de ativação (link no rodapé dos e-mails). Vale para a
+    campanha manual e para o piloto automático — nenhum dos dois envia para esta lista."""
+    __tablename__ = "activation_opt_out"
+
+    user_id = Column(String(36), primary_key=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class ActivationSetting(Base):
+    """Interruptores editáveis pelo painel (sem reiniciar a API). Hoje: autopilot_enabled."""
+    __tablename__ = "activation_settings"
+
+    key = Column(String(40), primary_key=True)
+    value = Column(String(40), nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+def autopilot_enabled(db) -> bool:
+    """O painel manda; sem registro, vale o padrão do ambiente (ACTIVATION_AUTOPILOT_ENABLED)."""
+    row = db.query(ActivationSetting).filter(ActivationSetting.key == "autopilot_enabled").first()
+    if row is not None:
+        return row.value == "1"
+    return bool(get_settings().activation_autopilot_enabled)
+
+
+def opted_out_ids(db) -> set[str]:
+    return {str(u) for (u,) in db.query(ActivationOptOut.user_id).all()}
+
+
+def unsubscribe_token(user_id: str) -> str:
+    import hashlib
+    import hmac as _hmac
+    key = (get_settings().jwt_secret or "").encode()
+    return _hmac.new(key, f"activation-optout:{user_id}".encode(), hashlib.sha256).hexdigest()[:32]
+
+
+def unsubscribe_url(user_id: str) -> str:
+    base = get_settings().frontend_url.rstrip("/")
+    return f"{base}/api/v1/unsubscribe-reminders?u={user_id}&t={unsubscribe_token(user_id)}"
+
+
 CAMPAIGN_PUSH_LOCATION = "push_location"
 CAMPAIGN_FOOD = "food"
+CAMPAIGN_PUSH_SECOND = "push_second_chance"
 CAMPAIGN_FOOD_HOLDOUT = "food_holdout"  # grupo de controle: elegível, NÃO recebeu mensagem
 
 
@@ -122,7 +165,10 @@ def _target_users(db) -> list[dict]:
         pets_by_user.setdefault(str(user_id), []).append((str(pet_id), pet_name))
 
     out: list[dict] = []
+    blocked = opted_out_ids(db)
     for user_id, pets in pets_by_user.items():
+        if user_id in blocked:
+            continue
         missing = [name for (pid, name) in pets if pid not in feeding_pet_ids]
         # Só entra na campanha quem não tem NENHUM pet com alimentação —
         # quem já configurou pelo menos 1 não é alvo deste degrau.
@@ -153,7 +199,11 @@ def _pet_phrase(pet_names: list[str]) -> str:
     return " e ".join([", ".join(names[:-1]), names[-1]]) if len(names) > 2 else f"{names[0]} e {names[1]}"
 
 
-def _email_copy(name: Optional[str], pet_names: list[str]) -> tuple[str, str]:
+def _footer(user_id: Optional[str]) -> str:
+    return f"\n\nNão quer mais receber estes lembretes? Toque aqui: {unsubscribe_url(user_id)}" if user_id else ""
+
+
+def _email_copy(name: Optional[str], pet_names: list[str], user_id: Optional[str] = None) -> tuple[str, str]:
     nomes = [n for n in pet_names if n]
     plural = len(nomes) > 1
     saudacao = f"Oi {name.split(' ')[0]}" if name else "Oi"
@@ -166,7 +216,7 @@ def _email_copy(name: Optional[str], pet_names: list[str]) -> tuple[str, str]:
         "Assim que você registra o pacote, o app acompanha o consumo sozinho e avisa "
         'antes de acabar — sem depender da memória. Leva 1 minuto: abra o app e toque '
         'em "Alimentação". E não se esqueça, ative as notificações!'
-    )
+    ) + _footer(user_id)
     return subject, body
 
 
@@ -242,7 +292,7 @@ def _run(dry_run: bool, batch_size: int = 10, batch_pause_seconds: int = 180,
                 user = db.query(User).filter(User.id == t["user_id"]).first()
                 if not user or not user.email:
                     continue
-                subject, body = _email_copy(user.name, t["pet_names"])
+                subject, body = _email_copy(user.name, t["pet_names"], t["user_id"])
                 if send_mail(to=user.email, subject=subject, body_text=body):
                     sent_email += 1
                     # registro durável, na hora (um lote lento pode atravessar um deploy)
@@ -468,8 +518,9 @@ def _target_users_push_location(db) -> list[dict]:
             pet_names_by_user.setdefault(str(user_id), []).append(pet_name)
 
     out: list[dict] = []
+    blocked = opted_out_ids(db)
     for user_id, name, email in candidates:
-        if not email:
+        if not email or str(user_id) in blocked:
             continue
         seen = _aware(last_seen.get(str(user_id)))
         out.append({
@@ -674,3 +725,258 @@ def push_location_activation_preview(
     subject, body_text, body_html = _email_copy_push_location(payload.tutor_name, payload.pet_names)
     ok = send_mail(to=payload.to, subject=subject, body_text=body_text, body_html=body_html)
     return {"sent": ok, "to": payload.to, "subject": subject}
+
+
+# ── Etapa 2 da escada — Notificação, segunda chance (15/10/2026) ─────────────
+# Para quem AINDA está sem push depois da etapa 1 (ração) e do e-mail de 02-03/10. Texto novo, só e-mail
+# (por definição, quem não tem push não tem aparelho para receber push). Regras: nenhuma pessoa recebe
+# mais de 1 mensagem de ativação por semana (qualquer campanha), quem já recebeu esta não recebe de novo
+# e conta com menos de 2 dias não entra (ainda está no cadastro).
+
+STATE_PUSH_SECOND: dict = {"phase": "idle", "started_at": None, "finished_at": None, "result": None, "error": None}
+_lock_push_second = threading.Lock()
+
+
+def _email_copy_push_second(name: Optional[str], pet_names: list[str], user_id: Optional[str] = None) -> tuple[str, str, str]:
+    saudacao_tutor = name.split(" ")[0] if name else ""
+    saudacao = f"Oi, {saudacao_tutor}!" if saudacao_tutor else "Oi!"
+    nomes = [n for n in pet_names if n]
+    pet = _pet_phrase(pet_names) if nomes else "seu pet"
+    sumir = "sumirem" if len(nomes) > 1 else "sumir"
+    subject = f"Falta um toque para o PETMOL cuidar de {pet} com você"
+    body_text = (
+        f"{saudacao}\n\n"
+        f"Quando a ração de {pet} estiver acabando ou uma vacina vencer, o PETMOL só consegue te avisar se as "
+        "notificações estiverem ligadas. Hoje elas estão desligadas.\n\n"
+        f"É grátis e sem anúncios: só os avisos que importam — vacina, ração e, se um dia {pet} {sumir}, o alerta "
+        "da região.\n\n"
+        'Leva 10 segundos: abra o PETMOL, toque no seu perfil e depois em "Ativar notificações".\n\n'
+        "Equipe PETMOL"
+    ) + _footer(user_id)
+    pet_html = escape(pet)
+    opt = (f'<p style="font-size:12px;color:#9ca3af">Não quer mais receber estes lembretes? '
+           f'<a href="{escape(unsubscribe_url(user_id))}">Toque aqui</a>.</p>') if user_id else ""
+    body_html = (
+        '<div style="font-family:Arial,sans-serif;font-size:15px;color:#1f2937;line-height:1.6;max-width:480px">'
+        f"<p>{escape(saudacao)}</p>"
+        f"<p>Quando a ração de {pet_html} estiver acabando ou uma vacina vencer, o PETMOL só consegue te avisar se as "
+        "notificações estiverem ligadas. <strong>Hoje elas estão desligadas.</strong></p>"
+        f"<p>É grátis e sem anúncios: só os avisos que importam — vacina, ração e, se um dia {pet_html} {sumir}, o alerta da região.</p>"
+        '<p><strong>Leva 10 segundos: abra o PETMOL, toque no seu perfil e depois em "Ativar notificações".</strong></p>'
+        "<p>Equipe PETMOL</p>" + opt + "</div>"
+    )
+    return subject, body_text, body_html
+
+
+def _recent_any_contact(db, days: int) -> set[str]:
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    return {str(u) for (u,) in db.query(ActivationCampaignContact.user_id)
+            .filter(ActivationCampaignContact.sent_at >= cutoff).all()}
+
+
+def _target_users_push_second(db, weekly_cap_days: int = 7, min_account_days: int = 2) -> tuple[list[dict], dict]:
+    from datetime import timedelta
+    candidates = _target_users_push_location(db)       # sem push ativo, com e-mail
+    created = dict(db.query(User.id, User.created_at).filter(
+        User.id.in_([c["user_id"] for c in candidates] or ["__none__"])).all())
+    already = {str(u) for (u,) in db.query(ActivationCampaignContact.user_id)
+               .filter(ActivationCampaignContact.campaign == CAMPAIGN_PUSH_SECOND).all()}
+    capped = _recent_any_contact(db, weekly_cap_days)
+    min_created = datetime.now(timezone.utc) - timedelta(days=min_account_days)
+    out, skipped = [], {"already": 0, "weekly_cap": 0, "too_new": 0}
+    for c in candidates:
+        uid = c["user_id"]
+        made = _aware(created.get(uid))
+        if uid in already:
+            skipped["already"] += 1
+        elif uid in capped:
+            skipped["weekly_cap"] += 1
+        elif made and made > min_created:
+            skipped["too_new"] += 1
+        else:
+            out.append(c)
+    return out, skipped
+
+
+def _run_push_second(dry_run: bool, batch_size: int = 10, batch_pause_seconds: int = 180) -> None:
+    db = SessionLocal()
+    try:
+        targets, skipped = _target_users_push_second(db)
+        result = {"total": len(targets), "skipped": skipped, "dry_run": dry_run}
+        if not dry_run:
+            sent = failed = 0
+            for i, t in enumerate(targets):
+                subject, body_text, body_html = _email_copy_push_second(t["name"], t["pet_names"], t["user_id"])
+                if send_mail(to=t["email"], subject=subject, body_text=body_text, body_html=body_html):
+                    sent += 1
+                    db.add(ActivationCampaignContact(campaign=CAMPAIGN_PUSH_SECOND, user_id=t["user_id"]))
+                    db.commit()
+                else:
+                    failed += 1
+                with _lock_push_second:
+                    STATE_PUSH_SECOND["result"] = {**result, "sent_email": sent, "failed_email": failed,
+                                                   "progress": f"{i + 1}/{len(targets)}"}
+                if (i + 1) < len(targets) and (i + 1) % batch_size == 0:
+                    _sleep(batch_pause_seconds)
+            result.update(sent_email=sent, failed_email=failed)
+        with _lock_push_second:
+            STATE_PUSH_SECOND.update(phase="done", result=result, error=None,
+                                     finished_at=datetime.now(timezone.utc).isoformat())
+        logger.info("[activation_campaign push_second] %s", result)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("[activation_campaign push_second] falhou")
+        with _lock_push_second:
+            STATE_PUSH_SECOND.update(phase="error", error=str(exc), finished_at=datetime.now(timezone.utc).isoformat())
+    finally:
+        db.close()
+
+
+@router.post("/push-second-chance/run")
+def run_push_second(payload: RunRequest, x_sync_token: Optional[str] = Header(default=None, alias="X-Sync-Token")):
+    _authorize(x_sync_token)
+    with _lock_push_second:
+        if STATE_PUSH_SECOND["phase"] == "running":
+            raise HTTPException(status_code=409, detail="campanha já em andamento")
+        STATE_PUSH_SECOND.update(phase="running", started_at=datetime.now(timezone.utc).isoformat(),
+                                 finished_at=None, result=None, error=None)
+    threading.Thread(target=_run_push_second, args=(payload.dry_run, payload.batch_size, payload.batch_pause_seconds),
+                     daemon=True).start()
+    return {"started": True, "dry_run": payload.dry_run, "batch_size": payload.batch_size,
+            "batch_pause_seconds": payload.batch_pause_seconds}
+
+
+@router.get("/push-second-chance/status")
+def push_second_status(current=Depends(get_current_admin_or_readonly_key)):
+    return STATE_PUSH_SECOND
+
+
+@router.get("/push-second-chance/preview")
+def push_second_preview(current=Depends(get_current_admin_or_readonly_key)):
+    """Quantos receberiam AGORA (nada é enviado) e por que os demais ficam de fora."""
+    db = SessionLocal()
+    try:
+        targets, skipped = _target_users_push_second(db)
+        return {"campaign": CAMPAIGN_PUSH_SECOND, "eligible": len(targets), "skipped": skipped}
+    finally:
+        db.close()
+
+
+@router.get("/push-second-chance/conversion")
+def push_second_conversion(current=Depends(get_current_admin_or_readonly_key)):
+    db = SessionLocal()
+    try:
+        contacted = (db.query(ActivationCampaignContact.user_id, func.min(ActivationCampaignContact.sent_at))
+                     .filter(ActivationCampaignContact.campaign == CAMPAIGN_PUSH_SECOND)
+                     .group_by(ActivationCampaignContact.user_id).all())
+        if not contacted:
+            return {"campaign": CAMPAIGN_PUSH_SECOND, "contacted_total": 0, "converted_push": 0, "last_contacted_at": None}
+        ids = [str(u) for u, _ in contacted]
+        converted = {str(u) for (u,) in db.query(User.id).filter(User.id.in_(ids), has_any_push(User.id)).all()}
+        return {"campaign": CAMPAIGN_PUSH_SECOND, "contacted_total": len(ids), "converted_push": len(converted),
+                "last_contacted_at": max(t for _, t in contacted).isoformat()}
+    finally:
+        db.close()
+
+
+public_router = APIRouter(prefix="/v1", tags=["Activation Opt-out"])
+
+
+@public_router.get("/unsubscribe-reminders")
+def unsubscribe_reminders(u: str, t: str):
+    """Link do rodapé dos e-mails de ativação: a pessoa para de receber lembretes. Assinado (HMAC) — não
+    dá para descadastrar outra pessoa adivinhando o id."""
+    from fastapi.responses import HTMLResponse
+    if not hmac.compare_digest(t, unsubscribe_token(u)):
+        raise HTTPException(status_code=400, detail="link inválido")
+    db = SessionLocal()
+    try:
+        if not db.query(ActivationOptOut).filter(ActivationOptOut.user_id == u).first():
+            db.add(ActivationOptOut(user_id=u))
+            db.commit()
+    finally:
+        db.close()
+    return HTMLResponse(
+        "<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+        "<body style='font-family:Arial,sans-serif;max-width:420px;margin:15vh auto;padding:0 20px;text-align:center'>"
+        "<h2>Pronto!</h2><p>Você não vai mais receber estes lembretes do PETMOL por e-mail ou aviso.</p>"
+        "<p style='color:#6b7280;font-size:13px'>Os avisos do app (vacina, ração) continuam funcionando se você os mantiver ligados.</p></body>"
+    )
+
+
+# ── Painel (Dashboard 2): o dono dispara e acompanha com o login de admin, sem token ──────────────
+# Mesma lógica dos disparos por token, mas autenticada pela sessão do admin master (get_current_admin).
+
+panel_router = APIRouter(prefix="/v1/admin/campaigns/panel", tags=["Admin Campaigns Panel"])
+
+
+class PanelRun(BaseModel):
+    dry_run: bool = True
+
+
+@panel_router.get("/summary")
+def panel_summary(current=Depends(get_current_admin)):
+    from datetime import timedelta
+    db = SessionLocal()
+    try:
+        food_targets = _target_users(db)
+        recent = _recently_contacted_food(db, 7)
+        food_eligible = [t for t in food_targets if t["user_id"] not in recent]
+        second, skipped = _target_users_push_second(db)
+        since = datetime.now(timezone.utc) - timedelta(hours=24)
+        last24 = {c: int(n) for c, n in db.query(ActivationCampaignContact.campaign, func.count())
+                  .filter(ActivationCampaignContact.sent_at >= since).group_by(ActivationCampaignContact.campaign).all()}
+        return {
+            "food": {"eligible": len(food_eligible), "with_push": sum(1 for t in food_eligible if t["has_push"]),
+                     "email_only": sum(1 for t in food_eligible if not t["has_push"]),
+                     "skipped_recent": len(food_targets) - len(food_eligible), "state": STATE},
+            "push_second": {"eligible": len(second), "skipped": skipped, "state": STATE_PUSH_SECOND},
+            "autopilot": {"enabled": autopilot_enabled(db), "daily_cap": get_settings().activation_autopilot_daily_cap,
+                          "last24h": last24, "opted_out": len(opted_out_ids(db))},
+        }
+    finally:
+        db.close()
+
+
+@panel_router.post("/food/run")
+def panel_run_food(payload: PanelRun, current=Depends(get_current_admin)):
+    with _lock:
+        if STATE["phase"] == "running":
+            raise HTTPException(status_code=409, detail="campanha já em andamento")
+        STATE.update(phase="running", started_at=datetime.now(timezone.utc).isoformat(),
+                     finished_at=None, result=None, error=None)
+    threading.Thread(target=_run, args=(payload.dry_run, 10, 180, 7, 0), daemon=True).start()
+    return {"started": True, "dry_run": payload.dry_run}
+
+
+@panel_router.post("/push-second/run")
+def panel_run_push_second(payload: PanelRun, current=Depends(get_current_admin)):
+    with _lock_push_second:
+        if STATE_PUSH_SECOND["phase"] == "running":
+            raise HTTPException(status_code=409, detail="campanha já em andamento")
+        STATE_PUSH_SECOND.update(phase="running", started_at=datetime.now(timezone.utc).isoformat(),
+                                 finished_at=None, result=None, error=None)
+    threading.Thread(target=_run_push_second, args=(payload.dry_run, 10, 180), daemon=True).start()
+    return {"started": True, "dry_run": payload.dry_run}
+
+
+class AutopilotToggle(BaseModel):
+    enabled: bool
+
+
+@panel_router.post("/autopilot")
+def panel_autopilot(payload: AutopilotToggle, current=Depends(get_current_admin)):
+    db = SessionLocal()
+    try:
+        row = db.query(ActivationSetting).filter(ActivationSetting.key == "autopilot_enabled").first()
+        if row is None:
+            row = ActivationSetting(key="autopilot_enabled", value="1" if payload.enabled else "0")
+            db.add(row)
+        else:
+            row.value = "1" if payload.enabled else "0"
+            row.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        logger.info("[activation_autopilot] %s por %s", "LIGADO" if payload.enabled else "DESLIGADO", current[0].id)
+        return {"enabled": payload.enabled}
+    finally:
+        db.close()

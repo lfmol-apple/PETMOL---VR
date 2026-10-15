@@ -462,6 +462,10 @@ class Settings(BaseSettings):
     # e risco diferentes, tokens diferentes. None por padrão: sem
     # configurar, o endpoint sempre responde 401.
     comms_ops_trigger_token: Optional[str] = None
+    # Piloto automático de ativação (ração → notificação): liga/desliga e teto de mensagens por dia.
+    # Desligar de emergência: ACTIVATION_AUTOPILOT_ENABLED=false e reiniciar a API.
+    activation_autopilot_enabled: bool = True
+    activation_autopilot_daily_cap: int = 30
 
     # ── Petz (aprendizado por produto) ──────────────────────────────────
     # Master gate — mesmo papel de shopee_affiliate_enabled/

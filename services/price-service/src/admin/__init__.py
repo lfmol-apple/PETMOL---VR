@@ -11,6 +11,8 @@ from .commerce_identity_router import router as commerce_identity_admin_router
 from .shopee_coverage_router import router as shopee_coverage_admin_router
 from .debug_router import router as admin_debug_router
 from .activation_campaign_router import router as activation_campaign_admin_router
+from .activation_campaign_router import public_router as activation_optout_public_router
+from .activation_campaign_router import panel_router as activation_panel_admin_router
 from .analytics import admin_analytics_router
 
 __all__ = [
@@ -26,4 +28,6 @@ __all__ = [
     "shopee_coverage_admin_router",
     "admin_debug_router",
     "activation_campaign_admin_router",
+    "activation_optout_public_router",
+    "activation_panel_admin_router",
 ]
