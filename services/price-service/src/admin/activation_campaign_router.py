@@ -7,6 +7,9 @@ foi adicionado depois que o painel de Permissões mostrou 63%/68% dos
 tutores sem cada um.
 
 Disparo único e manual (não é job recorrente) nos dois degraus.
+Alimentação (15/10/2026): o disparo de 28/09 não foi registrado; a partir de agora cada envio real
+é gravado (campanha "food") e quem recebeu há menos de `skip_contacted_days` (7) não recebe de novo,
+com envio em lotes (limite de e-mail da hospedagem) e push que abre direto a tela de Alimentação.
 
 Alimentação: quem tem pet mas nunca cadastrou alimentação recebe push (se
 tiver algum dispositivo ativo) e e-mail; quem não tem nenhum dispositivo
@@ -82,6 +85,8 @@ class ActivationCampaignContact(Base):
 
 
 CAMPAIGN_PUSH_LOCATION = "push_location"
+CAMPAIGN_FOOD = "food"
+CAMPAIGN_FOOD_HOLDOUT = "food_holdout"  # grupo de controle: elegível, NÃO recebeu mensagem
 
 
 class RunRequest(BaseModel):
@@ -92,6 +97,13 @@ class RunRequest(BaseModel):
     # por padrão; ajustável por request se o limite real se mostrar maior.
     batch_size: int = 10
     batch_pause_seconds: int = 180
+    # Quem recebeu a campanha de Alimentação (envio real registrado) há menos de
+    # N dias não recebe de novo. 0 desliga. Só enxerga envios feitos a partir de
+    # agora: o disparo de 28/09 não foi registrado (decisão original de disparo único).
+    skip_contacted_days: int = 7
+    # % de elegíveis que NÃO recebem (grupo de controle, escolhido de forma fixa pelo id) — é o que
+    # separa o efeito da campanha do que aconteceria sozinho. 0 = manda pra todos.
+    holdout_pct: int = 0
 
 
 def _authorize(x_sync_token: Optional[str]) -> None:
@@ -104,7 +116,7 @@ def _target_users(db) -> list[dict]:
     """Tutores com pelo menos 1 pet e NENHUM pet com alimentação configurada
     — mesmo critério do filtro `has_feeding=no` do painel de Pessoas."""
     feeding_pet_ids = _feeding_configured_pet_ids(db)
-    rows = db.query(Pet.user_id, Pet.id, Pet.name).all()
+    rows = db.query(Pet.user_id, Pet.id, Pet.name).order_by(Pet.created_at.asc()).all()
     pets_by_user: dict[str, list[tuple[str, Optional[str]]]] = {}
     for user_id, pet_id, pet_name in rows:
         pets_by_user.setdefault(str(user_id), []).append((str(pet_id), pet_name))
@@ -116,7 +128,8 @@ def _target_users(db) -> list[dict]:
         # quem já configurou pelo menos 1 não é alvo deste degrau.
         if len(missing) != len(pets):
             continue
-        out.append({"user_id": user_id, "pet_names": [n for n in missing if n]})
+        out.append({"user_id": user_id, "pet_names": [n for n in missing if n],
+                    "first_pet_id": pets[0][0] if pets else None})
 
     user_ids = [u["user_id"] for u in out]
     pushable = set()
@@ -141,32 +154,73 @@ def _pet_phrase(pet_names: list[str]) -> str:
 
 
 def _email_copy(name: Optional[str], pet_names: list[str]) -> tuple[str, str]:
+    nomes = [n for n in pet_names if n]
+    plural = len(nomes) > 1
     saudacao = f"Oi {name.split(' ')[0]}" if name else "Oi"
     pet = _pet_phrase(pet_names)
+    # concordância: "Vianna e Vanda ainda não têm", nunca "não tem" no plural
+    tem = "têm" if plural else "tem"
     subject = "Ainda falta cadastrar a ração do seu pet no PETMOL"
     body = (
-        f"{saudacao}, vimos que {pet} ainda não tem a ração cadastrada no PETMOL. "
+        f"{saudacao}, vimos que {pet} ainda não {tem} a ração cadastrada no PETMOL. "
         "Assim que você registra o pacote, o app acompanha o consumo sozinho e avisa "
         'antes de acabar — sem depender da memória. Leva 1 minuto: abra o app e toque '
-        'em "Alimentação".'
+        'em "Alimentação". E não se esqueça, ative as notificações!'
     )
     return subject, body
 
 
-def _push_payload(pet_names: list[str]) -> dict:
-    pet = _pet_phrase(pet_names)
+def _push_title(pet_names: list[str]) -> str:
+    """"Mel confia em você" — verbo concorda com quantos pets (1 → confia; 2+ → confiam)."""
+    names = [n for n in pet_names if n]
+    if not names:
+        return "Seu pet confia em você 🐾"
+    if len(names) == 1:
+        return f"{names[0]} confia em você 🐾"
+    if len(names) == 2:
+        return f"{names[0]} e {names[1]} confiam em você 🐾"
+    return "Seus pets confiam em você 🐾"
+
+
+def _push_payload(pet_names: list[str], pet_id: Optional[str] = None) -> dict:
+    # Texto escolhido pelo dono (15/10/2026). Verdade simples: o app AVISA antes de acabar.
+    url = f"/home?modal=food&petId={pet_id}" if pet_id else "/home"
     return {
-        "title": f"🍽️ Cadastre a ração de {pet}",
-        "body": "Nunca mais fique sem saber quando vai acabar. Leva 1 minuto.",
+        "title": _push_title(pet_names),
+        "body": "Cadastre a ração e a gente avisa antes de acabar. Leva 1 minuto.",
         "tag": "activation-food",
-        "data": {"url": "/home"},
+        # Toque abre direto a tela de Alimentação do pet (mesmo deep link dos lembretes de ração).
+        "data": {"url": url},
     }
 
 
-def _run(dry_run: bool) -> None:
+def _recently_contacted_food(db, days: int) -> set[str]:
+    if days <= 0:
+        return set()
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    return {
+        str(uid) for (uid,) in db.query(ActivationCampaignContact.user_id)
+        .filter(ActivationCampaignContact.campaign == CAMPAIGN_FOOD,
+                ActivationCampaignContact.sent_at >= cutoff).all()
+    }
+
+
+def _in_holdout(user_id: str, pct: int) -> bool:
+    import hashlib
+    return pct > 0 and int(hashlib.md5(user_id.encode()).hexdigest()[:8], 16) % 100 < pct
+
+
+def _run(dry_run: bool, batch_size: int = 10, batch_pause_seconds: int = 180,
+         skip_contacted_days: int = 7, holdout_pct: int = 0) -> None:
     db = SessionLocal()
     try:
         targets = _target_users(db)
+        recent = _recently_contacted_food(db, skip_contacted_days)
+        skipped_recent = [t for t in targets if t["user_id"] in recent]
+        targets = [t for t in targets if t["user_id"] not in recent]
+        holdout = [t for t in targets if _in_holdout(t["user_id"], holdout_pct)]
+        targets = [t for t in targets if t not in holdout]
         with_push = [t for t in targets if t["has_push"]]
         email_only = [t for t in targets if not t["has_push"]]
 
@@ -174,24 +228,38 @@ def _run(dry_run: bool) -> None:
             "total": len(targets),
             "push_and_email": len(with_push),
             "email_only": len(email_only),
+            "skipped_recent": len(skipped_recent),
+            "holdout": len(holdout),
             "dry_run": dry_run,
         }
 
         if not dry_run:
+            for t in holdout:   # controle: registrado, sem mensagem
+                db.add(ActivationCampaignContact(campaign=CAMPAIGN_FOOD_HOLDOUT, user_id=t["user_id"]))
+            db.commit()
             sent_push = sent_email = failed_email = 0
-            for t in targets:
+            for i, t in enumerate(targets):
                 user = db.query(User).filter(User.id == t["user_id"]).first()
                 if not user or not user.email:
                     continue
                 subject, body = _email_copy(user.name, t["pet_names"])
                 if send_mail(to=user.email, subject=subject, body_text=body):
                     sent_email += 1
+                    # registro durável, na hora (um lote lento pode atravessar um deploy)
+                    db.add(ActivationCampaignContact(campaign=CAMPAIGN_FOOD, user_id=t["user_id"]))
+                    db.commit()
                 else:
                     failed_email += 1
                 if t["has_push"]:
-                    ok = push_to_user(t["user_id"], _push_payload(t["pet_names"]))
+                    ok = push_to_user(t["user_id"], _push_payload(t["pet_names"], t.get("first_pet_id")))
                     if ok > 0:
                         sent_push += 1
+                with _lock:
+                    STATE["result"] = {**result, "sent_push": sent_push, "sent_email": sent_email,
+                                       "failed_email": failed_email, "progress": f"{i + 1}/{len(targets)}"}
+                # a hospedagem rejeita e-mail em rajada (451) — mesmo ritmo do degrau 2
+                if (i + 1) < len(targets) and (i + 1) % batch_size == 0:
+                    _sleep(batch_pause_seconds)
             result.update(sent_push=sent_push, sent_email=sent_email, failed_email=failed_email)
 
         with _lock:
@@ -214,13 +282,156 @@ def run_food_activation(payload: RunRequest, x_sync_token: Optional[str] = Heade
             raise HTTPException(status_code=409, detail="campanha já em andamento")
         STATE.update(phase="running", started_at=datetime.now(timezone.utc).isoformat(),
                      finished_at=None, result=None, error=None)
-    threading.Thread(target=_run, args=(payload.dry_run,), daemon=True).start()
-    return {"started": True, "dry_run": payload.dry_run}
+    threading.Thread(
+        target=_run, args=(payload.dry_run, payload.batch_size, payload.batch_pause_seconds,
+              payload.skip_contacted_days, payload.holdout_pct),
+        daemon=True,
+    ).start()
+    return {"started": True, "dry_run": payload.dry_run, "batch_size": payload.batch_size,
+            "batch_pause_seconds": payload.batch_pause_seconds, "skip_contacted_days": payload.skip_contacted_days,
+            "holdout_pct": payload.holdout_pct}
 
 
 @router.get("/food-activation/status")
 def food_activation_status(current=Depends(get_current_admin_or_readonly_key)):
     return STATE
+
+
+@router.get("/food-activation/preview")
+def food_activation_preview(skip_contacted_days: int = 7, current=Depends(get_current_admin_or_readonly_key)):
+    """Quantos receberiam AGORA (nada é enviado): mesmo segmento e mesma regra
+    de "já contactado" do disparo, para o painel mostrar o tamanho antes."""
+    db = SessionLocal()
+    try:
+        targets = _target_users(db)
+        recent = _recently_contacted_food(db, skip_contacted_days)
+        eligible = [t for t in targets if t["user_id"] not in recent]
+        return {
+            "campaign": CAMPAIGN_FOOD,
+            "eligible": len(eligible),
+            "with_push": sum(1 for t in eligible if t["has_push"]),
+            "email_only": sum(1 for t in eligible if not t["has_push"]),
+            "skipped_recent": len(targets) - len(eligible),
+            "skip_contacted_days": skip_contacted_days,
+        }
+    finally:
+        db.close()
+
+
+@router.get("/food-activation/results")
+def food_activation_results(window_days: int = 7, current=Depends(get_current_admin_or_readonly_key)):
+    """Quanto a campanha de Alimentação surtiu efeito.
+
+    - `contacted`/`holdout`: quem recebeu e quem ficou de controle (se houve).
+    - `converted_window`: cadastrou a ração DEPOIS do envio e em até `window_days` dias.
+    - `converted_total`: tem ração hoje (por definição do segmento, ninguém tinha).
+    - `series`: quantos tutores cadastraram a PRIMEIRA ração por dia, a partir de 14 dias antes do
+      primeiro envio — mostra o antes e o depois sem depender de controle.
+    Sem controle (holdout), "efeito" = depois menos o ritmo de antes; com controle, a diferença de
+    taxa entre os dois grupos é a leitura mais limpa."""
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+    from ..health.models import FeedingPlan
+
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(ActivationCampaignContact.user_id, ActivationCampaignContact.campaign,
+                     func.min(ActivationCampaignContact.sent_at))
+            .filter(ActivationCampaignContact.campaign.in_([CAMPAIGN_FOOD, CAMPAIGN_FOOD_HOLDOUT]))
+            .group_by(ActivationCampaignContact.user_id, ActivationCampaignContact.campaign).all()
+        )
+        if not rows:
+            return {"campaign": CAMPAIGN_FOOD, "contacted": 0, "holdout": 0, "first_sent_at": None,
+                    "window_days": window_days, "series": []}
+
+        feeding_ids = _feeding_configured_pet_ids(db)
+        first_feeding: dict[str, datetime] = {}
+        for uid, created in (
+            db.query(Pet.user_id, func.min(FeedingPlan.created_at))
+            .join(FeedingPlan, FeedingPlan.pet_id == Pet.id)
+            .filter(Pet.id.in_(feeding_ids or {"__none__"}), FeedingPlan.deleted_at.is_(None))
+            .group_by(Pet.user_id).all()
+        ):
+            first_feeding[str(uid)] = _aware(created)
+
+        def _group(campaign: str) -> dict:
+            members = [(str(u), _aware(t)) for u, c, t in rows if c == campaign]
+            total = len(members)
+            now_has = sum(1 for u, _ in members if u in first_feeding)
+            in_window = sum(
+                1 for u, sent in members
+                if u in first_feeding and sent <= first_feeding[u] <= sent + timedelta(days=window_days)
+            )
+            return {"total": total, "converted_total": now_has, "converted_window": in_window,
+                    "rate_window": round(in_window / total, 4) if total else None}
+
+        treated, control = _group(CAMPAIGN_FOOD), _group(CAMPAIGN_FOOD_HOLDOUT)
+        first_sent = min(_aware(t) for _, c, t in rows if c == CAMPAIGN_FOOD) if treated["total"] else None
+
+        br = ZoneInfo("America/Sao_Paulo")
+        series = []
+        if first_sent:
+            start = (first_sent - timedelta(days=14)).astimezone(br).date()
+            by_day: dict = {}
+            for created in first_feeding.values():
+                d = created.astimezone(br).date()
+                if d >= start:
+                    by_day[d] = by_day.get(d, 0) + 1
+            day, today = start, datetime.now(br).date()
+            while day <= today:
+                series.append({"date": day.isoformat(), "first_feeding": by_day.get(day, 0)})
+                day += timedelta(days=1)
+            send_day = first_sent.astimezone(br).date()
+            before = [p["first_feeding"] for p in series if p["date"] < send_day.isoformat()]
+            after = [p["first_feeding"] for p in series if p["date"] >= send_day.isoformat()]
+        else:
+            before = after = []
+        avg = lambda xs: round(sum(xs) / len(xs), 2) if xs else None  # noqa: E731
+        lift = None
+        if control["total"] and treated["rate_window"] is not None and control["rate_window"] is not None:
+            lift = round(treated["rate_window"] - control["rate_window"], 4)
+        return {
+            "campaign": CAMPAIGN_FOOD, "window_days": window_days,
+            "first_sent_at": first_sent.isoformat() if first_sent else None,
+            "contacted": treated, "holdout": control, "lift_vs_holdout": lift,
+            "daily_avg_before": avg(before), "daily_avg_after": avg(after),
+            "series": series,
+            "notes": [
+                "Só cobre envios registrados a partir do disparo de 15/10; o de 28/09 não foi registrado.",
+                "Sem grupo de controle, o antes/depois mistura o efeito da campanha com qualquer outra "
+                "mudança do período. Com poucos contactados, diferenças pequenas não provam nada.",
+            ],
+        }
+    finally:
+        db.close()
+
+
+@router.get("/food-activation/conversion")
+def food_activation_conversion(current=Depends(get_current_admin_or_readonly_key)):
+    """De quem recebeu a campanha de Alimentação (envio real registrado), quantos
+    já têm alimentação cadastrada. Por definição do segmento, ninguém contactado
+    tinha — qualquer alimentação atual é conversão. Só cobre envios registrados."""
+    db = SessionLocal()
+    try:
+        contacted = (
+            db.query(ActivationCampaignContact.user_id, func.min(ActivationCampaignContact.sent_at))
+            .filter(ActivationCampaignContact.campaign == CAMPAIGN_FOOD)
+            .group_by(ActivationCampaignContact.user_id).all()
+        )
+        if not contacted:
+            return {"campaign": CAMPAIGN_FOOD, "contacted_total": 0, "converted": 0, "last_contacted_at": None}
+        user_ids = [str(uid) for uid, _ in contacted]
+        feeding_ids = _feeding_configured_pet_ids(db)
+        converted = {
+            str(uid) for (uid,) in db.query(Pet.user_id)
+            .filter(Pet.user_id.in_(user_ids), Pet.id.in_(feeding_ids or {"__none__"})).distinct().all()
+        }
+        last = max(sent_at for _, sent_at in contacted)
+        return {"campaign": CAMPAIGN_FOOD, "contacted_total": len(user_ids), "converted": len(converted),
+                "last_contacted_at": last.isoformat() if last else None}
+    finally:
+        db.close()
 
 
 # ── Degrau 2 — Push + Localização (02/10/2026) ───────────────────────────────

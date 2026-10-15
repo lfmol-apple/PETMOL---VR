@@ -11,9 +11,10 @@ import { useRouter } from 'next/navigation';
 import { PremiumScreenShell } from '@/components/premium';
 import { useAdmin } from '@/hooks/useAdmin';
 import { adminGet, type CampaignsResponse, type GlobalFilter } from '@/lib/admin/analyticsApi';
+import { getToken } from '@/lib/auth-token';
 import {
   FAILURE_LABEL, PLATFORM_LABEL, pct,
-  type EntryResponse, type ActivationItem, type CampaignActivationRow, type GrowthPlatformRow, type GrowthResponse, type GrowthSeriesPoint, type GrowthStep,
+  type EntryResponse, type FoodCampaignResults, type ActivationItem, type CampaignActivationRow, type GrowthPlatformRow, type GrowthResponse, type GrowthSeriesPoint, type GrowthStep,
 } from '@/lib/admin/growthApi';
 import { useAsync, Loading, ErrorBox, numberFmt, RetentionSection, FeaturesSection } from '@/components/admin/sections/sections';
 import { FeedingSection } from '@/components/admin/sections/FeedingSection';
@@ -205,6 +206,7 @@ function GrowthBody({ filter, onFocusTutors }: { filter: GlobalFilter; onFocusTu
       <CampaignTable filter={filter} />
       <RetentionBlock filter={filter} onFocusTutors={onFocusTutors} />
       <PermissionsBlock />
+      <FoodCampaignCard />
       <DailySeries series={data.series} />
       <Notes notes={data.notes} />
     </>
@@ -492,6 +494,67 @@ function TodayBlock({ onFocusTutors }: { onFocusTutors: (g: TutorsPreset['goal']
         />
         <BaseStrip onOpenPeople={() => onFocusTutors('incomplete')} onOpenMissingPets={() => window.location.assign('/achei-um-pet')} />
       </div>
+    </Card>
+  );
+}
+
+/** Resultado da campanha de Alimentação (e-mail + push). Fora do prefixo /analytics, então fetch próprio. */
+function FoodCampaignCard() {
+  const { data, error, loading } = useAsync<FoodCampaignResults>(async () => {
+    const res = await fetch('/api/v1/admin/campaigns/food-activation/results', {
+      headers: { Authorization: `Bearer ${getToken()}` }, cache: 'no-store',
+    });
+    if (!res.ok) throw new Error(`Erro ${res.status}`);
+    return res.json();
+  }, [], { intervalMs: 60000 });
+
+  const max = Math.max(1, ...(data?.series.map((p) => p.first_feeding) ?? [1]));
+  const sendDay = data?.first_sent_at?.slice(0, 10);
+  return (
+    <Card title="Campanha de ração: funcionou?"
+      subtitle="De quem recebeu o e-mail e o push de Alimentação, quantos cadastraram a ração depois.">
+      {loading && !data ? <Loading /> : error || !data ? <ErrorBox msg={error} /> : !data.first_sent_at ? (
+        <p className="text-[13px] text-slate-500">Nenhum envio registrado ainda. Os números aparecem depois do primeiro disparo.</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-lg bg-slate-50 p-3">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Receberam</p>
+              <p className="text-[24px] font-extrabold text-slate-900">{numberFmt(data.contacted.total)}</p>
+            </div>
+            <div className="rounded-lg bg-slate-50 p-3">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Cadastraram em {data.window_days} dias</p>
+              <p className="text-[24px] font-extrabold text-slate-900">
+                {numberFmt(data.contacted.converted_window)} <span className="text-[14px] font-semibold text-slate-400">({pct(data.contacted.rate_window)})</span>
+              </p>
+            </div>
+            <div className="rounded-lg bg-slate-50 p-3">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Têm ração hoje</p>
+              <p className="text-[24px] font-extrabold text-slate-900">{numberFmt(data.contacted.converted_total)}</p>
+            </div>
+          </div>
+
+          {data.holdout.total > 0 && (
+            <p className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-[13px] text-blue-900">
+              <strong>Contra quem não recebeu</strong> ({numberFmt(data.holdout.total)} pessoas de controle): {pct(data.contacted.rate_window)} contra{' '}
+              {pct(data.holdout.rate_window)}. Diferença: {data.lift_vs_holdout == null ? '—' : `${data.lift_vs_holdout > 0 ? '+' : ''}${(data.lift_vs_holdout * 100).toFixed(1)} pontos`}.
+            </p>
+          )}
+
+          <p className="mb-1 mt-4 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+            Primeira ração cadastrada por dia — média {data.daily_avg_before ?? '—'} antes do envio, {data.daily_avg_after ?? '—'} depois
+          </p>
+          <div className="flex h-24 items-end gap-px" role="img" aria-label="Primeira ração cadastrada por dia">
+            {data.series.map((p) => (
+              <div key={p.date} title={`${p.date}: ${p.first_feeding}`} className="flex-1 rounded-t-sm"
+                style={{ height: `${(p.first_feeding / max) * 100}%`, minHeight: p.first_feeding ? 2 : 0,
+                  background: sendDay && p.date >= sendDay ? '#059669' : '#94A3B8' }} />
+            ))}
+          </div>
+          <p className="mt-1 text-[10px] text-slate-400">Cinza: antes do envio. Verde: depois.</p>
+          <ul className="mt-3 space-y-1 text-[11px] text-slate-500">{data.notes.map((n) => <li key={n}>• {n}</li>)}</ul>
+        </>
+      )}
     </Card>
   );
 }
