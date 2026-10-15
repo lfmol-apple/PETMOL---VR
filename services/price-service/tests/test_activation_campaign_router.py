@@ -507,3 +507,13 @@ def test_food_email_texto_final_e_concordancia_no_plural():
     assert body.endswith('E não se esqueça, ative as notificações!')
     _, plural = _email_copy("Priscila", ["Vianna", "Vanda Juliane"])
     assert "ainda não têm a ração" in plural
+
+
+def test_food_push_texto_e_variacoes_de_pets():
+    from src.admin.activation_campaign_router import _push_payload
+    one = _push_payload(["Mel"], "p1")
+    assert one["title"] == "E se a ração de Mel acabasse hoje? 🐾"
+    assert one["body"] == "O PETMOL avisa antes de acabar. Cadastre o pacote em 1 minuto."
+    assert "de Vianna e Vanda" in _push_payload(["Vianna", "Vanda"], "p")["title"]
+    assert "dos seus pets" in _push_payload(["A", "B", "C"], "p")["title"]
+    assert "do seu pet" in _push_payload([], None)["title"]

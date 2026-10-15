@@ -166,14 +166,25 @@ def _email_copy(name: Optional[str], pet_names: list[str]) -> tuple[str, str]:
     return subject, body
 
 
+def _push_pet_phrase(pet_names: list[str]) -> str:
+    """Nome(s) pro título do push: até 2 pets pelo nome, mais que isso vira "dos seus pets"."""
+    names = [n for n in pet_names if n]
+    if not names:
+        return "do seu pet"
+    if len(names) > 2:
+        return "dos seus pets"
+    return "de " + " e ".join(names)
+
+
 def _push_payload(pet_names: list[str], pet_id: Optional[str] = None) -> dict:
-    pet = _pet_phrase(pet_names)
-    # Toque abre direto a tela de Alimentação do pet (mesmo deep link dos lembretes de ração).
+    # "de Mel" (e não "da/do") — sem artigo, pra não errar o gênero do pet.
+    # Verdade simples, sem promessa que o app não cumpre: ele AVISA antes de acabar.
     url = f"/home?modal=food&petId={pet_id}" if pet_id else "/home"
     return {
-        "title": f"🍽️ Cadastre a ração de {pet}",
-        "body": "Nunca mais fique sem saber quando vai acabar. Leva 1 minuto.",
+        "title": f"E se a ração {_push_pet_phrase(pet_names)} acabasse hoje? 🐾",
+        "body": "O PETMOL avisa antes de acabar. Cadastre o pacote em 1 minuto.",
         "tag": "activation-food",
+        # Toque abre direto a tela de Alimentação do pet (mesmo deep link dos lembretes de ração).
         "data": {"url": url},
     }
 
