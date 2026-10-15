@@ -440,3 +440,60 @@ def test_push_location_respeita_lote_e_pausa_entre_lotes(monkeypatch, client):
     status = _wait_done_push_location(client)
     assert status["result"]["sent_email"] == 5
     assert sleeps == [7, 7]  # pausa após o 2º e o 4º envio, não após o 5º (último)
+
+
+def test_food_registra_contato_e_segundo_disparo_nao_repete(monkeypatch, client):
+    _enable_token(monkeypatch)
+    sent = {"email": [], "push": []}
+    monkeypatch.setattr("src.admin.activation_campaign_router.send_mail",
+                        lambda **kw: sent["email"].append(kw) or True)
+    monkeypatch.setattr("src.admin.activation_campaign_router.push_to_user",
+                        lambda uid, payload: sent["push"].append((uid, payload)) or 1)
+    db = SessionLocal()
+    try:
+        uid = _mk_user(db, email=f"rep.{uuid.uuid4().hex[:6]}@example.com", name="Rita")
+        pet_id = _mk_pet(db, user_id=uid, name="Bolt")
+        _mk_push_subscription(db, user_id=uid)
+    finally:
+        db.close()
+
+    headers = {"X-Sync-Token": TOKEN}
+    assert client.post("/v1/admin/campaigns/food-activation/run", json={"dry_run": False}, headers=headers).status_code == 200
+    first = _wait_done(client)["result"]
+    assert first["sent_email"] == 1 and first["sent_push"] == 1
+    # o toque no push abre a Alimentação do pet
+    assert sent["push"][0][1]["data"]["url"] == f"/home?modal=food&petId={pet_id}"
+
+    # segundo disparo logo em seguida: ninguém repetido
+    sent["email"].clear(); sent["push"].clear()
+    assert client.post("/v1/admin/campaigns/food-activation/run", json={"dry_run": False}, headers=headers).status_code == 200
+    second = _wait_done(client)["result"]
+    assert second["skipped_recent"] >= 1
+    assert not any(e["to"].startswith("rep.") for e in sent["email"])
+
+
+def test_food_preview_e_conversion(monkeypatch, client):
+    _enable_token(monkeypatch)
+    monkeypatch.setattr("src.admin.activation_campaign_router.send_mail", lambda **kw: True)
+    monkeypatch.setattr("src.admin.activation_campaign_router.push_to_user", lambda uid, payload: 1)
+    db = SessionLocal()
+    try:
+        uid = _mk_user(db, email=f"conv.{uuid.uuid4().hex[:6]}@example.com", name="Caio")
+        pet_id = _mk_pet(db, user_id=uid, name="Nina")
+    finally:
+        db.close()
+    ro = {"X-Admin-Api-Key": READONLY_KEY}
+    pre = client.get("/v1/admin/campaigns/food-activation/preview", headers=ro).json()
+    assert pre["eligible"] >= 1 and pre["email_only"] >= 1
+
+    client.post("/v1/admin/campaigns/food-activation/run", json={"dry_run": False}, headers={"X-Sync-Token": TOKEN})
+    _wait_done(client)
+    assert client.get("/v1/admin/campaigns/food-activation/conversion", headers=ro).json()["converted"] == 0
+
+    db = SessionLocal()
+    try:
+        _mk_feeding(db, pet_id=pet_id)   # depois do envio, o tutor cadastra a ração
+    finally:
+        db.close()
+    conv = client.get("/v1/admin/campaigns/food-activation/conversion", headers=ro).json()
+    assert conv["contacted_total"] >= 1 and conv["converted"] >= 1
