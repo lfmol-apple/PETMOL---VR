@@ -680,6 +680,19 @@ export default function ProfilePage() {
             </Link>
           )}
 
+          {isAdmin && (
+            <Link
+              href="/admin/dashboard2"
+              className="flex items-center justify-between gap-3 rounded-[20px] border border-slate-100 bg-slate-50 px-5 py-4 hover:bg-blue-50 hover:border-blue-100 transition-all active:scale-[0.98]"
+            >
+              <span className="flex items-center gap-3">
+                <span className="text-xl">📈</span>
+                <span className="text-sm font-black text-slate-700">Painel Admin 2 — Crescimento</span>
+              </span>
+              <span className="text-slate-400">→</span>
+            </Link>
+          )}
+
           {error && (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700 font-bold flex items-center gap-3 animate-shake">
               <span>⚠️</span>
