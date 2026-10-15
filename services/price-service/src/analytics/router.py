@@ -532,6 +532,11 @@ def _install_platform_label(platform: str, ua: Optional[str]) -> str:
     return base
 
 
+# "Push de home" / "Push de loja" (acesso ao site, clique no anúncio): desligados em 15/10/2026 a pedido
+# do dono (só download, 1º pet, 1ª ração e 1ª notificação avisam). Religar = True.
+INSTALL_PUSH_NON_DOWNLOAD = False
+
+
 def _is_real_download(platform: str) -> bool:
     """web = só abriu o site no navegador, sem instalar nada — não é
     download. ios/android (app nativo) e pwa (instalado na tela de início)
@@ -578,7 +583,9 @@ def _enrich_and_notify_install(row_id: str, ip: Optional[str], platform: str) ->
 
         settings = get_settings()
         admin = db.query(User).filter(func.lower(User.email) == settings.admin_master_email.lower()).first()
-        if admin:
+        # Só DOWNLOAD avisa (decisão do dono, 15/10/2026): "Push de home" e "Push de loja" (acesso ao
+        # site ou clique no anúncio) deixaram de notificar — continuam contados nos relatórios.
+        if admin and (_is_real_download(platform) or INSTALL_PUSH_NON_DOWNLOAD):
             where = " · ".join(p for p in (row.city, row.region, row.country) if p) or "local desconhecido"
             from ..analytics.install_models import campaign_total
             acumulado, base, camp = campaign_total(db)

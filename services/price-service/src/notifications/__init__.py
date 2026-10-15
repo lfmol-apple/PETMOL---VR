@@ -972,6 +972,22 @@ def native_diag_dump():
     return {"count": len(_NATIVE_DIAG), "entries": _NATIVE_DIAG[-40:]}
 
 
+def _user_never_had_push(db, user_id: str) -> bool:
+    """True se o tutor nunca teve NENHUM aparelho de push (ativo ou não) — evita "ativou" falso
+    por troca de token/aparelho de quem já tinha notificação."""
+    has_web = db.query(PushSubscription.id).filter(PushSubscription.user_id == user_id).first() is not None
+    has_native = db.query(NativePushToken.id).filter(NativePushToken.user_id == user_id).first() is not None
+    return not (has_web or has_native)
+
+
+def _notify_push_enabled_safe(user_id: str) -> None:
+    try:
+        from ..admin_alerts import notify_push_enabled
+        notify_push_enabled(user_id)
+    except Exception:
+        pass
+
+
 @router.post("/subscribe")
 def subscribe(body: SubscribeRequest, current_user=Depends(get_current_user)):
     sub_data = _normalize_subscription(body.subscription)
@@ -1000,6 +1016,7 @@ def subscribe(body: SubscribeRequest, current_user=Depends(get_current_user)):
             if device_id:
                 existing.device_id = device_id
         else:
+            first_ever_push = _user_never_had_push(db, user_id)
             db.add(PushSubscription(
                 user_id=user_id, endpoint=endpoint,
                 p256dh=keys["p256dh"], auth=keys["auth"],
@@ -1044,6 +1061,9 @@ def subscribe(body: SubscribeRequest, current_user=Depends(get_current_user)):
         ).update({PushSubscription.disabled_at: now}, synchronize_session=False)
 
         db.commit()
+
+        if not existing and first_ever_push:
+            _notify_push_enabled_safe(user_id)
 
         # Alerta atrasado de Pet Sumido: se este usuário estava deslogado
         # quando um alerta da região saiu, ele nunca recebeu o push. Agora que
@@ -1101,6 +1121,7 @@ def register_native_device(body: RegisterNativeDeviceRequest, current_user=Depen
             existing.disabled_at = None
             existing.disabled_reason = None
         else:
+            first_ever_push = _user_never_had_push(db, user_id)
             db.add(NativePushToken(
                 user_id=user_id, platform=body.platform, token=body.token,
                 created_at=now, last_seen_at=now,
@@ -1121,6 +1142,8 @@ def register_native_device(body: RegisterNativeDeviceRequest, current_user=Depen
         )
 
         db.commit()
+        if not existing and first_ever_push:
+            _notify_push_enabled_safe(user_id)
         return {"status": "registered"}
     finally:
         db.close()

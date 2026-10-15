@@ -40,6 +40,9 @@ METRICS: list[tuple[str, str]] = [
     ("acessos", "Acessos"),
     ("visitantes", "Visitantes únicos"),
     ("cadastros", "Cadastros"),
+    ("cadastros_completos", "Cadastros completos"),
+    ("racao_primeira", "Alimentação cadastrada"),
+    ("notificacao_primeira", "Notificações ativadas"),
     ("pets_novos", "Pets cadastrados"),
     ("ativos", "Tutores ativos"),
     ("loja_aberturas", "Aberturas da Loja"),
@@ -64,7 +67,55 @@ def _real_users(q):
     return q.filter(~User.email.like("%@petmol.guest"))
 
 
-def window_metrics(db: Session, start: datetime, end: datetime) -> dict[str, int]:
+def first_milestones(db: Session) -> dict[str, dict[str, datetime]]:
+    """Quando cada tutor (real, sem convidado) atingiu cada marco pela PRIMEIRA vez:
+    - pet: primeiro pet cadastrado ("cadastro completo" = conta + pet);
+    - feeding: primeira alimentação cadastrada (com dado de verdade, não plano vazio);
+    - push: primeiro aparelho com notificação (navegador/PWA ou app iPhone/Android).
+    O marco conta uma vez só por tutor — quem cadastra o 2º pet ou troca de aparelho não repete."""
+    from ...health.models import FeedingPlan
+    from ...notifications import NativePushToken, PushSubscription
+    from .queries import _feeding_configured_pet_ids
+
+    def _aware_dt(dt):
+        return dt if dt is None or dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+    guest = {r[0] for r in db.query(User.id).filter(User.email.like("%@petmol.guest")).all()}
+
+    pet: dict[str, datetime] = {}
+    for uid, ts in db.query(Pet.user_id, func.min(Pet.created_at)).group_by(Pet.user_id).all():
+        if uid not in guest and ts:
+            pet[str(uid)] = _aware_dt(ts)
+
+    feeding_ids = _feeding_configured_pet_ids(db)
+    feeding: dict[str, datetime] = {}
+    if feeding_ids:
+        for uid, ts in (
+            db.query(Pet.user_id, func.min(FeedingPlan.created_at))
+            .join(FeedingPlan, FeedingPlan.pet_id == Pet.id)
+            .filter(Pet.id.in_(feeding_ids), FeedingPlan.deleted_at.is_(None))
+            .group_by(Pet.user_id).all()
+        ):
+            if uid not in guest and ts:
+                feeding[str(uid)] = _aware_dt(ts)
+
+    push: dict[str, datetime] = {}
+    for model in (PushSubscription, NativePushToken):
+        for uid, ts in db.query(model.user_id, func.min(model.created_at)).group_by(model.user_id).all():
+            if uid in guest or not ts:
+                continue
+            ts = _aware_dt(ts)
+            if str(uid) not in push or ts < push[str(uid)]:
+                push[str(uid)] = ts
+    return {"pet": pet, "feeding": feeding, "push": push}
+
+
+def _count_in(first: dict[str, datetime], start: datetime, end: datetime) -> int:
+    return sum(1 for ts in first.values() if start <= ts < end)
+
+
+def window_metrics(db: Session, start: datetime, end: datetime,
+                   _milestones: Optional[dict[str, dict[str, datetime]]] = None) -> dict[str, int]:
     cutoff = install_count_cutoff()
     d_start = max(start, cutoff)
 
@@ -95,8 +146,12 @@ def window_metrics(db: Session, start: datetime, end: datetime) -> dict[str, int
         .scalar()
     ) or 0
 
+    ms = _milestones if _milestones is not None else first_milestones(db)
     return {
         "downloads": int(downloads),
+        "cadastros_completos": _count_in(ms["pet"], start, end),
+        "racao_primeira": _count_in(ms["feeding"], start, end),
+        "notificacao_primeira": _count_in(ms["push"], start, end),
         "acessos": len(anchors),
         "visitantes": len(identities),
         "cadastros": int(_real_users(db.query(func.count(User.id)))
@@ -121,9 +176,10 @@ def _delta_pct(current: float, base: Optional[float]) -> Optional[float]:
 
 
 def metrics_with_comparison(db: Session, day: date) -> dict[str, dict[str, Any]]:
-    cur = window_metrics(db, *day_window(day))
-    prev = window_metrics(db, *day_window(day - timedelta(days=1)))
-    history = [window_metrics(db, *day_window(day - timedelta(days=i))) for i in range(1, 8)]
+    ms = first_milestones(db)   # uma vez só: vale para os 9 dias comparados
+    cur = window_metrics(db, *day_window(day), _milestones=ms)
+    prev = window_metrics(db, *day_window(day - timedelta(days=1)), _milestones=ms)
+    history = [window_metrics(db, *day_window(day - timedelta(days=i)), _milestones=ms) for i in range(1, 8)]
     out: dict[str, dict[str, Any]] = {}
     for key, label in METRICS:
         avg7 = round(sum(h[key] for h in history) / len(history), 1)
@@ -153,6 +209,23 @@ def _top_cities(db: Session, start: datetime, end: datetime, limit: int = 5) -> 
         slot["downloads" if platform in DOWNLOAD_PLATFORMS else "acessos"] += 1
     ranked = sorted(by.items(), key=lambda kv: -(kv[1]["downloads"] + kv[1]["acessos"]))[:limit]
     return [{"city": c, "region": r, **v} for (c, r), v in ranked]
+
+
+def _downloads_by_city(db: Session, start: datetime, end: datetime, limit: int = 10) -> list[dict[str, Any]]:
+    """Ranking de DOWNLOADS por cidade (só instalação, sem acesso ao site), maior primeiro."""
+    d_start = max(start, install_count_cutoff())
+    if d_start >= end:
+        return []
+    counts: dict[tuple[str, str], int] = {}
+    for city, region in (
+        db.query(AppInstall.city, AppInstall.region)
+        .filter(AppInstall.platform.in_(DOWNLOAD_PLATFORMS),
+                AppInstall.created_at >= d_start, AppInstall.created_at < end).all()
+    ):
+        key = (city or "Local desconhecido", region or "")
+        counts[key] = counts.get(key, 0) + 1
+    ranked = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0][0]))[:limit]
+    return [{"city": c, "region": r, "downloads": n} for (c, r), n in ranked]
 
 
 def _attention(db: Session, now: datetime) -> list[dict[str, str]]:
@@ -209,15 +282,18 @@ def build_brief(db: Session, day: date, *, now: Optional[datetime] = None) -> di
         "label": day.strftime("%d/%m/%Y"),
         "is_today": day == today_br(now),
         "metrics": metrics,
+        # Funil do dono (15/10/2026): do download à notificação ativada. "Completos" = conta + pet.
         "funnel": [
-            {"label": "Acessos", "n": metrics["acessos"]["value"]},
             {"label": "Downloads", "n": metrics["downloads"]["value"]},
             {"label": "Cadastros", "n": metrics["cadastros"]["value"]},
-            {"label": "Pets cadastrados", "n": metrics["pets_novos"]["value"]},
+            {"label": "Cadastros completos", "n": metrics["cadastros_completos"]["value"]},
+            {"label": "Alimentação cadastrada", "n": metrics["racao_primeira"]["value"]},
+            {"label": "Notificações ativadas", "n": metrics["notificacao_primeira"]["value"]},
         ],
         "campaigns": [c for c in campaigns["campaigns"][:3]],
         "has_campaign_attribution": campaigns["has_any_attribution"],
         "cities": _top_cities(db, start, end),
+        "cities_downloads": _downloads_by_city(db, start, end),
         "attention": _attention(db, now),
         "suggestion": _suggestion(db),
         "note": (

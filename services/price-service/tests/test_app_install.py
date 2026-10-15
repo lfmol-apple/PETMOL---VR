@@ -176,6 +176,8 @@ def test_install_platform_label_qualifies_web_by_user_agent():
 
 
 def test_app_install_push_includes_device_hint_for_web(monkeypatch):
+    # push de acesso/anúncio está desligado por padrão (15/10/2026); aqui religado pra cobrir os textos
+    monkeypatch.setattr("src.analytics.router.INSTALL_PUSH_NON_DOWNLOAD", True)
     from uuid import uuid4
 
     from src.config import get_settings
@@ -218,6 +220,8 @@ def test_app_install_push_includes_device_hint_for_web(monkeypatch):
 
 
 def test_app_install_push_title_distinguishes_acesso_from_download(monkeypatch):
+    # push de acesso/anúncio está desligado por padrão (15/10/2026); aqui religado pra cobrir os textos
+    monkeypatch.setattr("src.analytics.router.INSTALL_PUSH_NON_DOWNLOAD", True)
     """web = acesso (só abriu o site); ios/android/pwa = download de verdade
     (app nativo ou instalado na tela de início)."""
     from uuid import uuid4
@@ -447,6 +451,8 @@ def test_gerenciamento_nao_recebe_os_avisos_de_download_por_padrao():
 
 
 def test_app_install_push_titulo_diferente_pra_quem_veio_do_go_instalar(monkeypatch):
+    # push de acesso/anúncio está desligado por padrão (15/10/2026); aqui religado pra cobrir os textos
+    monkeypatch.setattr("src.analytics.router.INSTALL_PUSH_NON_DOWNLOAD", True)
     """/go/instalar (27/09/2026): clicou no anúncio e foi direto pra loja — aviso e corpo próprios,
     com a campanha, em vez do genérico 'Novo acesso'."""
     from uuid import uuid4
@@ -539,3 +545,36 @@ def test_admin_app_installs_expoe_landing_path(client):
     found = next(item for item in r.json()["data"] if item["id"] == row_id)
     assert found["landing_path"] == "/go/instalar"
     assert found["utm_campaign"] == "120249292667370423"
+
+
+def test_acesso_ao_site_nao_manda_push_por_padrao(monkeypatch):
+    from uuid import uuid4
+
+    from src.config import get_settings
+    from src.db import SessionLocal
+    from src.user_auth.models import User
+
+    db = SessionLocal()
+    try:
+        admin_email = get_settings().admin_master_email.lower()
+        if not db.query(User).filter(User.email == admin_email).first():
+            db.add(User(email=admin_email, password_hash="x", name="Admin"))
+            db.commit()
+    finally:
+        db.close()
+    sent = []
+    monkeypatch.setattr("src.notifications.push_to_user", lambda uid, payload: sent.append(payload))
+
+    from src.analytics.router import _enrich_and_notify_install
+    from src.analytics.install_models import AppInstall
+
+    db = SessionLocal()
+    try:
+        row = AppInstall(platform="web", ip_hash=f"t{uuid4().hex[:12]}", user_agent="Mozilla/5.0")
+        db.add(row)
+        db.commit()
+        row_id = row.id
+    finally:
+        db.close()
+    _enrich_and_notify_install(row_id, None, "web")
+    assert sent == []          # só download de verdade avisa
