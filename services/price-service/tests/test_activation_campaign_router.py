@@ -640,3 +640,41 @@ def test_segunda_chance_texto_plural_e_sem_nome():
     assert "Vianna e Vanda Juliane" in s and "sumirem" in t and "Oi, Priscila!" in t
     s2, t2, _ = _email_copy_push_second(None, [])
     assert "seu pet" in s2 and t2.startswith("Oi!")
+
+
+def test_food_email_bloqueado_para_de_insistir_e_push_continua_registrado(monkeypatch, client):
+    """Provedor devolve 451 (limite): depois de 3 falhas seguidas o envio para de tentar e-mail, segue só com
+    push e registra como contato quem recebeu o push (antes só o e-mail era registrado → repetia depois)."""
+    from src.admin.activation_campaign_router import ActivationCampaignContact
+    _enable_token(monkeypatch)
+    mails, pushes = [], []
+    monkeypatch.setattr("src.admin.activation_campaign_router.send_mail", lambda **kw: mails.append(kw) or False)
+    monkeypatch.setattr("src.admin.activation_campaign_router.push_to_user", lambda uid, payload: pushes.append(uid) or 1)
+    monkeypatch.setattr("src.admin.activation_campaign_router._sleep", lambda s: None)
+    db = SessionLocal()
+    try:
+        tag = uuid.uuid4().hex[:5]
+        no_push = []
+        for i in range(6):
+            uid = _mk_user(db, email=f"bk{i}.{tag}@example.com", name=f"Bk{i}")
+            _mk_pet(db, user_id=uid, name="Mel")
+            no_push.append(uid)
+        with_push = _mk_user(db, email=f"bkp.{tag}@example.com", name="BkPush")
+        _mk_pet(db, user_id=with_push, name="Rex")
+        _mk_push_subscription(db, user_id=with_push)
+    finally:
+        db.close()
+    assert client.post("/v1/admin/campaigns/food-activation/run", json={"dry_run": False, "skip_contacted_days": 0},
+                       headers={"X-Sync-Token": TOKEN}).status_code == 200
+    res = _wait_done(client)["result"]
+    assert res["email_blocked"] is True
+    assert len(mails) <= res["failed_email"] and res["failed_email"] >= 3
+    assert res["skipped_email_blocked"] >= 1          # os demais nem tentaram e-mail
+    assert with_push in pushes                         # push continua
+    db = SessionLocal()
+    try:
+        logged = {str(u) for (u,) in db.query(ActivationCampaignContact.user_id)
+                  .filter(ActivationCampaignContact.campaign == "food").all()}
+    finally:
+        db.close()
+    assert with_push in logged                         # quem recebeu só o push ficou registrado
