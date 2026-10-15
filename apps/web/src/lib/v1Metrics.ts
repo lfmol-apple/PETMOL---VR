@@ -46,6 +46,12 @@ export type V1MetricEvent =
   | 'welcome_register_pet_clicked'
   | 'welcome_skipped'
   | 'signup_started'
+  // Entrada do app (download → cadastro): ver admin/analytics/entry_bi.py.
+  // Nomes não podem terminar em "_view" (o backend renomeia para screen_view).
+  | 'auth_screen_shown'
+  | 'auth_choice_register'
+  | 'auth_choice_login'
+  | 'register_failed'
   | 'onboarding_started'
   | 'first_pet_created'
   | 'onboarding_food_completed'

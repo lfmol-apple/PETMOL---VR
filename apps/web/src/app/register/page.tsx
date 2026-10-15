@@ -119,13 +119,9 @@ export default function RegisterPage() {
       }
     }
     trackAdEvent('registration');
+    trackV1Metric('register_completed', { method: 'social' });
     const dest = redirectAfter || (inviteToken ? '/home' : null);
-    if (dest) {
-      router.push(dest);
-    } else {
-      trackV1Metric('register_completed', { method: 'social' });
-      router.push('/welcome');
-    }
+    router.push(dest || '/welcome');
   };
 
   const handleBack = () => {
@@ -156,6 +152,7 @@ export default function RegisterPage() {
 
     setErrors(nextErrors);
     if (firstInvalid) {
+      trackV1Metric('register_failed', { reason: 'validation', field: firstInvalid });
       focusField(firstInvalid);
       return;
     }
@@ -198,16 +195,14 @@ export default function RegisterPage() {
       // ou, pra quem pula isso, pelo card de segunda chance na Home
       // (PermissionsNudgeCard) — nunca mais às cegas no meio do cadastro.
       trackAdEvent('registration');
+      trackV1Metric('register_completed', {});
       const dest = redirectAfter || (inviteToken ? '/home' : null);
-      if (dest) {
-        router.push(dest);
-      } else {
-        trackV1Metric('register_completed', {});
-        router.push('/welcome');
-      }
+      router.push(dest || '/welcome');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erro ao criar conta.';
-      if (/email.*cadastrado|email.*existe|já cadastrado/i.test(message)) {
+      const emailTaken = /email.*cadastrado|email.*existe|já cadastrado/i.test(message);
+      trackV1Metric('register_failed', { reason: emailTaken ? 'email_exists' : 'server' });
+      if (emailTaken) {
         const params = new URLSearchParams();
         const dest = isSafeRedirect(redirectAfter) ? redirectAfter : '/home';
         params.set('redirect', dest);

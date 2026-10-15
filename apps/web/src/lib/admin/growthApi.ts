@@ -63,3 +63,23 @@ export const PLATFORM_LABEL: Record<GrowthPlatformRow['platform'], string> = {
 
 export const pct = (v: number | null | undefined): string =>
   v == null ? '—' : `${(v * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
+
+export interface EntryStep { key: string; label: string; n: number; pct_of_opened: number | null }
+export interface EntryResponse {
+  steps: EntryStep[];
+  biggest_leak: { from_label: string; to_label: string; pct: number; lost: number; where_to_act: string } | null;
+  choices: { register: number; login: number };
+  failures: { reason: string; count: number }[];
+  scope: 'native' | 'platform';
+  notes: string[];
+}
+
+/** Rótulo legível dos motivos de falha do cadastro. */
+export const FAILURE_LABEL: Record<string, string> = {
+  'validation:name': 'Nome inválido',
+  'validation:email': 'E-mail inválido',
+  'validation:password': 'Senha inválida (mínimo 6 caracteres)',
+  'validation:terms': 'Não marcou os termos',
+  email_exists: 'E-mail já cadastrado',
+  server: 'Erro do servidor ou da rede',
+};
