@@ -26,6 +26,7 @@ import {
 import { AffiliateCatalogSearch } from './AffiliateCatalogSearch';
 import { fetchPetzDirectLink, formatBRLPrice, hasReliablePrice, merchantLabel, offerOriginLabel, offerPriceLabel, preferCobasiOffer, type CommerceOffer, type PetzDirectLink } from './productPricing';
 import { useCommerceOffers } from './useCommerceOffers';
+import { FoodBridgeCard, dismissFoodBridge, isFoodBridgeDismissed } from './FoodBridgeCard';
 import {
   buildReorderCards,
   buildPetStoreTitle,
@@ -39,6 +40,10 @@ interface HomeShoppingSheetProps {
   onClose: () => void;
   currentPet: PetHealthProfile;
   buyableReminders: PetCareReminder[];
+  /** o pet ainda não tem ração cadastrada — mostra a ponte Loja → ração */
+  needsFood?: boolean;
+  /** abre o cadastro de ração (a Home fecha a Loja e abre a Alimentação) */
+  onRegisterFood?: () => void;
 }
 
 type ShoppingView = 'store' | 'search';
@@ -59,7 +64,17 @@ type ShoppingView = 'store' | 'search';
 // busca, os produtos do pet somem enquanto o tutor está procurando algo
 // novo. `groupReorderCardsByUrgency` continua existindo só pra analítica
 // (composição do que está em tela), não pra layout.
-export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders }: HomeShoppingSheetProps) {
+export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders, needsFood = false, onRegisterFood }: HomeShoppingSheetProps) {
+  const [bridgeDismissed, setBridgeDismissed] = useState(false);
+  const showFoodBridge = open && needsFood && Boolean(onRegisterFood) && !bridgeDismissed;
+  useEffect(() => {
+    if (!open) return;
+    setBridgeDismissed(isFoodBridgeDismissed(currentPet.pet_id));
+  }, [open, currentPet.pet_id]);
+  useEffect(() => {
+    if (showFoodBridge) void trackClick({ source: 'home', cta_type: 'food_bridge_shown', pet_id: currentPet.pet_id });
+  }, [showFoodBridge, currentPet.pet_id]);
+
   useBackHandler(open, onClose);
   const [quickBuyFor, setQuickBuyFor] = useState<string | null>(null);
   const [view, setView] = useState<ShoppingView>('store');
@@ -413,6 +428,21 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                 <ScanBarcode className="h-5 w-5" strokeWidth={2.4} />
                 Ler código de barras
               </button>
+
+              {showFoodBridge && (
+                <FoodBridgeCard
+                  petName={petName}
+                  onRegister={() => {
+                    void trackClick({ source: 'home', cta_type: 'food_bridge_click', pet_id: currentPet.pet_id });
+                    onRegisterFood?.();
+                  }}
+                  onDismiss={() => {
+                    void trackClick({ source: 'home', cta_type: 'food_bridge_dismiss', pet_id: currentPet.pet_id });
+                    dismissFoodBridge(currentPet.pet_id);
+                    setBridgeDismissed(true);
+                  }}
+                />
+              )}
 
               {/* Produtos do pet — LISTA ÚNICA, ordenada por prazo (mais
                   urgente primeiro; "comprar quando quiser" cai no fim).
