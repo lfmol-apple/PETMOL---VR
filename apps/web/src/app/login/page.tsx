@@ -9,6 +9,15 @@ const API_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
 import { SocialLoginButtons } from '@/components/auth/SocialLoginButtons';
+import { isNativeAppClient } from '@/lib/nativeApp';
+
+// Aparelho que já passou pela tela de entrada (entrou ou escolheu "já tenho conta").
+// Quem acabou de baixar o app não tem isso e vê primeiro a escolha de criar conta.
+const LOGIN_SEEN_KEY = 'petmol_login_seen';
+
+function markLoginSeen() {
+  try { window.localStorage.setItem(LOGIN_SEEN_KEY, '1'); } catch { /* noop */ }
+}
 
 function isSafeRedirect(value: string): boolean {
   return value.startsWith('/') && !value.startsWith('//') && !value.startsWith('/login');
@@ -19,6 +28,9 @@ export default function LoginPage() {
   const [redirectTo, setRedirectTo] = useState('/home');
   const [registerHref, setRegisterHref] = useState('/register');
   const { login, isAuthenticated, isLoading } = useAuth();
+  // 'pending' evita piscar o formulário antes de decidir; 'choose' só no app
+  // nativo, em aparelho novo e sem e-mail/redirect vindo de um link.
+  const [mode, setMode] = useState<'pending' | 'choose' | 'form'>('pending');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -28,6 +40,13 @@ export default function LoginPage() {
     setRegisterHref(`/register?redirect=${encodeURIComponent(safe)}`);
     const emailParam = params.get('email');
     if (emailParam) setEmail(emailParam);
+    let seen = false;
+    try { seen = window.localStorage.getItem(LOGIN_SEEN_KEY) === '1'; } catch { /* noop */ }
+    // o middleware manda quem abre o app sem sessão para /login?redirect=/home — isso é
+    // aparelho novo, não link de convite/recuperação
+    const redirectParam = params.get('redirect');
+    const fromLink = Boolean(emailParam || (redirectParam && redirectParam !== '/home') || params.get('reason') || params.get('msg'));
+    setMode(isNativeAppClient() && !seen && !fromLink ? 'choose' : 'form');
     if (params.get('reason') === 'account-exists') {
       setError('Este e-mail já tem conta no PETMOL. Entre para aceitar o convite.');
     }
@@ -59,6 +78,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(email, password);
+      markLoginSeen();
       router.replace(redirectTo);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Erro ao fazer login');
@@ -66,6 +86,42 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  if (mode === 'pending') {
+    return <BrandBackground showLogo={false}><div className="min-h-dvh" /></BrandBackground>;
+  }
+
+  if (mode === 'choose') {
+    return (
+      <BrandBackground showLogo={false}>
+        <div className="flex flex-col items-center justify-center min-h-[calc(100dvh-40px)] w-full px-4 py-8 animate-fadeIn">
+          <div className="w-full max-w-sm flex flex-col items-center mb-10 animate-scaleIn">
+            <PetmolTextLogo className="text-6xl drop-shadow-3xl" />
+          </div>
+          <div className="bg-white/95 backdrop-blur-xl rounded-[40px] shadow-premium border border-white/60 w-full max-w-md p-8 md:p-10 animate-scaleIn text-center">
+            <h2 className="text-2xl font-black text-slate-800 tracking-tight">Bem-vindo ao PETMOL</h2>
+            <p className="mt-2 text-slate-500 text-sm font-medium">
+              Cadastre seu pet em menos de 1 minuto e receba os lembretes na hora certa.
+            </p>
+            <Link
+              href={registerHref}
+              onClick={markLoginSeen}
+              className="mt-8 block w-full bg-gradient-to-r from-[#0066ff] to-[#0056D2] text-white font-black py-4 rounded-2xl text-center transition-all active:scale-[0.98]"
+            >
+              Criar minha conta
+            </Link>
+            <button
+              type="button"
+              onClick={() => { markLoginSeen(); setMode('form'); }}
+              className="mt-3 w-full rounded-2xl border border-slate-200 bg-white py-4 text-sm font-bold text-slate-600 active:bg-slate-50"
+            >
+              Já tenho conta
+            </button>
+          </div>
+        </div>
+      </BrandBackground>
+    );
+  }
 
   return (
     <BrandBackground showLogo={false}>
