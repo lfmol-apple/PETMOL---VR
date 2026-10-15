@@ -60,6 +60,8 @@ def feeding_stage(plan: Optional[FeedingPlan]) -> str:
         return "sem_correspondencia"
     has_qty = plan.daily_amount_g is not None
     has_duration = plan.duration_days is not None or bool(plan.no_consumption_control)
+    # Manual (sem controle de consumo) continua aqui SEM quantidade diária de propósito: a duração dele costuma
+    # ser o padrão de 30 dias do cadastro rápido, não um dado real — ver feeding_fields_coverage.
     if not (has_qty and has_duration):
         return "sem_quantidade_duracao"
     if not plan.enabled:
@@ -170,6 +172,14 @@ def feeding_fields_coverage(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
             "estimavel_pacote_e_peso": pct(both_calc),
             "especie": {sp: sum(1 for pet, _ in pets if (pet.species or "").lower() == sp)
                         for sp in ("dog", "cat")},
+            # Duração mais repetida: se quase todo mundo tem 30, é o valor padrão do cadastro rápido
+            # (FoodControlTab quick_setup), não uma informação real do tutor.
+            "duracao_mais_comuns": [
+                {"dias": d, "pets": c} for d, c in sorted(
+                    ((d, sum(1 for _, plan in pets if plan.duration_days == d))
+                     for d in {plan.duration_days for _, plan in pets if plan.duration_days is not None}),
+                    key=lambda kv: -kv[1])[:5]
+            ],
         }
     return {"total_pets": len(rows), "stages": out}
 
