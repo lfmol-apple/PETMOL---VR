@@ -49,6 +49,9 @@ export type V1MetricEvent =
   // Entrada do app (download → cadastro): ver admin/analytics/entry_bi.py.
   // Nomes não podem terminar em "_view" (o backend renomeia para screen_view).
   | 'auth_screen_shown'
+  | 'food_second_chance_shown'
+  | 'food_second_chance_click'
+  | 'food_second_chance_dismiss'
   | 'auth_choice_register'
   | 'auth_choice_login'
   | 'register_failed'

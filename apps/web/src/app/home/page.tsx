@@ -76,6 +76,8 @@ import { commonVaccines } from '@/data/vaccineInfo';
 
 import { hasCompletedOnboarding, getOwnerProfile } from '@/lib/ownerProfile';
 import { hasFoodData, isOnboardingActiveFlag, readOnboardingStore } from '@/lib/onboardingProgress';
+import { FoodSecondChanceCard } from '@/components/home/FoodSecondChanceCard';
+import { readSecondChance, shouldShowSecondChance } from '@/components/home/foodSecondChance';
 import { needsLeishmaniaseAwareness } from '@/lib/leishmaniaseAwareness';
 import { API_BACKEND_BASE, API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
@@ -1072,6 +1074,8 @@ function HomePageInner() {
 const [showVaccineSheet, setShowVaccineSheet] = useState(false);
   const [showMedicationSheet, setShowMedicationSheet] = useState(false);
   const [showFoodSheet, setShowFoodSheet] = useState(false);
+  // força recalcular a "segunda chance" da ração depois que o cartão é usado/dispensado (libera o pedido de avisos)
+  const [, setSecondChanceTick] = useState(0);
   const [foodSheetInitialMode, setFoodSheetInitialMode] = useState<'view' | 'buy'>('view');
   const [vaccineSheetInitialMode, setVaccineSheetInitialMode] = useState<'view' | 'buy'>('view');
   const [vaccineFormJustSaved, setVaccineFormJustSaved] = useState(false);
@@ -2433,15 +2437,42 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                   />
                   )}
 
-                  {/* "Segunda chance" pra contas já existentes antes do
-                      pedido de permissão virar parte do onboarding — só
-                      depois que o onboarding do novato (acima) terminou/não
-                      se aplica, senão pediríamos a mesma coisa duas vezes. */}
-                  {!isOnboardingActiveFlag() && (
-                    <div className="px-1.5 pb-1.5 min-[390px]:px-2.5 sm:px-4">
-                      <PermissionsNudgeCard hasPet={pets.length > 0} />
-                    </div>
-                  )}
+                  {/* Segunda chance da RAÇÃO (15/10/2026): quem escolheu "depois" no onboarding nunca mais era
+                      perguntado, mas muitos voltam ao app. Cartão discreto, no máximo 3 vezes, 7 dias de pausa.
+                      UM pedido de cada vez: enquanto o cartão da ração está na tela, o pedido de avisos espera —
+                      dois pedidos empilhados fazem a pessoa dispensar os dois. */}
+                  {(() => {
+                    const petId = currentPet.pet_id;
+                    const secondChanceOn = feedingPlanAttempted.has(petId) && shouldShowSecondChance({
+                      hasFoodData: hasFoodData(feedingPlan[petId] ?? null),
+                      onboardingFood: readOnboardingStore(petId).food,
+                      state: readSecondChance(petId),
+                    });
+                    return (
+                      <>
+                        {secondChanceOn && (
+                          <FoodSecondChanceCard
+                            petId={petId}
+                            petName={currentPet.pet_name}
+                            hasFoodData={hasFoodData(feedingPlan[petId] ?? null)}
+                            onboardingFood={readOnboardingStore(petId).food}
+                            onRegister={handleOpenFood}
+                            onResolved={() => setSecondChanceTick((n) => n + 1)}
+                          />
+                        )}
+
+                        {/* "Segunda chance" pra contas já existentes antes do
+                            pedido de permissão virar parte do onboarding — só
+                            depois que o onboarding do novato (acima) terminou/não
+                            se aplica, senão pediríamos a mesma coisa duas vezes. */}
+                        {!isOnboardingActiveFlag() && !secondChanceOn && (
+                          <div className="px-1.5 pb-1.5 min-[390px]:px-2.5 sm:px-4">
+                            <PermissionsNudgeCard hasPet={pets.length > 0} />
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
 
                   <PetTabs
                     pets={pets.map(p => ({
