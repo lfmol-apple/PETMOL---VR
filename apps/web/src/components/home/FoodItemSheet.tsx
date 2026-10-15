@@ -910,6 +910,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                 <FoodControlTab
                   petId={pet.pet_id} petName={pet.pet_name}
                   species={(pet.species as 'dog' | 'cat') || 'dog'}
+                  petWeightKg={(() => { const w = pet.weight_history?.[0]; return w ? (w.weight_unit === 'lb' ? w.weight * 0.4536 : w.weight) : null; })()}
                   formRequest={formRequest}
                   embedded
                   hideInternalHeader
