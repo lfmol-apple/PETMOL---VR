@@ -92,3 +92,20 @@ def test_users_list_exposes_account_data_and_first_campaign(client):
     assert row["login_methods"] == ["senha"]
     assert row["origin_campaign"] == "instagram_out"
     assert row["first_seen"]
+
+
+def test_users_list_falls_back_to_ip_city_when_no_declared_address(client):
+    headers = _admin_headers()
+    uid, _ = _tutor()
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter(User.id == uid).first()
+        u.city, u.state = None, None                      # tutor não declarou endereço
+        db.add(AnalyticsProductEvent(event_id=f"ip-{uuid4().hex[:6]}", event_name="app_open", user_id=uid,
+                                      city="Osasco", region="São Paulo", received_at=NOW - timedelta(hours=2)))
+        db.commit()
+    finally:
+        db.close()
+    r = client.get("/v1/admin/analytics/users?search=Tutora", headers=headers)
+    row = next(i for i in r.json()["items"] if i["user_id"] == uid)
+    assert (row["ip_city"], row["ip_region"]) == ("Osasco", "São Paulo")

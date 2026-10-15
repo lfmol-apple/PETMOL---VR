@@ -21,7 +21,7 @@ const row = {
   location_source: null, location_shared: false, location_updated_at: null, location_fresh: false,
   phone: '11999990000', whatsapp: true, neighborhood: null, country: 'BR', login_methods: ['senha'],
   terms_accepted: true, terms_version: '1.0', terms_accepted_at: null, checkin_day: 1, checkin_hour: 20,
-  first_seen: null, origin_campaign: 'instagram_out', origin_source: 'instagram',
+  first_seen: null, ip_city: 'Osasco', ip_region: 'São Paulo', origin_campaign: 'instagram_out', origin_source: 'instagram',
 };
 
 import { TutorsSection } from './TutorsSection';
@@ -43,6 +43,8 @@ describe('TutorsSection', () => {
     render(<TutorsSection filter={{}} />);
     await waitFor(() => expect(screen.getByText('instagram_out')).toBeTruthy());
     expect(screen.getByText('11999990000')).toBeTruthy();
+    // sem endereço declarado (city/state existem no mock, então o declarado vence); sem chips de e-mail/termos
+    expect(screen.queryByText(/e-mail verificado|e-mail não verificado|termos/)).toBeNull();
 
     fireEvent.click(screen.getByText('Editar'));
     const nameInput = await screen.findByDisplayValue('Karen');
@@ -53,5 +55,18 @@ describe('TutorsSection', () => {
     const patch = calls.find((c) => c.init?.method === 'PATCH');
     expect(patch?.url).toContain('/api/v1/admin/accounts/u1');
     expect(JSON.parse(String(patch?.init?.body))).toEqual({ name: 'Karen Reis' });
+  });
+});
+
+
+describe('TutorsSection — local pelo IP', () => {
+  it('sem endereço declarado, mostra a cidade do acesso com a marca "pelo acesso (IP)"', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true, status: 200,
+      json: async () => ({ total: 1, page: 1, page_size: 50, items: [{ ...row, city: null, state: null }] }),
+    } as Response)));
+    render(<TutorsSection filter={{}} />);
+    await waitFor(() => expect(screen.getByText('Osasco / São Paulo')).toBeTruthy());
+    expect(screen.getByText('pelo acesso (IP)')).toBeTruthy();
   });
 });

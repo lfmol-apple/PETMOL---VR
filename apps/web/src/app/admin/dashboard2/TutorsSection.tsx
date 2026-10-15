@@ -13,6 +13,7 @@ import {
 } from '@/lib/admin/tutorsApi';
 import { Pagination, fmtDateTime } from '@/components/admin/DataTable';
 import { ErrorBox, Loading, PetAvatarStack, numberFmt, useAsync } from '@/components/admin/sections/sections';
+import { PhotoLightboxProvider } from '@/components/admin/PhotoLightbox';
 
 type Tri = '' | 'yes' | 'no';
 interface Extra {
@@ -67,6 +68,7 @@ export function TutorsSection({ filter, preset }: { filter: GlobalFilter; preset
   const sel = 'rounded-md border border-slate-200 bg-white px-2 py-1 text-[12px]';
 
   return (
+    <PhotoLightboxProvider>
     <section id="tutores" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <h2 className="text-[15px] font-extrabold text-slate-800">Tutores</h2>
       <p className="mb-3 mt-0.5 text-[12px] text-slate-500">
@@ -148,6 +150,7 @@ export function TutorsSection({ filter, preset }: { filter: GlobalFilter; preset
         />
       )}
     </section>
+    </PhotoLightboxProvider>
   );
 }
 
@@ -157,8 +160,11 @@ function Chip({ tone, children }: { tone: 'good' | 'warn' | 'muted'; children: R
 }
 
 function TutorRowView({ u, onEdit }: { u: TutorRow; onEdit: () => void }) {
-  const place = [u.neighborhood, u.city && u.state ? `${u.city} / ${u.state}` : u.city || u.state, u.country && u.country !== 'BR' && u.country !== 'Brasil' ? u.country : null]
-    .filter(Boolean).join(' · ');
+  const declared = [u.neighborhood, u.city && u.state ? `${u.city} / ${u.state}` : u.city || u.state,
+    u.country && u.country !== 'BR' && u.country !== 'Brasil' ? u.country : null].filter(Boolean).join(' · ');
+  // Sem endereço informado, vale o local do acesso (IP): é de onde a pessoa abriu o app.
+  const byIp = [u.ip_city, u.ip_region].filter(Boolean).join(' / ');
+  const place = declared || byIp;
   return (
     <tr className="border-t border-slate-100 align-top">
       <td className="py-2 pr-3">
@@ -178,12 +184,13 @@ function TutorRowView({ u, onEdit }: { u: TutorRow; onEdit: () => void }) {
           ? <><div className="font-semibold text-slate-700">{u.origin_campaign}</div><div className="text-[11px] text-slate-400">{u.origin_source || ''}</div></>
           : <span className="text-slate-300">orgânico / sem origem</span>}
       </td>
-      <td className="px-2 text-slate-600">{place || <span className="text-slate-300">—</span>}</td>
+      <td className="px-2 text-slate-600">
+        {place || <span className="text-slate-300">—</span>}
+        {!declared && byIp && <div className="text-[11px] text-slate-400">pelo acesso (IP)</div>}
+      </td>
       <td className="px-2">
         <div className="flex flex-wrap gap-1">
           {u.login_methods.map((m) => <Chip key={m} tone="muted">{m}</Chip>)}
-          <Chip tone={u.email_verified ? 'good' : 'warn'}>{u.email_verified ? 'e-mail verificado' : 'e-mail não verificado'}</Chip>
-          <Chip tone={u.terms_accepted ? 'good' : 'warn'}>{u.terms_accepted ? `termos ${u.terms_version || ''}`.trim() : 'sem aceite dos termos'}</Chip>
         </div>
       </td>
       <td className="px-2 whitespace-nowrap">

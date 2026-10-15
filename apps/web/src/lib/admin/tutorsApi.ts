@@ -14,6 +14,8 @@ export interface TutorRow extends UserRow {
   checkin_day: number | null;
   checkin_hour: number | null;
   first_seen: string | null;
+  ip_city: string | null;
+  ip_region: string | null;
   origin_campaign: string | null;
   origin_source: string | null;
 }
