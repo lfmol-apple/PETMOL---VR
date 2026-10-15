@@ -16,11 +16,31 @@ export interface GrowthLeak {
 export interface GrowthPlatformRow {
   platform: 'ios' | 'android' | 'pwa' | 'web';
   acessos: number; downloads: number; cadastros: number; pet: number; feeding: number;
+  push: number; location: number; complete: number;
 }
 
 export interface GrowthSeriesPoint { date: string; acessos: number; downloads: number; cadastros: number }
 
+export type ActivationKey = 'pet' | 'feeding' | 'push' | 'location';
+export interface ActivationItem {
+  key: ActivationKey; label: string; n: number; pct: number | null;
+  missing: number; only_missing: number; where_to_act: string;
+}
+/** Meta do PETMOL: pet + ração + notificação + localização, entre quem se cadastrou. */
+export interface GrowthActivation {
+  total: number; complete: number; complete_pct: number | null;
+  items: ActivationItem[]; weakest: ActivationKey | null;
+  missing_distribution: Record<string, number>;
+}
+
+export interface CampaignActivationRow {
+  name: string; cadastros: number; pet: number; feeding: number;
+  push: number; location: number; complete: number;
+}
+
 export interface GrowthResponse {
+  activation: GrowthActivation;
+  campaigns_activation: CampaignActivationRow[];
   generated_at: string;
   steps: GrowthStep[];
   extra_steps: GrowthStep[];

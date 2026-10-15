@@ -996,6 +996,7 @@ def list_users(
     location: Optional[str] = None, has_pet: Optional[str] = None,
     has_feeding: Optional[str] = None, activity: Optional[str] = None,
     email_verified: Optional[str] = None,
+    activated: Optional[str] = None, missing: Optional[str] = None,
 ) -> dict[str, Any]:
     now = _utcnow()
     page = max(1, page)
@@ -1055,6 +1056,22 @@ def list_users(
         feeding_ids = _feeding_configured_pet_ids(db)
         feeding_exists = db.query(Pet.id).filter(Pet.user_id == User.id, Pet.id.in_(feeding_ids or {"__none__"})).exists()
         q = q.filter(feeding_exists if has_feeding == "yes" else ~feeding_exists)
+    # Meta do PETMOL: tutor com pet + ração + notificação + localização (GPS).
+    if activated or missing:
+        feeding_ids_all = _feeding_configured_pet_ids(db)
+        conds = {
+            "pet": db.query(Pet.id).filter(Pet.user_id == User.id).exists(),
+            "feeding": db.query(Pet.id).filter(
+                Pet.user_id == User.id, Pet.id.in_(feeding_ids_all or {"__none__"})).exists(),
+            "push": permissions_bi.has_any_push(User.id),
+            "location": permissions_bi.shares_location(),
+        }
+        if activated == "yes":
+            q = q.filter(and_(*conds.values()))
+        elif activated == "no":
+            q = q.filter(~and_(*conds.values()))
+        if missing in conds:
+            q = q.filter(~conds[missing])
     if email_verified == "yes":
         q = q.filter(User.email_verified.is_(True))
     elif email_verified == "no":
@@ -1114,6 +1131,22 @@ def list_users(
             latest_meta.setdefault(uid, {
                 "platform": plat, "os": os_, "device_class": dclass, "app_version": ver,
             })
+    # Origem de cada tutor = 1º evento dele que carregou campanha (utm). Vazio
+    # = orgânico/direto ou sem atribuição — nunca inventamos uma origem.
+    first_seen_at: dict[str, Any] = {}
+    origin: dict[str, tuple[Optional[str], Optional[str]]] = {}
+    if uids:
+        for uid, ts in (
+            db.query(AnalyticsProductEvent.user_id, func.min(AnalyticsProductEvent.received_at))
+            .filter(AnalyticsProductEvent.user_id.in_(uids)).group_by(AnalyticsProductEvent.user_id).all()
+        ):
+            first_seen_at[uid] = ts
+        for uid, camp, src in (
+            db.query(AnalyticsProductEvent.user_id, AnalyticsProductEvent.utm_campaign, AnalyticsProductEvent.utm_source)
+            .filter(AnalyticsProductEvent.user_id.in_(uids), AnalyticsProductEvent.utm_campaign.isnot(None))
+            .order_by(AnalyticsProductEvent.received_at.asc()).all()
+        ):
+            origin.setdefault(uid, (camp, src))
     perm_devices = permissions_bi.devices_by_user(db, uids)
     fresh_cutoff = now - timedelta(days=permissions_bi.FRESH_LOCATION_DAYS)
     pet_ids_by_user = defaultdict(list)
@@ -1158,6 +1191,22 @@ def list_users(
             "city": u.city,
             "state": u.state,
             "email_verified": bool(u.email_verified),
+            # dados de conta (painel admin do dono — o BI antes só mostrava "tem/não tem")
+            "phone": u.phone,
+            "whatsapp": bool(u.whatsapp),
+            "neighborhood": u.neighborhood,
+            "country": u.country,
+            "login_methods": [m for m, on in (("senha", bool(u.password_hash)),
+                                              ("google", bool(u.google_sub)),
+                                              ("apple", bool(u.apple_sub))) if on],
+            "terms_accepted": bool(u.terms_accepted),
+            "terms_version": u.terms_version,
+            "terms_accepted_at": _iso(u.terms_accepted_at),
+            "checkin_day": u.monthly_checkin_day,
+            "checkin_hour": u.monthly_checkin_hour,
+            "first_seen": _iso(_aware(first_seen_at.get(u.id))),
+            "origin_campaign": origin.get(u.id, (None, None))[0],
+            "origin_source": origin.get(u.id, (None, None))[1],
             **_permission_fields(u, perm_devices.get(u.id, []), fresh_cutoff),
         })
 

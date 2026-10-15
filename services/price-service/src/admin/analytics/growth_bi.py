@@ -30,7 +30,9 @@ from sqlalchemy.orm import Session
 from ...analytics.install_models import AppInstall, DOWNLOAD_PLATFORMS, install_count_cutoff
 from ...analytics.models import AnalyticsProductEvent
 from ...user_auth.models import User
+from . import campaign_bi
 from . import journey_bi
+from . import permissions_bi
 from .filters import AnalyticsFilters, PLATFORM_GROUPS, platform_clause
 from .queries import _aware, _utcnow
 
@@ -39,6 +41,18 @@ _ANCHORS = ("app_open", "session_start")
 _CHUNK = 400  # SQLite limita ~999 variáveis por consulta
 _PLATFORMS = ("ios", "android", "pwa", "web")
 _SERIES_MAX_DAYS = 120
+
+# Onde mexer quando falta cada parte da meta de ativação.
+_ACTIVATION_HINT = {
+    "pet": "Onboarding: o primeiro pet logo depois do cadastro (tela de boas-vindas).",
+    "feeding": "Cadastro da ração: lembrar e facilitar para quem já tem pet.",
+    "push": "Pedido de notificação: momento e texto da permissão (explicar o benefício).",
+    "location": "Pedido de localização (GPS): momento e texto, ligado ao Pet Sumido.",
+}
+_ACTIVATION_LABEL = {
+    "pet": "Cadastraram o pet", "feeding": "Configuraram a ração",
+    "push": "Ativaram notificações", "location": "Compartilham a localização (GPS)",
+}
 
 # Onde mexer quando a passagem [de → para] é o maior vazamento.
 _WHERE_TO_ACT = {
@@ -182,6 +196,58 @@ def growth_funnel(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
         k: set() for k, _ in journey_bi.STEPS
     }
 
+    # ── meta de ativação: pet + ração + notificação + localização ─────────
+    push_set: set[str] = set()
+    gps_set: set[str] = set()
+    if cohort:
+        ids = list(cohort)
+        for chunk in _chunks(ids):
+            push_set.update(r[0] for r in db.query(User.id).filter(
+                User.id.in_(chunk), permissions_bi.has_any_push(User.id)).all())
+            gps_set.update(r[0] for r in db.query(User.id).filter(
+                User.id.in_(chunk), permissions_bi.shares_location()).all())
+    parts = {"pet": sets["pet"], "feeding": sets["feeding"], "push": push_set, "location": gps_set}
+    complete = cohort & parts["pet"] & parts["feeding"] & parts["push"] & parts["location"]
+    n_cohort = len(cohort)
+    missing_count: dict[int, int] = defaultdict(int)
+    only_missing: dict[str, int] = defaultdict(int)
+    for uid in cohort:
+        lacks = [k for k, st in parts.items() if uid not in st]
+        missing_count[len(lacks)] += 1
+        if len(lacks) == 1:
+            only_missing[lacks[0]] += 1
+    activation_items = [
+        {"key": k, "label": _ACTIVATION_LABEL[k], "n": len(parts[k]),
+         "pct": round(len(parts[k]) / n_cohort, 4) if n_cohort else None,
+         "missing": n_cohort - len(parts[k]), "only_missing": only_missing.get(k, 0),
+         "where_to_act": _ACTIVATION_HINT[k]}
+        for k in parts
+    ]
+    weakest = min((i for i in activation_items if i["pct"] is not None), key=lambda i: i["pct"], default=None)
+    activation = {
+        "total": n_cohort,
+        "complete": len(complete),
+        "complete_pct": round(len(complete) / n_cohort, 4) if n_cohort else None,
+        "items": activation_items,
+        "weakest": weakest["key"] if weakest else None,
+        "missing_distribution": {str(k): v for k, v in sorted(missing_count.items())},
+    }
+
+    # ── meta de ativação por campanha de origem ───────────────────────────
+    origins = campaign_bi.signup_origins_by_user(db, since, until, f.platform) if cohort else {}
+    camp: dict[str, dict[str, Any]] = {}
+    for uid in cohort:
+        name = (origins.get(uid) or (campaign_bi.UNTRACKED, None, None))[0]
+        slot = camp.setdefault(name.lower(), {"name": name, "cadastros": 0, "pet": 0, "feeding": 0,
+                                               "push": 0, "location": 0, "complete": 0})
+        slot["cadastros"] += 1
+        for key, st in parts.items():
+            if uid in st:
+                slot[key] += 1
+        if uid in complete:
+            slot["complete"] += 1
+    campaigns_activation = sorted(camp.values(), key=lambda c: -c["cadastros"])[:15]
+
     n_acessos = len(sessions)
     n_visitantes = len({ident for _, ident, _, _ in sessions if ident})
     n_downloads = len(installs)
@@ -230,9 +296,16 @@ def growth_funnel(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
                         by_plat[plat]["pet"] += 1
                     if uid in sets["feeding"]:
                         by_plat[plat]["feeding"] += 1
+                    if uid in push_set:
+                        by_plat[plat]["push"] += 1
+                    if uid in gps_set:
+                        by_plat[plat]["location"] += 1
+                    if uid in complete:
+                        by_plat[plat]["complete"] += 1
     platforms = [
         {"platform": p, "acessos": v["acessos"], "downloads": v["downloads"],
-         "cadastros": v["cadastros"], "pet": v["pet"], "feeding": v["feeding"]}
+         "cadastros": v["cadastros"], "pet": v["pet"], "feeding": v["feeding"],
+         "push": v["push"], "location": v["location"], "complete": v["complete"]}
         for p, v in by_plat.items()
     ]
 
@@ -266,6 +339,8 @@ def growth_funnel(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
         "steps": steps,
         "extra_steps": extra,
         "visitantes_unicos": n_visitantes,
+        "activation": activation,
+        "campaigns_activation": campaigns_activation,
         "biggest_leak": _biggest_leak(steps),
         "platforms": platforms,
         "series": series,
