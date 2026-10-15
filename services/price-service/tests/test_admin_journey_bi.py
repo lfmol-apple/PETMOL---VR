@@ -137,3 +137,25 @@ def test_journey_step_population_unknown_step_404s(client):
     headers = _admin_headers()
     r = client.get("/v1/admin/analytics/journey-funnel/nao-existe/population", headers=headers)
     assert r.status_code == 404
+
+
+def test_feeding_fields_coverage_mostra_o_que_existe_por_dentro(client):
+    from src.health.models import FeedingPlan
+    headers = _admin_headers()
+    db = SessionLocal()
+    try:
+        u = User(email=f"ff-{uuid4().hex[:8]}@example.com", password_hash=hash_password("x"), name="Fabi")
+        db.add(u); db.commit()
+        # tem produto casado (GTIN), pacote e peso — falta só quantidade/duração: dá para estimar sozinho
+        pet = Pet(user_id=u.id, name="Bolt", species="dog", weight_value=12.0, weight_unit="kg")
+        db.add(pet); db.commit()
+        db.add(FeedingPlan(pet_id=pet.id, species="dog", country_code="BR", food_brand="Golden",
+                           package_size_kg=10.1, items_json='[{"gtin":"789"}]'))
+        db.commit()
+    finally:
+        db.close()
+    r = client.get("/v1/admin/analytics/feeding-funnel/fields", headers=headers)
+    assert r.status_code == 200, r.text
+    st = r.json()["stages"]["sem_quantidade_duracao"]
+    assert st["pets"] >= 1 and st["com_tamanho_pacote"]["n"] >= 1 and st["com_peso_do_pet"]["n"] >= 1
+    assert st["estimavel_pacote_e_peso"]["n"] >= 1 and st["especie"]["dog"] >= 1
