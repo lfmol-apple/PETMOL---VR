@@ -52,6 +52,24 @@ def _block(title: str, body: str) -> str:
     return (f"<h3 style='margin:22px 0 6px;font-size:14px;color:#0056D2'>{title}</h3>{body}")
 
 
+def _insights_html(ins: dict[str, Any]) -> str:
+    g = ins["goal"]
+    head = (f"<p style='margin:0 0 6px;font-size:13px'>Meta completa (pet + ração + notificação + localização): "
+            f"<b>{g['complete']} de {g['total']}</b> tutores"
+            + (f" ({round(g['pct'] * 100)}%)" if g["pct"] is not None else "") + ".</p>")
+    items = "".join(
+        f"<li style='margin:8px 0'><b>{_html.escape(r['title'])}</b><br>"
+        f"<span style='color:#4b5563'>{_html.escape(r['evidence'])}</span><br>"
+        f"<span style='color:#0056D2'>→ {_html.escape(r['action'])}</span> "
+        f"<span style='color:#9ca3af;font-size:11px'>(confiança {r['confidence']})</span></li>"
+        for r in ins["recommendations"]
+    ) or "<li style='color:#6b7280'>Sem recomendação com dados suficientes hoje.</li>"
+    m = ins.get("model") or {}
+    foot = ("" if m.get("usable") else
+            f"<p style='margin:6px 0 0;font-size:11px;color:#9ca3af'>Modelo de previsão ainda não ativo: {_html.escape(m.get('reason', 'dados insuficientes'))}.</p>")
+    return _block("O que fazer hoje", head + f"<ol style='margin:0;padding-left:18px;font-size:13px'>{items}</ol>" + foot)
+
+
 def render(brief: dict[str, Any], *, app_url: str, audience: str = "admin") -> tuple[str, str, str]:
     """audience="admin": boletim completo (atenção, sugestão, link do painel).
     audience="partner": só os números e o ranking — quem recebe não tem acesso ao painel."""
@@ -71,6 +89,10 @@ def render(brief: dict[str, Any], *, app_url: str, audience: str = "admin") -> t
         "<p style='margin:0 0 8px;color:#6b7280;font-size:12px'>Dia fechado (00:00–24:00, horário de Brasília)</p>",
         f"<table style='width:100%;border-collapse:collapse;font-size:14px'>{_metric_rows_html(brief)}</table>",
     ]
+
+    insights = brief.get("insights")
+    if insights:
+        parts.append(_insights_html(insights))
 
     funnel = brief["funnel"]
     parts.append(_block("Funil do dia", "<p style='margin:0;font-size:14px'>" + " → ".join(
@@ -144,6 +166,15 @@ def render(brief: dict[str, Any], *, app_url: str, audience: str = "admin") -> t
     for key in ("downloads", "cadastros_completos", "racao_primeira", "notificacao_primeira", "cadastros", "ativos"):
         x = m[key]
         lines.append(f"{x['label']}: {x['value']}  (dia anterior {_delta_text(x['delta_prev_pct'])}, média 7d {_delta_text(x['delta_avg7_pct'])})")
+    ins = brief.get("insights")
+    if ins:
+        g = ins["goal"]
+        lines += ["", f"O QUE FAZER HOJE — meta completa: {g['complete']} de {g['total']} tutores"
+                  + (f" ({round(g['pct'] * 100)}%)" if g["pct"] is not None else "")]
+        for i, r in enumerate(ins["recommendations"], 1):
+            lines += [f"  {i}. {r['title']}", f"     {r['evidence']}", f"     -> {r['action']} (confiança {r['confidence']})"]
+        if not ins["recommendations"]:
+            lines.append("  Sem recomendação com dados suficientes hoje.")
     lines += ["", "Funil: " + " → ".join(f"{f['n']} {f['label'].lower()}" for f in funnel)]
     if brief["campaigns"]:
         lines += ["", "Campanhas:"] + [f"  {c['utm_campaign']} ({c['utm_source']}): {c['downloads']} downloads, {c['acessos']} acessos" for c in brief["campaigns"]]
@@ -191,6 +222,16 @@ def send_daily_brief(day: Optional[date] = None) -> bool:
         brief = briefing_bi.build_brief(db, day)
     finally:
         db.close()
+    # "O que fazer hoje": leitura dos dados + modelo. Se falhar, o boletim sai igual, sem o bloco.
+    try:
+        from ..admin.analytics import insights_bi
+        db = SessionLocal()
+        try:
+            brief["insights"] = insights_bi.recommendations(db)
+        finally:
+            db.close()
+    except Exception:
+        logger.exception("[daily-brief] insights falhou; boletim sai sem o bloco")
     app_url = settings.frontend_url.rstrip("/")
     subject, text, html_body = render(brief, app_url=app_url)
     ok = send_mail(to=settings.admin_master_email, subject=subject, body_text=text, body_html=html_body)
