@@ -159,3 +159,15 @@ def test_feeding_fields_coverage_mostra_o_que_existe_por_dentro(client):
     st = r.json()["stages"]["sem_quantidade_duracao"]
     assert st["pets"] >= 1 and st["com_tamanho_pacote"]["n"] >= 1 and st["com_peso_do_pet"]["n"] >= 1
     assert st["estimavel_pacote_e_peso"]["n"] >= 1 and st["especie"]["dog"] >= 1
+
+
+def test_funil_racao_modo_manual_conta_como_controle_ativo():
+    from src.admin.analytics.feeding_bi import feeding_stage
+    from src.health.models import FeedingPlan
+    base = dict(pet_id="p", species="dog", country_code="BR", food_brand="Golden", items_json='[{"gtin":"789"}]', enabled=True)
+    manual = FeedingPlan(**base, no_consumption_control=True, duration_days=30)          # sem quantidade diária, de propósito
+    assert feeding_stage(manual) == "controle_ativo"
+    incompleto = FeedingPlan(**base, no_consumption_control=False)                        # nem quantidade nem duração
+    assert feeding_stage(incompleto) == "sem_quantidade_duracao"
+    automatico = FeedingPlan(**base, no_consumption_control=False, daily_amount_g=200.0, duration_days=30)
+    assert feeding_stage(automatico) == "controle_ativo"
