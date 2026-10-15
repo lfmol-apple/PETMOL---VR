@@ -159,6 +159,7 @@ def test_feeding_fields_coverage_mostra_o_que_existe_por_dentro(client):
     st = r.json()["stages"]["sem_quantidade_duracao"]
     assert st["pets"] >= 1 and st["com_tamanho_pacote"]["n"] >= 1 and st["com_peso_do_pet"]["n"] >= 1
     assert st["estimavel_pacote_e_peso"]["n"] >= 1 and st["especie"]["dog"] >= 1
+    assert isinstance(st["duracao_mais_comuns"], list)
 
 
 def test_funil_racao_modo_manual_conta_como_controle_ativo():

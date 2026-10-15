@@ -174,6 +174,14 @@ def feeding_fields_coverage(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
             "estimavel_pacote_e_peso": pct(both_calc),
             "especie": {sp: sum(1 for pet, _ in pets if (pet.species or "").lower() == sp)
                         for sp in ("dog", "cat")},
+            # Duração mais repetida: se quase todo mundo tem 30, é o valor padrão do cadastro rápido
+            # (FoodControlTab quick_setup), não uma informação real do tutor.
+            "duracao_mais_comuns": [
+                {"dias": d, "pets": c} for d, c in sorted(
+                    ((d, sum(1 for _, plan in pets if plan.duration_days == d))
+                     for d in {plan.duration_days for _, plan in pets if plan.duration_days is not None}),
+                    key=lambda kv: -kv[1])[:5]
+            ],
         }
     return {"total_pets": len(rows), "stages": out}
 
