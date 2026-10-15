@@ -559,7 +559,7 @@ function CampaignsPanel() {
   ] : [];
 
   return (
-    <Card title="Campanhas de ativação"
+    <div id="campanhas"><Card title="Campanhas de ativação"
       subtitle="Disparar e acompanhar com o seu login. Cada pessoa recebe no máximo 1 mensagem por semana e quem pediu para parar nunca entra.">
       {loading && !data ? <Loading /> : error || !data ? <ErrorBox msg={error} /> : (
         <>
@@ -611,7 +611,7 @@ function CampaignsPanel() {
           {msg && <p className="mt-3 text-[12px] font-semibold text-rose-600">{msg}</p>}
         </>
       )}
-    </Card>
+    </Card></div>
   );
 }
 
