@@ -2862,6 +2862,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           onSaved={handleFoodSaved}
           initialMode={foodSheetInitialMode}
           racaoEventId={petEvents.find((e) => e.type === 'racao')?.id ?? null}
+          initialPlan={feedingPlan[currentPet.pet_id] ?? null}
         />
       )}
 
