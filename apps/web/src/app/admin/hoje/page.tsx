@@ -15,7 +15,7 @@ import { getToken } from '@/lib/auth-token';
 import type { CampaignsPanelSummary, GrowthResponse } from '@/lib/admin/growthApi';
 import { pct, type GrowthPlatformRow } from '@/lib/admin/growthApi';
 import { useAsync, Loading, ErrorBox, numberFmt } from '@/components/admin/sections/sections';
-import { spStartOfToday } from '@/lib/analytics/spTime';
+import { spStartOfToday, spYesterdayRange } from '@/lib/analytics/spTime';
 
 interface Insights {
   goal: { total: number; complete: number; pct: number | null };
@@ -32,6 +32,11 @@ export default function HojePage() {
   const week = useAsync<GrowthResponse>(() => adminGet('/growth', { period_days: 7 }), [], { intervalMs: 60000 });
   const today = useAsync<GrowthResponse>(
     () => adminGet('/growth', { since: spStartOfToday(new Date()).toISOString() }), [], { intervalMs: 60000 });
+  // Ontem, o dia INTEIRO (pedido do dono): hoje ainda está em andamento, ontem já fechou.
+  const yesterday = useAsync<GrowthResponse>(() => {
+    const { start, end } = spYesterdayRange(new Date());
+    return adminGet('/growth', { since: start.toISOString(), until: end.toISOString() });
+  }, [], { intervalMs: 300000 });
   const insights = useAsync<Insights>(() => adminGet('/insights'), [], { intervalMs: 300000 });
   const campaigns = useAsync<CampaignsPanelSummary>(async () => {
     const res = await fetch('/api/v1/admin/campaigns/panel/summary', {
@@ -47,6 +52,7 @@ export default function HojePage() {
   const a = week.data?.activation;
   const step = (g: GrowthResponse | null, key: string) => g?.steps.find((s) => s.key === key)?.n ?? 0;
   const todayData = today.data;
+  const yesterdayData = yesterday.data;
 
   return (
     <PremiumScreenShell title="Hoje" subtitle="O essencial, sem filtros" hideBack wide
@@ -85,16 +91,22 @@ export default function HojePage() {
           <p className="text-[12px] font-bold uppercase tracking-wide text-[#0056D2]">2 · O que aconteceu hoje</p>
           {today.loading && !todayData ? <Loading /> : today.error || !todayData ? <ErrorBox msg={today.error} /> : (
             <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {[['Baixaram o app', step(todayData, 'downloads')], ['Se cadastraram', step(todayData, 'cadastros')],
-                ['Cadastraram o pet', step(todayData, 'pet')], ['Cadastraram a ração', step(todayData, 'feeding')]].map(([label, n]) => (
-                <div key={label as string} className="rounded-xl bg-slate-50 p-3 text-center">
-                  <p className="text-[26px] font-extrabold text-slate-900">{numberFmt(n as number)}</p>
-                  <p className="text-[12px] text-slate-500">{label}</p>
-                </div>
-              ))}
+              {[['Baixaram o app', 'downloads'], ['Se cadastraram', 'cadastros'],
+                ['Cadastraram o pet', 'pet'], ['Cadastraram a ração', 'feeding']].map(([label, key]) => {
+                const now = step(todayData, key);
+                const before = yesterdayData ? step(yesterdayData, key) : null;
+                return (
+                  <div key={key} className="rounded-xl bg-slate-50 p-3 text-center">
+                    <p className="text-[26px] font-extrabold text-slate-900">{numberFmt(now)}</p>
+                    <p className="text-[12px] text-slate-500">{label}</p>
+                    <Compare now={now} before={before} />
+                  </div>
+                );
+              })}
             </div>
           )}
-          {todayData && <DeviceBreakdown rows={todayData.platforms} />}
+          {todayData && <DeviceBreakdown rows={todayData.platforms} before={yesterdayData?.platforms ?? null} />}
+          <p className="mt-3 text-[11px] text-slate-400">Ontem é o dia inteiro; hoje ainda está em andamento, então o número de hoje continua subindo.</p>
         </section>
 
         {/* 3 — O que fazer */}
@@ -147,10 +159,9 @@ export default function HojePage() {
 }
 
 /** Hoje, por aparelho: iPhone, Android e "Outros" (app instalado pela tela de início e navegador). */
-function DeviceBreakdown({ rows }: { rows: GrowthPlatformRow[] }) {
-  const get = (p: GrowthPlatformRow['platform']) => rows.find((r) => r.platform === p);
-  const sum = (keys: GrowthPlatformRow['platform'][], field: 'downloads' | 'cadastros') =>
-    keys.reduce((total, k) => total + (get(k)?.[field] ?? 0), 0);
+function DeviceBreakdown({ rows, before }: { rows: GrowthPlatformRow[]; before: GrowthPlatformRow[] | null }) {
+  const pick = (list: GrowthPlatformRow[] | null, keys: GrowthPlatformRow['platform'][], field: 'downloads' | 'cadastros') =>
+    list ? keys.reduce((total, k) => total + (list.find((r) => r.platform === k)?.[field] ?? 0), 0) : null;
   const lines: { label: string; keys: GrowthPlatformRow['platform'][] }[] = [
     { label: 'iPhone', keys: ['ios'] },
     { label: 'Android', keys: ['android'] },
@@ -158,7 +169,7 @@ function DeviceBreakdown({ rows }: { rows: GrowthPlatformRow[] }) {
   ];
   return (
     <div className="mt-4 border-t border-slate-100 pt-3">
-      <p className="mb-2 text-[12px] font-bold text-slate-500">Por aparelho, hoje</p>
+      <p className="mb-2 text-[12px] font-bold text-slate-500">Por aparelho · hoje (ontem, dia inteiro, entre parênteses)</p>
       <table className="w-full text-[14px]">
         <thead>
           <tr className="text-left text-[11px] uppercase tracking-wide text-slate-400">
@@ -171,12 +182,33 @@ function DeviceBreakdown({ rows }: { rows: GrowthPlatformRow[] }) {
           {lines.map((l) => (
             <tr key={l.label} className="border-t border-slate-100">
               <td className="py-1.5 text-slate-700">{l.label}</td>
-              <td className="py-1.5 text-right font-bold text-slate-900">{numberFmt(sum(l.keys, 'downloads'))}</td>
-              <td className="py-1.5 text-right font-bold text-slate-900">{numberFmt(sum(l.keys, 'cadastros'))}</td>
+              {(['downloads', 'cadastros'] as const).map((f) => {
+                const prev = pick(before, l.keys, f);
+                return (
+                  <td key={f} className="py-1.5 text-right">
+                    <span className="font-bold text-slate-900">{numberFmt(pick(rows, l.keys, f) ?? 0)}</span>
+                    {prev != null && <span className="ml-1 text-[12px] text-slate-400">({numberFmt(prev)})</span>}
+                  </td>
+                );
+              })}
             </tr>
           ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** Hoje contra o dia inteiro de ontem: seta e diferença, verde quando sobe, vermelho quando cai. */
+function Compare({ now, before }: { now: number; before: number | null }) {
+  if (before == null) return <p className="mt-1 text-[11px] text-slate-300">comparando…</p>;
+  const diff = now - before;
+  const tone = diff > 0 ? 'text-emerald-600' : diff < 0 ? 'text-rose-600' : 'text-slate-400';
+  const arrow = diff > 0 ? '▲' : diff < 0 ? '▼' : '=';
+  return (
+    <p className={`mt-1 text-[12px] font-semibold ${tone}`}>
+      {arrow} {diff === 0 ? 'igual a ontem' : `${diff > 0 ? '+' : ''}${diff} vs ontem`}
+      <span className="font-normal text-slate-400"> (ontem {numberFmt(before)})</span>
+    </p>
   );
 }
