@@ -16,6 +16,7 @@ import {
   type GrowthPlatformRow, type GrowthResponse, type GrowthSeriesPoint, type GrowthStep,
 } from '@/lib/admin/growthApi';
 import { useAsync, Loading, ErrorBox, numberFmt } from '@/components/admin/sections/sections';
+import { TutorsSection } from './TutorsSection';
 import { fmtSpDate, spDayBounds, spStartOfToday, spYesterdayRange } from '@/lib/analytics/spTime';
 
 type PresetKey = '24h' | 'today' | 'yesterday' | '7d' | '30d' | '90d' | 'all' | 'custom';
@@ -103,6 +104,7 @@ export default function AdminDashboard2Page() {
           from={from} to={to} setFrom={setFrom} setTo={setTo} applyRange={applyRange}
         />
         <GrowthBody filter={filter} />
+        <TutorsSection filter={filter} />
       </div>
     </PremiumScreenShell>
   );

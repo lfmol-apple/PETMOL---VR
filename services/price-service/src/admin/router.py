@@ -6,11 +6,13 @@ NOTE on URLs in production:
 """
 
 import json
+import logging
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -648,6 +650,98 @@ def admin_update_user(
         data=UserOut(id=str(user.id), email=user.email, created_at=user.created_at,
                      email_verified=bool(user.email_verified)),
     )
+
+
+# ── Conta completa do tutor (Dashboard 2): ver e corrigir a pedido do usuário ──
+# Só o admin master edita (get_current_admin; a chave somente-leitura não passa).
+# Cada edição é registrada no log com quem editou e QUAIS campos mudaram — os
+# valores não vão pro log (são dados pessoais).
+
+_ACCOUNT_FIELDS = (
+    "name", "email", "phone", "whatsapp", "postal_code", "street", "number",
+    "complement", "neighborhood", "city", "state", "country", "email_verified",
+)
+
+
+class AccountEditRequest(BaseModel):
+    name: Optional[str] = Field(None, max_length=120)
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = Field(None, max_length=40)
+    whatsapp: Optional[bool] = None
+    postal_code: Optional[str] = Field(None, max_length=20)
+    street: Optional[str] = Field(None, max_length=160)
+    number: Optional[str] = Field(None, max_length=40)
+    complement: Optional[str] = Field(None, max_length=120)
+    neighborhood: Optional[str] = Field(None, max_length=120)
+    city: Optional[str] = Field(None, max_length=120)
+    state: Optional[str] = Field(None, max_length=40)
+    country: Optional[str] = Field(None, max_length=40)
+    email_verified: Optional[bool] = None
+
+
+def _account_dict(u: User) -> dict:
+    return {
+        "user_id": u.id,
+        **{f: getattr(u, f) for f in _ACCOUNT_FIELDS if f not in ("whatsapp", "email_verified")},
+        "whatsapp": bool(u.whatsapp),
+        "email_verified": bool(u.email_verified),
+        "terms_accepted": bool(u.terms_accepted),
+        "terms_version": u.terms_version,
+        "terms_accepted_at": u.terms_accepted_at,
+        "login_methods": [m for m, on in (("senha", bool(u.password_hash)),
+                                          ("google", bool(u.google_sub)),
+                                          ("apple", bool(u.apple_sub))) if on],
+        "lat": u.lat, "lng": u.lng, "location_source": u.location_source,
+        "location_updated_at": u.location_updated_at,
+        "monthly_checkin_day": u.monthly_checkin_day, "monthly_checkin_hour": u.monthly_checkin_hour,
+        "created_at": u.created_at, "updated_at": u.updated_at,
+    }
+
+
+@router.get("/accounts/{user_id}")
+def admin_get_account(user_id: str, db: Session = Depends(get_db), current=Depends(get_current_admin)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado")
+    return _account_dict(user)
+
+
+@router.patch("/accounts/{user_id}")
+def admin_edit_account(
+    user_id: str,
+    payload: AccountEditRequest,
+    db: Session = Depends(get_db),
+    current=Depends(get_current_admin),
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado")
+
+    changes = payload.model_dump(exclude_unset=True)
+    if "email" in changes:
+        new_email = str(changes["email"]).strip().lower()
+        if new_email != user.email:
+            if db.query(User).filter(User.email == new_email, User.id != user.id).first():
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email já existe")
+        changes["email"] = new_email
+    # texto vazio vira "sem valor", não string vazia gravada
+    for key, value in list(changes.items()):
+        if isinstance(value, str) and key != "email":
+            changes[key] = value.strip() or None
+    if "name" in changes and not changes["name"]:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Nome não pode ficar vazio")
+
+    changed = [k for k, v in changes.items() if getattr(user, k) != v]
+    for key in changed:
+        setattr(user, key, changes[key])
+    db.commit()
+    db.refresh(user)
+
+    current_user, _ = current
+    logging.getLogger("petmol.admin_audit").info(
+        "admin %s editou conta %s: campos=%s", current_user.id, user.id, ",".join(changed) or "(nenhum)"
+    )
+    return _account_dict(user)
 
 
 @router.delete("/users/{user_id}", response_model=DeletedOut)

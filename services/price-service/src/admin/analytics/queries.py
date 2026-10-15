@@ -1114,6 +1114,22 @@ def list_users(
             latest_meta.setdefault(uid, {
                 "platform": plat, "os": os_, "device_class": dclass, "app_version": ver,
             })
+    # Origem de cada tutor = 1º evento dele que carregou campanha (utm). Vazio
+    # = orgânico/direto ou sem atribuição — nunca inventamos uma origem.
+    first_seen_at: dict[str, Any] = {}
+    origin: dict[str, tuple[Optional[str], Optional[str]]] = {}
+    if uids:
+        for uid, ts in (
+            db.query(AnalyticsProductEvent.user_id, func.min(AnalyticsProductEvent.received_at))
+            .filter(AnalyticsProductEvent.user_id.in_(uids)).group_by(AnalyticsProductEvent.user_id).all()
+        ):
+            first_seen_at[uid] = ts
+        for uid, camp, src in (
+            db.query(AnalyticsProductEvent.user_id, AnalyticsProductEvent.utm_campaign, AnalyticsProductEvent.utm_source)
+            .filter(AnalyticsProductEvent.user_id.in_(uids), AnalyticsProductEvent.utm_campaign.isnot(None))
+            .order_by(AnalyticsProductEvent.received_at.asc()).all()
+        ):
+            origin.setdefault(uid, (camp, src))
     perm_devices = permissions_bi.devices_by_user(db, uids)
     fresh_cutoff = now - timedelta(days=permissions_bi.FRESH_LOCATION_DAYS)
     pet_ids_by_user = defaultdict(list)
@@ -1158,6 +1174,22 @@ def list_users(
             "city": u.city,
             "state": u.state,
             "email_verified": bool(u.email_verified),
+            # dados de conta (painel admin do dono — o BI antes só mostrava "tem/não tem")
+            "phone": u.phone,
+            "whatsapp": bool(u.whatsapp),
+            "neighborhood": u.neighborhood,
+            "country": u.country,
+            "login_methods": [m for m, on in (("senha", bool(u.password_hash)),
+                                              ("google", bool(u.google_sub)),
+                                              ("apple", bool(u.apple_sub))) if on],
+            "terms_accepted": bool(u.terms_accepted),
+            "terms_version": u.terms_version,
+            "terms_accepted_at": _iso(u.terms_accepted_at),
+            "checkin_day": u.monthly_checkin_day,
+            "checkin_hour": u.monthly_checkin_hour,
+            "first_seen": _iso(_aware(first_seen_at.get(u.id))),
+            "origin_campaign": origin.get(u.id, (None, None))[0],
+            "origin_source": origin.get(u.id, (None, None))[1],
             **_permission_fields(u, perm_devices.get(u.id, []), fresh_cutoff),
         })
 
