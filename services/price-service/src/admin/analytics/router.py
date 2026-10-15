@@ -24,6 +24,7 @@ from . import campaign_bi
 from . import feeding_bi
 from . import entry_bi
 from . import growth_bi
+from . import insights_bi
 from . import journey_bi
 from . import landing_ab_bi
 from . import landing_intro_bi
@@ -124,6 +125,12 @@ def get_growth(db: Session = Depends(get_db), f: AnalyticsFilters = Depends(_fil
 @router.get("/entry-funnel")
 def get_entry_funnel(db: Session = Depends(get_db), f: AnalyticsFilters = Depends(_filters), _=_Auth):
     return entry_bi.entry_funnel(db, f)
+
+
+@router.get("/insights")
+def get_insights(db: Session = Depends(get_db), _=_Auth):
+    """O que fazer para cumprir a meta (pet + ração + notificação + GPS): leitura dos dados + modelo de propensão."""
+    return insights_bi.recommendations(db)
 
 
 @router.get("/journey-funnel")
