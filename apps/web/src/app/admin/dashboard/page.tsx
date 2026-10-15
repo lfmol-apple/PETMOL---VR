@@ -118,6 +118,7 @@ const isTabKey = (v: string): v is TabKey => TABS.some((t) => t.key === v);
 
 /** Telas admin completas (fora do BI) — atalhos fixos no topo do painel. */
 const ADMIN_TOOLS: { href: string; label: string; highlight?: boolean }[] = [
+  { href: '/admin/dashboard2', label: '📈 Dashboard 2 — Crescimento', highlight: true },
   { href: '/admin/establishments', label: '🏪 Estabelecimentos' },
   { href: '/admin/accounts', label: '👤 Contas' },
   { href: '/admin/pets', label: '🐾 Pets' },
