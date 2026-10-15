@@ -58,12 +58,10 @@ def feeding_stage(plan: Optional[FeedingPlan]) -> str:
     has_gtin = any((it or {}).get("barcode") or (it or {}).get("gtin") for it in items)
     if not has_gtin:
         return "sem_correspondencia"
-    # No modo "sem controle de consumo" (manual) o tutor informa a data da compra e a duração em vez da
-    # quantidade diária — esse cadastro está COMPLETO e gera previsão de fim e lembrete. Antes ele caía em
-    # "sem quantidade ou duração" só porque daily_amount_g é nulo nesse modo (achado de 15/10/2026: 228 pets).
-    manual = bool(plan.no_consumption_control)
-    has_qty = plan.daily_amount_g is not None or manual
-    has_duration = plan.duration_days is not None or manual
+    has_qty = plan.daily_amount_g is not None
+    has_duration = plan.duration_days is not None or bool(plan.no_consumption_control)
+    # Manual (sem controle de consumo) continua aqui SEM quantidade diária de propósito: a duração dele costuma
+    # ser o padrão de 30 dias do cadastro rápido, não um dado real — ver feeding_fields_coverage.
     if not (has_qty and has_duration):
         return "sem_quantidade_duracao"
     if not plan.enabled:
