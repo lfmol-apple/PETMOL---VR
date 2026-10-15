@@ -136,6 +136,44 @@ def feeding_funnel(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
     }
 
 
+def feeding_fields_coverage(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
+    """Por dentro dos cadastros de ração que NÃO viraram controle ativo: quais campos existem.
+
+    Responde "o que já temos de quem tentou?" — em especial se dá para completar sozinho (calcular
+    duração a partir do pacote, do peso e da espécie) sem perguntar nada novo ao tutor."""
+    q = db.query(Pet, FeedingPlan).join(User, User.id == Pet.user_id).outerjoin(
+        FeedingPlan, (FeedingPlan.pet_id == Pet.id) & (FeedingPlan.deleted_at.is_(None))
+    )
+    rows = _apply_geo(db, q, f).all()
+
+    out: dict[str, Any] = {}
+    for stage in ("sem_correspondencia", "sem_quantidade_duracao", "controle_ativo"):
+        pets = [(pet, plan) for pet, plan in rows if feeding_stage(plan) == stage]
+        n = len(pets)
+
+        def pct(count: int) -> dict[str, Any]:
+            return {"n": count, "pct": round(count / n, 4) if n else None}
+
+        has = lambda fn: sum(1 for pet, plan in pets if fn(pet, plan))  # noqa: E731
+        both_calc = has(lambda pet, plan: plan.package_size_kg and pet.weight_value)
+        out[stage] = {
+            "label": STAGE_LABEL[stage], "pets": n,
+            "com_marca": pct(has(lambda pet, plan: bool(plan.food_brand))),
+            "com_tamanho_pacote": pct(has(lambda pet, plan: plan.package_size_kg is not None)),
+            "com_quantidade_diaria": pct(has(lambda pet, plan: plan.daily_amount_g is not None)),
+            "com_duracao": pct(has(lambda pet, plan: plan.duration_days is not None)),
+            "sem_controle_de_consumo": pct(has(lambda pet, plan: bool(plan.no_consumption_control))),
+            "com_data_ultima_compra": pct(has(lambda pet, plan: plan.last_refill_date is not None)),
+            "com_previsao_de_fim": pct(has(lambda pet, plan: plan.estimated_end_date is not None)),
+            "com_peso_do_pet": pct(has(lambda pet, plan: pet.weight_value is not None)),
+            # dá para ESTIMAR a duração sem perguntar nada: pacote + peso conhecidos
+            "estimavel_pacote_e_peso": pct(both_calc),
+            "especie": {sp: sum(1 for pet, _ in pets if (pet.species or "").lower() == sp)
+                        for sp in ("dog", "cat")},
+        }
+    return {"total_pets": len(rows), "stages": out}
+
+
 def feeding_stage_population(
     db: Session, stage: str, f: AnalyticsFilters, *, page: int, page_size: int
 ) -> dict[str, Any]:

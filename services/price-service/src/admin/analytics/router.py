@@ -97,6 +97,11 @@ def get_feeding_funnel(db: Session = Depends(get_db), f: AnalyticsFilters = Depe
     return feeding_bi.feeding_funnel(db, f)
 
 
+@router.get("/feeding-funnel/fields")
+def get_feeding_fields(db: Session = Depends(get_db), f: AnalyticsFilters = Depends(_filters), _=_Auth):
+    return feeding_bi.feeding_fields_coverage(db, f)
+
+
 @router.get("/feeding-funnel/{stage}/population")
 def get_feeding_stage_population(
     stage: str,
