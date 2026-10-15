@@ -33,8 +33,14 @@ export interface GrowthActivation {
   missing_distribution: Record<string, number>;
 }
 
+export interface CampaignActivationRow {
+  name: string; cadastros: number; pet: number; feeding: number;
+  push: number; location: number; complete: number;
+}
+
 export interface GrowthResponse {
   activation: GrowthActivation;
+  campaigns_activation: CampaignActivationRow[];
   generated_at: string;
   steps: GrowthStep[];
   extra_steps: GrowthStep[];

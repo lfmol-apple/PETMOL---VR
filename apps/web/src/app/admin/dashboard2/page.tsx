@@ -13,9 +13,11 @@ import { useAdmin } from '@/hooks/useAdmin';
 import { adminGet, type CampaignsResponse, type GlobalFilter } from '@/lib/admin/analyticsApi';
 import {
   PLATFORM_LABEL, pct,
-  type ActivationItem, type GrowthPlatformRow, type GrowthResponse, type GrowthSeriesPoint, type GrowthStep,
+  type ActivationItem, type CampaignActivationRow, type GrowthPlatformRow, type GrowthResponse, type GrowthSeriesPoint, type GrowthStep,
 } from '@/lib/admin/growthApi';
-import { useAsync, Loading, ErrorBox, numberFmt } from '@/components/admin/sections/sections';
+import { useAsync, Loading, ErrorBox, numberFmt, RetentionSection, FeaturesSection } from '@/components/admin/sections/sections';
+import { FeedingSection } from '@/components/admin/sections/FeedingSection';
+import { PhotoLightboxProvider } from '@/components/admin/PhotoLightbox';
 import { TutorsSection, type TutorsPreset } from './TutorsSection';
 import { fmtSpDate, spDayBounds, spStartOfToday, spYesterdayRange } from '@/lib/analytics/spTime';
 
@@ -195,7 +197,9 @@ function GrowthBody({ filter, onFocusTutors }: { filter: GlobalFilter; onFocusTu
       <FunnelCard data={data} />
       <StuckCards data={data} />
       <PlatformTable rows={data.platforms} />
+      <CampaignActivationTable rows={data.campaigns_activation} />
       <CampaignTable filter={filter} />
+      <RetentionBlock filter={filter} onFocusTutors={onFocusTutors} />
       <DailySeries series={data.series} />
       <Notes notes={data.notes} />
     </>
@@ -408,6 +412,72 @@ function PlatformTable({ rows }: { rows: GrowthPlatformRow[] }) {
         </table>
       </div>
     </Card>
+  );
+}
+
+function CampaignActivationTable({ rows }: { rows: CampaignActivationRow[] }) {
+  return (
+    <Card title="Meta por campanha de origem"
+      subtitle="Das pessoas que vieram de cada campanha, quantas chegaram a pet, ração, notificação e localização. Mostra qual campanha traz gente que realmente ativa.">
+      <div className="overflow-x-auto">
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr className="text-left text-[11px] uppercase tracking-wide text-slate-400">
+              <th className="py-1.5 pr-3">Origem</th>
+              <th className="px-2 text-right">Cadastros</th>
+              <th className="px-2 text-right">Pet</th>
+              <th className="px-2 text-right">Ração</th>
+              <th className="px-2 text-right">Notificação</th>
+              <th className="px-2 text-right">GPS</th>
+              <th className="pl-2 text-right">Meta completa</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.name} className="border-t border-slate-100">
+                <td className="py-2 pr-3 font-semibold text-slate-700">{r.name}</td>
+                <td className="px-2 text-right">{numberFmt(r.cadastros)}</td>
+                {([r.pet, r.feeding, r.push, r.location] as const).map((n, i) => (
+                  <td key={i} className="px-2 text-right">
+                    {numberFmt(n)} <span className="text-slate-400">({pct(r.cadastros ? n / r.cadastros : null)})</span>
+                  </td>
+                ))}
+                <td className="pl-2 text-right font-bold text-slate-800">
+                  {numberFmt(r.complete)} <span className="font-medium text-slate-400">({pct(r.cadastros ? r.complete / r.cadastros : null)})</span>
+                </td>
+              </tr>
+            ))}
+            {rows.length === 0 && <tr><td colSpan={7} className="py-6 text-center text-slate-400">Nenhum cadastro no período.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-2 text-[11px] text-slate-500">
+        &quot;(sem origem rastreada)&quot; = cadastro sem aparelho ligado a um acesso medido; &quot;(direto/orgânico)&quot; = sem campanha em nenhum toque.
+      </p>
+    </Card>
+  );
+}
+
+function RetentionBlock({ filter, onFocusTutors }: { filter: GlobalFilter; onFocusTutors: (g: TutorsPreset['goal']) => void }) {
+  return (
+    <PhotoLightboxProvider>
+      <Card title="Por que ficam (ou não)" subtitle="Quem volta, onde o cadastro da ração para e quais funções cada pet usa. Cada número abre a lista de pessoas.">
+        <div className="space-y-6">
+          <div>
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Quem volta</p>
+            <RetentionSection filter={filter} onOpenTutors={() => onFocusTutors('incomplete')} />
+          </div>
+          <div className="border-t border-slate-100 pt-4">
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Onde a ração para</p>
+            <FeedingSection filter={filter} onOpenTutors={() => onFocusTutors('feeding')} />
+          </div>
+          <div className="border-t border-slate-100 pt-4">
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Funções que cada pet usa</p>
+            <FeaturesSection filter={filter} />
+          </div>
+        </div>
+      </Card>
+    </PhotoLightboxProvider>
   );
 }
 

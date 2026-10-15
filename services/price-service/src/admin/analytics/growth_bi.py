@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 from ...analytics.install_models import AppInstall, DOWNLOAD_PLATFORMS, install_count_cutoff
 from ...analytics.models import AnalyticsProductEvent
 from ...user_auth.models import User
+from . import campaign_bi
 from . import journey_bi
 from . import permissions_bi
 from .filters import AnalyticsFilters, PLATFORM_GROUPS, platform_clause
@@ -232,6 +233,21 @@ def growth_funnel(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
         "missing_distribution": {str(k): v for k, v in sorted(missing_count.items())},
     }
 
+    # ── meta de ativação por campanha de origem ───────────────────────────
+    origins = campaign_bi.signup_origins_by_user(db, since, until, f.platform) if cohort else {}
+    camp: dict[str, dict[str, Any]] = {}
+    for uid in cohort:
+        name = (origins.get(uid) or (campaign_bi.UNTRACKED, None, None))[0]
+        slot = camp.setdefault(name.lower(), {"name": name, "cadastros": 0, "pet": 0, "feeding": 0,
+                                               "push": 0, "location": 0, "complete": 0})
+        slot["cadastros"] += 1
+        for key, st in parts.items():
+            if uid in st:
+                slot[key] += 1
+        if uid in complete:
+            slot["complete"] += 1
+    campaigns_activation = sorted(camp.values(), key=lambda c: -c["cadastros"])[:15]
+
     n_acessos = len(sessions)
     n_visitantes = len({ident for _, ident, _, _ in sessions if ident})
     n_downloads = len(installs)
@@ -324,6 +340,7 @@ def growth_funnel(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
         "extra_steps": extra,
         "visitantes_unicos": n_visitantes,
         "activation": activation,
+        "campaigns_activation": campaigns_activation,
         "biggest_leak": _biggest_leak(steps),
         "platforms": platforms,
         "series": series,

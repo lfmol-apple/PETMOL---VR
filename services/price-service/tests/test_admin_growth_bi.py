@@ -140,3 +140,23 @@ def test_users_list_filters_by_activation_goal(client):
     r = client.get("/v1/admin/analytics/users?missing=pet", headers=headers)
     names = {i["name"] for i in r.json()["items"]}
     assert "a" in names and "b" not in names and "c" not in names
+
+
+def test_growth_activation_by_campaign_of_origin(client):
+    headers = _admin_headers()
+    _seed()
+    db = SessionLocal()
+    try:
+        c = db.query(User).filter(User.name == "c").first()
+        db.add(AnalyticsProductEvent(event_id=f"cm-{uuid4().hex[:6]}", event_name="app_open", user_id=c.id,
+                                      anonymous_id="anon-c", utm_campaign="instagram_out", utm_source="instagram",
+                                      platform="ios_capacitor", received_at=NOW - timedelta(hours=5)))
+        db.commit()
+    finally:
+        db.close()
+    r = client.get("/v1/admin/analytics/growth?period_days=7", headers=headers)
+    assert r.status_code == 200, r.text
+    rows = {c["name"]: c for c in r.json()["campaigns_activation"]}
+    assert rows["instagram_out"]["cadastros"] == 1
+    assert rows["instagram_out"]["pet"] == 1 and rows["instagram_out"]["feeding"] == 1
+    assert sum(c["cadastros"] for c in rows.values()) == 3

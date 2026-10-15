@@ -64,6 +64,12 @@ def _slot(buckets: dict[str, dict[str, Any]], name: str) -> dict[str, Any]:
 def _signup_origins(
     db: Session, since: Optional[datetime], until: Optional[datetime], platform: Optional[str],
 ) -> list[tuple[str, Optional[str], Optional[str]]]:
+    return list(signup_origins_by_user(db, since, until, platform).values())
+
+
+def signup_origins_by_user(
+    db: Session, since: Optional[datetime], until: Optional[datetime], platform: Optional[str],
+) -> dict[str, tuple[str, Optional[str], Optional[str]]]:
     """(campanha, source, medium) de cada cadastro do período — primeiro
     toque COM campanha do aparelho dele; sem UTM em nenhum toque = orgânico;
     sem vínculo de aparelho = não rastreado."""
@@ -74,7 +80,7 @@ def _signup_origins(
         uq = uq.filter(User.created_at <= until)
     user_ids = [r[0] for r in uq.all()]
     if not user_ids:
-        return []
+        return {}
 
     anon_by_user: dict[str, set[str]] = {}
     for chunk in _chunks(user_ids):
@@ -95,21 +101,21 @@ def _signup_origins(
         ):
             anchors_by_anon.setdefault(e.anonymous_id, []).append(e)
 
-    origins: list[tuple[str, Optional[str], Optional[str]]] = []
+    origins: dict[str, tuple[str, Optional[str], Optional[str]]] = {}
     for uid in user_ids:
         events = sorted(
             (e for a in anon_by_user.get(uid, ()) for e in anchors_by_anon.get(a, ())),
             key=lambda e: e.received_at,
         )
         if not events:
-            origins.append((UNTRACKED, None, None))
+            origins[uid] = (UNTRACKED, None, None)
             continue
         tracked = next((e for e in events if e.utm_campaign or e.utm_source), None)
         first = tracked or events[0]
         if platform and first.platform not in (PLATFORM_GROUPS.get(platform) or (platform,)):
             continue
-        origins.append((tracked.utm_campaign or tracked.utm_source, tracked.utm_source, tracked.utm_medium)
-                       if tracked else (NO_CAMPAIGN, None, None))
+        origins[uid] = ((tracked.utm_campaign or tracked.utm_source, tracked.utm_source, tracked.utm_medium)
+                        if tracked else (NO_CAMPAIGN, None, None))
     return origins
 
 
