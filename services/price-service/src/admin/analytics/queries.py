@@ -1147,6 +1147,16 @@ def list_users(
             .order_by(AnalyticsProductEvent.received_at.asc()).all()
         ):
             origin.setdefault(uid, (camp, src))
+    # Local pelo IP: cidade/UF do acesso MAIS RECENTE do tutor com geo (o app mede no 1º acesso da sessão).
+    # Vale como fallback quando o tutor não informou endereço — "aproximado por IP", nunca declarado.
+    ip_geo: dict[str, tuple[Optional[str], Optional[str]]] = {}
+    if uids:
+        for uid, city, region in (
+            db.query(AnalyticsProductEvent.user_id, AnalyticsProductEvent.city, AnalyticsProductEvent.region)
+            .filter(AnalyticsProductEvent.user_id.in_(uids), AnalyticsProductEvent.city.isnot(None))
+            .order_by(AnalyticsProductEvent.received_at.desc()).all()
+        ):
+            ip_geo.setdefault(str(uid), (city, region))
     perm_devices = permissions_bi.devices_by_user(db, uids)
     fresh_cutoff = now - timedelta(days=permissions_bi.FRESH_LOCATION_DAYS)
     pet_ids_by_user = defaultdict(list)
@@ -1205,6 +1215,8 @@ def list_users(
             "checkin_day": u.monthly_checkin_day,
             "checkin_hour": u.monthly_checkin_hour,
             "first_seen": _iso(_aware(first_seen_at.get(u.id))),
+            "ip_city": ip_geo.get(str(u.id), (None, None))[0],
+            "ip_region": ip_geo.get(str(u.id), (None, None))[1],
             "origin_campaign": origin.get(u.id, (None, None))[0],
             "origin_source": origin.get(u.id, (None, None))[1],
             **_permission_fields(u, perm_devices.get(u.id, []), fresh_cutoff),
