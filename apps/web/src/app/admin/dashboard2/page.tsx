@@ -17,6 +17,8 @@ import {
 } from '@/lib/admin/growthApi';
 import { useAsync, Loading, ErrorBox, numberFmt, RetentionSection, FeaturesSection } from '@/components/admin/sections/sections';
 import { FeedingSection } from '@/components/admin/sections/FeedingSection';
+import { PermissionsSection } from '@/components/admin/sections/PermissionsSection';
+import { TodaySection, BaseStrip } from '@/components/admin/sections/TodaySection';
 import { PhotoLightboxProvider } from '@/components/admin/PhotoLightbox';
 import { TutorsSection, type TutorsPreset } from './TutorsSection';
 import { fmtSpDate, spDayBounds, spStartOfToday, spYesterdayRange } from '@/lib/analytics/spTime';
@@ -193,6 +195,7 @@ function GrowthBody({ filter, onFocusTutors }: { filter: GlobalFilter; onFocusTu
   return (
     <>
       <ActivationCard data={data} onFocusTutors={onFocusTutors} />
+      <TodayBlock onFocusTutors={onFocusTutors} />
       <LeakBanner data={data} />
       <FunnelCard data={data} />
       <StuckCards data={data} />
@@ -200,6 +203,7 @@ function GrowthBody({ filter, onFocusTutors }: { filter: GlobalFilter; onFocusTu
       <CampaignActivationTable rows={data.campaigns_activation} />
       <CampaignTable filter={filter} />
       <RetentionBlock filter={filter} onFocusTutors={onFocusTutors} />
+      <PermissionsBlock />
       <DailySeries series={data.series} />
       <Notes notes={data.notes} />
     </>
@@ -411,6 +415,32 @@ function PlatformTable({ rows }: { rows: GrowthPlatformRow[] }) {
           </tbody>
         </table>
       </div>
+    </Card>
+  );
+}
+
+/** Telas do Mission Control que o Dashboard 2 ainda não traz (moderação, locais). */
+const goMissionControl = (hash: string) => { window.location.assign(`/admin/dashboard#${hash}`); };
+
+function TodayBlock({ onFocusTutors }: { onFocusTutors: (g: TutorsPreset['goal']) => void }) {
+  return (
+    <Card title="Hoje" subtitle="Dia a dia: hoje contra ontem e contra a média dos 7 dias anteriores. Não segue o filtro de período acima.">
+      <div className="space-y-4">
+        <TodaySection
+          onOpenPeople={() => onFocusTutors('incomplete')}
+          onOpenLocations={() => goMissionControl('aquisicao')}
+          onOpenModeration={() => goMissionControl('pessoas')}
+        />
+        <BaseStrip onOpenPeople={() => onFocusTutors('incomplete')} onOpenMissingPets={() => window.location.assign('/achei-um-pet')} />
+      </div>
+    </Card>
+  );
+}
+
+function PermissionsBlock() {
+  return (
+    <Card title="Notificação e localização" subtitle="Quantos podem ser avisados e localizados, como isso evolui e quem pode ter desinstalado. Não segue o filtro de período.">
+      <PermissionsSection />
     </Card>
   );
 }
