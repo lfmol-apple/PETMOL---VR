@@ -150,14 +150,18 @@ def _pet_phrase(pet_names: list[str]) -> str:
 
 
 def _email_copy(name: Optional[str], pet_names: list[str]) -> tuple[str, str]:
+    nomes = [n for n in pet_names if n]
+    plural = len(nomes) > 1
     saudacao = f"Oi {name.split(' ')[0]}" if name else "Oi"
     pet = _pet_phrase(pet_names)
+    # concordância: "Vianna e Vanda ainda não têm", nunca "não tem" no plural
+    tem = "têm" if plural else "tem"
     subject = "Ainda falta cadastrar a ração do seu pet no PETMOL"
     body = (
-        f"{saudacao}, vimos que {pet} ainda não tem a ração cadastrada no PETMOL. "
+        f"{saudacao}, vimos que {pet} ainda não {tem} a ração cadastrada no PETMOL. "
         "Assim que você registra o pacote, o app acompanha o consumo sozinho e avisa "
         'antes de acabar — sem depender da memória. Leva 1 minuto: abra o app e toque '
-        'em "Alimentação".'
+        'em "Alimentação". E não se esqueça, ative as notificações!'
     )
     return subject, body
 

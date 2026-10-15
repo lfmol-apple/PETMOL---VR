@@ -497,3 +497,13 @@ def test_food_preview_e_conversion(monkeypatch, client):
         db.close()
     conv = client.get("/v1/admin/campaigns/food-activation/conversion", headers=ro).json()
     assert conv["contacted_total"] >= 1 and conv["converted"] >= 1
+
+
+def test_food_email_texto_final_e_concordancia_no_plural():
+    from src.admin.activation_campaign_router import _email_copy
+    subject, body = _email_copy("Karen Reis", ["Mel"])
+    assert subject == "Ainda falta cadastrar a ração do seu pet no PETMOL"
+    assert body.startswith("Oi Karen, vimos que Mel ainda não tem a ração cadastrada no PETMOL.")
+    assert body.endswith('E não se esqueça, ative as notificações!')
+    _, plural = _email_copy("Priscila", ["Vianna", "Vanda Juliane"])
+    assert "ainda não têm a ração" in plural
