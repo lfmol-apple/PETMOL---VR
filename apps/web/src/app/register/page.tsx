@@ -239,6 +239,9 @@ export default function RegisterPage() {
           <div className="mb-4">
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-500">Cadastro rápido</p>
             <p className="mt-2 text-sm font-bold text-slate-900">Passo {step} de 2</p>
+            <p className="mt-2 inline-block rounded-full bg-emerald-50 px-3 py-1 text-[12px] font-black text-emerald-700">
+              Grátis. Sem anúncios.
+            </p>
           </div>
 
           {step === 1 ? (

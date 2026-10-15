@@ -46,7 +46,10 @@ export default function LoginPage() {
     // o middleware manda quem abre o app sem sessão para /login?redirect=/home — isso é
     // aparelho novo, não link de convite/recuperação
     const redirectParam = params.get('redirect');
-    const fromLink = Boolean(emailParam || (redirectParam && redirectParam !== '/home') || params.get('reason') || params.get('msg'));
+    // Aparelho novo abre a raiz e o servidor o manda a /login?redirect=/home?native_start=1; só um
+    // redirect para outra tela (ou e-mail/motivo/mensagem na URL) é link de convite ou recuperação.
+    const redirectPath = (redirectParam || '').split('?')[0];
+    const fromLink = Boolean(emailParam || (redirectPath && redirectPath !== '/home') || params.get('reason') || params.get('msg'));
     const nextMode = isNativeAppClient() && !seen && !fromLink ? 'choose' : 'form';
     setMode(nextMode);
     trackV1Metric('auth_screen_shown', { variant: nextMode, native: isNativeAppClient() });
@@ -105,6 +108,9 @@ export default function LoginPage() {
             <h2 className="text-2xl font-black text-slate-800 tracking-tight">Bem-vindo ao PETMOL</h2>
             <p className="mt-2 text-slate-500 text-sm font-medium">
               Cadastre seu pet em menos de 1 minuto e receba os lembretes na hora certa.
+            </p>
+            <p className="mt-3 inline-block rounded-full bg-emerald-50 px-3 py-1 text-[12px] font-black text-emerald-700">
+              Grátis. Sem anúncios.
             </p>
             <Link
               href={registerHref}
