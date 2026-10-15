@@ -1,7 +1,7 @@
 'use client';
 
 import { getToken } from '@/lib/auth-token';
-import { COMMON_PACKAGE_SIZES_KG, estimatePackageDays } from '@/lib/foodEstimate';
+import { COMMON_PACKAGE_SIZES_KG, estimateDailyGrams, estimatePackageDays } from '@/lib/foodEstimate';
 import { useState, useEffect } from 'react';
 import { API_BACKEND_BASE } from '@/lib/api';
 import { trackV1Metric } from '@/lib/v1Metrics';
@@ -457,6 +457,44 @@ export function FoodControlTab({
         durationDays: days && untouched ? String(days) : current.durationDays,
       };
     });
+  };
+
+  // Botões de tamanho de pacote + estimativa de duração (cadastro rápido E edição em modo "Por duração").
+  const renderPackageChips = (item: SimpleFoodData) => {
+                        const pkg = parseFloat(item.packageSizeKg);
+                        const estimate = estimatePackageDays(species, petWeightKg, Number.isFinite(pkg) ? pkg : null);
+                        return (
+                          <div className="col-span-2">
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">Tamanho do pacote</label>
+                            <div className="flex flex-wrap gap-2">
+                              {COMMON_PACKAGE_SIZES_KG.map((size) => {
+                                const active = Number.isFinite(pkg) && pkg === size;
+                                return (
+                                  <button
+                                    key={size}
+                                    type="button"
+                                    onClick={() => selectPackageSize(item.id, size)}
+                                    className={`rounded-xl border px-3 py-2 text-sm font-bold ${active ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white text-gray-600'}`}
+                                  >
+                                    {String(size).replace('.', ',')} kg
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {estimate && String(estimate) !== item.durationDays.trim() && (
+                              <p className="mt-1.5 text-xs text-gray-500">
+                                Estimativa{_petName ? ` para ${_petName}` : ''}: cerca de <strong>{estimate} dias</strong>.{' '}
+                                <button
+                                  type="button"
+                                  onClick={() => updateItem(item.id, (current) => ({ ...current, trackingMethod: 'duration', durationDays: String(estimate) }))}
+                                  className="font-bold text-amber-700 underline"
+                                >
+                                  Usar {estimate} dias
+                                </button>
+                              </p>
+                            )}
+                          </div>
+                        );
   };
 
   const updateItem = (itemId: string, updater: (item: SimpleFoodData) => SimpleFoodData) => {
@@ -1192,42 +1230,7 @@ export function FoodControlTab({
                           inputClassName="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-10 text-base tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
                         />
                       </div>
-                      {isQuickSetup && (() => {
-                        const pkg = parseFloat(item.packageSizeKg);
-                        const estimate = estimatePackageDays(species, petWeightKg, Number.isFinite(pkg) ? pkg : null);
-                        return (
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Tamanho do pacote</label>
-                            <div className="flex flex-wrap gap-2">
-                              {COMMON_PACKAGE_SIZES_KG.map((size) => {
-                                const active = Number.isFinite(pkg) && pkg === size;
-                                return (
-                                  <button
-                                    key={size}
-                                    type="button"
-                                    onClick={() => selectPackageSize(item.id, size)}
-                                    className={`rounded-xl border px-3 py-2 text-sm font-bold ${active ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white text-gray-600'}`}
-                                  >
-                                    {String(size).replace('.', ',')} kg
-                                  </button>
-                                );
-                              })}
-                            </div>
-                            {estimate && String(estimate) !== item.durationDays.trim() && (
-                              <p className="mt-1.5 text-xs text-gray-500">
-                                Estimativa{_petName ? ` para ${_petName}` : ''}: cerca de <strong>{estimate} dias</strong>.{' '}
-                                <button
-                                  type="button"
-                                  onClick={() => updateItem(item.id, (current) => ({ ...current, trackingMethod: 'duration', durationDays: String(estimate) }))}
-                                  className="font-bold text-amber-700 underline"
-                                >
-                                  Usar {estimate} dias
-                                </button>
-                              </p>
-                            )}
-                          </div>
-                        );
-                      })()}
+                      {isQuickSetup && renderPackageChips(item)}
                       <div>
                         <label className="block text-xs font-semibold text-gray-600 mb-1">Duração (dias)</label>
                         <input
@@ -1269,6 +1272,22 @@ export function FoodControlTab({
                           />
                         </div>
                       </div>
+                      {(() => {
+                        const daily = estimateDailyGrams(species, petWeightKg);
+                        if (!daily || String(daily) === item.dailyConsumptionG.trim()) return null;
+                        return (
+                          <p className="text-xs text-gray-500 px-1">
+                            Estimativa{_petName ? ` para ${_petName}` : ''}: cerca de <strong>{daily} g por dia</strong>.{' '}
+                            <button
+                              type="button"
+                              onClick={() => updateItem(item.id, (current) => ({ ...current, dailyConsumptionG: String(daily) }))}
+                              className="font-bold text-amber-700 underline"
+                            >
+                              Usar {daily} g
+                            </button>
+                          </p>
+                        );
+                      })()}
                       <div>
                         <label className="block text-xs font-semibold text-gray-600 mb-1">Data início</label>
                         <DateField
@@ -1280,6 +1299,7 @@ export function FoodControlTab({
                     </>
                   ) : (
                     <div className="grid grid-cols-2 gap-2">
+                      {renderPackageChips(item)}
                       <div>
                         <label className="block text-xs font-semibold text-gray-600 mb-1">Duração (dias)</label>
                         <input
