@@ -12,8 +12,8 @@ import { PremiumScreenShell } from '@/components/premium';
 import { useAdmin } from '@/hooks/useAdmin';
 import { adminGet, type CampaignsResponse, type GlobalFilter } from '@/lib/admin/analyticsApi';
 import {
-  PLATFORM_LABEL, pct,
-  type ActivationItem, type CampaignActivationRow, type GrowthPlatformRow, type GrowthResponse, type GrowthSeriesPoint, type GrowthStep,
+  FAILURE_LABEL, PLATFORM_LABEL, pct,
+  type EntryResponse, type ActivationItem, type CampaignActivationRow, type GrowthPlatformRow, type GrowthResponse, type GrowthSeriesPoint, type GrowthStep,
 } from '@/lib/admin/growthApi';
 import { useAsync, Loading, ErrorBox, numberFmt, RetentionSection, FeaturesSection } from '@/components/admin/sections/sections';
 import { FeedingSection } from '@/components/admin/sections/FeedingSection';
@@ -197,6 +197,7 @@ function GrowthBody({ filter, onFocusTutors }: { filter: GlobalFilter; onFocusTu
       <ActivationCard data={data} onFocusTutors={onFocusTutors} />
       <TodayBlock onFocusTutors={onFocusTutors} />
       <LeakBanner data={data} />
+      <EntryCard filter={filter} />
       <FunnelCard data={data} />
       <StuckCards data={data} />
       <PlatformTable rows={data.platforms} />
@@ -297,6 +298,64 @@ function LeakBanner({ data }: { data: GrowthResponse }) {
         <p className="mt-1 text-[11px] text-slate-500">Taxa indicativa: compara volumes do período, não as mesmas pessoas.</p>
       )}
     </div>
+  );
+}
+
+function EntryCard({ filter }: { filter: GlobalFilter }) {
+  const { data, error, loading } = useAsync<EntryResponse>(
+    () => adminGet('/entry-funnel', {
+      period_days: filter.period_days, since: filter.since, until: filter.until, platform: filter.platform,
+    }),
+    [filter.period_days, filter.since, filter.until, filter.platform],
+  );
+  return (
+    <Card title="Baixou e não cadastrou"
+      subtitle="Pessoas distintas que chegaram a cada tela depois de abrir o app sem conta. Mostra em qual tela elas param.">
+      {loading && !data ? <Loading /> : error || !data ? <ErrorBox msg={error} /> : (
+        <>
+          <ol className="space-y-1.5">
+            {data.steps.map((s) => (
+              <li key={s.key} className="flex items-center gap-3">
+                <div className="w-52 shrink-0 text-[13px] font-semibold text-slate-700">{s.label}</div>
+                <div className="h-6 flex-1 rounded-md bg-slate-100">
+                  <div className="h-6 rounded-md bg-[#0056D2]" style={{ width: `${Math.min((s.pct_of_opened ?? 0) * 100, 100)}%` }} />
+                </div>
+                <div className="w-24 shrink-0 text-right text-[13px] font-extrabold text-slate-900">
+                  {numberFmt(s.n)} <span className="font-medium text-slate-400">({pct(s.pct_of_opened)})</span>
+                </div>
+              </li>
+            ))}
+          </ol>
+          {data.biggest_leak && (
+            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[13px] text-amber-900">
+              <strong>Maior perda: {data.biggest_leak.from_label} → {data.biggest_leak.to_label}</strong> — só {pct(data.biggest_leak.pct)} avançam
+              ({numberFmt(data.biggest_leak.lost)} pessoas). {data.biggest_leak.where_to_act}
+            </p>
+          )}
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">Na tela de entrada, tocaram em</p>
+              <p className="text-[13px] text-slate-700">
+                Criar minha conta: <strong>{numberFmt(data.choices.register)}</strong> · Já tenho conta: <strong>{numberFmt(data.choices.login)}</strong>
+              </p>
+            </div>
+            <div>
+              <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">Por que o cadastro falhou</p>
+              {data.failures.length === 0
+                ? <p className="text-[13px] text-slate-400">Nenhuma falha registrada ainda.</p>
+                : <ul className="space-y-0.5 text-[13px] text-slate-700">
+                    {data.failures.map((f) => (
+                      <li key={f.reason}>{FAILURE_LABEL[f.reason] ?? f.reason}: <strong>{numberFmt(f.count)}</strong></li>
+                    ))}
+                  </ul>}
+            </div>
+          </div>
+          <p className="mt-3 text-[11px] text-slate-500">
+            {data.scope === 'native' ? 'Conta o app instalado (iPhone e Android). ' : ''}{data.notes.join(' ')}
+          </p>
+        </>
+      )}
+    </Card>
   );
 }
 

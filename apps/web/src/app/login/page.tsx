@@ -10,6 +10,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
 import { SocialLoginButtons } from '@/components/auth/SocialLoginButtons';
 import { isNativeAppClient } from '@/lib/nativeApp';
+import { trackV1Metric } from '@/lib/v1Metrics';
 
 // Aparelho que já passou pela tela de entrada (entrou ou escolheu "já tenho conta").
 // Quem acabou de baixar o app não tem isso e vê primeiro a escolha de criar conta.
@@ -46,7 +47,9 @@ export default function LoginPage() {
     // aparelho novo, não link de convite/recuperação
     const redirectParam = params.get('redirect');
     const fromLink = Boolean(emailParam || (redirectParam && redirectParam !== '/home') || params.get('reason') || params.get('msg'));
-    setMode(isNativeAppClient() && !seen && !fromLink ? 'choose' : 'form');
+    const nextMode = isNativeAppClient() && !seen && !fromLink ? 'choose' : 'form';
+    setMode(nextMode);
+    trackV1Metric('auth_screen_shown', { variant: nextMode, native: isNativeAppClient() });
     if (params.get('reason') === 'account-exists') {
       setError('Este e-mail já tem conta no PETMOL. Entre para aceitar o convite.');
     }
@@ -105,14 +108,14 @@ export default function LoginPage() {
             </p>
             <Link
               href={registerHref}
-              onClick={markLoginSeen}
+              onClick={() => { markLoginSeen(); trackV1Metric('auth_choice_register', {}); }}
               className="mt-8 block w-full bg-gradient-to-r from-[#0066ff] to-[#0056D2] text-white font-black py-4 rounded-2xl text-center transition-all active:scale-[0.98]"
             >
               Criar minha conta
             </Link>
             <button
               type="button"
-              onClick={() => { markLoginSeen(); setMode('form'); }}
+              onClick={() => { markLoginSeen(); trackV1Metric('auth_choice_login', {}); setMode('form'); }}
               className="mt-3 w-full rounded-2xl border border-slate-200 bg-white py-4 text-sm font-bold text-slate-600 active:bg-slate-50"
             >
               Já tenho conta
