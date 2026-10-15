@@ -128,6 +128,8 @@ def unsubscribe_url(user_id: str) -> str:
 
 CAMPAIGN_PUSH_LOCATION = "push_location"
 CAMPAIGN_FOOD = "food"
+# Depois de N falhas SEGUIDAS de e-mail (ex.: 451 Ratelimit da hospedagem) o envio para de tentar e-mail.
+EMAIL_BLOCK_AFTER_FAILURES = 3
 CAMPAIGN_PUSH_SECOND = "push_second_chance"
 CAMPAIGN_FOOD_HOLDOUT = "food_holdout"  # grupo de controle: elegível, NÃO recebeu mensagem
 
@@ -287,30 +289,47 @@ def _run(dry_run: bool, batch_size: int = 10, batch_pause_seconds: int = 180,
             for t in holdout:   # controle: registrado, sem mensagem
                 db.add(ActivationCampaignContact(campaign=CAMPAIGN_FOOD_HOLDOUT, user_id=t["user_id"]))
             db.commit()
-            sent_push = sent_email = failed_email = 0
+            sent_push = sent_email = failed_email = skipped_blocked = 0
+            consecutive_fail = 0
+            email_blocked = False
             for i, t in enumerate(targets):
                 user = db.query(User).filter(User.id == t["user_id"]).first()
                 if not user or not user.email:
                     continue
-                subject, body = _email_copy(user.name, t["pet_names"], t["user_id"])
-                if send_mail(to=user.email, subject=subject, body_text=body):
-                    sent_email += 1
-                    # registro durável, na hora (um lote lento pode atravessar um deploy)
-                    db.add(ActivationCampaignContact(campaign=CAMPAIGN_FOOD, user_id=t["user_id"]))
-                    db.commit()
+                contacted = False
+                if email_blocked:
+                    skipped_blocked += 1          # provedor bloqueou: não insiste (nem prolonga o bloqueio)
                 else:
-                    failed_email += 1
+                    subject, body = _email_copy(user.name, t["pet_names"], t["user_id"])
+                    if send_mail(to=user.email, subject=subject, body_text=body):
+                        sent_email += 1
+                        consecutive_fail = 0
+                        contacted = True
+                        # a cada lote, uma pausa (a hospedagem rejeita e-mail em rajada)
+                        emails_done = sent_email + failed_email
+                        if (i + 1) < len(targets) and emails_done % batch_size == 0:
+                            _sleep(batch_pause_seconds)
+                    else:
+                        failed_email += 1
+                        consecutive_fail += 1
+                        if consecutive_fail >= EMAIL_BLOCK_AFTER_FAILURES:
+                            email_blocked = True
+                            logger.error("[activation_campaign food] e-mail bloqueado pelo provedor — seguindo só com push")
                 if t["has_push"]:
                     ok = push_to_user(t["user_id"], _push_payload(t["pet_names"], t.get("first_pet_id")))
                     if ok > 0:
                         sent_push += 1
+                        contacted = True
+                if contacted:
+                    # registro durável, na hora — push OU e-mail contam como contato (evita repetir)
+                    db.add(ActivationCampaignContact(campaign=CAMPAIGN_FOOD, user_id=t["user_id"]))
+                    db.commit()
                 with _lock:
                     STATE["result"] = {**result, "sent_push": sent_push, "sent_email": sent_email,
-                                       "failed_email": failed_email, "progress": f"{i + 1}/{len(targets)}"}
-                # a hospedagem rejeita e-mail em rajada (451) — mesmo ritmo do degrau 2
-                if (i + 1) < len(targets) and (i + 1) % batch_size == 0:
-                    _sleep(batch_pause_seconds)
-            result.update(sent_push=sent_push, sent_email=sent_email, failed_email=failed_email)
+                                       "failed_email": failed_email, "email_blocked": email_blocked,
+                                       "skipped_email_blocked": skipped_blocked, "progress": f"{i + 1}/{len(targets)}"}
+            result.update(sent_push=sent_push, sent_email=sent_email, failed_email=failed_email,
+                          email_blocked=email_blocked, skipped_email_blocked=skipped_blocked)
 
         with _lock:
             STATE.update(phase="done", result=result, error=None,
@@ -805,21 +824,28 @@ def _run_push_second(dry_run: bool, batch_size: int = 10, batch_pause_seconds: i
         targets, skipped = _target_users_push_second(db)
         result = {"total": len(targets), "skipped": skipped, "dry_run": dry_run}
         if not dry_run:
-            sent = failed = 0
+            sent = failed = consecutive_fail = 0
+            blocked = False
             for i, t in enumerate(targets):
+                if blocked:
+                    break
                 subject, body_text, body_html = _email_copy_push_second(t["name"], t["pet_names"], t["user_id"])
                 if send_mail(to=t["email"], subject=subject, body_text=body_text, body_html=body_html):
                     sent += 1
+                    consecutive_fail = 0
                     db.add(ActivationCampaignContact(campaign=CAMPAIGN_PUSH_SECOND, user_id=t["user_id"]))
                     db.commit()
                 else:
                     failed += 1
+                    consecutive_fail += 1
+                    if consecutive_fail >= EMAIL_BLOCK_AFTER_FAILURES:
+                        blocked = True
                 with _lock_push_second:
                     STATE_PUSH_SECOND["result"] = {**result, "sent_email": sent, "failed_email": failed,
                                                    "progress": f"{i + 1}/{len(targets)}"}
                 if (i + 1) < len(targets) and (i + 1) % batch_size == 0:
                     _sleep(batch_pause_seconds)
-            result.update(sent_email=sent, failed_email=failed)
+            result.update(sent_email=sent, failed_email=failed, email_blocked=blocked)
         with _lock_push_second:
             STATE_PUSH_SECOND.update(phase="done", result=result, error=None,
                                      finished_at=datetime.now(timezone.utc).isoformat())

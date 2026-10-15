@@ -546,6 +546,7 @@ function CampaignsPanel() {
         {typeof r.sent_email === 'number' ? ` · ${numberFmt(r.sent_email)} e-mails` : ''}
         {typeof r.sent_push === 'number' ? ` · ${numberFmt(r.sent_push)} push` : ''}
         {typeof r.failed_email === 'number' && r.failed_email > 0 ? ` · ${numberFmt(r.failed_email)} falharam` : ''}
+        {r.email_blocked ? ' · e-mail bloqueado pelo provedor (limite); seguiu só com push' : ''}
       </span>;
     }
     return <span className="text-slate-400">Parada</span>;

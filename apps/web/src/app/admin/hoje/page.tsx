@@ -13,7 +13,7 @@ import { useAdmin } from '@/hooks/useAdmin';
 import { adminGet } from '@/lib/admin/analyticsApi';
 import { getToken } from '@/lib/auth-token';
 import type { CampaignsPanelSummary, GrowthResponse } from '@/lib/admin/growthApi';
-import { pct } from '@/lib/admin/growthApi';
+import { pct, type GrowthPlatformRow } from '@/lib/admin/growthApi';
 import { useAsync, Loading, ErrorBox, numberFmt } from '@/components/admin/sections/sections';
 import { spStartOfToday } from '@/lib/analytics/spTime';
 
@@ -94,6 +94,7 @@ export default function HojePage() {
               ))}
             </div>
           )}
+          {todayData && <DeviceBreakdown rows={todayData.platforms} />}
         </section>
 
         {/* 3 — O que fazer */}
@@ -142,5 +143,40 @@ export default function HojePage() {
         </p>
       </div>
     </PremiumScreenShell>
+  );
+}
+
+/** Hoje, por aparelho: iPhone, Android e "Outros" (app instalado pela tela de início e navegador). */
+function DeviceBreakdown({ rows }: { rows: GrowthPlatformRow[] }) {
+  const get = (p: GrowthPlatformRow['platform']) => rows.find((r) => r.platform === p);
+  const sum = (keys: GrowthPlatformRow['platform'][], field: 'downloads' | 'cadastros') =>
+    keys.reduce((total, k) => total + (get(k)?.[field] ?? 0), 0);
+  const lines: { label: string; keys: GrowthPlatformRow['platform'][] }[] = [
+    { label: 'iPhone', keys: ['ios'] },
+    { label: 'Android', keys: ['android'] },
+    { label: 'Outros (navegador e app da tela de início)', keys: ['pwa', 'web'] },
+  ];
+  return (
+    <div className="mt-4 border-t border-slate-100 pt-3">
+      <p className="mb-2 text-[12px] font-bold text-slate-500">Por aparelho, hoje</p>
+      <table className="w-full text-[14px]">
+        <thead>
+          <tr className="text-left text-[11px] uppercase tracking-wide text-slate-400">
+            <th className="py-1 font-semibold">Aparelho</th>
+            <th className="py-1 text-right font-semibold">Baixaram</th>
+            <th className="py-1 text-right font-semibold">Se cadastraram</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map((l) => (
+            <tr key={l.label} className="border-t border-slate-100">
+              <td className="py-1.5 text-slate-700">{l.label}</td>
+              <td className="py-1.5 text-right font-bold text-slate-900">{numberFmt(sum(l.keys, 'downloads'))}</td>
+              <td className="py-1.5 text-right font-bold text-slate-900">{numberFmt(sum(l.keys, 'cadastros'))}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

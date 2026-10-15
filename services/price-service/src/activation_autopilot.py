@@ -86,6 +86,8 @@ def run_autopilot(*, now: Optional[datetime] = None, dry_run: bool = False, igno
             return result
 
         emails_sent = 0
+        consecutive_fail = 0
+        blocked = False
 
         def _pause_if_needed() -> None:
             nonlocal emails_sent
@@ -104,26 +106,39 @@ def run_autopilot(*, now: Optional[datetime] = None, dry_run: bool = False, igno
                 user = db.query(User).filter(User.id == t["user_id"]).first()
                 if not user or not user.email:
                     continue
+                if blocked:
+                    continue
                 subject, body = ac._email_copy(user.name, t["pet_names"], t["user_id"])
                 if send_mail(to=user.email, subject=subject, body_text=body):
                     result["food_email"] += 1
+                    consecutive_fail = 0
                     db.add(ac.ActivationCampaignContact(campaign=ac.CAMPAIGN_FOOD, user_id=t["user_id"]))
                     db.commit()
+                else:
+                    consecutive_fail += 1
+                    blocked = consecutive_fail >= ac.EMAIL_BLOCK_AFTER_FAILURES
                 _pause_if_needed()
             except Exception:  # um destinatário falhar nunca derruba o lote
                 logger.exception("[autopilot] falha na ração para %s", t["user_id"])
                 db.rollback()
         for t in second:
+            if blocked:
+                break
             try:
                 subject, body_text, body_html = ac._email_copy_push_second(t["name"], t["pet_names"], t["user_id"])
                 if send_mail(to=t["email"], subject=subject, body_text=body_text, body_html=body_html):
                     result["push_second_email"] += 1
+                    consecutive_fail = 0
                     db.add(ac.ActivationCampaignContact(campaign=ac.CAMPAIGN_PUSH_SECOND, user_id=t["user_id"]))
                     db.commit()
+                else:
+                    consecutive_fail += 1
+                    blocked = consecutive_fail >= ac.EMAIL_BLOCK_AFTER_FAILURES
                 _pause_if_needed()
             except Exception:
                 logger.exception("[autopilot] falha na notificação para %s", t["user_id"])
                 db.rollback()
+        result["email_blocked"] = blocked
         logger.info("[autopilot] %s", result)
         return result
     finally:
