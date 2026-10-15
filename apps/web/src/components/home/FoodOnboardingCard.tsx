@@ -22,6 +22,7 @@ import { petDo } from '@/lib/petGender';
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { writeOnboardingStore } from '@/lib/onboardingProgress';
+import { startSecondChanceClock } from '@/components/home/foodSecondChance';
 import { FoodControlTab } from '@/components/FoodControlTab';
 import { ActivationAskSheet } from '@/components/home/ActivationAskSheet';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
@@ -75,6 +76,7 @@ export function FoodOnboardingCard({
 
   const handleSkip = () => {
     writeOnboardingStore(petId, { food: 'later' });
+    startSecondChanceClock(petId);   // a 1ª segunda chance só vem depois de 7 dias
     trackV1Metric('onboarding_food_step_skipped', { pet_id: petId });
     setClosed(true);
     onDone();
