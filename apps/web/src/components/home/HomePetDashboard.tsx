@@ -420,6 +420,8 @@ export function HomePetDashboard({
         onClose={() => setShowShoppingSheet(false)}
         currentPet={currentPet}
         buyableReminders={reminders}
+        needsFood={!hasFoodData}
+        onRegisterFood={() => { setShowShoppingSheet(false); onOpenFood(); }}
       />
     </div>
   );
