@@ -1,0 +1,102 @@
+"""Dashboard 2 — funil de crescimento (acessos → downloads → cadastros → pet → alimentação)."""
+from datetime import datetime, timedelta, timezone
+from uuid import uuid4
+
+from src.admin.models import AdminUser
+from src.analytics.install_models import AppInstall
+from src.analytics.models import AnalyticsProductEvent
+from src.db import SessionLocal
+from src.health.models import FeedingPlan
+from src.pets.models import Pet
+from src.user_auth.models import User
+from src.user_auth.security import create_access_token, hash_password
+
+NOW = datetime.now(timezone.utc)
+
+
+def _admin_headers():
+    db = SessionLocal()
+    try:
+        u = User(email="leonardofmol@gmail.com", password_hash=hash_password("x"), name="Admin",
+                 created_at=NOW - timedelta(days=60))
+        db.add(u)
+        db.commit()
+        db.add(AdminUser(user_id=u.id, role="master"))
+        db.commit()
+        return {"Authorization": f"Bearer {create_access_token(u.id)}"}
+    finally:
+        db.close()
+
+
+def _seed():
+    """4 acessos (3 iOS, 1 web), 2 downloads iOS, 3 cadastros em 2 dias:
+    A só conta; B conta+pet; C conta+pet+alimentação."""
+    db = SessionLocal()
+    try:
+        users = {}
+        for key in "abc":
+            users[key] = User(email=f"{key}-{uuid4().hex[:8]}@example.com", password_hash=hash_password("x"),
+                              name=key, created_at=NOW - timedelta(days=2))
+        db.add_all(users.values())
+        db.commit()
+        pet_b = Pet(user_id=users["b"].id, name="Rex", species="dog", breed="SRD")
+        pet_c = Pet(user_id=users["c"].id, name="Mia", species="cat", breed="SRD")
+        db.add_all([pet_b, pet_c])
+        db.commit()
+        db.add(FeedingPlan(pet_id=pet_c.id, species="cat", country_code="BR", food_brand="Whiskas",
+                            items_json='[{"gtin":"456"}]', daily_amount_g=80, duration_days=20, enabled=True))
+        for i, plat in enumerate(["ios_capacitor", "ios_capacitor", "ios_capacitor", "web"]):
+            db.add(AnalyticsProductEvent(event_id=f"g-{i}-{uuid4().hex[:6]}", event_name="app_open",
+                                          platform=plat, anonymous_id=f"anon-{i}",
+                                          received_at=NOW - timedelta(hours=i + 1)))
+        for _ in range(2):
+            db.add(AppInstall(platform="ios", city="São Paulo", created_at=NOW - timedelta(hours=3)))
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_growth_funnel_counts_and_finds_the_biggest_leak(client):
+    headers = _admin_headers()
+    _seed()
+
+    r = client.get("/v1/admin/analytics/growth?period_days=7", headers=headers)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    n = {s["key"]: s["n"] for s in body["steps"]}
+
+    assert n["acessos"] == 4
+    assert n["downloads"] == 2
+    assert n["cadastros"] == 3
+    assert n["pet"] == 2
+    assert n["feeding"] == 1
+    # cadastros / downloads = 150% não é vazamento; o pior é pet→alimentação (50%)
+    # e cadastros→pet (66%) — o menor % ganha
+    assert body["biggest_leak"]["to"] == "feeding"
+    assert body["stuck"] == {"cadastro_sem_pet": 1, "pet_sem_alimentacao": 1}
+    assert body["biggest_leak"]["where_to_act"]
+
+
+def test_growth_funnel_platform_filter_limits_acessos_and_downloads(client):
+    headers = _admin_headers()
+    _seed()
+
+    r = client.get("/v1/admin/analytics/growth?period_days=7&platform=web", headers=headers)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    n = {s["key"]: s["n"] for s in body["steps"]}
+    assert n["acessos"] == 1
+    assert n["downloads"] == 0
+    assert body["filters_applied"]["platform"] is True
+
+
+def test_growth_funnel_city_filter_flags_that_acessos_are_not_filtered(client):
+    headers = _admin_headers()
+    _seed()
+
+    r = client.get("/v1/admin/analytics/growth?period_days=7&city=São Paulo", headers=headers)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["filters_applied"]["city"]["acessos"] is False
+    assert body["filters_applied"]["city"]["downloads"] is True
+    assert any("localização" in note for note in body["notes"])
