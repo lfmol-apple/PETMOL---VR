@@ -93,6 +93,14 @@ def render(brief: dict[str, Any], *, app_url: str, audience: str = "admin") -> t
     insights = brief.get("insights")
     if insights:
         parts.append(_insights_html(insights))
+    comms = brief.get("comms")
+    if comms:
+        done = comms["last24h"]
+        total = sum(done.values())
+        parts.append(_block("Comunicação automática", (
+            f"<p style='margin:0;font-size:13px'>Piloto automático <b>{'ligado' if comms['autopilot'] else 'desligado'}</b>. "
+            f"Nas últimas 24h foram enviadas <b>{total}</b> mensagem(ns) de ativação "
+            f"(ração: {done.get('food', 0)}, notificação: {done.get('push_second_chance', 0) + done.get('push_location', 0)}).</p>")))
 
     funnel = brief["funnel"]
     parts.append(_block("Funil do dia", "<p style='margin:0;font-size:14px'>" + " → ".join(
@@ -166,6 +174,11 @@ def render(brief: dict[str, Any], *, app_url: str, audience: str = "admin") -> t
     for key in ("downloads", "cadastros_completos", "racao_primeira", "notificacao_primeira", "cadastros", "ativos"):
         x = m[key]
         lines.append(f"{x['label']}: {x['value']}  (dia anterior {_delta_text(x['delta_prev_pct'])}, média 7d {_delta_text(x['delta_avg7_pct'])})")
+    comms = brief.get("comms")
+    if comms:
+        d = comms["last24h"]
+        lines += ["", f"Comunicação automática: piloto {'ligado' if comms['autopilot'] else 'desligado'}; "
+                      f"{sum(d.values())} mensagem(ns) de ativação nas últimas 24h."]
     ins = brief.get("insights")
     if ins:
         g = ins["goal"]
@@ -232,6 +245,22 @@ def send_daily_brief(day: Optional[date] = None) -> bool:
             db.close()
     except Exception:
         logger.exception("[daily-brief] insights falhou; boletim sai sem o bloco")
+    # "Comunicação automática": o que o piloto (e as campanhas) enviaram nas últimas 24h — transparência.
+    try:
+        from datetime import timezone as _tz
+        from sqlalchemy import func as _f
+        from ..admin import activation_campaign_router as _ac
+        db = SessionLocal()
+        try:
+            since = datetime.now(_tz.utc) - timedelta(hours=24)
+            rows = (db.query(_ac.ActivationCampaignContact.campaign, _f.count())
+                    .filter(_ac.ActivationCampaignContact.sent_at >= since)
+                    .group_by(_ac.ActivationCampaignContact.campaign).all())
+            brief["comms"] = {"last24h": {c: int(n) for c, n in rows}, "autopilot": _ac.autopilot_enabled(db)}
+        finally:
+            db.close()
+    except Exception:
+        logger.exception("[daily-brief] resumo de comunicação falhou")
     app_url = settings.frontend_url.rstrip("/")
     subject, text, html_body = render(brief, app_url=app_url)
     ok = send_mail(to=settings.admin_master_email, subject=subject, body_text=text, body_html=html_body)

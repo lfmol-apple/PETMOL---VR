@@ -578,3 +578,65 @@ def test_food_holdout_100_nao_envia_e_registra_controle(monkeypatch, client):
     assert not any(e["to"].startswith("hold.") for e in sent["email"])
     res = client.get("/v1/admin/campaigns/food-activation/results", headers={"X-Admin-Api-Key": READONLY_KEY}).json()
     assert res["holdout"]["total"] >= 1
+
+
+def _set_created(db, user_id, days_ago):
+    from datetime import datetime, timedelta, timezone
+    u = db.query(User).filter(User.id == user_id).first()
+    u.created_at = datetime.now(timezone.utc) - timedelta(days=days_ago)
+    db.commit()
+
+
+def test_segunda_chance_regras_de_quem_entra_e_nao_repete(monkeypatch, client):
+    from src.admin.activation_campaign_router import (
+        CAMPAIGN_FOOD, CAMPAIGN_PUSH_SECOND, ActivationCampaignContact,
+    )
+    _enable_token(monkeypatch)
+    sent = []
+    monkeypatch.setattr("src.admin.activation_campaign_router.send_mail", lambda **kw: sent.append(kw) or True)
+    monkeypatch.setattr("src.admin.activation_campaign_router._sleep", lambda s: None)
+    db = SessionLocal()
+    try:
+        tag = uuid.uuid4().hex[:6]
+        ok = _mk_user(db, email=f"sc.ok.{tag}@example.com", name="Ana Ok"); _set_created(db, ok, 10)
+        _mk_pet(db, user_id=ok, name="Mel")
+        capped = _mk_user(db, email=f"sc.cap.{tag}@example.com", name="Bia Cap"); _set_created(db, capped, 10)
+        new = _mk_user(db, email=f"sc.new.{tag}@example.com", name="Caio Novo"); _set_created(db, new, 0.2)
+        withpush = _mk_user(db, email=f"sc.push.{tag}@example.com", name="Davi Push"); _set_created(db, withpush, 10)
+        _mk_push_subscription(db, user_id=withpush)
+        db.add(ActivationCampaignContact(campaign=CAMPAIGN_FOOD, user_id=capped))   # recebeu ração hoje: limite semanal
+        db.commit()
+    finally:
+        db.close()
+
+    ro = {"X-Admin-Api-Key": READONLY_KEY}
+    pre = client.get("/v1/admin/campaigns/push-second-chance/preview", headers=ro).json()
+    assert pre["skipped"]["weekly_cap"] >= 1 and pre["skipped"]["too_new"] >= 1
+
+    headers = {"X-Sync-Token": TOKEN}
+    assert client.post("/v1/admin/campaigns/push-second-chance/run", json={"dry_run": False}, headers=headers).status_code == 200
+    deadline = time.time() + 5
+    while time.time() < deadline:
+        st = client.get("/v1/admin/campaigns/push-second-chance/status", headers=ro).json()
+        if st["phase"] in ("done", "error"):
+            break
+        time.sleep(0.05)
+    assert st["phase"] == "done", st
+    to = {e["to"] for e in sent}
+    assert any(a.startswith("sc.ok.") for a in to)
+    assert not any(a.startswith(("sc.cap.", "sc.new.", "sc.push.")) for a in to)
+    mail = next(e for e in sent if e["to"].startswith("sc.ok."))
+    assert "Mel" in mail["subject"] and "grátis e sem anúncios" in mail["body_text"].lower()
+
+    sent.clear()                                  # segunda rodada: ninguém repete
+    client.post("/v1/admin/campaigns/push-second-chance/run", json={"dry_run": False}, headers=headers)
+    time.sleep(0.5)
+    assert not any(e["to"].startswith("sc.ok.") for e in sent)
+
+
+def test_segunda_chance_texto_plural_e_sem_nome():
+    from src.admin.activation_campaign_router import _email_copy_push_second
+    s, t, h = _email_copy_push_second("Priscila Silva", ["Vianna", "Vanda Juliane"])
+    assert "Vianna e Vanda Juliane" in s and "sumirem" in t and "Oi, Priscila!" in t
+    s2, t2, _ = _email_copy_push_second(None, [])
+    assert "seu pet" in s2 and t2.startswith("Oi!")

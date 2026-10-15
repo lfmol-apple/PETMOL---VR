@@ -14,7 +14,7 @@ import { adminGet, type CampaignsResponse, type GlobalFilter } from '@/lib/admin
 import { getToken } from '@/lib/auth-token';
 import {
   FAILURE_LABEL, PLATFORM_LABEL, pct,
-  type EntryResponse, type FoodCampaignResults, type ActivationItem, type CampaignActivationRow, type GrowthPlatformRow, type GrowthResponse, type GrowthSeriesPoint, type GrowthStep,
+  type CampaignsPanelSummary, type CampaignState, type EntryResponse, type FoodCampaignResults, type ActivationItem, type CampaignActivationRow, type GrowthPlatformRow, type GrowthResponse, type GrowthSeriesPoint, type GrowthStep,
 } from '@/lib/admin/growthApi';
 import { useAsync, Loading, ErrorBox, numberFmt, RetentionSection, FeaturesSection } from '@/components/admin/sections/sections';
 import { FeedingSection } from '@/components/admin/sections/FeedingSection';
@@ -197,6 +197,7 @@ function GrowthBody({ filter, onFocusTutors }: { filter: GlobalFilter; onFocusTu
     <>
       <ActivationCard data={data} onFocusTutors={onFocusTutors} />
       <TodayBlock onFocusTutors={onFocusTutors} />
+      <CampaignsPanel />
       <LeakBanner data={data} />
       <EntryCard filter={filter} />
       <FunnelCard data={data} />
@@ -494,6 +495,122 @@ function TodayBlock({ onFocusTutors }: { onFocusTutors: (g: TutorsPreset['goal']
         />
         <BaseStrip onOpenPeople={() => onFocusTutors('incomplete')} onOpenMissingPets={() => window.location.assign('/achei-um-pet')} />
       </div>
+    </Card>
+  );
+}
+
+const panelFetch = async <T,>(path: string, init?: RequestInit): Promise<T> => {
+  const res = await fetch(`/api/v1/admin/campaigns/panel${path}`, {
+    ...init,
+    headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json', ...(init?.headers || {}) },
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(typeof body.detail === 'string' ? body.detail : `Erro ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+};
+
+/** Painel de campanhas: o dono dispara e acompanha com o login de admin (sem token) e liga/desliga o piloto. */
+function CampaignsPanel() {
+  const [refresh, setRefresh] = useState(0);
+  const { data, error, loading } = useAsync<CampaignsPanelSummary>(
+    () => panelFetch('/summary'), [refresh], { intervalMs: 8000 });
+  const [confirm, setConfirm] = useState<'food' | 'push-second' | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const act = async (fn: () => Promise<unknown>) => {
+    setBusy(true); setMsg(null);
+    try { await fn(); setRefresh((n) => n + 1); }
+    catch (e) { setMsg(e instanceof Error ? e.message : 'Não foi possível.'); }
+    finally { setBusy(false); setConfirm(null); }
+  };
+  const run = (which: 'food' | 'push-second', dry: boolean) =>
+    act(() => panelFetch(`/${which}/run`, { method: 'POST', body: JSON.stringify({ dry_run: dry }) }));
+  const toggle = (enabled: boolean) =>
+    act(() => panelFetch('/autopilot', { method: 'POST', body: JSON.stringify({ enabled }) }));
+
+  const stateLine = (st: CampaignState) => {
+    if (st.phase === 'running') {
+      const prog = st.result && typeof st.result.progress === 'string' ? ` (${st.result.progress})` : '';
+      return <span className="font-semibold text-amber-700">Enviando{prog}…</span>;
+    }
+    if (st.phase === 'error') return <span className="font-semibold text-rose-600">Erro: {st.error}</span>;
+    if (st.phase === 'done' && st.result) {
+      const r = st.result;
+      return <span className="text-slate-600">
+        {r.dry_run ? 'Ensaio (nada enviado): ' : 'Concluído: '}
+        {typeof r.total === 'number' ? `${numberFmt(r.total)} pessoas` : ''}
+        {typeof r.sent_email === 'number' ? ` · ${numberFmt(r.sent_email)} e-mails` : ''}
+        {typeof r.sent_push === 'number' ? ` · ${numberFmt(r.sent_push)} push` : ''}
+        {typeof r.failed_email === 'number' && r.failed_email > 0 ? ` · ${numberFmt(r.failed_email)} falharam` : ''}
+      </span>;
+    }
+    return <span className="text-slate-400">Parada</span>;
+  };
+
+  const rows: { key: 'food' | 'push-second'; title: string; what: string; n: number; detail: string; st: CampaignState }[] = data ? [
+    { key: 'food', title: 'Ração', what: 'Tem pet e não cadastrou a ração. Push para quem tem aviso, e-mail para os demais (e para quem tem aviso também, no envio manual).',
+      n: data.food.eligible, detail: `${numberFmt(data.food.with_push)} com push · ${numberFmt(data.food.email_only)} só e-mail · ${numberFmt(data.food.skipped_recent)} já receberam há menos de 7 dias`, st: data.food.state },
+    { key: 'push-second', title: 'Notificação — segunda chance', what: 'Ainda sem notificação depois do primeiro contato. E-mail (quem não tem aviso não recebe push).',
+      n: data.push_second.eligible, detail: Object.entries(data.push_second.skipped).map(([k, v]) => `${v} fora (${({ already: 'já recebeu', weekly_cap: 'limite semanal', too_new: 'conta nova' } as Record<string, string>)[k] ?? k})`).join(' · '), st: data.push_second.state },
+  ] : [];
+
+  return (
+    <Card title="Campanhas de ativação"
+      subtitle="Disparar e acompanhar com o seu login. Cada pessoa recebe no máximo 1 mensagem por semana e quem pediu para parar nunca entra.">
+      {loading && !data ? <Loading /> : error || !data ? <ErrorBox msg={error} /> : (
+        <>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 p-3">
+            <div>
+              <p className="text-[13px] font-bold text-slate-800">
+                Piloto automático: {data.autopilot.enabled ? <span className="text-emerald-600">ligado</span> : <span className="text-rose-600">desligado</span>}
+              </p>
+              <p className="text-[12px] text-slate-500">
+                Todo dia às 11h (10h–19h), até {data.autopilot.daily_cap} mensagens por dia, na ordem ração → notificação.
+                Últimas 24h: {numberFmt(Object.values(data.autopilot.last24h).reduce((a, b) => a + b, 0))} enviadas · {numberFmt(data.autopilot.opted_out)} pediram para parar.
+              </p>
+            </div>
+            <button type="button" disabled={busy} onClick={() => toggle(!data.autopilot.enabled)}
+              className={`rounded-lg px-3 py-1.5 text-[12px] font-bold ${data.autopilot.enabled ? 'border border-rose-300 text-rose-700' : 'bg-emerald-600 text-white'}`}>
+              {data.autopilot.enabled ? 'Pausar' : 'Ligar'}
+            </button>
+          </div>
+
+          <ul className="space-y-3">
+            {rows.map((r) => (
+              <li key={r.key} className="rounded-lg border border-slate-200 p-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="max-w-xl">
+                    <p className="text-[14px] font-extrabold text-slate-800">{r.title} <span className="font-medium text-slate-500">— {numberFmt(r.n)} receberiam agora</span></p>
+                    <p className="text-[12px] text-slate-500">{r.what}</p>
+                    <p className="mt-1 text-[11px] text-slate-400">{r.detail}</p>
+                    <p className="mt-1 text-[12px]">{stateLine(r.st)}</p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <button type="button" disabled={busy || r.st.phase === 'running'} onClick={() => run(r.key, true)}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-600 disabled:opacity-40">Ensaio</button>
+                    <button type="button" disabled={busy || r.st.phase === 'running' || r.n === 0} onClick={() => setConfirm(r.key)}
+                      className="rounded-lg bg-[#0056D2] px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-40">Enviar agora</button>
+                  </div>
+                </div>
+                {confirm === r.key && (
+                  <div className="mt-3 rounded-lg bg-amber-50 p-3 text-[13px] text-amber-900">
+                    <p><strong>Enviar para {numberFmt(r.n)} pessoas agora?</strong> O push sai na hora e o e-mail em lotes de 10, com pausa de 3 minutos. Não dá para desfazer.</p>
+                    <div className="mt-2 flex gap-2">
+                      <button type="button" disabled={busy} onClick={() => run(r.key, false)} className="rounded-lg bg-[#0056D2] px-3 py-1.5 text-[12px] font-bold text-white">Sim, enviar</button>
+                      <button type="button" onClick={() => setConfirm(null)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-600">Cancelar</button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+          {msg && <p className="mt-3 text-[12px] font-semibold text-rose-600">{msg}</p>}
+        </>
+      )}
     </Card>
   );
 }

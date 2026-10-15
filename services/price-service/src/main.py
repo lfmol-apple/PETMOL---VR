@@ -54,7 +54,7 @@ from .admin import commerce_identity_admin_router
 from .admin import shopee_coverage_admin_router
 from .admin import admin_debug_router
 from .admin import admin_analytics_router
-from .admin import activation_campaign_admin_router
+from .admin import activation_campaign_admin_router, activation_optout_public_router, activation_panel_admin_router
 from .admin import models as _admin_models
 from .moderation.models import PhotoModerationDecision as _photo_moderation_decision_model  # noqa: F401 — register with Base
 from .admin.analytics.permission_snapshots import PermissionSnapshot as _permission_snapshot_model  # noqa: F401 — register with Base
@@ -282,6 +282,8 @@ app.include_router(shopee_coverage_admin_router)
 app.include_router(admin_debug_router)
 app.include_router(admin_analytics_router)
 app.include_router(activation_campaign_admin_router)
+app.include_router(activation_optout_public_router)
+app.include_router(activation_panel_admin_router)
 app.include_router(moderation_admin_router)
 app.include_router(vaccine_date_notice_router)
 # Some deployments forward /api/* without stripping the prefix.
@@ -296,6 +298,8 @@ app.include_router(commerce_identity_admin_router, prefix="/api")
 app.include_router(shopee_coverage_admin_router, prefix="/api")
 app.include_router(admin_analytics_router, prefix="/api")
 app.include_router(activation_campaign_admin_router, prefix="/api")
+app.include_router(activation_optout_public_router, prefix="/api")
+app.include_router(activation_panel_admin_router, prefix="/api")
 app.include_router(moderation_admin_router, prefix="/api")
 app.include_router(vaccine_date_notice_router, prefix="/api")
 
@@ -455,6 +459,14 @@ def start_push_scheduler():
                               timezone="America/Sao_Paulo", id="expire_stale_missing_pet_alerts")
         except Exception as exc:
             push_logger.warning("[PETMOL] expiração de Pet Sumido não agendada: %s", exc)
+        try:
+            # Piloto automático de ativação (ração → notificação): 11h de Brasília, com teto, horário comercial
+            # e 1 mensagem por pessoa por semana. Liga/desliga no Dashboard 2 (ver activation_autopilot.py).
+            from .activation_autopilot import run_autopilot
+            scheduler.add_job(run_autopilot, "cron", hour=11, minute=0, timezone="America/Sao_Paulo",
+                              id="activation_autopilot", max_instances=1, coalesce=True)
+        except Exception as exc:
+            push_logger.warning("[PETMOL] piloto automático não agendado: %s", exc)
         # DESATIVADO (18/09/2026, feedback direto do dono): o job horário de
         # crescimento de raio estava empurrando push pra contas que não
         # tinham nada a ver com o alerta original — "coloquei o alerta numa

@@ -96,3 +96,14 @@ export interface FoodCampaignResults {
   series: { date: string; first_feeding: number }[];
   notes: string[];
 }
+
+export interface CampaignState {
+  phase: 'idle' | 'running' | 'done' | 'error';
+  started_at: string | null; finished_at: string | null; error: string | null;
+  result: Record<string, number | string | boolean | Record<string, number>> | null;
+}
+export interface CampaignsPanelSummary {
+  food: { eligible: number; with_push: number; email_only: number; skipped_recent: number; state: CampaignState };
+  push_second: { eligible: number; skipped: Record<string, number>; state: CampaignState };
+  autopilot: { enabled: boolean; daily_cap: number; last24h: Record<string, number>; opted_out: number };
+}
