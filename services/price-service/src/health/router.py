@@ -948,7 +948,22 @@ async def create_or_update_feeding_plan(
 
     db.commit()
     db.refresh(plan)
-    
+
+    # Aviso ao dono/parceiros: 1ª alimentação do tutor (o aviso de cada tutor sai uma vez só)
+    if not existing_plan:
+        try:
+            from ..admin_alerts import notify_first_feeding
+            from ..pets.models import Pet as _Pet
+            others = (
+                db.query(FeedingPlan.id).join(_Pet, _Pet.id == FeedingPlan.pet_id)
+                .filter(_Pet.user_id == str(current_user.id), FeedingPlan.id != plan.id,
+                        FeedingPlan.deleted_at.is_(None)).first()
+            )
+            if others is None:
+                notify_first_feeding(str(current_user.id), getattr(pet, "name", None))
+        except Exception:
+            pass
+
     plan_items = _parse_feeding_items_from_plan(plan)
     plan_data = _build_feeding_plan_data(plan, plan_items)
     

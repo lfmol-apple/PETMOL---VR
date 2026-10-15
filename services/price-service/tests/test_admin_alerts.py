@@ -40,6 +40,8 @@ def _setup(db, monkeypatch):
 
 
 def test_account_created_push_without_pet(monkeypatch):
+    # "Conta criada" está desligada por padrão (15/10/2026); aqui religada só pra cobrir o texto.
+    monkeypatch.setattr("src.admin_alerts.ADMIN_PUSH_ACCOUNT_CREATED", True)
     from uuid import uuid4
 
     from src.db import SessionLocal

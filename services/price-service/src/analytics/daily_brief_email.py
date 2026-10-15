@@ -35,7 +35,7 @@ def _delta_text(pct: Optional[float]) -> str:
 
 def _metric_rows_html(brief: dict[str, Any]) -> str:
     rows = []
-    for key in ("downloads", "acessos", "cadastros", "pets_novos", "ativos"):
+    for key in ("downloads", "cadastros_completos", "racao_primeira", "notificacao_primeira", "cadastros", "ativos"):
         m = brief["metrics"][key]
         rows.append(
             "<tr>"
@@ -52,13 +52,17 @@ def _block(title: str, body: str) -> str:
     return (f"<h3 style='margin:22px 0 6px;font-size:14px;color:#0056D2'>{title}</h3>{body}")
 
 
-def render(brief: dict[str, Any], *, app_url: str) -> tuple[str, str, str]:
+def render(brief: dict[str, Any], *, app_url: str, audience: str = "admin") -> tuple[str, str, str]:
+    """audience="admin": boletim completo (atenção, sugestão, link do painel).
+    audience="partner": só os números e o ranking — quem recebe não tem acesso ao painel."""
+    admin = audience == "admin"
     m = brief["metrics"]
     attention = [a for a in brief["attention"] if a["severity"] != "info"]
     subject = (
         f"PETMOL {brief['label'][:5]}: {m['downloads']['value']} downloads · "
-        f"{m['cadastros']['value']} cadastros · {m['ativos']['value']} ativos"
-        + (f" · ⚠ {len(attention)} atenção" if attention else "")
+        f"{m['cadastros_completos']['value']} cadastros completos · "
+        f"{m['racao_primeira']['value']} ração · {m['notificacao_primeira']['value']} notificações"
+        + (f" · ⚠ {len(attention)} atenção" if attention and admin else "")
     )
 
     # ── HTML ──
@@ -85,7 +89,17 @@ def render(brief: dict[str, Any], *, app_url: str) -> tuple[str, str, str]:
             "todo o movimento caiu em direto/orgânico.</p>")
         parts.append(_block("Campanhas (top 3)", f"<table style='width:100%;font-size:13px'>{rows}</table>{note}"))
 
-    if brief["cities"]:
+    ranking = brief.get("cities_downloads") or []
+    if ranking:
+        rows = "".join(
+            f"<tr><td style='padding:3px 0;color:#9ca3af;width:24px'>{i}.</td>"
+            f"<td style='padding:3px 0'>{_html.escape(c['city'])}{(' · ' + _html.escape(c['region'])) if c['region'] else ''}</td>"
+            f"<td style='text-align:right;font-weight:700'>{c['downloads']}</td></tr>"
+            for i, c in enumerate(ranking, 1)
+        )
+        parts.append(_block("Ranking de downloads por cidade", f"<table style='width:100%;font-size:13px'>{rows}</table>"))
+
+    if brief["cities"] and admin:
         rows = "".join(
             f"<tr><td style='padding:3px 0'>{_html.escape(c['city'])}{(' · ' + _html.escape(c['region'])) if c['region'] else ''}</td>"
             f"<td style='text-align:right'>{c['downloads']} downloads</td>"
@@ -99,49 +113,72 @@ def render(brief: dict[str, Any], *, app_url: str) -> tuple[str, str, str]:
         f"<p style='margin:0;font-size:13px'>Loja: <b>{loja['value']}</b> aberturas · <b>{m['loja_cliques']['value']}</b> cliques em ofertas<br>"
         f"Pet Sumido: <b>{sumido['value']}</b> novo(s) alerta(s) · <b>{m['sumido_encontrados']['value']}</b> encontrado(s)</p>")))
 
-    if brief["attention"]:
+    if brief["attention"] and admin:
         items = "".join(
             f"<li style='margin:3px 0'>{_SEVERITY_ICON.get(a['severity'], '•')} {_html.escape(a['message'])}</li>"
             for a in brief["attention"])
         parts.append(_block("Precisa de você", f"<ul style='margin:0;padding-left:18px;font-size:13px'>{items}</ul>"))
 
-    if brief["suggestion"]:
+    if brief["suggestion"] and admin:
         s = brief["suggestion"]
         parts.append(_block("Sugestão do dia", (
             f"<p style='margin:0;font-size:13px'><b>{_html.escape(s['title'])}</b><br>"
             f"<span style='color:#4b5563'>{_html.escape(s['body'])}</span></p>")))
 
+    if admin:
+        parts.append(
+            f"<p style='margin:24px 0 0'><a href='{_html.escape(app_url)}/admin/dashboard' "
+            "style='background:#0056D2;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:700'>"
+            "Abrir o Mission Control</a></p>"
+        )
     parts.append(
-        f"<p style='margin:24px 0 0'><a href='{_html.escape(app_url)}/admin/dashboard' "
-        "style='background:#0056D2;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:700'>"
-        "Abrir o Mission Control</a></p>"
-        f"<p style='margin:14px 0 0;font-size:11px;color:#9ca3af'>{_html.escape(brief['note'])}</p>"
+        "<p style='margin:14px 0 0;font-size:11px;color:#9ca3af'>"
+        "Cadastro completo = conta com pet. Alimentação e notificações contam a primeira vez de cada tutor. "
+        f"{_html.escape(brief['note'])}</p>"
     )
     html_body = ("<div style='font-family:-apple-system,Segoe UI,Arial,sans-serif;max-width:560px;margin:0 auto;"
                  "padding:20px;color:#111827'>" + "".join(parts) + "</div>")
 
     # ── texto puro ──
     lines = [f"PETMOL — {brief['label']} (dia fechado, horário de Brasília)", ""]
-    for key in ("downloads", "acessos", "cadastros", "pets_novos", "ativos"):
+    for key in ("downloads", "cadastros_completos", "racao_primeira", "notificacao_primeira", "cadastros", "ativos"):
         x = m[key]
         lines.append(f"{x['label']}: {x['value']}  (dia anterior {_delta_text(x['delta_prev_pct'])}, média 7d {_delta_text(x['delta_avg7_pct'])})")
     lines += ["", "Funil: " + " → ".join(f"{f['n']} {f['label'].lower()}" for f in funnel)]
     if brief["campaigns"]:
         lines += ["", "Campanhas:"] + [f"  {c['utm_campaign']} ({c['utm_source']}): {c['downloads']} downloads, {c['acessos']} acessos" for c in brief["campaigns"]]
-    if brief["cities"]:
+    if ranking:
+        lines += ["", "Ranking de downloads por cidade:"] + [
+            f"  {i}. {c['city']}{' · ' + c['region'] if c['region'] else ''}: {c['downloads']}" for i, c in enumerate(ranking, 1)]
+    if brief["cities"] and admin:
         lines += ["", "Top cidades:"] + [f"  {c['city']}{' · ' + c['region'] if c['region'] else ''}: {c['downloads']} downloads, {c['acessos']} acessos" for c in brief["cities"]]
     lines += ["", f"Loja: {loja['value']} aberturas, {m['loja_cliques']['value']} cliques. "
                   f"Pet Sumido: {sumido['value']} novos, {m['sumido_encontrados']['value']} encontrados."]
-    if brief["attention"]:
+    if brief["attention"] and admin:
         lines += ["", "Precisa de você:"] + [f"  - {a['message']}" for a in brief["attention"]]
-    if brief["suggestion"]:
+    if brief["suggestion"] and admin:
         lines += ["", f"Sugestão: {brief['suggestion']['title']}", f"  {brief['suggestion']['body']}"]
-    lines += ["", f"{app_url}/admin/dashboard", "", brief["note"]]
+    lines += [""] + ([f"{app_url}/admin/dashboard", ""] if admin else []) + [brief["note"]]
     return subject, "\n".join(lines), html_body
 
 
+def _partner_emails(settings) -> list[str]:
+    """Quem recebe o boletim além do admin master: SECONDARY_INSTALL_PUSH_EMAIL + EXTRA_INSTALL_PUSH_EMAILS
+    (os mesmos destinatários do aviso de download). Minúsculo, sem repetir, sem o admin."""
+    raw = ",".join(x for x in (settings.secondary_install_push_email, settings.extra_install_push_emails) if x)
+    out: list[str] = []
+    seen = {(settings.admin_master_email or "").strip().lower()}
+    for e in raw.split(","):
+        e = e.strip().lower()
+        if e and e not in seen:
+            seen.add(e)
+            out.append(e)
+    return out
+
+
 def send_daily_brief(day: Optional[date] = None) -> bool:
-    """Boletim do dia anterior (ou de `day`), enviado ao admin_master_email."""
+    """Boletim do dia anterior (ou de `day`): completo ao admin master, versão enxuta (números e ranking
+    de cidades, sem painel) aos demais destinatários. Retorna True se o do admin foi enviado."""
     from ..admin.analytics import briefing_bi
     from ..config import get_settings
     from ..db import SessionLocal
@@ -154,7 +191,16 @@ def send_daily_brief(day: Optional[date] = None) -> bool:
         brief = briefing_bi.build_brief(db, day)
     finally:
         db.close()
-    subject, text, html_body = render(brief, app_url=settings.frontend_url.rstrip("/"))
+    app_url = settings.frontend_url.rstrip("/")
+    subject, text, html_body = render(brief, app_url=app_url)
     ok = send_mail(to=settings.admin_master_email, subject=subject, body_text=text, body_html=html_body)
     logger.info("[daily-brief] %s → %s (enviado=%s)", subject, settings.admin_master_email, ok)
+
+    for email in _partner_emails(settings):
+        try:
+            p_subject, p_text, p_html = render(brief, app_url=app_url, audience="partner")
+            sent = send_mail(to=email, subject=p_subject, body_text=p_text, body_html=p_html)
+            logger.info("[daily-brief] %s → %s (enviado=%s)", p_subject, email, sent)
+        except Exception:  # um destinatário falhar nunca derruba o do admin
+            logger.exception("[daily-brief] falha ao enviar para %s", email)
     return ok

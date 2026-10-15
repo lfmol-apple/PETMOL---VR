@@ -1,12 +1,22 @@
-"""Avisos ao admin sobre cadastros: conta criada e 1º pet cadastrado.
+"""Avisos de push aos destinatários do PETMOL (admin master + parceiros) nos momentos que importam:
+1º pet cadastrado, 1ª alimentação cadastrada e 1ª notificação ativada de cada tutor. (O aviso de
+download vive em analytics/router.py e vai aos mesmos destinatários.) Conta criada NÃO avisa mais
+(decisão do dono, 15/10/2026: só os quatro momentos).
 
-Tudo best-effort e fora do request: nunca atrapalha o cadastro do tutor.
+Cada momento avisa UMA vez por tutor (tabela admin_event_log), e nada avisa quando o próprio
+destinatário é o tutor (contas de teste). Tudo best-effort e fora do request: nunca atrapalha o
+cadastro do tutor.
 """
 import threading
 import unicodedata
+import uuid
+from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import func
+from sqlalchemy import Column, DateTime, String, UniqueConstraint, func
+from sqlalchemy.exc import IntegrityError
+
+from .db import Base, engine
 
 from .utils.logging_utils import setup_logger
 
@@ -68,6 +78,54 @@ def guess_gender(first: str) -> Optional[str]:
 _GENDER_LABEL = {"masculino": "tutor (masculino)", "feminino": "tutora (feminino)"}
 
 
+ADMIN_PUSH_ACCOUNT_CREATED = False  # "Conta criada" deixou de avisar; religar = True
+
+
+class AdminEventLog(Base):
+    """Um aviso por (tutor, momento) — impede repetir o mesmo aviso (ex.: o app reinscreve o push a cada abertura)."""
+    __tablename__ = "admin_event_log"
+    __table_args__ = (UniqueConstraint("user_id", "event", name="uq_admin_event_log_user_event"),)
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), nullable=False, index=True)
+    event = Column(String(40), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+Base.metadata.create_all(bind=engine, tables=[AdminEventLog.__table__])
+
+
+def _claim(db, user_id: str, event: str) -> bool:
+    """True na 1ª vez deste (tutor, momento); False se já avisou antes."""
+    try:
+        db.add(AdminEventLog(user_id=user_id, event=event))
+        db.commit()
+        return True
+    except IntegrityError:
+        db.rollback()
+        return False
+
+
+def _recipient_ids(db) -> list[str]:
+    """Admin master + parceiros (SECONDARY_INSTALL_PUSH_EMAIL / EXTRA_INSTALL_PUSH_EMAILS), como ids de conta."""
+    from .config import get_settings
+    from .user_auth.models import User
+
+    settings = get_settings()
+    emails = [settings.admin_master_email] + [
+        e for e in ",".join(x for x in (settings.secondary_install_push_email, settings.extra_install_push_emails) if x).split(",")
+    ]
+    out: list[str] = []
+    for e in emails:
+        e = (e or "").strip().lower()
+        if not e:
+            continue
+        u = db.query(User).filter(func.lower(User.email) == e).first()
+        if u and str(u.id) not in out:
+            out.append(str(u.id))
+    return out
+
+
 def _admin_user_id(db) -> Optional[str]:
     from .config import get_settings
     from .user_auth.models import User
@@ -81,6 +139,7 @@ def _admin_user_id(db) -> Optional[str]:
 
 
 def _send(admin_id: str, title: str, body: str, tag: str) -> None:
+    """Push para UM destinatário. (Os avisos usam _send_all.)"""
     from .notifications import push_to_user
 
     push_to_user(admin_id, {
@@ -89,6 +148,18 @@ def _send(admin_id: str, title: str, body: str, tag: str) -> None:
         "tag": tag,
         "data": {"url": "/admin/accounts"},
     })
+
+
+def _send_all(db, about_user_id: str, title: str, body: str, tag: str) -> None:
+    """Push para todos os destinatários, isolando falhas. Não avisa sobre o próprio destinatário."""
+    ids = _recipient_ids(db)
+    if not ids or about_user_id in ids:
+        return
+    for rid in ids:
+        try:
+            _send(rid, title, body, tag)
+        except Exception:
+            logger.exception("admin_alerts: falha ao avisar %s", rid)
 
 
 def _where(user, ip: Optional[str]) -> str:
@@ -103,6 +174,8 @@ def _where(user, ip: Optional[str]) -> str:
 
 
 def _notify_account_created(user_id: str, ip: Optional[str]) -> None:
+    if not ADMIN_PUSH_ACCOUNT_CREATED:
+        return
     from .db import SessionLocal
     from .user_auth.models import User
     from .pets.models import Pet
@@ -141,14 +214,50 @@ def _notify_first_pet(user_id: str, species: Optional[str]) -> None:
         if db.query(func.count(Pet.id)).filter(Pet.user_id == user_id).scalar() != 1:
             return
         user = db.query(User).filter(User.id == user_id).first()
-        admin_id = _admin_user_id(db)
-        if not user or not admin_id or admin_id == user_id:
+        if not user or not _claim(db, user_id, "first_pet"):
             return
         name = first_name(user.name) or "Um tutor"
         kind = {"dog": "cão", "cat": "gato"}.get((species or "").lower(), "pet")
-        _send(admin_id, f"🐾 {name} cadastrou o 1º pet", f"Um {kind} foi cadastrado na conta de {name}.", "petmol-first-pet")
+        _send_all(db, user_id, f"🐾 {name} cadastrou o 1º pet", f"Um {kind} foi cadastrado na conta de {name}.", "petmol-first-pet")
     except Exception:
         logger.exception("admin_alerts: falha ao avisar 1º pet")
+        db.rollback()
+    finally:
+        db.close()
+
+
+def _notify_first_feeding(user_id: str, pet_name: Optional[str]) -> None:
+    from .db import SessionLocal
+    from .user_auth.models import User
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user or not _claim(db, user_id, "first_feeding"):
+            return
+        name = first_name(user.name) or "Um tutor"
+        pet = f" de {pet_name}" if pet_name else ""
+        _send_all(db, user_id, f"🍽️ {name} cadastrou a ração", f"Alimentação{pet} cadastrada · {_where(user, None)}", "petmol-first-feeding")
+    except Exception:
+        logger.exception("admin_alerts: falha ao avisar 1ª alimentação")
+        db.rollback()
+    finally:
+        db.close()
+
+
+def _notify_push_enabled(user_id: str) -> None:
+    from .db import SessionLocal
+    from .user_auth.models import User
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user or not _claim(db, user_id, "push_enabled"):
+            return
+        name = first_name(user.name) or "Um tutor"
+        _send_all(db, user_id, f"🔔 {name} ativou as notificações", f"Notificações ativadas · {_where(user, None)}", "petmol-push-enabled")
+    except Exception:
+        logger.exception("admin_alerts: falha ao avisar notificação ativada")
         db.rollback()
     finally:
         db.close()
@@ -160,3 +269,11 @@ def notify_account_created(user_id: str, ip: Optional[str]) -> None:
 
 def notify_first_pet(user_id: str, species: Optional[str]) -> None:
     threading.Thread(target=_notify_first_pet, args=(user_id, species), daemon=True).start()
+
+
+def notify_first_feeding(user_id: str, pet_name: Optional[str]) -> None:
+    threading.Thread(target=_notify_first_feeding, args=(user_id, pet_name), daemon=True).start()
+
+
+def notify_push_enabled(user_id: str) -> None:
+    threading.Thread(target=_notify_push_enabled, args=(user_id,), daemon=True).start()
