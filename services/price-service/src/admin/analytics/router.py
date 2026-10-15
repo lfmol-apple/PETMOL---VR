@@ -22,6 +22,7 @@ from ..deps import get_current_admin, get_current_admin_or_readonly_key
 from . import briefing_bi
 from . import campaign_bi
 from . import feeding_bi
+from . import growth_bi
 from . import journey_bi
 from . import landing_ab_bi
 from . import landing_intro_bi
@@ -112,6 +113,11 @@ def get_feeding_stage_population(
 @router.get("/commerce-funnel")
 def get_commerce_funnel(db: Session = Depends(get_db), f: AnalyticsFilters = Depends(_filters), _=_Auth):
     return feeding_bi.commerce_funnel(db, f)
+
+
+@router.get("/growth")
+def get_growth(db: Session = Depends(get_db), f: AnalyticsFilters = Depends(_filters), _=_Auth):
+    return growth_bi.growth_funnel(db, f)
 
 
 @router.get("/journey-funnel")
