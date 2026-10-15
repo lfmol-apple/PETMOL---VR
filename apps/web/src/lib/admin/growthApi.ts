@@ -83,3 +83,15 @@ export const FAILURE_LABEL: Record<string, string> = {
   email_exists: 'E-mail já cadastrado',
   server: 'Erro do servidor ou da rede',
 };
+
+export interface FoodCampaignGroup {
+  total: number; converted_total: number; converted_window: number; rate_window: number | null;
+}
+export interface FoodCampaignResults {
+  window_days: number; first_sent_at: string | null;
+  contacted: FoodCampaignGroup; holdout: FoodCampaignGroup;
+  lift_vs_holdout: number | null;
+  daily_avg_before: number | null; daily_avg_after: number | null;
+  series: { date: string; first_feeding: number }[];
+  notes: string[];
+}

@@ -86,6 +86,7 @@ class ActivationCampaignContact(Base):
 
 CAMPAIGN_PUSH_LOCATION = "push_location"
 CAMPAIGN_FOOD = "food"
+CAMPAIGN_FOOD_HOLDOUT = "food_holdout"  # grupo de controle: elegível, NÃO recebeu mensagem
 
 
 class RunRequest(BaseModel):
@@ -100,6 +101,9 @@ class RunRequest(BaseModel):
     # N dias não recebe de novo. 0 desliga. Só enxerga envios feitos a partir de
     # agora: o disparo de 28/09 não foi registrado (decisão original de disparo único).
     skip_contacted_days: int = 7
+    # % de elegíveis que NÃO recebem (grupo de controle, escolhido de forma fixa pelo id) — é o que
+    # separa o efeito da campanha do que aconteceria sozinho. 0 = manda pra todos.
+    holdout_pct: int = 0
 
 
 def _authorize(x_sync_token: Optional[str]) -> None:
@@ -202,13 +206,21 @@ def _recently_contacted_food(db, days: int) -> set[str]:
     }
 
 
-def _run(dry_run: bool, batch_size: int = 10, batch_pause_seconds: int = 180, skip_contacted_days: int = 7) -> None:
+def _in_holdout(user_id: str, pct: int) -> bool:
+    import hashlib
+    return pct > 0 and int(hashlib.md5(user_id.encode()).hexdigest()[:8], 16) % 100 < pct
+
+
+def _run(dry_run: bool, batch_size: int = 10, batch_pause_seconds: int = 180,
+         skip_contacted_days: int = 7, holdout_pct: int = 0) -> None:
     db = SessionLocal()
     try:
         targets = _target_users(db)
         recent = _recently_contacted_food(db, skip_contacted_days)
         skipped_recent = [t for t in targets if t["user_id"] in recent]
         targets = [t for t in targets if t["user_id"] not in recent]
+        holdout = [t for t in targets if _in_holdout(t["user_id"], holdout_pct)]
+        targets = [t for t in targets if t not in holdout]
         with_push = [t for t in targets if t["has_push"]]
         email_only = [t for t in targets if not t["has_push"]]
 
@@ -217,10 +229,14 @@ def _run(dry_run: bool, batch_size: int = 10, batch_pause_seconds: int = 180, sk
             "push_and_email": len(with_push),
             "email_only": len(email_only),
             "skipped_recent": len(skipped_recent),
+            "holdout": len(holdout),
             "dry_run": dry_run,
         }
 
         if not dry_run:
+            for t in holdout:   # controle: registrado, sem mensagem
+                db.add(ActivationCampaignContact(campaign=CAMPAIGN_FOOD_HOLDOUT, user_id=t["user_id"]))
+            db.commit()
             sent_push = sent_email = failed_email = 0
             for i, t in enumerate(targets):
                 user = db.query(User).filter(User.id == t["user_id"]).first()
@@ -267,11 +283,13 @@ def run_food_activation(payload: RunRequest, x_sync_token: Optional[str] = Heade
         STATE.update(phase="running", started_at=datetime.now(timezone.utc).isoformat(),
                      finished_at=None, result=None, error=None)
     threading.Thread(
-        target=_run, args=(payload.dry_run, payload.batch_size, payload.batch_pause_seconds, payload.skip_contacted_days),
+        target=_run, args=(payload.dry_run, payload.batch_size, payload.batch_pause_seconds,
+              payload.skip_contacted_days, payload.holdout_pct),
         daemon=True,
     ).start()
     return {"started": True, "dry_run": payload.dry_run, "batch_size": payload.batch_size,
-            "batch_pause_seconds": payload.batch_pause_seconds, "skip_contacted_days": payload.skip_contacted_days}
+            "batch_pause_seconds": payload.batch_pause_seconds, "skip_contacted_days": payload.skip_contacted_days,
+            "holdout_pct": payload.holdout_pct}
 
 
 @router.get("/food-activation/status")
@@ -295,6 +313,95 @@ def food_activation_preview(skip_contacted_days: int = 7, current=Depends(get_cu
             "email_only": sum(1 for t in eligible if not t["has_push"]),
             "skipped_recent": len(targets) - len(eligible),
             "skip_contacted_days": skip_contacted_days,
+        }
+    finally:
+        db.close()
+
+
+@router.get("/food-activation/results")
+def food_activation_results(window_days: int = 7, current=Depends(get_current_admin_or_readonly_key)):
+    """Quanto a campanha de Alimentação surtiu efeito.
+
+    - `contacted`/`holdout`: quem recebeu e quem ficou de controle (se houve).
+    - `converted_window`: cadastrou a ração DEPOIS do envio e em até `window_days` dias.
+    - `converted_total`: tem ração hoje (por definição do segmento, ninguém tinha).
+    - `series`: quantos tutores cadastraram a PRIMEIRA ração por dia, a partir de 14 dias antes do
+      primeiro envio — mostra o antes e o depois sem depender de controle.
+    Sem controle (holdout), "efeito" = depois menos o ritmo de antes; com controle, a diferença de
+    taxa entre os dois grupos é a leitura mais limpa."""
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+    from ..health.models import FeedingPlan
+
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(ActivationCampaignContact.user_id, ActivationCampaignContact.campaign,
+                     func.min(ActivationCampaignContact.sent_at))
+            .filter(ActivationCampaignContact.campaign.in_([CAMPAIGN_FOOD, CAMPAIGN_FOOD_HOLDOUT]))
+            .group_by(ActivationCampaignContact.user_id, ActivationCampaignContact.campaign).all()
+        )
+        if not rows:
+            return {"campaign": CAMPAIGN_FOOD, "contacted": 0, "holdout": 0, "first_sent_at": None,
+                    "window_days": window_days, "series": []}
+
+        feeding_ids = _feeding_configured_pet_ids(db)
+        first_feeding: dict[str, datetime] = {}
+        for uid, created in (
+            db.query(Pet.user_id, func.min(FeedingPlan.created_at))
+            .join(FeedingPlan, FeedingPlan.pet_id == Pet.id)
+            .filter(Pet.id.in_(feeding_ids or {"__none__"}), FeedingPlan.deleted_at.is_(None))
+            .group_by(Pet.user_id).all()
+        ):
+            first_feeding[str(uid)] = _aware(created)
+
+        def _group(campaign: str) -> dict:
+            members = [(str(u), _aware(t)) for u, c, t in rows if c == campaign]
+            total = len(members)
+            now_has = sum(1 for u, _ in members if u in first_feeding)
+            in_window = sum(
+                1 for u, sent in members
+                if u in first_feeding and sent <= first_feeding[u] <= sent + timedelta(days=window_days)
+            )
+            return {"total": total, "converted_total": now_has, "converted_window": in_window,
+                    "rate_window": round(in_window / total, 4) if total else None}
+
+        treated, control = _group(CAMPAIGN_FOOD), _group(CAMPAIGN_FOOD_HOLDOUT)
+        first_sent = min(_aware(t) for _, c, t in rows if c == CAMPAIGN_FOOD) if treated["total"] else None
+
+        br = ZoneInfo("America/Sao_Paulo")
+        series = []
+        if first_sent:
+            start = (first_sent - timedelta(days=14)).astimezone(br).date()
+            by_day: dict = {}
+            for created in first_feeding.values():
+                d = created.astimezone(br).date()
+                if d >= start:
+                    by_day[d] = by_day.get(d, 0) + 1
+            day, today = start, datetime.now(br).date()
+            while day <= today:
+                series.append({"date": day.isoformat(), "first_feeding": by_day.get(day, 0)})
+                day += timedelta(days=1)
+            send_day = first_sent.astimezone(br).date()
+            before = [p["first_feeding"] for p in series if p["date"] < send_day.isoformat()]
+            after = [p["first_feeding"] for p in series if p["date"] >= send_day.isoformat()]
+        else:
+            before = after = []
+        avg = lambda xs: round(sum(xs) / len(xs), 2) if xs else None  # noqa: E731
+        lift = None
+        if control["total"] and treated["rate_window"] is not None and control["rate_window"] is not None:
+            lift = round(treated["rate_window"] - control["rate_window"], 4)
+        return {
+            "campaign": CAMPAIGN_FOOD, "window_days": window_days,
+            "first_sent_at": first_sent.isoformat() if first_sent else None,
+            "contacted": treated, "holdout": control, "lift_vs_holdout": lift,
+            "daily_avg_before": avg(before), "daily_avg_after": avg(after),
+            "series": series,
+            "notes": [
+                "Só cobre envios registrados a partir do disparo de 15/10; o de 28/09 não foi registrado.",
+                "Sem grupo de controle, o antes/depois mistura o efeito da campanha com qualquer outra "
+                "mudança do período. Com poucos contactados, diferenças pequenas não provam nada.",
+            ],
         }
     finally:
         db.close()

@@ -518,3 +518,63 @@ def test_food_push_texto_e_variacoes_de_pets():
     assert _push_payload(["Vianna", "Vanda"], "p")["title"] == "Vianna e Vanda confiam em você 🐾"
     assert _push_payload(["A", "B", "C"], "p")["title"] == "Seus pets confiam em você 🐾"
     assert _push_payload([], None)["title"] == "Seu pet confia em você 🐾"
+
+
+def test_food_results_mede_janela_antes_e_depois_e_controle(monkeypatch, client):
+    from datetime import datetime, timedelta, timezone
+    from src.admin.activation_campaign_router import (
+        CAMPAIGN_FOOD, CAMPAIGN_FOOD_HOLDOUT, ActivationCampaignContact,
+    )
+    _enable_token(monkeypatch)
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        sent = now - timedelta(days=3)
+        ids = {}
+        for key in ("t_ok", "t_late", "t_none", "c_ok", "c_none"):
+            uid = _mk_user(db, email=f"{key}.{uuid.uuid4().hex[:6]}@example.com", name=key)
+            ids[key] = (uid, _mk_pet(db, user_id=uid, name=key))
+            db.add(ActivationCampaignContact(
+                campaign=CAMPAIGN_FOOD if key.startswith("t_") else CAMPAIGN_FOOD_HOLDOUT,
+                user_id=uid, sent_at=sent))
+        db.commit()
+        # t_ok e c_ok cadastram a ração 1 dia depois do envio; t_late só 10 dias depois (fora da janela de 7)
+        for key, delta in (("t_ok", 1), ("c_ok", 1), ("t_late", 10)):
+            _mk_feeding(db, pet_id=ids[key][1])
+            from src.health.models import FeedingPlan
+            plan = db.query(FeedingPlan).filter(FeedingPlan.pet_id == ids[key][1]).first()
+            plan.created_at = sent + timedelta(days=delta)
+        db.commit()
+    finally:
+        db.close()
+
+    r = client.get("/v1/admin/campaigns/food-activation/results", headers={"X-Admin-Api-Key": READONLY_KEY})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["contacted"]["total"] == 3 and body["holdout"]["total"] == 2
+    assert body["contacted"]["converted_window"] == 1      # t_ok; t_late ficou fora da janela
+    assert body["holdout"]["converted_window"] == 1        # c_ok
+    assert body["contacted"]["converted_total"] == 2       # t_ok + t_late (hoje têm ração)
+    assert body["lift_vs_holdout"] == round(1 / 3 - 1 / 2, 4)
+    assert body["series"] and body["first_sent_at"]
+
+
+def test_food_holdout_100_nao_envia_e_registra_controle(monkeypatch, client):
+    _enable_token(monkeypatch)
+    sent = {"email": [], "push": []}
+    monkeypatch.setattr("src.admin.activation_campaign_router.send_mail", lambda **kw: sent["email"].append(kw) or True)
+    monkeypatch.setattr("src.admin.activation_campaign_router.push_to_user", lambda uid, payload: sent["push"].append(uid) or 1)
+    db = SessionLocal()
+    try:
+        uid = _mk_user(db, email=f"hold.{uuid.uuid4().hex[:6]}@example.com", name="Helena")
+        _mk_pet(db, user_id=uid, name="Luma")
+    finally:
+        db.close()
+    r = client.post("/v1/admin/campaigns/food-activation/run", json={"dry_run": False, "holdout_pct": 100},
+                    headers={"X-Sync-Token": TOKEN})
+    assert r.status_code == 200 and r.json()["holdout_pct"] == 100
+    result = _wait_done(client)["result"]
+    assert result["total"] == 0 and result["holdout"] >= 1
+    assert not any(e["to"].startswith("hold.") for e in sent["email"])
+    res = client.get("/v1/admin/campaigns/food-activation/results", headers={"X-Admin-Api-Key": READONLY_KEY}).json()
+    assert res["holdout"]["total"] >= 1
