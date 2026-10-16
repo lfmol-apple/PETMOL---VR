@@ -151,8 +151,12 @@ function clearPendingScannedProduct(): void {
 // ── component ─────────────────────────────────────────────────────────────────
 
 export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, petPhotoUrl, initialPlan }: FoodItemSheetProps) {
-  const { permission: pushPermission, requestPermission: requestPushPermission, subscribeToPush } = useNotificationPermissionController();
+  const { permission: pushPermission, requestPermission: requestPushPermission, subscribeToPush, isSubscribed } = useNotificationPermissionController();
   const pushAsk = usePushOneTimeAsk('petmol_food_push_ask_v1', pushPermission === 'default');
+  // Pedido logo após o tutor programar a ração — momento em que o benefício
+  // ("avisar quando acabar") está mais claro. Ignora a flag global do pedido
+  // único: quem dispensou antes é perguntado de novo AQUI, de propósito.
+  const [saveAskOpen, setSaveAskOpen] = useState(false);
 
   // Navigation
   const [mode, setMode]           = useState<SheetMode>(initialMode === 'buy' ? 'buy' : 'view');
@@ -847,6 +851,21 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
       }}
       onDismiss={pushAsk.dismiss}
     />
+    <ActivationAskSheet
+      open={saveAskOpen}
+      icon={<Bell className="h-5 w-5" strokeWidth={2.2} />}
+      title="Ração salva! Ative os avisos"
+      body={pushPermission === 'denied'
+        ? 'Para o PETMOL avisar quando a ração estiver acabando, permita as notificações do PETMOL nas configurações do aparelho.'
+        : 'Agora o PETMOL pode te avisar sozinho quando a ração estiver acabando, antes de faltar.'}
+      ctaLabel={pushPermission === 'denied' ? 'Entendi' : 'Ativar notificações'}
+      onActivate={async () => {
+        if (pushPermission === 'denied') return;
+        const granted = pushPermission === 'granted' ? true : await requestPushPermission();
+        if (granted) await subscribeToPush();
+      }}
+      onDismiss={() => setSaveAskOpen(false)}
+    />
     <ModalPortal>
       <div ref={overlayRef}
         className="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden overscroll-x-none touch-pan-y p-4"
@@ -921,6 +940,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                     dispatchFoodPlanUpdated();
                     const isQuickSetup = formRequest?.mode === 'quick_setup';
                     showSuccessAndReturnToMain(isQuickSetup ? 'Ração salva' : 'Plano atualizado');
+                    if (!isSubscribed) setSaveAskOpen(true);
                   }}
                 />
               </div>
