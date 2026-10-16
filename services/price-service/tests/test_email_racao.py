@@ -85,3 +85,40 @@ def test_hostinger_recusa_espera_e_retoma_sem_duplicar_controle(monkeypatch):
     assert 3600 in waits                       # esperou 1 h
     assert res["failed"] >= 3 and res["sent"] >= 1
     assert "stopped" not in res                # não desistiu
+
+
+def test_rodizio_de_caixas_respeita_teto_por_caixa(monkeypatch):
+    """2 caixas com teto 3 cada => no máximo 6 por dia, alternando; o resto fica pro dia seguinte."""
+    import json
+    import src.admin.activation_campaign_router as r
+    import src.mailer as mailer
+
+    db = SessionLocal()
+    try:
+        tag = uuid.uuid4().hex[:6]
+        for n in range(10):
+            uid = _user(db, f"rod{n}-{tag}@x.com")
+            _pet(db, uid, f"P{n}")
+    finally:
+        db.close()
+
+    monkeypatch.setattr(r, "_sleep", lambda s: None)
+    monkeypatch.setenv("EMAIL_CAMPAIGN_ACCOUNTS", json.dumps([{"user": "c1@x.com", "pass": "a"}, {"user": "c2@x.com", "pass": "b"}]))
+    monkeypatch.setenv("EMAIL_CAMPAIGN_ACCOUNT_CAP", "3")
+    used = []
+    monkeypatch.setattr(mailer, "send_mail", lambda **kw: used.append(kw["smtp_account"]["user"]) or True)
+
+    # esvazia o que outros testes gravaram nas últimas 24h para este cenário ser determinístico
+    db = SessionLocal()
+    try:
+        db.query(r.ActivationCampaignContact).filter(
+            r.ActivationCampaignContact.campaign.startswith("email_racao")).delete(synchronize_session=False)
+        db.commit()
+    finally:
+        db.close()
+
+    r._run_email_racao(False, 0, pause_seconds=0)
+    res = r.EMAIL_STATE["result"]
+    assert res["sent"] == 6 and len(used) == 6
+    assert used.count("c1@x.com") == 3 and used.count("c2@x.com") == 3
+    assert "capped" in res

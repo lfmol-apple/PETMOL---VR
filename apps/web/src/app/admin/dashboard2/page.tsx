@@ -613,7 +613,7 @@ function CampaignsPanel() {
 }
 
 type EmailRacaoSummary = {
-  subject: string; sendgrid: boolean; eligible: number; no_food: number; no_push: number; skipped_recent: number;
+  subject: string; sendgrid: boolean; mailboxes: number; mailbox_cap: number; eligible: number; no_food: number; no_push: number; skipped_recent: number;
   state: CampaignState;
 };
 type EmailArm = { people: number; no_food_at_send: number; food_now: number; no_push_at_send: number; push_now: number };
@@ -651,7 +651,10 @@ function EmailRacaoPanel() {
           </p>
           {!data.sendgrid && (
             <p className="mt-2 rounded-lg bg-amber-50 p-2 text-[12px] text-amber-900">
-              O envio sai pela Hostinger: lotes de 10 a cada 3 minutos e no máximo 100 por dia. Se ela recusar, espera 1 hora e tenta de novo (até 3 vezes). Quando bater o teto, clique de novo no dia seguinte: quem já recebeu é pulado.
+              {data.mailboxes > 0
+                ? `Envio pela Hostinger em rodízio de ${data.mailboxes} caixa(s), até ${data.mailbox_cap} por caixa a cada 24 h (capacidade de ${numberFmt(data.mailboxes * data.mailbox_cap)} por dia).`
+                : `Envio pela caixa padrão da Hostinger: até ${data.mailbox_cap} por dia, dividido com os outros e-mails do app.`}
+              {' '}Lotes de 10 a cada 3 minutos. Se ela recusar, espera 1 hora e tenta de novo. Quando bater o teto, clique de novo no dia seguinte: quem já recebeu é pulado.
             </p>
           )}
           <p className="mt-2 text-[12px]">

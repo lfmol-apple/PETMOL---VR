@@ -100,15 +100,19 @@ def send_mail(
     body_text: str,
     body_html: str | None = None,
     reply_to: str | None = None,
+    smtp_account: dict | None = None,
 ) -> bool:
     """Entrega 1 e-mail. Retorna True se aceito, False caso contrário.
+
+    `smtp_account` ({"user","pass"}) manda por UMA caixa específica da Hostinger (cota própria por
+    caixa) em vez da padrão — usado pela campanha, para não gastar a cota da noreply@.
 
     SendGrid tem prioridade quando configurado (SENDGRID_API_KEY) — achado
     real 03-04/10/2026: o SMTP da Hostinger (hospedagem compartilhada)
     bloqueou envio em lote por mais de 24h com "451 Ratelimit", sem
     reset automático. SendGrid é feito pra esse volume; o SMTP da
     Hostinger continua como fallback pra quem não configurou a chave."""
-    if sendgrid_configured():
+    if sendgrid_configured() and not smtp_account:
         try:
             _send_via_sendgrid(to=to, subject=subject, body_text=body_text, body_html=body_html, reply_to=reply_to)
             logger.info("mailer: e-mail entregue via SendGrid em %s (%s)", to, subject)
@@ -124,6 +128,10 @@ def send_mail(
     user = os.environ.get("SMTP_USER", "")
     password = os.environ.get("SMTP_PASS", "")
     from_addr = os.environ.get("SMTP_FROM", f"PETMOL <{user}>") if user else ""
+    if smtp_account:  # caixa dedicada: remetente = a própria caixa (a Hostinger exige)
+        user = smtp_account["user"]
+        password = smtp_account["pass"]
+        from_addr = f"PETMOL <{user}>"
 
     if not (host and user and password):
         logger.warning("[MAILER DEV] SMTP não configurado — e-mail não enviado (%s / %s)", to, subject)

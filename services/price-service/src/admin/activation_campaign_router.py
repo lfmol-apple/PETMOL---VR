@@ -936,6 +936,30 @@ EMAIL_STATE: dict = {"phase": "idle", "started_at": None, "finished_at": None, "
 _email_lock = threading.Lock()
 
 
+def _campaign_accounts() -> list:
+    """Caixas da campanha (EMAIL_CAMPAIGN_ACCOUNTS = JSON [{"user":"...","pass":"..."}]). Cada caixa da
+    Hostinger tem cota própria por 24 h; sem a variável, usa a caixa padrão (None) com teto único."""
+    import json
+    import os
+    raw = os.environ.get("EMAIL_CAMPAIGN_ACCOUNTS", "").strip()
+    if not raw:
+        return [None]
+    try:
+        accs = [a for a in json.loads(raw) if a.get("user") and a.get("pass")]
+    except Exception:  # noqa: BLE001
+        logger.error("[email_racao] EMAIL_CAMPAIGN_ACCOUNTS inválida — usando a caixa padrão")
+        return [None]
+    return accs or [None]
+
+
+def _account_cap() -> int:
+    import os
+    try:
+        return max(1, int(os.environ.get("EMAIL_CAMPAIGN_ACCOUNT_CAP", str(EMAIL_DAILY_CAP))))
+    except ValueError:
+        return EMAIL_DAILY_CAP
+
+
 def _email_kind(missing_food: bool, no_push: bool) -> str:
     return "both" if (missing_food and no_push) else ("nofood" if missing_food else "nopush")
 
@@ -1030,30 +1054,60 @@ def _run_email_racao(dry_run: bool, holdout_pct: int, pause_seconds: float = 0.3
                 if t["user_id"] not in ja_controle:
                     db.add(ActivationCampaignContact(campaign=f"{CAMPAIGN_EMAIL_RACAO_CTL}__{t['kind']}", user_id=t["user_id"]))
             db.commit()
-            # teto diário (só pela Hostinger): conta o que já saiu nas últimas 24 h
-            if slow:
+            accounts = _campaign_accounts()
+            cap = _account_cap() if slow or accounts != [None] else None
+            remaining: list = []
+            if cap is not None:
                 from datetime import timedelta
                 since = datetime.now(timezone.utc) - timedelta(hours=24)
-                enviados_24h = db.query(func.count(ActivationCampaignContact.id)).filter(
-                    ActivationCampaignContact.campaign.startswith(CAMPAIGN_EMAIL_RACAO + "__", autoescape=True),
-                    ActivationCampaignContact.sent_at >= since).scalar() or 0
-                restante = max(0, EMAIL_DAILY_CAP - int(enviados_24h))
-                if restante < len(sending):
-                    result["capped"] = f"teto de {EMAIL_DAILY_CAP} por dia: restam {len(sending) - restante} para os próximos dias"
-                    sending = sending[:restante]
-                result["total"] = len(sending)
-            sent = failed = streak = pauses = 0
-            for i, t in enumerate(sending):
+                for idx in range(len(accounts)):
+                    suffix = f"__a{idx}"
+                    n24 = sum(1 for (c,) in db.query(ActivationCampaignContact.campaign).filter(
+                        ActivationCampaignContact.campaign.startswith(CAMPAIGN_EMAIL_RACAO + "__", autoescape=True),
+                        ActivationCampaignContact.sent_at >= since).all()
+                        if (c.endswith(suffix) if accounts != [None] else not ("__a" in c.rsplit("__", 1)[-1])))
+                    remaining.append(max(0, cap - n24))
+            else:
+                remaining = [10**9] * len(accounts)
+            blocked: set = set()
+            streaks = [0] * len(accounts)
+            sent = failed = pauses = 0
+            rr = 0
+            result["accounts"] = len(accounts)
+            result["daily_capacity"] = sum(remaining) if cap is not None else None
+            pending = list(sending)
+            for i, t in enumerate(pending):
+                usable = [k for k in range(len(accounts)) if remaining[k] > 0 and k not in blocked]
+                if not usable and blocked and any(remaining[k] > 0 for k in blocked):
+                    pauses += 1
+                    if pauses > EMAIL_MAX_PAUSES:
+                        result["stopped"] = (f"a Hostinger continuou recusando depois de {EMAIL_MAX_PAUSES} esperas — "
+                                             "envio interrompido; rode de novo mais tarde")
+                        break
+                    with _email_lock:
+                        EMAIL_STATE["result"] = {**result, "sent": sent, "failed": failed,
+                                                 "progress": f"{i}/{len(pending)} · em espera de {EMAIL_PAUSE_MINUTES} min (a Hostinger limitou)"}
+                    _sleep(EMAIL_PAUSE_MINUTES * 60)
+                    blocked.clear()
+                    streaks = [0] * len(accounts)
+                    usable = [k for k in range(len(accounts)) if remaining[k] > 0]
+                if not usable:
+                    result["capped"] = f"teto diário atingido: restam {len(pending) - i} para os próximos dias"
+                    break
+                k = usable[rr % len(usable)]
+                rr += 1
                 subject, text, html = _email_racao_content(t["name"], t["missing_pet_names"], t["missing_food"], t["user_id"])
-                ok = send_mail(to=t["email"], subject=subject, body_text=text, body_html=html)
+                ok = send_mail(to=t["email"], subject=subject, body_text=text, body_html=html, smtp_account=accounts[k])
                 if ok:
                     sent += 1
-                    streak = 0
-                    db.add(ActivationCampaignContact(campaign=f"{CAMPAIGN_EMAIL_RACAO}__{t['kind']}", user_id=t["user_id"]))
+                    streaks[k] = 0
+                    remaining[k] -= 1
+                    tag = f"__a{k}" if accounts != [None] else ""
+                    db.add(ActivationCampaignContact(campaign=f"{CAMPAIGN_EMAIL_RACAO}__{t['kind']}{tag}", user_id=t["user_id"]))
                     db.commit()
                 else:
                     failed += 1
-                    streak += 1
+                    streaks[k] += 1
                     try:
                         from ..mailer import get_recent_mailer_attempts
                         last = next((a for a in reversed(get_recent_mailer_attempts()) if not a.get("ok")), None)
@@ -1061,21 +1115,14 @@ def _run_email_racao(dry_run: bool, holdout_pct: int, pause_seconds: float = 0.3
                             result["last_error"] = str(last.get("error", ""))[:200]
                     except Exception:  # noqa: BLE001
                         pass
-                    if streak >= EMAIL_BLOCK_AFTER_FAILURES:
-                        pauses += 1
-                        if pauses > EMAIL_MAX_PAUSES:
-                            result["stopped"] = (f"a Hostinger continuou recusando depois de {EMAIL_MAX_PAUSES} esperas — "
-                                                 "envio interrompido; rode de novo mais tarde")
-                            break
-                        with _email_lock:
-                            EMAIL_STATE["result"] = {**result, "sent": sent, "failed": failed,
-                                                     "progress": f"{i + 1}/{len(sending)} · em espera de {EMAIL_PAUSE_MINUTES} min (a Hostinger limitou)"}
-                        _sleep(EMAIL_PAUSE_MINUTES * 60)
-                        streak = 0
+                    if streaks[k] >= EMAIL_BLOCK_AFTER_FAILURES:
+                        blocked.add(k)   # essa caixa bateu a cota: segue pelas outras
+                        if not any(remaining[j] > 0 and j not in blocked for j in range(len(accounts))):
+                            pass  # o próximo passo do laço decide pausar ou parar
                 with _email_lock:
-                    EMAIL_STATE["result"] = {**result, "sent": sent, "failed": failed, "progress": f"{i + 1}/{len(sending)}"}
+                    EMAIL_STATE["result"] = {**result, "sent": sent, "failed": failed, "progress": f"{i + 1}/{len(pending)}"}
                 _sleep(pause_seconds)
-                if slow and (i + 1) % 10 == 0 and i + 1 < len(sending):
+                if slow and (i + 1) % 10 == 0 and i + 1 < len(pending):
                     _sleep(180)
             result.update(sent=sent, failed=failed)
         with _email_lock:
@@ -1100,6 +1147,8 @@ def panel_email_racao_summary(current=Depends(get_current_admin)):
         return {
             "subject": EMAIL_RACAO_SUBJECT,
             "sendgrid": sendgrid_configured(),
+            "mailboxes": 0 if _campaign_accounts() == [None] else len(_campaign_accounts()),
+            "mailbox_cap": _account_cap(),
             "eligible": len(eligible),
             "no_food": sum(1 for t in eligible if t["missing_food"]),
             "no_push": sum(1 for t in eligible if t["no_push"]),
@@ -1161,7 +1210,7 @@ def panel_email_racao_results(current=Depends(get_current_admin)):
         arms: dict[str, list[tuple[str, str]]] = {"sent": [], "control": []}
         for campaign, uid in rows:
             arm = "control" if campaign.startswith(CAMPAIGN_EMAIL_RACAO_CTL) else "sent"
-            arms[arm].append((str(uid), campaign.rsplit("__", 1)[-1]))
+            arms[arm].append((str(uid), campaign.split("__")[1]))
         all_ids = {u for a in arms.values() for (u, _k) in a}
         pets_by_user: dict[str, list[str]] = {}
         for uid, pid in db.query(Pet.user_id, Pet.id).filter(Pet.user_id.in_(all_ids)).all():
