@@ -41,13 +41,14 @@ vi.mock('@/features/notifications/nativePushService', () => ({
   pushDiagBreadcrumb: vi.fn(),
 }));
 
-import { useNotificationPermissionController } from './useNotificationPermissionController';
+import { useNotificationPermissionController, __resetSharedSubscribedForTests } from './useNotificationPermissionController';
 
 const CACHE_KEY = 'petmol_push_last_known_subscribed_v1';
 const OPT_OUT_KEY = 'petmol_push_user_opted_out_v1';
 
 beforeEach(() => {
   localStorage.clear();
+  __resetSharedSubscribedForTests();
   checkNativePushPermission.mockReset();
   registerNativePush.mockReset();
   unregisterNativePush.mockReset();
@@ -129,5 +130,40 @@ describe('useNotificationPermissionController — app nativo', () => {
 
     expect(result.current.isSubscribed).toBe(true);
     expect(localStorage.getItem(OPT_OUT_KEY)).toBeNull();
+  });
+
+  it('renovação silenciosa que FALHA não derruba o estado "ativo" (sininho não pisca à toa)', async () => {
+    localStorage.setItem(CACHE_KEY, '1');
+    checkNativePushPermission.mockResolvedValue('granted');
+    registerNativePush.mockResolvedValue(false);   // timeout/sinal fraco
+
+    const { result } = renderHook(() => useNotificationPermissionController());
+    await waitFor(() => expect(registerNativePush).toHaveBeenCalled());
+    await act(async () => { await Promise.resolve(); });
+
+    expect(result.current.isSubscribed).toBe(true);
+    expect(localStorage.getItem(CACHE_KEY)).toBe('1');
+  });
+
+  it('duas telas lendo o hook (sininho da Home e Perfil) mostram sempre o MESMO valor, ao mesmo tempo', async () => {
+    localStorage.setItem(CACHE_KEY, '1');
+    checkNativePushPermission.mockResolvedValue('granted');
+    registerNativePush.mockResolvedValue(true);
+
+    const home = renderHook(() => useNotificationPermissionController());
+    const profile = renderHook(() => useNotificationPermissionController());
+    await waitFor(() => expect(registerNativePush).toHaveBeenCalled());
+    expect(home.result.current.isSubscribed).toBe(true);
+    expect(profile.result.current.isSubscribed).toBe(true);
+
+    // Desativa numa tela: a OUTRA, já montada, acompanha na hora (antes ficava com o valor velho).
+    await act(async () => { await profile.result.current.unsubscribe(); });
+    expect(profile.result.current.isSubscribed).toBe(false);
+    expect(home.result.current.isSubscribed).toBe(false);
+
+    // Reativa na outra: as duas voltam juntas.
+    await act(async () => { await home.result.current.subscribeToPush(); });
+    expect(home.result.current.isSubscribed).toBe(true);
+    expect(profile.result.current.isSubscribed).toBe(true);
   });
 });
