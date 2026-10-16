@@ -1,7 +1,6 @@
 'use client';
 
 import { getToken } from '@/lib/auth-token';
-import { COMMON_PACKAGE_SIZES_KG, estimatePackageDays } from '@/lib/foodEstimate';
 import { useState, useEffect } from 'react';
 import { API_BACKEND_BASE } from '@/lib/api';
 import { trackV1Metric } from '@/lib/v1Metrics';
@@ -82,8 +81,6 @@ export interface FoodControlTabProps {
   petName?: string;
   countryCode?: string;
   species?: 'dog' | 'cat';
-  /** peso do pet (kg), quando conhecido — só para estimar a duração do pacote no cadastro rápido */
-  petWeightKg?: number | null;
   onSaved?: () => void;
   onStateChange?: (state: FoodControlTabState) => void;
   formRequest?: FoodControlTabFormRequest | null;
@@ -332,7 +329,6 @@ export function FoodControlTab({
   petName: _petName,
   countryCode,
   species,
-  petWeightKg,
   onSaved,
   onStateChange,
   formRequest,
@@ -442,21 +438,6 @@ export function FoodControlTab({
     setItems((current) => ensurePrimaryItem(current.map((item) => (
       item.id === itemId ? mergeScannedProductIntoItem(item, product) : item
     ))));
-  };
-
-  // Cadastro rápido: o tamanho do pacote + o peso do pet estimam quantos dias a ração dura (editável).
-  // Só troca a duração se ela ainda está vazia ou no padrão de 30 — nunca sobrescreve o que a pessoa digitou.
-  const selectPackageSize = (itemId: string, size: number) => {
-    updateItem(itemId, (current) => {
-      const days = estimatePackageDays(species, petWeightKg, size);
-      const untouched = !current.durationDays.trim() || current.durationDays.trim() === '30';
-      return {
-        ...current,
-        packageSizeKg: String(size),
-        trackingMethod: 'duration',
-        durationDays: days && untouched ? String(days) : current.durationDays,
-      };
-    });
   };
 
   const updateItem = (itemId: string, updater: (item: SimpleFoodData) => SimpleFoodData) => {
@@ -1192,42 +1173,6 @@ export function FoodControlTab({
                           inputClassName="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-10 text-base tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
                         />
                       </div>
-                      {isQuickSetup && (() => {
-                        const pkg = parseFloat(item.packageSizeKg);
-                        const estimate = estimatePackageDays(species, petWeightKg, Number.isFinite(pkg) ? pkg : null);
-                        return (
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Tamanho do pacote</label>
-                            <div className="flex flex-wrap gap-2">
-                              {COMMON_PACKAGE_SIZES_KG.map((size) => {
-                                const active = Number.isFinite(pkg) && pkg === size;
-                                return (
-                                  <button
-                                    key={size}
-                                    type="button"
-                                    onClick={() => selectPackageSize(item.id, size)}
-                                    className={`rounded-xl border px-3 py-2 text-sm font-bold ${active ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white text-gray-600'}`}
-                                  >
-                                    {String(size).replace('.', ',')} kg
-                                  </button>
-                                );
-                              })}
-                            </div>
-                            {estimate && String(estimate) !== item.durationDays.trim() && (
-                              <p className="mt-1.5 text-xs text-gray-500">
-                                Estimativa{_petName ? ` para ${_petName}` : ''}: cerca de <strong>{estimate} dias</strong>.{' '}
-                                <button
-                                  type="button"
-                                  onClick={() => updateItem(item.id, (current) => ({ ...current, trackingMethod: 'duration', durationDays: String(estimate) }))}
-                                  className="font-bold text-amber-700 underline"
-                                >
-                                  Usar {estimate} dias
-                                </button>
-                              </p>
-                            )}
-                          </div>
-                        );
-                      })()}
                       <div>
                         <label className="block text-xs font-semibold text-gray-600 mb-1">Duração (dias)</label>
                         <input
