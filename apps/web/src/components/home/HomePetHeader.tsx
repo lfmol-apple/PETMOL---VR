@@ -224,6 +224,11 @@ export function HomePetHeader({
         <div className="fixed left-1/2 top-1/2 z-[201] w-[calc(100vw-48px)] max-w-[320px] -translate-x-1/2 -translate-y-1/2 rounded-[22px] border border-white/60 bg-white/95 p-4 shadow-2xl ring-1 ring-black/5 backdrop-blur-xl animate-in fade-in zoom-in duration-200">
           <p className="text-[14px] font-black text-slate-900">{title}</p>
           <p className="mt-1 text-[12.5px] leading-snug text-slate-500">{body}</p>
+          {!isOff && isPush ? (
+            <p className="mt-2.5 text-[11.5px] leading-snug text-amber-700">
+              Atenção: ao desativar, você também deixa de receber os lembretes de passeio.
+            </p>
+          ) : null}
           {deniedByOs ? (
             <p className="mt-2.5 text-[11.5px] leading-snug text-amber-700">
               O sistema não deixa pedir de novo por aqui — abra as configurações do aparelho e permita
