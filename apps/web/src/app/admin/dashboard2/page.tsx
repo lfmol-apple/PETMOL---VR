@@ -517,7 +517,7 @@ function CampaignsPanel() {
   const [refresh, setRefresh] = useState(0);
   const { data, error, loading } = useAsync<CampaignsPanelSummary>(
     () => panelFetch('/summary'), [refresh], { intervalMs: 8000 });
-  const [confirm, setConfirm] = useState<'food' | 'push-second' | null>(null);
+  const [confirm, setConfirm] = useState<'food' | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -527,7 +527,7 @@ function CampaignsPanel() {
     catch (e) { setMsg(e instanceof Error ? e.message : 'Não foi possível.'); }
     finally { setBusy(false); setConfirm(null); }
   };
-  const run = (which: 'food' | 'push-second', dry: boolean) =>
+  const run = (which: 'food', dry: boolean) =>
     act(() => panelFetch(`/${which}/run`, { method: 'POST', body: JSON.stringify({ dry_run: dry }) }));
   const toggle = (enabled: boolean) =>
     act(() => panelFetch('/autopilot', { method: 'POST', body: JSON.stringify({ enabled }) }));
@@ -543,20 +543,15 @@ function CampaignsPanel() {
       return <span className="text-slate-600">
         {r.dry_run ? 'Ensaio (nada enviado): ' : 'Concluído: '}
         {typeof r.total === 'number' ? `${numberFmt(r.total)} pessoas` : ''}
-        {typeof r.sent_email === 'number' ? ` · ${numberFmt(r.sent_email)} e-mails` : ''}
         {typeof r.sent_push === 'number' ? ` · ${numberFmt(r.sent_push)} push` : ''}
-        {typeof r.failed_email === 'number' && r.failed_email > 0 ? ` · ${numberFmt(r.failed_email)} falharam` : ''}
-        {r.email_blocked ? ' · e-mail bloqueado pelo provedor (limite); seguiu só com push' : ''}
       </span>;
     }
     return <span className="text-slate-400">Parada</span>;
   };
 
-  const rows: { key: 'food' | 'push-second'; title: string; what: string; n: number; detail: string; st: CampaignState }[] = data ? [
-    { key: 'food', title: 'Ração', what: 'Tem pet e não cadastrou a ração. Push para quem tem aviso, e-mail para os demais (e para quem tem aviso também, no envio manual).',
-      n: data.food.eligible, detail: `${numberFmt(data.food.with_push)} com push · ${numberFmt(data.food.email_only)} só e-mail · ${numberFmt(data.food.skipped_recent)} já receberam há menos de 7 dias`, st: data.food.state },
-    { key: 'push-second', title: 'Notificação — segunda chance', what: 'Ainda sem notificação depois do primeiro contato. E-mail (quem não tem aviso não recebe push).',
-      n: data.push_second.eligible, detail: Object.entries(data.push_second.skipped).map(([k, v]) => `${v} fora (${({ already: 'já recebeu', weekly_cap: 'limite semanal', too_new: 'conta nova' } as Record<string, string>)[k] ?? k})`).join(' · '), st: data.push_second.state },
+  const rows: { key: 'food'; title: string; what: string; n: number; detail: string; st: CampaignState }[] = data ? [
+    { key: 'food', title: 'Ração', what: 'Tem pet, não cadastrou a ração e tem aviso (push) ativo. Só push.',
+      n: data.food.eligible, detail: `${numberFmt(data.food.skipped_recent)} já receberam há menos de 7 dias`, st: data.food.state },
   ] : [];
 
   return (
@@ -570,7 +565,7 @@ function CampaignsPanel() {
                 Piloto automático: {data.autopilot.enabled ? <span className="text-emerald-600">ligado</span> : <span className="text-rose-600">desligado</span>}
               </p>
               <p className="text-[12px] text-slate-500">
-                Todo dia às 11h (10h–19h), até {data.autopilot.daily_cap} mensagens por dia, na ordem ração → notificação.
+                Todo dia às 11h (10h–19h), até {data.autopilot.daily_cap} push por dia.
                 Últimas 24h: {numberFmt(Object.values(data.autopilot.last24h).reduce((a, b) => a + b, 0))} enviadas · {numberFmt(data.autopilot.opted_out)} pediram para parar.
               </p>
             </div>
@@ -599,7 +594,7 @@ function CampaignsPanel() {
                 </div>
                 {confirm === r.key && (
                   <div className="mt-3 rounded-lg bg-amber-50 p-3 text-[13px] text-amber-900">
-                    <p><strong>Enviar para {numberFmt(r.n)} pessoas agora?</strong> O push sai na hora e o e-mail em lotes de 10, com pausa de 3 minutos. Não dá para desfazer.</p>
+                    <p><strong>Enviar para {numberFmt(r.n)} pessoas agora?</strong> O push sai na hora. Não dá para desfazer.</p>
                     <div className="mt-2 flex gap-2">
                       <button type="button" disabled={busy} onClick={() => run(r.key, false)} className="rounded-lg bg-[#0056D2] px-3 py-1.5 text-[12px] font-bold text-white">Sim, enviar</button>
                       <button type="button" onClick={() => setConfirm(null)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-600">Cancelar</button>
@@ -616,7 +611,7 @@ function CampaignsPanel() {
   );
 }
 
-/** Resultado da campanha de Alimentação (e-mail + push). Fora do prefixo /analytics, então fetch próprio. */
+/** Resultado da campanha de Alimentação (push). Fora do prefixo /analytics, então fetch próprio. */
 function FoodCampaignCard() {
   const { data, error, loading } = useAsync<FoodCampaignResults>(async () => {
     const res = await fetch('/api/v1/admin/campaigns/food-activation/results', {
@@ -630,7 +625,7 @@ function FoodCampaignCard() {
   const sendDay = data?.first_sent_at?.slice(0, 10);
   return (
     <Card title="Campanha de ração: funcionou?"
-      subtitle="De quem recebeu o e-mail e o push de Alimentação, quantos cadastraram a ração depois.">
+      subtitle="De quem recebeu o push de Alimentação, quantos cadastraram a ração depois.">
       {loading && !data ? <Loading /> : error || !data ? <ErrorBox msg={error} /> : !data.first_sent_at ? (
         <p className="text-[13px] text-slate-500">Nenhum envio registrado ainda. Os números aparecem depois do primeiro disparo.</p>
       ) : (

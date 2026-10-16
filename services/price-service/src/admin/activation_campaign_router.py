@@ -54,7 +54,6 @@ from sqlalchemy import Column, DateTime, String, func
 from ..analytics.models import AnalyticsProductEvent
 from ..config import get_settings
 from ..db import Base, SessionLocal
-from ..mailer import send_mail
 from ..notifications import push_to_user
 from ..pets.models import Pet
 from ..user_auth.models import User
@@ -266,6 +265,7 @@ def _in_holdout(user_id: str, pct: int) -> bool:
 
 def _run(dry_run: bool, batch_size: int = 10, batch_pause_seconds: int = 180,
          skip_contacted_days: int = 7, holdout_pct: int = 0) -> None:
+    """Ração: SÓ push (decisão do dono, 16/10/2026 — nenhum e-mail de campanha sai mais)."""
     db = SessionLocal()
     try:
         targets = _target_users(db)
@@ -275,12 +275,11 @@ def _run(dry_run: bool, batch_size: int = 10, batch_pause_seconds: int = 180,
         holdout = [t for t in targets if _in_holdout(t["user_id"], holdout_pct)]
         targets = [t for t in targets if t not in holdout]
         with_push = [t for t in targets if t["has_push"]]
-        email_only = [t for t in targets if not t["has_push"]]
+        without_push = [t for t in targets if not t["has_push"]]
 
         result = {
-            "total": len(targets),
-            "push_and_email": len(with_push),
-            "email_only": len(email_only),
+            "total": len(with_push),
+            "sem_aviso_ignorados": len(without_push),
             "skipped_recent": len(skipped_recent),
             "holdout": len(holdout),
             "dry_run": dry_run,
@@ -290,47 +289,17 @@ def _run(dry_run: bool, batch_size: int = 10, batch_pause_seconds: int = 180,
             for t in holdout:   # controle: registrado, sem mensagem
                 db.add(ActivationCampaignContact(campaign=CAMPAIGN_FOOD_HOLDOUT, user_id=t["user_id"]))
             db.commit()
-            sent_push = sent_email = failed_email = skipped_blocked = 0
-            consecutive_fail = 0
-            email_blocked = False
-            for i, t in enumerate(targets):
-                user = db.query(User).filter(User.id == t["user_id"]).first()
-                if not user or not user.email:
-                    continue
-                contacted = False
-                if email_blocked:
-                    skipped_blocked += 1          # provedor bloqueou: não insiste (nem prolonga o bloqueio)
-                else:
-                    subject, body = _email_copy(user.name, t["pet_names"], t["user_id"])
-                    if send_mail(to=user.email, subject=subject, body_text=body):
-                        sent_email += 1
-                        consecutive_fail = 0
-                        contacted = True
-                        # a cada lote, uma pausa (a hospedagem rejeita e-mail em rajada)
-                        emails_done = sent_email + failed_email
-                        if (i + 1) < len(targets) and emails_done % batch_size == 0:
-                            _sleep(batch_pause_seconds)
-                    else:
-                        failed_email += 1
-                        consecutive_fail += 1
-                        if consecutive_fail >= EMAIL_BLOCK_AFTER_FAILURES:
-                            email_blocked = True
-                            logger.error("[activation_campaign food] e-mail bloqueado pelo provedor — seguindo só com push")
-                if t["has_push"]:
-                    ok = push_to_user(t["user_id"], _push_payload(t["pet_names"], t.get("first_pet_id")))
-                    if ok > 0:
-                        sent_push += 1
-                        contacted = True
-                if contacted:
-                    # registro durável, na hora — push OU e-mail contam como contato (evita repetir)
+            sent_push = 0
+            for i, t in enumerate(with_push):
+                ok = push_to_user(t["user_id"], _push_payload(t["pet_names"], t.get("first_pet_id")))
+                if ok > 0:
+                    sent_push += 1
+                    # registro durável, na hora (evita repetir se a API reiniciar no meio)
                     db.add(ActivationCampaignContact(campaign=CAMPAIGN_FOOD, user_id=t["user_id"]))
                     db.commit()
                 with _lock:
-                    STATE["result"] = {**result, "sent_push": sent_push, "sent_email": sent_email,
-                                       "failed_email": failed_email, "email_blocked": email_blocked,
-                                       "skipped_email_blocked": skipped_blocked, "progress": f"{i + 1}/{len(targets)}"}
-            result.update(sent_push=sent_push, sent_email=sent_email, failed_email=failed_email,
-                          email_blocked=email_blocked, skipped_email_blocked=skipped_blocked)
+                    STATE["result"] = {**result, "sent_push": sent_push, "progress": f"{i + 1}/{len(with_push)}"}
+            result.update(sent_push=sent_push)
 
         with _lock:
             STATE.update(phase="done", result=result, error=None,
@@ -378,9 +347,8 @@ def food_activation_preview(skip_contacted_days: int = 7, current=Depends(get_cu
         eligible = [t for t in targets if t["user_id"] not in recent]
         return {
             "campaign": CAMPAIGN_FOOD,
-            "eligible": len(eligible),
-            "with_push": sum(1 for t in eligible if t["has_push"]),
-            "email_only": sum(1 for t in eligible if not t["has_push"]),
+            "eligible": sum(1 for t in eligible if t["has_push"]),   # só push
+            "without_push": sum(1 for t in eligible if not t["has_push"]),
             "skipped_recent": len(targets) - len(eligible),
             "skip_contacted_days": skip_contacted_days,
         }
@@ -615,70 +583,13 @@ def _email_copy_push_location(name: Optional[str], pet_names: list[str]) -> tupl
     return subject, body_text, body_html
 
 
-def _run_push_location(dry_run: bool, batch_size: int = 10, batch_pause_seconds: int = 180) -> None:
-    db = SessionLocal()
-    try:
-        targets = _target_users_push_location(db)
-        # Quem já recebeu essa campanha antes (envio real anterior) não
-        # recebe de novo — sem isso, alargar o segmento e disparar outra vez
-        # reenviaria pra quem já foi contactado.
-        already_contacted = {
-            str(uid) for (uid,) in db.query(ActivationCampaignContact.user_id)
-            .filter(ActivationCampaignContact.campaign == CAMPAIGN_PUSH_LOCATION).all()
-        }
-        targets = [t for t in targets if t["user_id"] not in already_contacted]
-        result = {"total": len(targets), "dry_run": dry_run}
-        if not dry_run:
-            sent_email = failed_email = 0
-            for i, t in enumerate(targets):
-                subject, body_text, body_html = _email_copy_push_location(t["name"], t["pet_names"])
-                if send_mail(to=t["email"], subject=subject, body_text=body_text, body_html=body_html):
-                    sent_email += 1
-                    db.add(ActivationCampaignContact(campaign=CAMPAIGN_PUSH_LOCATION, user_id=t["user_id"]))
-                    # Grava na hora — um lote longo (lento de propósito) pode
-                    # atravessar um restart/deploy no meio; sem commit
-                    # incremental, quem já recebeu nesse meio-tempo perderia
-                    # o registro e tomaria o e-mail de novo depois.
-                    db.commit()
-                else:
-                    failed_email += 1
-                with _lock_push_location:
-                    STATE_PUSH_LOCATION["result"] = {
-                        **result, "sent_email": sent_email, "failed_email": failed_email,
-                        "progress": f"{i + 1}/{len(targets)}",
-                    }
-                is_last = (i + 1) == len(targets)
-                if not is_last and (i + 1) % batch_size == 0:
-                    _sleep(batch_pause_seconds)
-            result.update(sent_email=sent_email, failed_email=failed_email)
-
-        with _lock_push_location:
-            STATE_PUSH_LOCATION.update(phase="done", result=result, error=None,
-                                       finished_at=datetime.now(timezone.utc).isoformat())
-        logger.info("[activation_campaign push_location] %s", result)
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("[activation_campaign push_location] falhou")
-        with _lock_push_location:
-            STATE_PUSH_LOCATION.update(phase="error", error=str(exc),
-                                       finished_at=datetime.now(timezone.utc).isoformat())
-    finally:
-        db.close()
+EMAIL_CAMPAIGNS_OFF = "Campanha por e-mail desativada (decisão do dono, 16/10/2026). Só push."
 
 
 @router.post("/push-location-activation/run")
 def run_push_location_activation(payload: RunRequest, x_sync_token: Optional[str] = Header(default=None, alias="X-Sync-Token")):
     _authorize(x_sync_token)
-    with _lock_push_location:
-        if STATE_PUSH_LOCATION["phase"] == "running":
-            raise HTTPException(status_code=409, detail="campanha já em andamento")
-        STATE_PUSH_LOCATION.update(phase="running", started_at=datetime.now(timezone.utc).isoformat(),
-                                   finished_at=None, result=None, error=None)
-    threading.Thread(
-        target=_run_push_location,
-        args=(payload.dry_run, payload.batch_size, payload.batch_pause_seconds),
-        daemon=True,
-    ).start()
-    return {"started": True, "dry_run": payload.dry_run, "batch_size": payload.batch_size, "batch_pause_seconds": payload.batch_pause_seconds}
+    raise HTTPException(status_code=410, detail=EMAIL_CAMPAIGNS_OFF)
 
 
 @router.get("/push-location-activation/status")
@@ -737,14 +648,8 @@ def push_location_activation_preview(
     payload: PreviewEmailRequest,
     x_sync_token: Optional[str] = Header(default=None, alias="X-Sync-Token"),
 ):
-    """Manda o e-mail REAL deste degrau pra um endereço qualquer (ex: o
-    próprio dono), sem entrar na lógica de segmento nem no registro de
-    conversão — só pra conferir como chega de verdade na caixa de entrada.
-    Mesmo token de escrita da campanha (nunca um disparo "de graça")."""
     _authorize(x_sync_token)
-    subject, body_text, body_html = _email_copy_push_location(payload.tutor_name, payload.pet_names)
-    ok = send_mail(to=payload.to, subject=subject, body_text=body_text, body_html=body_html)
-    return {"sent": ok, "to": payload.to, "subject": subject}
+    raise HTTPException(status_code=410, detail=EMAIL_CAMPAIGNS_OFF)
 
 
 # ── Etapa 2 da escada — Notificação, segunda chance (15/10/2026) ─────────────
@@ -820,58 +725,10 @@ def _target_users_push_second(db, weekly_cap_days: int = 7, min_account_days: in
     return out, skipped
 
 
-def _run_push_second(dry_run: bool, batch_size: int = 10, batch_pause_seconds: int = 180) -> None:
-    db = SessionLocal()
-    try:
-        targets, skipped = _target_users_push_second(db)
-        result = {"total": len(targets), "skipped": skipped, "dry_run": dry_run}
-        if not dry_run:
-            sent = failed = consecutive_fail = 0
-            blocked = False
-            for i, t in enumerate(targets):
-                if blocked:
-                    break
-                subject, body_text, body_html = _email_copy_push_second(t["name"], t["pet_names"], t["user_id"])
-                if send_mail(to=t["email"], subject=subject, body_text=body_text, body_html=body_html):
-                    sent += 1
-                    consecutive_fail = 0
-                    db.add(ActivationCampaignContact(campaign=CAMPAIGN_PUSH_SECOND, user_id=t["user_id"]))
-                    db.commit()
-                else:
-                    failed += 1
-                    consecutive_fail += 1
-                    if consecutive_fail >= EMAIL_BLOCK_AFTER_FAILURES:
-                        blocked = True
-                with _lock_push_second:
-                    STATE_PUSH_SECOND["result"] = {**result, "sent_email": sent, "failed_email": failed,
-                                                   "progress": f"{i + 1}/{len(targets)}"}
-                if (i + 1) < len(targets) and (i + 1) % batch_size == 0:
-                    _sleep(batch_pause_seconds)
-            result.update(sent_email=sent, failed_email=failed, email_blocked=blocked)
-        with _lock_push_second:
-            STATE_PUSH_SECOND.update(phase="done", result=result, error=None,
-                                     finished_at=datetime.now(timezone.utc).isoformat())
-        logger.info("[activation_campaign push_second] %s", result)
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("[activation_campaign push_second] falhou")
-        with _lock_push_second:
-            STATE_PUSH_SECOND.update(phase="error", error=str(exc), finished_at=datetime.now(timezone.utc).isoformat())
-    finally:
-        db.close()
-
-
 @router.post("/push-second-chance/run")
 def run_push_second(payload: RunRequest, x_sync_token: Optional[str] = Header(default=None, alias="X-Sync-Token")):
     _authorize(x_sync_token)
-    with _lock_push_second:
-        if STATE_PUSH_SECOND["phase"] == "running":
-            raise HTTPException(status_code=409, detail="campanha já em andamento")
-        STATE_PUSH_SECOND.update(phase="running", started_at=datetime.now(timezone.utc).isoformat(),
-                                 finished_at=None, result=None, error=None)
-    threading.Thread(target=_run_push_second, args=(payload.dry_run, payload.batch_size, payload.batch_pause_seconds),
-                     daemon=True).start()
-    return {"started": True, "dry_run": payload.dry_run, "batch_size": payload.batch_size,
-            "batch_pause_seconds": payload.batch_pause_seconds}
+    raise HTTPException(status_code=410, detail=EMAIL_CAMPAIGNS_OFF)
 
 
 @router.get("/push-second-chance/status")
@@ -1006,15 +863,14 @@ def panel_summary(current=Depends(get_current_admin)):
         food_targets = _target_users(db)
         recent = _recently_contacted_food(db, 7)
         food_eligible = [t for t in food_targets if t["user_id"] not in recent]
-        second, skipped = _target_users_push_second(db)
         since = datetime.now(timezone.utc) - timedelta(hours=24)
         last24 = {c: int(n) for c, n in db.query(ActivationCampaignContact.campaign, func.count())
                   .filter(ActivationCampaignContact.sent_at >= since).group_by(ActivationCampaignContact.campaign).all()}
         return {
-            "food": {"eligible": len(food_eligible), "with_push": sum(1 for t in food_eligible if t["has_push"]),
-                     "email_only": sum(1 for t in food_eligible if not t["has_push"]),
+            # só push: quem não tem aviso ativo não entra mais (nenhum e-mail de campanha)
+            "food": {"eligible": sum(1 for t in food_eligible if t["has_push"]),
+                     "without_push": sum(1 for t in food_eligible if not t["has_push"]),
                      "skipped_recent": len(food_targets) - len(food_eligible), "state": STATE},
-            "push_second": {"eligible": len(second), "skipped": skipped, "state": STATE_PUSH_SECOND},
             "autopilot": {"enabled": autopilot_enabled(db), "daily_cap": get_settings().activation_autopilot_daily_cap,
                           "last24h": last24, "opted_out": len(opted_out_ids(db))},
         }
@@ -1035,13 +891,7 @@ def panel_run_food(payload: PanelRun, current=Depends(get_current_admin)):
 
 @panel_router.post("/push-second/run")
 def panel_run_push_second(payload: PanelRun, current=Depends(get_current_admin)):
-    with _lock_push_second:
-        if STATE_PUSH_SECOND["phase"] == "running":
-            raise HTTPException(status_code=409, detail="campanha já em andamento")
-        STATE_PUSH_SECOND.update(phase="running", started_at=datetime.now(timezone.utc).isoformat(),
-                                 finished_at=None, result=None, error=None)
-    threading.Thread(target=_run_push_second, args=(payload.dry_run, 10, 180), daemon=True).start()
-    return {"started": True, "dry_run": payload.dry_run}
+    raise HTTPException(status_code=410, detail=EMAIL_CAMPAIGNS_OFF)
 
 
 class AutopilotToggle(BaseModel):

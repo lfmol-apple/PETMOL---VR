@@ -103,7 +103,6 @@ export interface CampaignState {
   result: Record<string, number | string | boolean | Record<string, number>> | null;
 }
 export interface CampaignsPanelSummary {
-  food: { eligible: number; with_push: number; email_only: number; skipped_recent: number; state: CampaignState };
-  push_second: { eligible: number; skipped: Record<string, number>; state: CampaignState };
+  food: { eligible: number; without_push: number; skipped_recent: number; state: CampaignState };
   autopilot: { enabled: boolean; daily_cap: number; last24h: Record<string, number>; opted_out: number };
 }

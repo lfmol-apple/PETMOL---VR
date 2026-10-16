@@ -195,3 +195,17 @@ def test_painel_exige_login_de_admin(client):
     assert client.get("/v1/admin/campaigns/panel/summary").status_code in (401, 403)
     assert client.post("/v1/admin/campaigns/panel/food/run", json={"dry_run": True}).status_code in (401, 403)
     assert client.post("/v1/admin/campaigns/panel/autopilot", json={"enabled": False}).status_code in (401, 403)
+
+
+def test_painel_so_push_sem_metricas_de_email_e_campanha_de_email_410(client):
+    """Painel (login de admin simulado): resumo sem números de e-mail e disparo de e-mail recusado."""
+    from types import SimpleNamespace
+    from src.admin.activation_campaign_router import get_current_admin
+    client.app.dependency_overrides[get_current_admin] = lambda: (SimpleNamespace(id="admin-teste"), None)
+    try:
+        body = client.get("/v1/admin/campaigns/panel/summary").json()
+        assert set(body["food"]) == {"eligible", "without_push", "skipped_recent", "state"}
+        assert "push_second" not in body
+        assert client.post("/v1/admin/campaigns/panel/push-second/run", json={"dry_run": False}).status_code == 410
+    finally:
+        client.app.dependency_overrides.pop(get_current_admin, None)
