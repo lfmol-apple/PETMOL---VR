@@ -1006,7 +1006,10 @@ def _email_racao_content(name: Optional[str], missing_pet_names: list[str], miss
 
 
 def _run_email_racao(dry_run: bool, holdout_pct: int, pause_seconds: float = 0.3) -> None:
-    from ..mailer import send_mail
+    from ..mailer import send_mail, sendgrid_configured
+    # Sem SendGrid o envio sai pela Hostinger, que bloqueia rajada (451): lotes de 10 com pausa de 3 min,
+    # o ritmo que já funcionou. Com SendGrid não precisa de pausa.
+    slow = not sendgrid_configured()
     db = SessionLocal()
     try:
         targets = _target_users_email_racao(db)
@@ -1038,6 +1041,8 @@ def _run_email_racao(dry_run: bool, holdout_pct: int, pause_seconds: float = 0.3
                 with _email_lock:
                     EMAIL_STATE["result"] = {**result, "sent": sent, "failed": failed, "progress": f"{i + 1}/{len(sending)}"}
                 _sleep(pause_seconds)
+                if slow and (i + 1) % 10 == 0 and i + 1 < len(sending):
+                    _sleep(180)
             result.update(sent=sent, failed=failed)
         with _email_lock:
             EMAIL_STATE.update(phase="done", result=result, error=None, finished_at=datetime.now(timezone.utc).isoformat())
@@ -1079,8 +1084,6 @@ class EmailRacaoRun(BaseModel):
 @panel_router.post("/email-racao/run")
 def panel_email_racao_run(payload: EmailRacaoRun, current=Depends(get_current_admin)):
     from ..mailer import sendgrid_configured
-    if not payload.dry_run and not sendgrid_configured():
-        raise HTTPException(status_code=409, detail="Envio em massa bloqueado: SendGrid não está configurado (a Hostinger limita o lote). O teste para o seu e-mail continua liberado.")
     with _email_lock:
         if EMAIL_STATE["phase"] == "running":
             raise HTTPException(status_code=409, detail="envio já em andamento")

@@ -651,7 +651,7 @@ function EmailRacaoPanel() {
           </p>
           {!data.sendgrid && (
             <p className="mt-2 rounded-lg bg-amber-50 p-2 text-[12px] text-amber-900">
-              SendGrid não está configurado: o envio em massa fica bloqueado. O teste para o seu e-mail funciona.
+              Sem SendGrid o envio sai pela Hostinger, em lotes de 10 a cada 3 minutos (cerca de 3,5 h para 700 pessoas). Se a Hostinger bloquear, o envio para sozinho; é só rodar de novo depois, quem já recebeu é pulado.
             </p>
           )}
           <p className="mt-2 text-[12px]">
@@ -673,7 +673,7 @@ function EmailRacaoPanel() {
             <button type="button" disabled={busy || st?.phase === 'running'}
               onClick={() => act(() => panelFetch('/email-racao/run', { method: 'POST', body: JSON.stringify({ dry_run: true }) }))}
               className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-600 disabled:opacity-40">Ensaio</button>
-            <button type="button" disabled={busy || st?.phase === 'running' || data.eligible === 0 || !data.sendgrid}
+            <button type="button" disabled={busy || st?.phase === 'running' || data.eligible === 0}
               onClick={() => setConfirm(true)}
               className="rounded-lg bg-[#0056D2] px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-40">Enviar para todos</button>
           </div>
