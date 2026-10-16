@@ -108,20 +108,54 @@ def test_quem_pediu_para_parar_nunca_recebe(monkeypatch):
     assert not any(m["to"].startswith("optout") for m in out["mail"])
 
 
-def test_link_de_descadastro_assinado(client):
+def test_link_de_descadastro_pede_confirmacao_e_permite_voltar(client):
     db = SessionLocal()
     try:
         _clean(db); uid = _user(db, "unsub")
     finally:
         db.close()
+    tok = ac.unsubscribe_token(uid)
     assert client.get(f"/v1/unsubscribe-reminders?u={uid}&t=errado").status_code == 400
-    ok = client.get(f"/v1/unsubscribe-reminders?u={uid}&t={ac.unsubscribe_token(uid)}")
-    assert ok.status_code == 200 and "Pronto" in ok.text
+
+    # ABRIR o link não descadastra (gente clicava sem entender; programas de segurança "abrem" links)
+    page = client.get(f"/v1/unsubscribe-reminders?u={uid}&t={tok}")
+    assert page.status_code == 200 and "Sim, parar de receber" in page.text
+    db = SessionLocal()
+    try:
+        assert uid not in ac.opted_out_ids(db)
+    finally:
+        db.close()
+
+    # só a confirmação descadastra
+    done = client.post("/v1/unsubscribe-reminders", data={"u": uid, "t": tok, "action": "stop"})
+    assert done.status_code == 200 and "Voltar a receber" in done.text       # "foi sem querer?"
     db = SessionLocal()
     try:
         assert uid in ac.opted_out_ids(db)
     finally:
         db.close()
+
+    # o mesmo link, aberto de novo, oferece voltar a receber — e volta
+    again = client.get(f"/v1/unsubscribe-reminders?u={uid}&t={tok}")
+    assert "Voltar a receber os lembretes" in again.text
+    back = client.post("/v1/unsubscribe-reminders", data={"u": uid, "t": tok, "action": "resume"})
+    assert back.status_code == 200
+    db = SessionLocal()
+    try:
+        assert uid not in ac.opted_out_ids(db)
+    finally:
+        db.close()
+
+    # código falso ou ação inválida: recusa
+    assert client.post("/v1/unsubscribe-reminders", data={"u": uid, "t": "falso", "action": "stop"}).status_code == 400
+    assert client.post("/v1/unsubscribe-reminders", data={"u": uid, "t": tok, "action": "apagar"}).status_code == 400
+
+
+def test_rodape_do_email_deixa_claro_que_e_para_parar_e_pede_confirmar():
+    body = ac._footer("u1")
+    assert "PARAR de receber" in body and "confirme" in body and "ignore" in body
+    _, _, html = ac._email_copy_push_second("Ana", ["Mel"], "u1")
+    assert "parar</strong> de receber" in html and "abra este link e confirme" in html
 
 
 def test_segundo_toque_de_racao_so_depois_de_14_dias(monkeypatch):
