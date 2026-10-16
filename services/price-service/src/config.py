@@ -95,6 +95,8 @@ class Settings(BaseSettings):
     # (notifications/__init__.py) pra disparar lembretes de medicação de
     # novo. Histórico da desativação de 18/09: docs/MEDICAMENTOS_DESATIVADOS.md.
     medications_enabled: bool = True
+    # Rotina do pet / lembrete de passeio (16/10/2026). DESLIGADO por padrão: religar = env ROUTINE_WALK_ENABLED=true + restart.
+    routine_walk_enabled: bool = False
 
     # Preço real da Cobasi (API pública de catálogo VTEX) para a Loja do Baby.
     # Cache longo de propósito — reduz volume de chamadas à Cobasi (evitar

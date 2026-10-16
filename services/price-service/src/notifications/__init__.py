@@ -437,6 +437,11 @@ _TYPE_CONFIG: dict = {
         "action_id": "view",
         "fallback_body": "Hora de agendar o banho e/ou tosa no pet shop.",
     },
+    "walk": {
+        "action_label": "Abrir PETMOL",
+        "action_id": "open",
+        "fallback_body": "Hora do passeio! Um passeio faz bem para vocês dois.",
+    },
 }
 
 
@@ -714,6 +719,10 @@ def send_due_reminders() -> None:
             # a linha fica pendente pra sempre (nada é apagado) e volta a
             # disparar normalmente se medications_enabled=True um dia.
             if not medications_enabled and reminder.type in ("medication", "medicacao"):
+                continue
+            # Passeio (Rotina do pet): com o interruptor desligado nada é enviado
+            # (a linha fica pendente; o job de rotina a limpa).
+            if reminder.type == "walk" and not get_settings().routine_walk_enabled:
                 continue
             if reminder.type in _UNIQUE_PER_PET_TYPES:
                 dedup_key = (reminder.pet_id or "", reminder.type)

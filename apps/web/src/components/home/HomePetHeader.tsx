@@ -6,6 +6,7 @@ import { Bell, BellOff, MapPin, MapPinOff, ClipboardList } from 'lucide-react';
 
 import { useI18n } from '@/lib/I18nContext';
 import { HomeAttentionOverlays } from '@/components/home/HomeAttentionOverlays';
+import { RoutineWalkButton } from '@/components/home/RoutineWalk';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
 import { requestLocationAndPersist, stopSharingLocation } from '@/features/interactions/requestCorePermissions';
 import { queryGeolocationPermission, type GeolocationPermissionState } from '@/lib/silentLocationRefresh';
@@ -504,6 +505,10 @@ export function HomePetHeader({
             )}
           </button>
         </div>
+
+        {/* Rotina do pet (canto inferior esquerdo, antes vazio): lembrete de passeio.
+            Só desenha se o servidor ligar o recurso (routine_walk_enabled). */}
+        <RoutineWalkButton petId={currentPet.pet_id} petName={currentPet.pet_name} />
 
         {/* Botão de ação no canto inferior direito — só "editar este pet"
             (lápis). Controle pequeno e indispensável, continua sobre a
