@@ -51,3 +51,37 @@ def test_conteudo_assunto_do_dono_e_botao():
     assert "Oi Ana" in t
     _s, _t, h2 = _email_racao_content(None, [], False, None)
     assert "Ativar as notificações" in h2
+
+
+def test_hostinger_recusa_espera_e_retoma_sem_duplicar_controle(monkeypatch):
+    """3 recusas seguidas => espera (não desiste), depois volta a enviar; controle gravado uma vez."""
+    import src.admin.activation_campaign_router as r
+    import src.mailer as mailer
+
+    db = SessionLocal()
+    try:
+        tag = uuid.uuid4().hex[:6]
+        ids = []
+        for n in range(6):
+            uid = _user(db, f"drip{n}-{tag}@x.com")
+            _pet(db, uid, f"Pet{n}")
+            ids.append(uid)
+    finally:
+        db.close()
+
+    waits = []
+    monkeypatch.setattr(r, "_sleep", lambda s: waits.append(s))
+    monkeypatch.setattr(mailer, "sendgrid_configured", lambda: False)
+    calls = {"n": 0}
+
+    def fake_send(**kw):
+        calls["n"] += 1
+        return calls["n"] > 3          # as 3 primeiras são recusadas, as seguintes passam
+    monkeypatch.setattr(mailer, "send_mail", fake_send)
+    monkeypatch.setattr(r, "EMAIL_DAILY_CAP", 10_000)
+
+    r._run_email_racao(False, 0, pause_seconds=0)
+    res = r.EMAIL_STATE["result"]
+    assert 3600 in waits                       # esperou 1 h
+    assert res["failed"] >= 3 and res["sent"] >= 1
+    assert "stopped" not in res                # não desistiu
