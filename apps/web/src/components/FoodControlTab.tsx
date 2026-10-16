@@ -14,6 +14,7 @@ import { AFFILIATE_ONLY_COMMERCE } from '@/features/commerce/homeShoppingPartner
 import { requestUserDecision } from '@/features/interactions/userPromptChannel';
 import { scheduleFoodReminder, buildRemindAt } from '@/features/notifications/pushService';
 import { DateField } from '@/components/ui/DateField';
+import { parseReminderDays, friendlyApiError } from '@/lib/foodReminder';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -585,7 +586,7 @@ export function FoodControlTab({
         last_refill_date: primaryRequestItem?.last_refill_date ?? null,
         next_purchase_date: nextPurchaseDate,
         no_consumption_control: isDurationMode,
-        manual_reminder_days_before: parseInt(reminderDays, 10) || 3,
+        manual_reminder_days_before: parseReminderDays(reminderDays),
         reminder_time: reminderTime || '09:00',
         barcode: primaryRequestItem?.barcode ?? null,
         category: primaryRequestItem?.category ?? null,
@@ -599,13 +600,13 @@ export function FoodControlTab({
         daily_amount_g: dailyAmountG,
         duration_days: primarySourceMetrics.days,
         last_refill_date: primaryRequestItem?.last_refill_date ?? null,
-        safety_buffer_days: parseInt(reminderDays, 10) || 3,
+        safety_buffer_days: parseReminderDays(reminderDays),
         mode: 'kibble',
         enabled: true,
         notes: buildNotes(requestItems),
         no_consumption_control: isDurationMode,
         next_purchase_date: nextPurchaseDate,
-        manual_reminder_days_before: parseInt(reminderDays, 10) || 3,
+        manual_reminder_days_before: parseReminderDays(reminderDays),
         reminder_time: reminderTime || '09:00',
         items: requestItems,
       },
@@ -682,7 +683,7 @@ export function FoodControlTab({
 
       if (!res.ok) {
         const detail = await res.text().catch(() => '');
-        throw new Error(detail || `HTTP ${res.status}`);
+        throw new Error(friendlyApiError(detail) || `HTTP ${res.status}`);
       }
 
       const json = await res.json();
@@ -705,7 +706,7 @@ export function FoodControlTab({
           ...(plan ?? {}),
           estimated_end_date: json?.estimate?.estimated_end_date ?? null,
           estimated_days_left: json?.estimate?.estimated_days_left ?? null,
-          manual_reminder_days_before: plan?.manual_reminder_days_before ?? (parseInt(reminderDays, 10) || 3),
+          manual_reminder_days_before: plan?.manual_reminder_days_before ?? (parseReminderDays(reminderDays)),
           reminder_time: plan?.reminder_time ?? (reminderTime || '09:00'),
         }));
       } catch { /* silent */ }
