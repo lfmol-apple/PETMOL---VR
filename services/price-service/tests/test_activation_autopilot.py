@@ -35,12 +35,31 @@ def _clean(db):
     db.commit()
 
 
-def _patch(monkeypatch):
+def _patch(monkeypatch, email=True):
     out = {"mail": [], "push": []}
+    # Os testes de regra (cadência, teto, descadastro) exercitam o caminho de e-mail;
+    # o padrão real (False) é coberto por test_piloto_nao_envia_email_por_padrao.
+    monkeypatch.setattr(ap, "AUTOPILOT_SEND_EMAIL", email)
     monkeypatch.setattr(ap, "send_mail", lambda **kw: out["mail"].append(kw) or True)
     monkeypatch.setattr(ap, "push_to_user", lambda uid, payload: out["push"].append((uid, payload)) or 1)
     monkeypatch.setattr(ap, "_sleep", lambda s: None)
     return out
+
+
+def test_piloto_nao_envia_email_por_padrao(monkeypatch):
+    """Decisão do dono (16/10/2026): nenhum e-mail de campanha sai do piloto; só push."""
+    assert ap.AUTOPILOT_SEND_EMAIL is False
+    out = _patch(monkeypatch, email=False)
+    db = SessionLocal()
+    try:
+        _clean(db)
+        a = _user(db, "comPush", push=True); _user(db, "semPush")
+    finally:
+        db.close()
+    r = ap.run_autopilot(now=AT_11)
+    assert r["food_email"] == 0 and r["push_second_email"] == 0
+    assert out["mail"] == []
+    assert [uid for uid, _ in out["push"]] == [a]
 
 
 def test_push_so_push_e_email_so_para_quem_nao_tem_aparelho(monkeypatch):
