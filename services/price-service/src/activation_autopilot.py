@@ -39,6 +39,12 @@ FOOD_SECOND_TOUCH_AFTER_DAYS = 14
 EMAIL_BATCH, EMAIL_PAUSE_SECONDS = 10, 180
 
 
+# 16/10/2026 (dono): o piloto automático NÃO envia mais e-mail aos tutores —
+# o e-mail de descadastro confundiu gente e gerou saídas sem querer. Só o push
+# de ração segue. Para voltar a enviar e-mail, trocar para True (com decisão do dono).
+AUTOPILOT_SEND_EMAIL = False
+
+
 def _aware(dt: Optional[datetime]) -> Optional[datetime]:
     return dt if dt is None or dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
@@ -75,12 +81,15 @@ def run_autopilot(*, now: Optional[datetime] = None, dry_run: bool = False, igno
             n, last = touches.get(t["user_id"], (0, None))
             return n == 0 or (n < FOOD_MAX_TOUCHES and last is not None and last <= second_after)
 
-        food = [t for t in ac._target_users(db) if t["user_id"] not in capped and food_ok(t)]
+        food = [t for t in ac._target_users(db)
+                if t["user_id"] not in capped and food_ok(t) and (t["has_push"] or AUTOPILOT_SEND_EMAIL)]
         food.sort(key=lambda t: not t["has_push"])         # quem tem push primeiro (aviso, não e-mail)
         picked_ids = {t["user_id"] for t in food[:budget]}
         food = food[:budget]
-        second, _ = ac._target_users_push_second(db)
-        second = [t for t in second if t["user_id"] not in picked_ids][: max(budget - len(food), 0)]
+        second = []
+        if AUTOPILOT_SEND_EMAIL:
+            second, _ = ac._target_users_push_second(db)
+            second = [t for t in second if t["user_id"] not in picked_ids][: max(budget - len(food), 0)]
         result["planned"] = {"food": len(food), "push_second": len(second)}
         if dry_run:
             return result
