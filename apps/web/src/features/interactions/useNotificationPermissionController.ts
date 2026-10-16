@@ -11,7 +11,7 @@
 
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { showAppToast } from '@/features/interactions/userPromptChannel';
@@ -192,6 +192,38 @@ function writeCachedSubscribed(value: boolean): void {
   } catch { /* melhor esforço */ }
 }
 
+// Achado 16/10/2026 ("o sininho piscando sempre volta"): cada tela (Home,
+// Perfil, sheets) tinha a SUA cópia do "notificações ativas", sem se falar.
+// Uma tela confirmava "ativo" e a outra ficava com um valor antigo/falho —
+// o sininho da foto piscava vermelho com o Perfil dizendo "Push ativo".
+// Agora o valor mora num único lugar do módulo: toda instância do hook lê e
+// escreve o MESMO, e todas atualizam juntas. O cache em localStorage segue
+// como valor inicial (e sobrevive ao WebView recarregar).
+let sharedSubscribed: boolean | null = null;
+const sharedSubscribedListeners = new Set<() => void>();
+
+function getSharedSubscribed(): boolean {
+  if (sharedSubscribed === null) sharedSubscribed = readCachedSubscribed();
+  return sharedSubscribed;
+}
+
+function setSharedSubscribed(value: boolean): void {
+  sharedSubscribed = value;
+  writeCachedSubscribed(value);
+  sharedSubscribedListeners.forEach((listener) => listener());
+}
+
+function subscribeSharedSubscribed(listener: () => void): () => void {
+  sharedSubscribedListeners.add(listener);
+  return () => { sharedSubscribedListeners.delete(listener); };
+}
+
+/** Só para testes: volta o valor compartilhado ao que está no cache. */
+export function __resetSharedSubscribedForTests(): void {
+  sharedSubscribed = null;
+  sharedSubscribedListeners.clear();
+}
+
 // Achado 08/10/2026 (mesmo dia, 3ª rodada): desativar no sininho da Home não
 // "pegava" no Perfil — porque no app nativo, QUALQUER tela que monta de novo
 // com a permissão do SO ainda concedida renova o token sozinha ("Permissão
@@ -222,11 +254,8 @@ function writeUserOptedOut(value: boolean): void {
 export function useNotificationPermissionController() {
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [isSupported, setIsSupported] = useState(false);
-  const [isSubscribed, setIsSubscribedRaw] = useState(readCachedSubscribed);
-  const setIsSubscribed = useCallback((value: boolean) => {
-    setIsSubscribedRaw(value);
-    writeCachedSubscribed(value);
-  }, []);
+  const isSubscribed = useSyncExternalStore(subscribeSharedSubscribed, getSharedSubscribed, () => false);
+  const setIsSubscribed = setSharedSubscribed;
   const [subscription, setSubscription] = useState<PushSubscription | null>(null);
 
   // Dentro do app nativo (TestFlight/App Store) o push é APNs/FCM via
@@ -341,7 +370,10 @@ export function useNotificationPermissionController() {
       const token = getToken();
       if (!token) return;
       const ok = await registerNativePush(token);
-      setIsSubscribed(ok);
+      // Renovação silenciosa que falha (sinal fraco, ponte nativa lenta,
+      // timeout de 15s) NÃO prova que o push está desligado: só confirma
+      // "ativo" quando dá certo; nunca derruba o estado sozinha.
+      if (ok) setIsSubscribed(true);
     })();
   }, [isNative, setIsSubscribed]);
 
