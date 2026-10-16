@@ -1,9 +1,10 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlarmClock } from 'lucide-react';
 
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
+import { showAppToast } from '@/features/interactions/userPromptChannel';
 import { deviceTimeZone, fetchWalk, saveWalk, type WalkConfig } from '@/lib/routineApi';
 
 const DAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
@@ -28,11 +29,60 @@ function writeIntro(v: Intro): void {
   try { window.localStorage.setItem(INTRO_KEY, JSON.stringify(v)); } catch { /* melhor esforço */ }
 }
 
-function timeOptions(current: string): string[] {
-  const out: string[] = [];
-  for (let h = 5; h <= 23; h++) for (const m of ['00', '30']) out.push(`${String(h).padStart(2, '0')}:${m}`);
-  if (!out.includes(current)) out.push(current);
-  return out.sort();
+const DAY_SHORT = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'];
+
+/** "Vamos avisar às 07:30 e 18:00, de seg a sex." */
+function summary(cfg: WalkConfig): string {
+  const hours = cfg.times.length > 1
+    ? `${cfg.times.slice(0, -1).join(', ')} e ${cfg.times[cfg.times.length - 1]}`
+    : cfg.times[0];
+  const names = cfg.days.map((d) => DAY_SHORT[d - 1]);
+  const days = cfg.days.length === 7 ? 'todos os dias'
+    : cfg.days.length === 5 && cfg.days.join() === '1,2,3,4,5' ? 'de seg a sex'
+    : names.join(', ');
+  return `Vamos avisar às ${hours}, ${days}.`;
+}
+
+/**
+ * Horário com qualquer minuto (o seletor de hora do próprio aparelho, o mesmo da
+ * ração). Guarda o valor localmente e só grava depois de uma pausa, ao sair do
+ * campo ou ao fechar a janela — a roda do iPhone dispara uma alteração a cada
+ * passo e não queremos um salvamento por passo.
+ */
+function TimeField({ value, label, onCommit }: { value: string; label: string; onCommit: (v: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  const pending = useRef<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const commitRef = useRef(onCommit);
+  commitRef.current = onCommit;
+
+  useEffect(() => { setDraft(value); }, [value]);
+
+  const flush = () => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    const v = pending.current;
+    pending.current = null;
+    if (v && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) && v !== value) commitRef.current(v);
+  };
+  // Ao fechar a janela (desmontar) o que estava pendente ainda é gravado.
+  useEffect(() => () => flush(), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <input
+      type="time"
+      step={60}
+      aria-label={label}
+      value={draft}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        pending.current = e.target.value;
+        if (timer.current) clearTimeout(timer.current);
+        timer.current = setTimeout(flush, 600);
+      }}
+      onBlur={flush}
+      className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-[14px] font-bold text-slate-900"
+    />
+  );
 }
 
 /**
@@ -116,6 +166,11 @@ export function RoutineWalkButton({ petId, petName }: { petId: string; petName: 
     void update({ times: times.sort() });
   };
 
+  const confirmAndClose = () => {
+    setOpen(false);
+    showAppToast(cfg.enabled ? `Lembrete de passeio de ${petName} confirmado.` : 'Lembrete de passeio desligado.', { tone: 'success' });
+  };
+
   const toggleDay = (d: number) => {
     const days = cfg.days.includes(d) ? cfg.days.filter((x) => x !== d) : [...cfg.days, d].sort();
     if (days.length === 0) return;        // pelo menos um dia
@@ -143,7 +198,7 @@ export function RoutineWalkButton({ petId, petName }: { petId: string; petName: 
             aria-label="Lembrete de passeio"
             onClick={() => void toggle()}
             disabled={busy}
-            className={`relative h-[29px] w-12 shrink-0 rounded-full transition-colors disabled:opacity-60 ${cfg.enabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
+            className={`relative !h-[29px] !min-h-[29px] !w-[48px] !min-w-[48px] shrink-0 rounded-full p-0 transition-colors disabled:opacity-60 ${cfg.enabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
           >
             <span className={`absolute left-[3px] top-[3px] h-[23px] w-[23px] rounded-full bg-white shadow transition-transform ${cfg.enabled ? 'translate-x-[19px]' : ''}`} />
           </button>
@@ -160,7 +215,7 @@ export function RoutineWalkButton({ petId, petName }: { petId: string; petName: 
                     type="button"
                     aria-pressed={on}
                     onClick={() => toggleDay(d)}
-                    className={`h-8 rounded-full border text-[11.5px] font-bold ${on ? 'border-[#0056D2] bg-[#0056D2] text-white' : 'border-slate-200 bg-slate-50 text-slate-500'}`}
+                    className={`!min-h-0 !min-w-0 h-9 rounded-full border px-0 text-[11.5px] font-bold ${on ? 'border-[#0056D2] bg-[#0056D2] text-white' : 'border-slate-200 bg-slate-50 text-slate-500'}`}
                   >{label}</button>
                 );
               })}
@@ -183,23 +238,25 @@ export function RoutineWalkButton({ petId, petName }: { petId: string; petName: 
               {cfg.times.map((t, i) => (
                 <label key={i} className="flex items-center gap-2 text-[13px] text-slate-500">
                   {cfg.times.length > 1 ? `Passeio ${i + 1}` : 'Horário'}
-                  <select
-                    aria-label={`Horário do passeio ${i + 1}`}
+                  <TimeField
+                    label={`Horário do passeio ${i + 1}`}
                     value={t}
-                    onChange={(e) => changeTime(i, e.target.value)}
-                    className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-[13px] font-bold text-slate-900"
-                  >
-                    {timeOptions(t).map((o) => <option key={o} value={o}>{o}</option>)}
-                  </select>
+                    onCommit={(v) => changeTime(i, v)}
+                  />
                 </label>
               ))}
             </div>
           </div>
         )}
         {pushNote && <p className="mt-3 rounded-xl bg-amber-50 p-2.5 text-[12px] leading-snug text-amber-800">{pushNote}</p>}
-        <div className="mt-3 flex justify-end">
-          <button type="button" onClick={() => setOpen(false)} className="rounded-full px-3 py-1.5 text-[12px] font-semibold text-slate-500">Fechar</button>
-        </div>
+        {cfg.enabled && (
+          <p className="mt-3 text-[12.5px] leading-snug text-slate-600" data-testid="rotina-resumo">{summary(cfg)}</p>
+        )}
+        <button
+          type="button"
+          onClick={confirmAndClose}
+          className="mt-3 w-full rounded-full bg-[#0056D2] px-4 py-2.5 text-[14px] font-extrabold text-white active:scale-[0.98]"
+        >{cfg.enabled ? 'Confirmar' : 'Concluir'}</button>
       </div>
     </>,
     document.body,
