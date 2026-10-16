@@ -78,6 +78,25 @@ def test_api_aceita_varios_horarios_ordena_remove_repetidos_e_limita(client, fla
     assert client.put(f"/pets/{pid}/routine/walk", json={"enabled": True, "times": []}, headers=h).status_code == 422
 
 
+def test_minuto_qualquer_07_03_e_respeitado_no_agendamento(client, flag):
+    # 07:03 em SP = 10:03 UTC; o lembrete é criado exatamente nesse minuto.
+    assert next_occurrence([1, 2, 3, 4, 5, 6, 7], ["07:03"], SP, datetime(2026, 10, 16, 9, 0, tzinfo=UTC)) == datetime(2026, 10, 16, 10, 3, tzinfo=UTC)
+    db = SessionLocal()
+    try:
+        _, pid, h = _mk(db)
+    finally:
+        db.close()
+    r = client.put(f"/pets/{pid}/routine/walk", json={"enabled": True, "times": ["07:03", "19:47"], "tz": SP}, headers=h)
+    assert r.status_code == 200 and r.json()["times"] == ["07:03", "19:47"]
+    db = SessionLocal()
+    try:
+        row = db.query(Reminder).filter(Reminder.pet_id == pid, Reminder.type == "walk", Reminder.sent == False).one()  # noqa: E712
+        local = row.remind_at.replace(tzinfo=UTC).astimezone(__import__("zoneinfo").ZoneInfo(SP))
+        assert (local.hour, local.minute) in ((7, 3), (19, 47)) and local.second == 0
+    finally:
+        db.close()
+
+
 def test_fuso_invalido_cai_no_padrao():
     now = datetime(2026, 10, 16, 20, 0, tzinfo=UTC)
     assert next_occurrence([1, 2, 3, 4, 5, 6, 7], ["18:00"], "Lugar/Nenhum", now) == datetime(2026, 10, 16, 21, 0, tzinfo=UTC)

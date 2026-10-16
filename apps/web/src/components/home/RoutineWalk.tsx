@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlarmClock } from 'lucide-react';
 
@@ -43,11 +43,46 @@ function summary(cfg: WalkConfig): string {
   return `Vamos avisar às ${hours}, ${days}.`;
 }
 
-function timeOptions(current: string): string[] {
-  const out: string[] = [];
-  for (let h = 5; h <= 23; h++) for (const m of ['00', '30']) out.push(`${String(h).padStart(2, '0')}:${m}`);
-  if (!out.includes(current)) out.push(current);
-  return out.sort();
+/**
+ * Horário com qualquer minuto (o seletor de hora do próprio aparelho, o mesmo da
+ * ração). Guarda o valor localmente e só grava depois de uma pausa, ao sair do
+ * campo ou ao fechar a janela — a roda do iPhone dispara uma alteração a cada
+ * passo e não queremos um salvamento por passo.
+ */
+function TimeField({ value, label, onCommit }: { value: string; label: string; onCommit: (v: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  const pending = useRef<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const commitRef = useRef(onCommit);
+  commitRef.current = onCommit;
+
+  useEffect(() => { setDraft(value); }, [value]);
+
+  const flush = () => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    const v = pending.current;
+    pending.current = null;
+    if (v && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) && v !== value) commitRef.current(v);
+  };
+  // Ao fechar a janela (desmontar) o que estava pendente ainda é gravado.
+  useEffect(() => () => flush(), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <input
+      type="time"
+      step={60}
+      aria-label={label}
+      value={draft}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        pending.current = e.target.value;
+        if (timer.current) clearTimeout(timer.current);
+        timer.current = setTimeout(flush, 600);
+      }}
+      onBlur={flush}
+      className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-[14px] font-bold text-slate-900"
+    />
+  );
 }
 
 /**
@@ -203,14 +238,11 @@ export function RoutineWalkButton({ petId, petName }: { petId: string; petName: 
               {cfg.times.map((t, i) => (
                 <label key={i} className="flex items-center gap-2 text-[13px] text-slate-500">
                   {cfg.times.length > 1 ? `Passeio ${i + 1}` : 'Horário'}
-                  <select
-                    aria-label={`Horário do passeio ${i + 1}`}
+                  <TimeField
+                    label={`Horário do passeio ${i + 1}`}
                     value={t}
-                    onChange={(e) => changeTime(i, e.target.value)}
-                    className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-[13px] font-bold text-slate-900"
-                  >
-                    {timeOptions(t).map((o) => <option key={o} value={o}>{o}</option>)}
-                  </select>
+                    onCommit={(v) => changeTime(i, v)}
+                  />
                 </label>
               ))}
             </div>

@@ -97,19 +97,21 @@ describe('RoutineWalkButton', () => {
       .map(([, init]) => JSON.parse(String((init as RequestInit).body)));
     // Começa em 1x, com um só horário.
     expect(screen.getByRole('button', { name: '1x' }).getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getAllByRole('combobox')).toHaveLength(1);
+    expect(screen.getAllByLabelText(/Horário do passeio/)).toHaveLength(1);
     // 2x: aparece o segundo horário.
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: '2x' })); });
     expect(puts().at(-1).times).toEqual(['07:30', '18:00']);
-    expect(screen.getAllByRole('combobox')).toHaveLength(2);
+    expect(screen.getAllByLabelText(/Horário do passeio/)).toHaveLength(2);
     // 3x e depois volta para 1x: ficam só os primeiros.
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: '3x' })); });
     expect(puts().at(-1).times).toHaveLength(3);
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: '1x' })); });
     expect(puts().at(-1).times).toHaveLength(1);
     // Ajusta o horário do passeio.
-    await act(async () => { fireEvent.change(screen.getByLabelText('Horário do passeio 1'), { target: { value: '06:30' } }); });
-    expect(puts().at(-1).times).toEqual(['06:30']);
+    const field = screen.getByLabelText('Horário do passeio 1') as HTMLInputElement;
+    expect(field.type).toBe('time');                       // qualquer minuto, não só :00 e :30
+    fireEvent.change(field, { target: { value: '06:47' } });
+    await waitFor(() => expect(puts().at(-1).times).toEqual(['06:47']));
   });
 
   it('mostra o resumo e "Confirmar" fecha a janela e avisa que ficou confirmado', async () => {
@@ -132,5 +134,16 @@ describe('RoutineWalkButton', () => {
     render(<RoutineWalkButton petId="p1" petName="Baby" />);
     await screen.findByRole('button', { name: /Rotina/ });
     expect(screen.queryByText(/Novo: lembrete de passeio/)).toBeNull();
+  });
+
+  it('mexer no minuto e fechar logo em seguida ainda grava o horário escolhido', async () => {
+    const f = mockApi({ ...OFF, enabled: true });
+    render(<RoutineWalkButton petId="p1" petName="Baby" />);
+    fireEvent.click(await screen.findByRole('button', { name: /Rotina/ }));
+    fireEvent.change(screen.getByLabelText('Horário do passeio 1'), { target: { value: '19:23' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Confirmar' })); });
+    const puts = f.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'PUT')
+      .map(([, init]) => JSON.parse(String((init as RequestInit).body)));
+    expect(puts.at(-1).times).toEqual(['19:23']);
   });
 });
