@@ -47,7 +47,7 @@ from html import escape
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Form, Header, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import Column, DateTime, String, func
 
@@ -202,7 +202,8 @@ def _pet_phrase(pet_names: list[str]) -> str:
 
 
 def _footer(user_id: Optional[str]) -> str:
-    return f"\n\nNão quer mais receber estes lembretes? Toque aqui: {unsubscribe_url(user_id)}" if user_id else ""
+    return (f"\n\nPara PARAR de receber estes lembretes, abra o link abaixo e confirme "
+            f"(se quiser continuar recebendo, ignore): {unsubscribe_url(user_id)}") if user_id else ""
 
 
 def _email_copy(name: Optional[str], pet_names: list[str], user_id: Optional[str] = None) -> tuple[str, str]:
@@ -773,8 +774,9 @@ def _email_copy_push_second(name: Optional[str], pet_names: list[str], user_id: 
         "Equipe PETMOL"
     ) + _footer(user_id)
     pet_html = escape(pet)
-    opt = (f'<p style="font-size:12px;color:#9ca3af">Não quer mais receber estes lembretes? '
-           f'<a href="{escape(unsubscribe_url(user_id))}">Toque aqui</a>.</p>') if user_id else ""
+    opt = (f'<p style="font-size:12px;color:#9ca3af">Para <strong>parar</strong> de receber estes lembretes, '
+           f'<a href="{escape(unsubscribe_url(user_id))}">abra este link e confirme</a> '
+           f'(se quiser continuar recebendo, ignore).</p>') if user_id else ""
     body_html = (
         '<div style="font-family:Arial,sans-serif;font-size:15px;color:#1f2937;line-height:1.6;max-width:480px">'
         f"<p>{escape(saudacao)}</p>"
@@ -908,26 +910,82 @@ def push_second_conversion(current=Depends(get_current_admin_or_readonly_key)):
 public_router = APIRouter(prefix="/v1", tags=["Activation Opt-out"])
 
 
+def _optout_page(title: str, body: str) -> str:
+    """Página simples, legível no celular, com botões grandes."""
+    return (
+        "<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+        f"<title>{escape(title)}</title>"
+        "<body style='font-family:Arial,sans-serif;max-width:440px;margin:10vh auto;padding:0 20px;text-align:center;color:#111827'>"
+        f"<h2 style='margin-bottom:8px'>{escape(title)}</h2>{body}"
+        "<p style='color:#9ca3af;font-size:12px;margin-top:28px'>PETMOL</p></body>"
+    )
+
+
+def _optout_button(label: str, action: str, u: str, t: str, *, primary: bool) -> str:
+    color = "background:#dc2626;color:#fff;border:0" if primary else "background:#fff;color:#374151;border:1px solid #d1d5db"
+    return (
+        f"<form method='post' action='/api/v1/unsubscribe-reminders' style='margin:10px 0'>"
+        f"<input type='hidden' name='u' value='{escape(u)}'><input type='hidden' name='t' value='{escape(t)}'>"
+        f"<input type='hidden' name='action' value='{action}'>"
+        f"<button type='submit' style='width:100%;padding:16px;border-radius:12px;font-size:17px;font-weight:700;{color}'>{escape(label)}</button>"
+        "</form>"
+    )
+
+
 @public_router.get("/unsubscribe-reminders")
-def unsubscribe_reminders(u: str, t: str):
-    """Link do rodapé dos e-mails de ativação: a pessoa para de receber lembretes. Assinado (HMAC) — não
-    dá para descadastrar outra pessoa adivinhando o id."""
+def unsubscribe_reminders_page(u: str, t: str):
+    """Abrir o link do rodapé NÃO descadastra: mostra uma tela para confirmar (e, se a pessoa já parou, para voltar
+    a receber). Antes, o toque descadastrava na hora — gente clicava sem entender o link e saía sem querer
+    (relato do dono, 15/10/2026), e programas de segurança de e-mail que "abrem" links também descadastravam.
+    Assinado (HMAC): não dá para mexer na conta de outra pessoa adivinhando o id."""
     from fastapi.responses import HTMLResponse
     if not hmac.compare_digest(t, unsubscribe_token(u)):
         raise HTTPException(status_code=400, detail="link inválido")
     db = SessionLocal()
     try:
-        if not db.query(ActivationOptOut).filter(ActivationOptOut.user_id == u).first():
+        stopped = db.query(ActivationOptOut).filter(ActivationOptOut.user_id == u).first() is not None
+    finally:
+        db.close()
+    if stopped:
+        body = (
+            "<p>Você <strong>não está recebendo</strong> os lembretes do PETMOL por e-mail e aviso.</p>"
+            "<p>Foi sem querer? Dá para voltar a receber agora.</p>"
+            + _optout_button("Voltar a receber os lembretes", "resume", u, t, primary=False)
+        )
+        return HTMLResponse(_optout_page("Lembretes pausados", body))
+    body = (
+        "<p>Quer <strong>parar de receber</strong> os lembretes do PETMOL (como o aviso para cadastrar a ração)?</p>"
+        "<p style='color:#6b7280;font-size:14px'>Os avisos do app, como vacina e ração, continuam funcionando se você os mantiver ligados.</p>"
+        + _optout_button("Sim, parar de receber", "stop", u, t, primary=True)
+        + "<p style='margin-top:18px'><a href='https://www.petmol.com.br' style='color:#2563eb;font-size:16px'>Não, quero continuar recebendo</a></p>"
+    )
+    return HTMLResponse(_optout_page("Parar de receber lembretes?", body))
+
+
+@public_router.post("/unsubscribe-reminders")
+def unsubscribe_reminders_action(u: str = Form(...), t: str = Form(...), action: str = Form(...)):
+    from fastapi.responses import HTMLResponse
+    if not hmac.compare_digest(t, unsubscribe_token(u)) or action not in ("stop", "resume"):
+        raise HTTPException(status_code=400, detail="link inválido")
+    db = SessionLocal()
+    try:
+        row = db.query(ActivationOptOut).filter(ActivationOptOut.user_id == u).first()
+        if action == "stop" and row is None:
             db.add(ActivationOptOut(user_id=u))
+            db.commit()
+        elif action == "resume" and row is not None:
+            db.delete(row)
             db.commit()
     finally:
         db.close()
-    return HTMLResponse(
-        "<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
-        "<body style='font-family:Arial,sans-serif;max-width:420px;margin:15vh auto;padding:0 20px;text-align:center'>"
-        "<h2>Pronto!</h2><p>Você não vai mais receber estes lembretes do PETMOL por e-mail ou aviso.</p>"
-        "<p style='color:#6b7280;font-size:13px'>Os avisos do app (vacina, ração) continuam funcionando se você os mantiver ligados.</p></body>"
-    )
+    if action == "stop":
+        body = (
+            "<p>Você não vai mais receber estes lembretes do PETMOL.</p>"
+            "<p>Foi sem querer? Dá para voltar a receber:</p>"
+            + _optout_button("Voltar a receber os lembretes", "resume", u, t, primary=False)
+        )
+        return HTMLResponse(_optout_page("Pronto, pausamos os lembretes", body))
+    return HTMLResponse(_optout_page("Pronto, voltamos a enviar", "<p>Você continua recebendo os lembretes do PETMOL.</p>"))
 
 
 # ── Painel (Dashboard 2): o dono dispara e acompanha com o login de admin, sem token ──────────────
