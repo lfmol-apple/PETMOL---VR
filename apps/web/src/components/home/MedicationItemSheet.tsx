@@ -389,7 +389,7 @@ export function MedicationItemSheet({
   // pulo era só toque-e-segure, sem nenhum indício visível além de um texto
   // pequeno embaixo da grade — "difícil demais pro tutor adivinhar" (dono).
   // Agora o toque no dia atrasado abre este menu com as duas opções à vista.
-  const [doseMenuFor, setDoseMenuFor] = useState<{ evId: string; dateStr: string; dateLabel: string } | null>(null);
+  const [doseMenuFor, setDoseMenuFor] = useState<{ evId: string; dateStr: string; dateLabel: string; slot?: string } | null>(null);
 
   const { permission: pushPermission, requestPermission: requestPushPermission, subscribeToPush } = useNotificationPermissionController();
   const pushAsk = usePushOneTimeAsk('petmol_medication_push_ask_v1', pushPermission === 'default');
@@ -1130,7 +1130,10 @@ export function MedicationItemSheet({
                                         // tutor adivinhar"). Dia com progresso parcial
                                         // continua registrando a próxima dose direto —
                                         // não dá pra "pular o resto do dia" nesse modelo.
-                                        if (needsDose) { setDoseMenuFor({ evId: ev.id, dateStr, dateLabel }); return; }
+                                        // Medicação com mais de uma dose por dia: o registro precisa do
+                                        // horário (slot), senão o dia entra em applied_dates mas
+                                        // nenhum slot, e o quadradinho continua vermelho.
+                                        if (needsDose) { setDoseMenuFor({ evId: ev.id, dateStr, dateLabel, slot: dosesPerDay > 1 ? daySlots[0] : undefined }); return; }
                                         if (dosesPerDay > 1) {
                                           if (isFullyApplied) {
                                             // Desfaz a última dose registrada do dia.
@@ -1525,7 +1528,7 @@ export function MedicationItemSheet({
           <button
             type="button"
             onClick={() => {
-              handleApplyDose(doseMenuFor.evId, 'apply', doseMenuFor.dateStr);
+              handleApplyDose(doseMenuFor.evId, 'apply', doseMenuFor.dateStr, doseMenuFor.slot);
               setDoseMenuFor(null);
             }}
             disabled={saving}

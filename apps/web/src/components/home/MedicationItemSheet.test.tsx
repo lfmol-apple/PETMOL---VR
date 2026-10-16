@@ -148,6 +148,25 @@ describe('MedicationItemSheet — dia atrasado abre menu "tomou ou pulou" (em ve
     expect(JSON.parse(opts.body)).toEqual({ date: '2026-10-12' });
   });
 
+  it('medicação com 3 doses/dia: "Marcar como tomada" manda o horário (senão o dia continua vermelho)', async () => {
+    const ev = medEvent();
+    const multi = {
+      ...ev,
+      extra_data: JSON.stringify({
+        frequency_mode: 'vezes_dia', times_per_day: 3, first_dose_time: '08:00',
+        treatment_days: 30, applied_dates: [],
+      }),
+    } as PetEventRecord;
+    renderSheet({ eventsLoading: false, petEvents: [multi] });
+    fireEvent.click(screen.getByTitle('12/10 — toque pra marcar tomada ou pular o dia'));
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    await act(async () => { fireEvent.click(screen.getByText('Marcar como tomada')); });
+    const [, opts] = fetchMock.mock.calls[0];
+    const body = JSON.parse(opts.body);
+    expect(body.date).toBe('2026-10-12');
+    expect(body.scheduled_time).toMatch(/^\d{2}:\d{2}$/);
+  });
+
   it('"Cancelar" fecha o menu sem chamar a API', () => {
     renderSheet({ eventsLoading: false, petEvents: [medEvent()] });
     fireEvent.click(screen.getByTitle('12/10 — toque pra marcar tomada ou pular o dia'));
