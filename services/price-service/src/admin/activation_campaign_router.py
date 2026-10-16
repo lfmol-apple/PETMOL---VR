@@ -914,3 +914,233 @@ def panel_autopilot(payload: AutopilotToggle, current=Depends(get_current_admin)
         return {"enabled": payload.enabled}
     finally:
         db.close()
+
+
+# ── E-mail "Recado Importante" (17/10/2026): imagem clicável + botão, enviado pelo painel ─────────
+# Decisão do dono: e-mail volta SÓ para este envio (os endpoints de campanha antigos seguem em 410).
+# Público: tem pet e (algum pet sem ração OU sem aviso/push ativo). Uma mensagem por PESSOA, mesmo com
+# vários pets. Real só com SendGrid configurado (a Hostinger bloqueia em lote). Grupo de controle +
+# registro por pessoa para medir o efeito depois.
+
+EMAIL_RACAO_SUBJECT = "Urgente: Recado Importante do Petmol"  # escolhido pelo dono
+CAMPAIGN_EMAIL_RACAO = "email_racao"            # enviados: email_racao__nofood | __nopush | __both
+CAMPAIGN_EMAIL_RACAO_CTL = "email_racao_ctl"    # controle (não recebeu), mesmos sufixos
+_PUBLIC_BASE = "https://www.petmol.com.br"      # sem www redireciona (308) — ruim para imagem de e-mail
+EMAIL_RACAO_IMAGE = f"{_PUBLIC_BASE}/email/racao-notificacao.jpg"
+EMAIL_RACAO_LINK = (f"{_PUBLIC_BASE}/go/instalar?utm_source=email&utm_medium=email"
+                    "&utm_campaign=racao_notificacao&utm_content=")
+EMAIL_STATE: dict = {"phase": "idle", "started_at": None, "finished_at": None, "result": None, "error": None}
+_email_lock = threading.Lock()
+
+
+def _email_kind(missing_food: bool, no_push: bool) -> str:
+    return "both" if (missing_food and no_push) else ("nofood" if missing_food else "nopush")
+
+
+def _target_users_email_racao(db) -> list[dict]:
+    feeding_ids = _feeding_configured_pet_ids(db)
+    pets_by_user: dict[str, list[tuple[str, Optional[str]]]] = {}
+    for user_id, pet_id, pet_name in db.query(Pet.user_id, Pet.id, Pet.name).order_by(Pet.created_at.asc()).all():
+        pets_by_user.setdefault(str(user_id), []).append((str(pet_id), pet_name))
+    if not pets_by_user:
+        return []
+    blocked = opted_out_ids(db)
+    ids = [u for u in pets_by_user if u not in blocked]
+    pushable = {str(u) for (u,) in db.query(User.id).filter(User.id.in_(ids), has_any_push(User.id)).all()} if ids else set()
+    out: list[dict] = []
+    for uid, name, email in db.query(User.id, User.name, User.email).filter(User.id.in_(ids)).all():
+        uid = str(uid)
+        if not email or "@" not in email:
+            continue
+        pets = pets_by_user.get(uid, [])
+        missing = [n for (pid, n) in pets if pid not in feeding_ids and n]
+        missing_food = any(pid not in feeding_ids for (pid, _n) in pets)
+        no_push = uid not in pushable
+        if not (missing_food or no_push):
+            continue
+        out.append({"user_id": uid, "name": name, "email": email.strip(), "missing_pet_names": missing,
+                    "missing_food": missing_food, "no_push": no_push, "kind": _email_kind(missing_food, no_push)})
+    return out
+
+
+def _recently_emailed(db, days: int = 7) -> set[str]:
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    return {str(u) for (u,) in db.query(ActivationCampaignContact.user_id).filter(
+        ActivationCampaignContact.campaign.startswith(CAMPAIGN_EMAIL_RACAO + "__", autoescape=True),
+        ActivationCampaignContact.sent_at >= cutoff).all()}
+
+
+def _email_racao_content(name: Optional[str], missing_pet_names: list[str], missing_food: bool,
+                         user_id: Optional[str]) -> tuple[str, str, str]:
+    """(assunto, texto, html). Botão cita só os pets sem ração; sem ração faltando, convida a ativar avisos."""
+    link_img = EMAIL_RACAO_LINK + "imagem"
+    link_btn = EMAIL_RACAO_LINK + "botao"
+    saudacao = f"Oi {name.split(' ')[0]}" if name and name.strip() else "Oi"
+    if missing_food and missing_pet_names:
+        botao = f"Cadastrar a ração de {_pet_phrase(missing_pet_names)}"
+    elif missing_food:
+        botao = "Cadastrar a ração do meu pet"
+    else:
+        botao = "Ativar as notificações do PETMOL"
+    unsub = unsubscribe_url(user_id) if user_id else ""
+    text = (f"{saudacao}, recado importante da equipe Petmol: {botao.lower()} e ganhe 10% de desconto "
+            f"com o cupom PETMOL.\n\nAbrir: {link_btn}\n"
+            + (f"\nPara PARAR de receber estes lembretes, abra o link e confirme: {unsub}\n" if unsub else ""))
+    rodape = (f'<p style="margin:18px 0 0;font-size:11px;line-height:1.5;color:#94a3b8;text-align:center">'
+              f'Não quer mais receber estes lembretes? <a href="{escape(unsub)}" style="color:#94a3b8">Clique aqui e confirme</a>.</p>'
+              ) if unsub else ""
+    html = (
+        '<div style="background:#f1f5f9;padding:16px 8px;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif">'
+        '<div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden">'
+        f'<a href="{escape(link_img)}" style="display:block;text-decoration:none">'
+        f'<img src="{EMAIL_RACAO_IMAGE}" width="640" alt="App Petmol — informação importante aos tutores. Cadastre a ração e ganhe 10% de desconto com o cupom PETMOL" '
+        'style="display:block;width:100%;max-width:640px;height:auto;border:0"></a>'
+        '<div style="padding:18px 16px 22px;text-align:center">'
+        f'<a href="{escape(link_btn)}" style="display:inline-block;background:#0056D2;color:#ffffff;font-weight:800;'
+        f'font-size:16px;text-decoration:none;padding:14px 26px;border-radius:999px">{escape(botao)}</a>'
+        '<p style="margin:12px 0 0;font-size:12.5px;color:#475569">Toque no botão ou na imagem para abrir o app do Petmol.</p>'
+        f'{rodape}</div></div></div>'
+    )
+    return EMAIL_RACAO_SUBJECT, text, html
+
+
+def _run_email_racao(dry_run: bool, holdout_pct: int, pause_seconds: float = 0.3) -> None:
+    from ..mailer import send_mail
+    db = SessionLocal()
+    try:
+        targets = _target_users_email_racao(db)
+        recent = _recently_emailed(db, 7)
+        skipped = [t for t in targets if t["user_id"] in recent]
+        targets = [t for t in targets if t["user_id"] not in recent]
+        holdout = [t for t in targets if _in_holdout(t["user_id"], holdout_pct)]
+        sending = [t for t in targets if t not in holdout]
+        result = {"total": len(sending), "holdout": len(holdout), "skipped_recent": len(skipped), "dry_run": dry_run}
+        if not dry_run:
+            for t in holdout:
+                db.add(ActivationCampaignContact(campaign=f"{CAMPAIGN_EMAIL_RACAO_CTL}__{t['kind']}", user_id=t["user_id"]))
+            db.commit()
+            sent = failed = streak = 0
+            for i, t in enumerate(sending):
+                subject, text, html = _email_racao_content(t["name"], t["missing_pet_names"], t["missing_food"], t["user_id"])
+                ok = send_mail(to=t["email"], subject=subject, body_text=text, body_html=html)
+                if ok:
+                    sent += 1
+                    streak = 0
+                    db.add(ActivationCampaignContact(campaign=f"{CAMPAIGN_EMAIL_RACAO}__{t['kind']}", user_id=t["user_id"]))
+                    db.commit()
+                else:
+                    failed += 1
+                    streak += 1
+                    if streak >= EMAIL_BLOCK_AFTER_FAILURES:
+                        result["stopped"] = "3 falhas seguidas de e-mail — envio interrompido"
+                        break
+                with _email_lock:
+                    EMAIL_STATE["result"] = {**result, "sent": sent, "failed": failed, "progress": f"{i + 1}/{len(sending)}"}
+                _sleep(pause_seconds)
+            result.update(sent=sent, failed=failed)
+        with _email_lock:
+            EMAIL_STATE.update(phase="done", result=result, error=None, finished_at=datetime.now(timezone.utc).isoformat())
+        logger.info("[email_racao] %s", result)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("[email_racao] falhou")
+        with _email_lock:
+            EMAIL_STATE.update(phase="error", error=str(exc), finished_at=datetime.now(timezone.utc).isoformat())
+    finally:
+        db.close()
+
+
+@panel_router.get("/email-racao/summary")
+def panel_email_racao_summary(current=Depends(get_current_admin)):
+    from ..mailer import sendgrid_configured
+    db = SessionLocal()
+    try:
+        targets = _target_users_email_racao(db)
+        recent = _recently_emailed(db, 7)
+        eligible = [t for t in targets if t["user_id"] not in recent]
+        return {
+            "subject": EMAIL_RACAO_SUBJECT,
+            "sendgrid": sendgrid_configured(),
+            "eligible": len(eligible),
+            "no_food": sum(1 for t in eligible if t["missing_food"]),
+            "no_push": sum(1 for t in eligible if t["no_push"]),
+            "skipped_recent": len(targets) - len(eligible),
+            "state": EMAIL_STATE,
+        }
+    finally:
+        db.close()
+
+
+class EmailRacaoRun(BaseModel):
+    dry_run: bool = True
+    holdout_pct: int = 10
+
+
+@panel_router.post("/email-racao/run")
+def panel_email_racao_run(payload: EmailRacaoRun, current=Depends(get_current_admin)):
+    from ..mailer import sendgrid_configured
+    if not payload.dry_run and not sendgrid_configured():
+        raise HTTPException(status_code=409, detail="Envio em massa bloqueado: SendGrid não está configurado (a Hostinger limita o lote). O teste para o seu e-mail continua liberado.")
+    with _email_lock:
+        if EMAIL_STATE["phase"] == "running":
+            raise HTTPException(status_code=409, detail="envio já em andamento")
+        EMAIL_STATE.update(phase="running", started_at=datetime.now(timezone.utc).isoformat(),
+                           finished_at=None, result=None, error=None)
+    pct = max(0, min(50, payload.holdout_pct))
+    threading.Thread(target=_run_email_racao, args=(payload.dry_run, pct), daemon=True).start()
+    return {"started": True, "dry_run": payload.dry_run, "holdout_pct": pct}
+
+
+@panel_router.post("/email-racao/test")
+def panel_email_racao_test(current=Depends(get_current_admin)):
+    """Manda UM e-mail, só para o e-mail do admin logado. Não registra contato nem conta no controle."""
+    from ..mailer import send_mail
+    admin = current[0]
+    if not getattr(admin, "email", None):
+        raise HTTPException(status_code=400, detail="o admin logado não tem e-mail")
+    db = SessionLocal()
+    try:
+        pets = [n for (n,) in db.query(Pet.name).filter(Pet.user_id == admin.id).all() if n]
+    finally:
+        db.close()
+    subject, text, html = _email_racao_content(getattr(admin, "name", None), pets, True, str(admin.id))
+    ok = send_mail(to=admin.email, subject=subject, body_text=text, body_html=html)
+    if not ok:
+        raise HTTPException(status_code=502, detail="O envio falhou (veja o log do servidor).")
+    return {"sent_to": admin.email}
+
+
+@panel_router.get("/email-racao/results")
+def panel_email_racao_results(current=Depends(get_current_admin)):
+    """Efeito do e-mail: enviados × controle (não receberam), medindo o estado ATUAL de quem estava
+    sem ração / sem push no envio. Sem ajuste de tempo: ambos os braços são do mesmo dia."""
+    db = SessionLocal()
+    try:
+        feeding_ids = _feeding_configured_pet_ids(db)
+        rows = db.query(ActivationCampaignContact.campaign, ActivationCampaignContact.user_id).filter(
+            ActivationCampaignContact.campaign.startswith(CAMPAIGN_EMAIL_RACAO, autoescape=True)).all()
+        if not rows:
+            return {"sent": None, "control": None}
+        arms: dict[str, list[tuple[str, str]]] = {"sent": [], "control": []}
+        for campaign, uid in rows:
+            arm = "control" if campaign.startswith(CAMPAIGN_EMAIL_RACAO_CTL) else "sent"
+            arms[arm].append((str(uid), campaign.rsplit("__", 1)[-1]))
+        all_ids = {u for a in arms.values() for (u, _k) in a}
+        pets_by_user: dict[str, list[str]] = {}
+        for uid, pid in db.query(Pet.user_id, Pet.id).filter(Pet.user_id.in_(all_ids)).all():
+            pets_by_user.setdefault(str(uid), []).append(str(pid))
+        pushable = {str(u) for (u,) in db.query(User.id).filter(User.id.in_(all_ids), has_any_push(User.id)).all()}
+        out = {}
+        for arm, members in arms.items():
+            nofood = [u for (u, k) in members if k in ("nofood", "both")]
+            nopush = [u for (u, k) in members if k in ("nopush", "both")]
+            out[arm] = {
+                "people": len(members),
+                "no_food_at_send": len(nofood),
+                "food_now": sum(1 for u in nofood if all(p in feeding_ids for p in pets_by_user.get(u, []))),
+                "no_push_at_send": len(nopush),
+                "push_now": sum(1 for u in nopush if u in pushable),
+            }
+        return out
+    finally:
+        db.close()
