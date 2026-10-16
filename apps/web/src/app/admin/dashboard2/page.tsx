@@ -651,7 +651,7 @@ function EmailRacaoPanel() {
           </p>
           {!data.sendgrid && (
             <p className="mt-2 rounded-lg bg-amber-50 p-2 text-[12px] text-amber-900">
-              Sem SendGrid o envio sai pela Hostinger, em lotes de 10 a cada 3 minutos (cerca de 3,5 h para 700 pessoas). Se a Hostinger bloquear, o envio para sozinho; é só rodar de novo depois, quem já recebeu é pulado.
+              O envio sai pela Hostinger: lotes de 10 a cada 3 minutos e no máximo 100 por dia. Se ela recusar, espera 1 hora e tenta de novo (até 3 vezes). Quando bater o teto, clique de novo no dia seguinte: quem já recebeu é pulado.
             </p>
           )}
           <p className="mt-2 text-[12px]">
@@ -663,6 +663,8 @@ function EmailRacaoPanel() {
                   {typeof r.failed === 'number' && r.failed > 0 ? ` · ${numberFmt(r.failed)} falhas` : ''}
                   {typeof r.holdout === 'number' ? ` · ${numberFmt(r.holdout)} no controle` : ''}
                   {typeof r.stopped === 'string' ? ` · ${r.stopped}` : ''}
+                  {typeof r.capped === 'string' ? ` · ${r.capped}` : ''}
+                  {typeof r.last_error === 'string' && r.last_error ? ` · último erro: ${r.last_error}` : ''}
                 </span>
               : <span className="text-slate-400">Parado</span>}
           </p>

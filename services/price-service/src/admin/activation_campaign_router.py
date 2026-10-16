@@ -929,6 +929,9 @@ _PUBLIC_BASE = "https://www.petmol.com.br"      # sem www redireciona (308) — 
 EMAIL_RACAO_IMAGE = f"{_PUBLIC_BASE}/email/racao-notificacao.jpg"
 EMAIL_RACAO_LINK = (f"{_PUBLIC_BASE}/go/instalar?utm_source=email&utm_medium=email"
                     "&utm_campaign=racao_notificacao&utm_content=")
+EMAIL_DAILY_CAP = 100       # teto por 24 h quando o envio sai pela Hostinger
+EMAIL_PAUSE_MINUTES = 60    # espera depois de 3 recusas seguidas
+EMAIL_MAX_PAUSES = 3        # depois de 3 esperas sem sucesso, interrompe
 EMAIL_STATE: dict = {"phase": "idle", "started_at": None, "finished_at": None, "result": None, "error": None}
 _email_lock = threading.Lock()
 
@@ -1020,10 +1023,26 @@ def _run_email_racao(dry_run: bool, holdout_pct: int, pause_seconds: float = 0.3
         sending = [t for t in targets if t not in holdout]
         result = {"total": len(sending), "holdout": len(holdout), "skipped_recent": len(skipped), "dry_run": dry_run}
         if not dry_run:
+            # controle: grava uma vez só (rodar de novo não duplica)
+            ja_controle = {str(u) for (u,) in db.query(ActivationCampaignContact.user_id).filter(
+                ActivationCampaignContact.campaign.startswith(CAMPAIGN_EMAIL_RACAO_CTL + "__", autoescape=True)).all()}
             for t in holdout:
-                db.add(ActivationCampaignContact(campaign=f"{CAMPAIGN_EMAIL_RACAO_CTL}__{t['kind']}", user_id=t["user_id"]))
+                if t["user_id"] not in ja_controle:
+                    db.add(ActivationCampaignContact(campaign=f"{CAMPAIGN_EMAIL_RACAO_CTL}__{t['kind']}", user_id=t["user_id"]))
             db.commit()
-            sent = failed = streak = 0
+            # teto diário (só pela Hostinger): conta o que já saiu nas últimas 24 h
+            if slow:
+                from datetime import timedelta
+                since = datetime.now(timezone.utc) - timedelta(hours=24)
+                enviados_24h = db.query(func.count(ActivationCampaignContact.id)).filter(
+                    ActivationCampaignContact.campaign.startswith(CAMPAIGN_EMAIL_RACAO + "__", autoescape=True),
+                    ActivationCampaignContact.sent_at >= since).scalar() or 0
+                restante = max(0, EMAIL_DAILY_CAP - int(enviados_24h))
+                if restante < len(sending):
+                    result["capped"] = f"teto de {EMAIL_DAILY_CAP} por dia: restam {len(sending) - restante} para os próximos dias"
+                    sending = sending[:restante]
+                result["total"] = len(sending)
+            sent = failed = streak = pauses = 0
             for i, t in enumerate(sending):
                 subject, text, html = _email_racao_content(t["name"], t["missing_pet_names"], t["missing_food"], t["user_id"])
                 ok = send_mail(to=t["email"], subject=subject, body_text=text, body_html=html)
@@ -1035,9 +1054,24 @@ def _run_email_racao(dry_run: bool, holdout_pct: int, pause_seconds: float = 0.3
                 else:
                     failed += 1
                     streak += 1
+                    try:
+                        from ..mailer import get_recent_mailer_attempts
+                        last = next((a for a in reversed(get_recent_mailer_attempts()) if not a.get("ok")), None)
+                        if last:
+                            result["last_error"] = str(last.get("error", ""))[:200]
+                    except Exception:  # noqa: BLE001
+                        pass
                     if streak >= EMAIL_BLOCK_AFTER_FAILURES:
-                        result["stopped"] = "3 falhas seguidas de e-mail — envio interrompido"
-                        break
+                        pauses += 1
+                        if pauses > EMAIL_MAX_PAUSES:
+                            result["stopped"] = (f"a Hostinger continuou recusando depois de {EMAIL_MAX_PAUSES} esperas — "
+                                                 "envio interrompido; rode de novo mais tarde")
+                            break
+                        with _email_lock:
+                            EMAIL_STATE["result"] = {**result, "sent": sent, "failed": failed,
+                                                     "progress": f"{i + 1}/{len(sending)} · em espera de {EMAIL_PAUSE_MINUTES} min (a Hostinger limitou)"}
+                        _sleep(EMAIL_PAUSE_MINUTES * 60)
+                        streak = 0
                 with _email_lock:
                     EMAIL_STATE["result"] = {**result, "sent": sent, "failed": failed, "progress": f"{i + 1}/{len(sending)}"}
                 _sleep(pause_seconds)
