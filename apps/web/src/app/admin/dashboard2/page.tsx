@@ -651,7 +651,7 @@ function EmailRacaoPanel() {
           </p>
           {!data.sendgrid && (
             <p className="mt-2 rounded-lg bg-amber-50 p-2 text-[12px] text-amber-900">
-              O envio sai pela Hostinger: lotes de 10 a cada 3 minutos e no máximo 100 por dia. Se ela recusar, espera 1 hora e tenta de novo (até 3 vezes). Quando bater o teto, clique de novo no dia seguinte: quem já recebeu é pulado.
+              O envio sai pela Hostinger: lotes de 10 a cada 3 minutos e no máximo 900 por dia (cota do plano Business Starter; no plano gratuito a Hostinger recusa a partir de 100). Se ela recusar, espera 1 hora e tenta de novo (até 3 vezes). Quando bater o teto, clique de novo no dia seguinte: quem já recebeu é pulado.
             </p>
           )}
           <p className="mt-2 text-[12px]">
