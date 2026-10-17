@@ -15,6 +15,7 @@
 import { useBackHandler } from '@/lib/backStack';
 import { useEffect, type ReactNode } from 'react';
 import { ModalPortal } from '@/components/ModalPortal';
+import { useKeyboardSheet } from '@/hooks/useKeyboardSheet';
 
 type Tone = 'white' | 'cream' | 'grey' | 'glass' | 'glassSheer';
 type Size = 'sm' | 'md' | 'lg';
@@ -102,6 +103,7 @@ export function SheetShell({
   hideHandle = false,
 }: SheetShellProps) {
   useBackHandler(open, onClose);
+  const kbRef = useKeyboardSheet(open);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -133,13 +135,19 @@ export function SheetShell({
 
   return (
     <ModalPortal>
-      <div className={`fixed inset-0 flex ${wrapPos}`} style={{ zIndex: z }} role="dialog" aria-modal="true">
+      <div
+        ref={kbRef}
+        className={`group fixed inset-0 flex ${wrapPos} data-[kb=true]:items-start data-[kb=true]:pt-[env(safe-area-inset-top)]`}
+        style={{ zIndex: z }}
+        role="dialog"
+        aria-modal="true"
+      >
         <div
           className="absolute inset-0 bg-slate-950/55 backdrop-blur-2xl"
           onClick={dismissOnBackdrop ? onClose : undefined}
         />
         <div
-          className={`relative isolate flex w-full ${SIZE_MAX[size]} flex-col overflow-hidden ${containerShape} ${TONE_BG[tone]} shadow-[0_-8px_50px_-8px_rgba(15,23,42,0.35)] ring-1 ring-black/5 ${className}`}
+          className={`relative isolate flex w-full ${SIZE_MAX[size]} flex-col overflow-hidden ${containerShape} ${TONE_BG[tone]} shadow-[0_-8px_50px_-8px_rgba(15,23,42,0.35)] ring-1 ring-black/5 group-data-[kb=true]:h-full group-data-[kb=true]:!max-h-full ${className}`}
           style={{ maxHeight: '92dvh' }}
           onClick={(e) => e.stopPropagation()}
         >
