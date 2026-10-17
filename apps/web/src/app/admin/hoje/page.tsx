@@ -91,7 +91,7 @@ export default function HojePage() {
           <p className="text-[12px] font-bold uppercase tracking-wide text-[#0056D2]">2 · O que aconteceu hoje</p>
           {today.loading && !todayData ? <Loading /> : today.error || !todayData ? <ErrorBox msg={today.error} /> : (
             <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {[['Baixaram o app', 'downloads'], ['Se cadastraram', 'cadastros'],
+              {[['1ª abertura do app', 'downloads'], ['Se cadastraram', 'cadastros'],
                 ['Cadastraram o pet', 'pet'], ['Cadastraram a ração', 'feeding']].map(([label, key]) => {
                 const now = step(todayData, key);
                 const before = yesterdayData ? step(yesterdayData, key) : null;
@@ -174,7 +174,7 @@ function DeviceBreakdown({ rows, before }: { rows: GrowthPlatformRow[]; before: 
         <thead>
           <tr className="text-left text-[11px] uppercase tracking-wide text-slate-400">
             <th className="py-1 font-semibold">Aparelho</th>
-            <th className="py-1 text-right font-semibold">Baixaram</th>
+            <th className="py-1 text-right font-semibold">1ª abertura</th>
             <th className="py-1 text-right font-semibold">Se cadastraram</th>
           </tr>
         </thead>

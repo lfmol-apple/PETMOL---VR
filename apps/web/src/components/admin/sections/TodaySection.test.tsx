@@ -37,7 +37,7 @@ describe('TodaySection', () => {
   it('dia parcial (hoje) mostra referência crua — ontem/média 7d — e NUNCA uma "queda" em %', async () => {
     adminGet.mockResolvedValue(brief());
     render(<TodaySection />);
-    await waitFor(() => expect(screen.getByText('Downloads')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('1ªs aberturas')).toBeTruthy());
     expect(adminGet).toHaveBeenCalledWith('/today');
     expect(screen.getByText(/ontem 10 · média 7d 8,5/)).toBeTruthy();
     expect(screen.queryByText(/-70%/)).toBeNull();
@@ -46,7 +46,7 @@ describe('TodaySection', () => {
   it('dia fechado mostra a variação em % contra o dia anterior e a média 7d', async () => {
     adminGet.mockResolvedValueOnce(brief()).mockResolvedValue(brief({ is_today: false, label: '22/09/2026' }));
     render(<TodaySection />);
-    await waitFor(() => expect(screen.getByText('Downloads')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('1ªs aberturas')).toBeTruthy());
     fireEvent.click(screen.getByText('Ontem (fechado)'));
     await waitFor(() => expect(screen.getAllByText(/-70% vs dia anterior/).length).toBeGreaterThan(0));
     expect(adminGet).toHaveBeenLastCalledWith('/brief', { day: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) });

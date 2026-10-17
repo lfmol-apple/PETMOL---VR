@@ -115,3 +115,24 @@ def test_entry_by_platform_separa_ios_e_android(client):
     n = lambda plat, key: next(s["n"] for s in p[plat]["steps"] if s["key"] == key)
     assert n("ios", "opened") >= 2 and n("android", "opened") >= 3
     assert n("android", "signup_started") >= 1 and n("ios", "signup_started") == 0
+
+
+def test_installs_quality_conta_repetidas_e_fora_do_brasil(client):
+    from src.analytics.install_models import AppInstall
+    headers = _admin_headers()
+    db = SessionLocal()
+    try:
+        ua = "Mozilla/5.0 (Linux; Android 14; Pixel 7) PetmolApp"
+        for i in range(2):  # mesmo aparelho/navegador duas vezes em minutos
+            db.add(AppInstall(platform="android", user_agent=ua, country="Brazil", city="SP",
+                              created_at=NOW - timedelta(minutes=10 - i)))
+        db.add(AppInstall(platform="android", user_agent="Mozilla/5.0 (Linux; Android 13; SM-A15)", country="United States",
+                          city="Mountain View", created_at=NOW - timedelta(minutes=5)))
+        db.commit()
+    finally:
+        db.close()
+    r = client.get("/v1/admin/analytics/installs-quality?period_days=2", headers=headers)
+    assert r.status_code == 200, r.text
+    b = r.json()
+    assert b["total"] >= 3 and b["same_ua_within_24h"] >= 1
+    assert any("Mountain View" in x["key"] for x in b["outside_brazil"])

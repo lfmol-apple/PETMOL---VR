@@ -132,6 +132,11 @@ def get_entry_by_platform(db: Session = Depends(get_db), f: AnalyticsFilters = D
     return entry_bi.entry_by_platform(db, f)
 
 
+@router.get("/installs-quality")
+def get_installs_quality(db: Session = Depends(get_db), f: AnalyticsFilters = Depends(_filters), _=_Auth):
+    return entry_bi.installs_quality(db, f)
+
+
 @router.get("/signup-reconciliation")
 def get_signup_reconciliation(db: Session = Depends(get_db), f: AnalyticsFilters = Depends(_filters), _=_Auth):
     return entry_bi.signup_reconciliation(db, f)

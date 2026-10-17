@@ -203,6 +203,7 @@ function GrowthBody({ filter, onFocusTutors }: { filter: GlobalFilter; onFocusTu
       <EntryCard filter={filter} />
       <SignupReconCard filter={filter} />
       <EntryByPlatformCard filter={filter} />
+      <InstallsQualityCard filter={filter} />
       <FunnelCard data={data} />
       <StuckCards data={data} />
       <PlatformTable rows={data.platforms} />
@@ -401,6 +402,48 @@ function EntryByPlatformCard({ filter }: { filter: GlobalFilter }) {
   );
 }
 
+type InstallsQuality = {
+  total: number; by_platform: { key: string; count: number }[]; by_country: { key: string; count: number }[];
+  outside_brazil: { key: string; count: number }[]; same_ua_within_24h: number; same_ua_pct: number | null; note: string;
+};
+
+/** Qualidade da contagem de "1ªs aberturas": de onde vêm e quantas parecem repetidas. Compare com o Play Console / App Store Connect. */
+function InstallsQualityCard({ filter }: { filter: GlobalFilter }) {
+  const { data, error, loading } = useAsync<InstallsQuality>(
+    () => adminGet('/installs-quality', { period_days: filter.period_days, since: filter.since, until: filter.until }),
+    [filter.period_days, filter.since, filter.until],
+  );
+  const list = (title: string, rows: { key: string; count: number }[]) => (
+    <div className="min-w-[200px] flex-1">
+      <p className="mb-1 text-[12px] font-bold text-slate-700">{title}</p>
+      {rows.length === 0 ? <p className="text-[12px] text-slate-400">Nenhum.</p> : (
+        <ul className="space-y-0.5 text-[12px]">
+          {rows.map((r) => <li key={r.key} className="flex justify-between gap-3"><span>{r.key}</span><span className="font-semibold">{numberFmt(r.count)}</span></li>)}
+        </ul>
+      )}
+    </div>
+  );
+  return (
+    <Card title="Qualidade das 1ªs aberturas"
+      subtitle="Confira a contagem contra o Play Console e o App Store Connect. Aberturas repetidas ou fora do Brasil inflam o número.">
+      {loading && !data ? <Loading /> : error || !data ? <ErrorBox msg={error} /> : (
+        <>
+          <p className="text-[14px] font-extrabold text-slate-800">
+            {numberFmt(data.total)} 1ªs aberturas · {numberFmt(data.same_ua_within_24h)} parecem repetidas
+            {data.same_ua_pct != null ? ` (${Math.round(data.same_ua_pct * 100)}%)` : ''}
+          </p>
+          <p className="mb-3 text-[11px] text-slate-400">{data.note}</p>
+          <div className="flex flex-wrap gap-6">
+            {list('Por plataforma', data.by_platform)}
+            {list('Por país', data.by_country)}
+            {list('Fora do Brasil (cidade / país)', data.outside_brazil)}
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
 function EntryCard({ filter }: { filter: GlobalFilter }) {
   const { data, error, loading } = useAsync<EntryResponse>(
     () => adminGet('/entry-funnel', {
@@ -542,14 +585,14 @@ function PlatformTable({ rows }: { rows: GrowthPlatformRow[] }) {
             <tr className="text-left text-[11px] uppercase tracking-wide text-slate-400">
               <th className="py-1.5 pr-3">Plataforma</th>
               <th className="px-2 text-right">Acessos</th>
-              <th className="px-2 text-right">Downloads</th>
+              <th className="px-2 text-right">1ªs aberturas</th>
               <th className="px-2 text-right">Cadastros</th>
               <th className="px-2 text-right">Com pet</th>
               <th className="px-2 text-right">Com ração</th>
               <th className="px-2 text-right">Notificação</th>
               <th className="px-2 text-right">GPS</th>
               <th className="px-2 text-right">Meta completa</th>
-              <th className="pl-2 text-right">Download → cadastro</th>
+              <th className="pl-2 text-right">1ª abertura → cadastro</th>
             </tr>
           </thead>
           <tbody>
@@ -904,7 +947,7 @@ function RetentionBlock({ filter, onFocusTutors }: { filter: GlobalFilter; onFoc
 
 const SERIES: { key: keyof Omit<GrowthSeriesPoint, 'date'>; label: string; color: string }[] = [
   { key: 'acessos', label: 'Acessos', color: '#94A3B8' },
-  { key: 'downloads', label: 'Downloads', color: '#0056D2' },
+  { key: 'downloads', label: '1ªs aberturas', color: '#0056D2' },
   { key: 'cadastros', label: 'Cadastros', color: '#059669' },
 ];
 
