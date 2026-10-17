@@ -99,18 +99,18 @@ describe('FoodControlTab — modo rápido (1ª ração)', () => {
     expect(body.daily_amount_g).toBeNull();
   });
 
-  it('depois que a ração é confirmada, a busca (Buscar/Não encontrei/Escanear) some e fica só o controle, com "‹ Trocar produto"', async () => {
+  it('depois que a ração é confirmada, a busca (Buscar/Não encontrei/Escanear) some e fica só o controle, com "Trocar produto"', async () => {
     render(<FoodControlTab petId="p1" petName="Baby" species="dog" embedded hideInternalHeader formRequest={{ id: 1, mode: 'quick_setup' }} />);
     // produto escolhido pela busca/leitura
     fireEvent.click(screen.getByText('confirmar-produto'));
     expect(await screen.findByText('Por peso')).toBeTruthy();
     expect(screen.queryByText('confirmar-produto')).toBeNull();          // a busca saiu
     expect(screen.queryByText('revelar-formulario')).toBeNull();
-    expect(screen.getByText('‹ Trocar produto')).toBeTruthy();
+    expect(screen.getByText('Trocar produto')).toBeTruthy();
     // "Voltar" reabre a busca
-    fireEvent.click(screen.getByText('‹ Trocar produto'));
+    fireEvent.click(screen.getByText('Trocar produto'));
     expect(screen.getByText('confirmar-produto')).toBeTruthy();
-    expect(screen.queryByText('‹ Trocar produto')).toBeNull();
+    expect(screen.queryByText('Trocar produto')).toBeNull();
   });
 
   it('no caminho manual, a busca some quando o tutor termina de digitar o produto', async () => {
@@ -120,6 +120,31 @@ describe('FoodControlTab — modo rápido (1ª ração)', () => {
     fireEvent.change(campo, { target: { value: 'Golden Adultos' } });
     fireEvent.blur(campo);
     await waitFor(() => expect(screen.queryByText('confirmar-produto')).toBeNull());
-    expect(screen.getByText('‹ Trocar produto')).toBeTruthy();
+    expect(screen.getByText('Trocar produto')).toBeTruthy();
+  });
+
+  it('com a ração confirmada, mostra um cartão compacto com o nome (sem o campo Marca/Produto)', async () => {
+    render(<FoodControlTab petId="p1" petName="Baby" species="dog" embedded hideInternalHeader formRequest={{ id: 1, mode: 'quick_setup' }} />);
+    fireEvent.click(screen.getByText('confirmar-produto'));
+    expect(await screen.findByText('Ração Golden Adultos')).toBeTruthy();
+    expect(screen.queryByPlaceholderText('Ex: Royal Canin, Guabi Natural, petisco...')).toBeNull();
+  });
+
+  it('a data de início vira uma linha "Começa em… · alterar" e só abre o campo se o tutor quiser', async () => {
+    render(<FoodControlTab petId="p1" petName="Baby" species="dog" embedded hideInternalHeader formRequest={{ id: 1, mode: 'quick_setup' }} />);
+    fireEvent.click(screen.getByText('confirmar-produto'));
+    expect(await screen.findByText(/Começa em/)).toBeTruthy();
+    expect(screen.queryByText('Data início')).toBeNull();
+    fireEvent.click(screen.getByText('alterar'));
+    expect(screen.getByText('Data início')).toBeTruthy();
+  });
+
+  it('avisa o pai quando a tela do controle fica à vista (para tirar "Fazer depois")', async () => {
+    const onStage = vi.fn();
+    render(<FoodControlTab petId="p1" petName="Baby" species="dog" embedded hideInternalHeader onQuickStageChange={onStage}
+      formRequest={{ id: 1, mode: 'quick_setup' }} />);
+    await waitFor(() => expect(onStage).toHaveBeenLastCalledWith(false));   // só a busca à vista
+    fireEvent.click(screen.getByText('confirmar-produto'));
+    await waitFor(() => expect(onStage).toHaveBeenLastCalledWith(true));
   });
 });

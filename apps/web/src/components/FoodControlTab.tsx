@@ -84,6 +84,9 @@ export interface FoodControlTabProps {
   species?: 'dog' | 'cat';
   onSaved?: () => void;
   onStateChange?: (state: FoodControlTabState) => void;
+  /** Modo rápido: avisa quando a tela do CONTROLE já está à vista (ração escolhida/digitada) — o pai usa para
+   *  tirar "Fazer depois" e o texto de introdução, deixando a janela mais curta. */
+  onQuickStageChange?: (controlVisible: boolean) => void;
   formRequest?: FoodControlTabFormRequest | null;
   embedded?: boolean;
   hideInternalHeader?: boolean;
@@ -332,6 +335,7 @@ export function FoodControlTab({
   species,
   onSaved,
   onStateChange,
+  onQuickStageChange,
   formRequest,
   embedded = false,
   hideInternalHeader = false,
@@ -370,6 +374,8 @@ export function FoodControlTab({
   const revealSearch = (itemId: string) => setSearchOverrideIds((ids) => new Set(ids).add(itemId));
   // Modo rápido: depois que o tutor confirmou a ração (escolheu/escaneou ou terminou de digitar), a busca
   // (Buscar produto / Não encontrei / Escanear) sai e a tela fica só com o controle; "‹ Voltar" a reabre.
+  // Data de início: no modo rápido vira uma linha ("Começa em… · alterar"); o campo só abre se o tutor quiser trocar.
+  const [quickDateOpen, setQuickDateOpen] = useState(false);
   const hideSearch = (itemId: string) => setSearchOverrideIds((ids) => {
     if (!ids.has(itemId)) return ids;
     const next = new Set(ids); next.delete(itemId); return next;
@@ -847,6 +853,13 @@ export function FoodControlTab({
 
   const showForm = !hasExisting || formOpen;
 
+  const quickControlVisible = formMode === 'quick_setup' && showForm
+    && (primaryItem.brand.trim().length > 0 || searchOverrideIds.has(primaryItem.id));
+  useEffect(() => {
+    onQuickStageChange?.(quickControlVisible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quickControlVisible]);
+
   useEffect(() => {
     onStateChange?.({
       showForm,
@@ -1073,8 +1086,8 @@ export function FoodControlTab({
               const hideUntilProductChosen = isQuickSetup && !searchOverridden && !item.brand.trim();
               const showSearch = !item.brand.trim() || searchOverridden;
               return (
-                <div key={item.id} className="rounded-2xl border border-slate-200 p-2.5 space-y-2 bg-slate-50">
-                  <div className="flex items-start justify-between gap-2">
+                <div key={item.id} className={isQuickSetup ? 'space-y-2' : 'rounded-2xl border border-slate-200 p-2.5 space-y-2 bg-slate-50'}>
+                  {!isQuickSetup && (<div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="text-[13px] font-black uppercase tracking-wider text-slate-400">
                         {isQuickSetup ? 'Ração principal' : (item.isPrimary ? 'Plano principal' : `Produto ${index + 1}`)}
@@ -1102,7 +1115,7 @@ export function FoodControlTab({
                         )}
                       </div>
                     )}
-                  </div>
+                  </div>)}
 
                   {/* 1) Identificar a ração primeiro — escanear é a via
                       principal (mais preciso que digitar a mão e resolve
@@ -1126,26 +1139,33 @@ export function FoodControlTab({
 
                   {!hideUntilProductChosen && (
                   <>
-                  {isQuickSetup && !showSearch && (
-                    <button
-                      type="button"
-                      onClick={() => revealSearch(item.id)}
-                      className="-mb-1 min-h-[32px] text-[13px] font-semibold text-slate-500 hover:text-slate-800"
-                    >
-                      ‹ Trocar produto
-                    </button>
+                  {isQuickSetup && !showSearch ? (
+                    <div className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Ração</p>
+                        <p className="mt-0.5 line-clamp-2 break-words text-[14px] font-bold leading-snug text-slate-800">{item.brand}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => revealSearch(item.id)}
+                        className="shrink-0 pt-0.5 text-[13px] font-bold text-[#0056D2] hover:underline"
+                      >
+                        Trocar produto
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Marca / Produto</label>
+                      <input
+                        type="text"
+                        value={item.brand}
+                        onChange={e => updateItem(item.id, (current) => ({ ...current, brand: e.target.value }))}
+                        onBlur={() => { if (isQuickSetup && item.brand.trim()) hideSearch(item.id); }}
+                        placeholder="Ex: Royal Canin, Guabi Natural, petisco..."
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
+                      />
+                    </div>
                   )}
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Marca / Produto</label>
-                    <input
-                      type="text"
-                      value={item.brand}
-                      onChange={e => updateItem(item.id, (current) => ({ ...current, brand: e.target.value }))}
-                      onBlur={() => { if (isQuickSetup && item.brand.trim()) hideSearch(item.id); }}
-                      placeholder="Ex: Royal Canin, Guabi Natural, petisco..."
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
-                    />
-                  </div>
 
                   {/* 2) Regra de controle — só depois da ração identificada. */}
                   {(isQuickSetup || showAdvanced) && (
@@ -1235,6 +1255,13 @@ export function FoodControlTab({
                           />
                         </div>
                       </div>
+                      {isQuickSetup && !quickDateOpen ? (
+                        <p className="px-0.5 text-[12.5px] leading-tight text-slate-500">
+                          Começa em <strong className="text-slate-700">{(item.startDate || localTodayISO()).split('-').reverse().join('/')}</strong>
+                          {' · '}
+                          <button type="button" onClick={() => setQuickDateOpen(true)} className="font-semibold text-[#0056D2] hover:underline">alterar</button>
+                        </p>
+                      ) : (
                       <div>
                         <label className="block text-xs font-semibold text-gray-600 mb-1">Data início</label>
                         <DateField
@@ -1243,6 +1270,7 @@ export function FoodControlTab({
                           inputClassName="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-10 text-base tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
                         />
                       </div>
+                      )}
                     </>
                   ) : (
                     <div className={`grid gap-2 ${isQuickSetup ? 'grid-cols-1' : 'grid-cols-2'}`}>
@@ -1260,6 +1288,13 @@ export function FoodControlTab({
                           className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
                         />
                       </div>
+                      {isQuickSetup && !quickDateOpen ? (
+                        <p className="text-[12.5px] text-slate-500">
+                          Começa em <strong className="text-slate-700">{(item.startDate || localTodayISO()).split('-').reverse().join('/')}</strong>
+                          {' · '}
+                          <button type="button" onClick={() => setQuickDateOpen(true)} className="font-semibold text-[#0056D2] hover:underline">alterar</button>
+                        </p>
+                      ) : (
                       <div>
                         <label className="block text-xs font-semibold text-gray-600 mb-1">Data início</label>
                         <DateField
@@ -1268,6 +1303,7 @@ export function FoodControlTab({
                           inputClassName="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-10 text-base tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
                         />
                       </div>
+                      )}
                     </div>
                   )}
 

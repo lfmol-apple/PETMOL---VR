@@ -53,6 +53,9 @@ export function FoodOnboardingCard({
 }: FoodOnboardingCardProps) {
   const [closed, setClosed] = useState(false);
   const [showPushAsk, setShowPushAsk] = useState(false);
+  // Pedido do dono (17/10/2026): quem já chegou na tela do controle (ração escolhida) não recebe mais "Fazer depois"
+  // nem o texto de introdução — a janela fica mais curta e o caminho, um só.
+  const [controlVisible, setControlVisible] = useState(false);
   const name = petName || 'seu pet';
   const artigo = petDo({ sex: petSex });
   // Lembrete de ração só serve se o push funcionar — pedido do dono
@@ -122,9 +125,11 @@ export function FoodOnboardingCard({
       />
       <SheetShell.Body className="pt-4">
         <div className="space-y-3" onPointerDownCapture={markStarted}>
-          <p className="text-[13.5px] text-slate-500">
-            Cadastre a alimentação e o PETMOL ajuda você a prever quando será necessário comprar mais.
-          </p>
+          {!controlVisible && (
+            <p className="text-[13.5px] text-slate-500">
+              Cadastre a alimentação e o PETMOL ajuda você a prever quando será necessário comprar mais.
+            </p>
+          )}
           <FoodControlTab
             petId={petId}
             petName={name}
@@ -133,14 +138,17 @@ export function FoodOnboardingCard({
             hideInternalHeader
             formRequest={{ id: 1, mode: 'quick_setup' }}
             onSaved={handleSaved}
+            onQuickStageChange={setControlVisible}
           />
-          <button
-            type="button"
-            onClick={handleSkip}
-            className="w-full py-2 text-center text-[12px] text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            Fazer depois
-          </button>
+          {!controlVisible && (
+            <button
+              type="button"
+              onClick={handleSkip}
+              className="w-full py-2 text-center text-[12px] text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              Fazer depois
+            </button>
+          )}
         </div>
       </SheetShell.Body>
     </SheetShell>

@@ -15,9 +15,11 @@ const trackV1Metric = vi.fn();
 vi.mock('@/lib/v1Metrics', () => ({ trackV1Metric: (...args: unknown[]) => trackV1Metric(...args) }));
 
 let capturedOnSaved: (() => void) | null = null;
+let capturedOnStage: ((v: boolean) => void) | null = null;
 vi.mock('@/components/FoodControlTab', () => ({
-  FoodControlTab: (props: { onSaved?: () => void }) => {
+  FoodControlTab: (props: { onSaved?: () => void; onQuickStageChange?: (v: boolean) => void }) => {
     capturedOnSaved = props.onSaved ?? null;
+    capturedOnStage = props.onQuickStageChange ?? null;
     return <div data-testid="food-control-tab-stub" />;
   },
 }));
@@ -62,6 +64,17 @@ const baseProps = {
 describe('FoodOnboardingCard', () => {
   it('mostra o título com o nome real do pet e o artigo certo (masculino)', () => {
     render(<FoodOnboardingCard {...baseProps} onDone={vi.fn()} />);
+    expect(screen.getByText('Saiba quando a ração do Duke vai acabar')).toBeTruthy();
+  });
+
+  it('enquanto só a busca está à vista, mostra a introdução e "Fazer depois"; quando o tutor chega no controle, os dois somem', () => {
+    render(<FoodOnboardingCard {...baseProps} onDone={vi.fn()} />);
+    expect(screen.getByText('Fazer depois')).toBeTruthy();
+    expect(screen.getByText(/Cadastre a alimentação e o PETMOL ajuda você/)).toBeTruthy();
+    act(() => { capturedOnStage?.(true); });
+    expect(screen.queryByText('Fazer depois')).toBeNull();
+    expect(screen.queryByText(/Cadastre a alimentação e o PETMOL ajuda você/)).toBeNull();
+    // o título (e o X do cabeçalho) continuam
     expect(screen.getByText('Saiba quando a ração do Duke vai acabar')).toBeTruthy();
   });
 
