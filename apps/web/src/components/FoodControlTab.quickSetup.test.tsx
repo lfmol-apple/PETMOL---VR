@@ -13,8 +13,13 @@ vi.mock('@/features/notifications/pushService', () => ({
 vi.mock('@/features/interactions/userPromptChannel', () => ({ requestUserDecision: vi.fn(), showAppToast: vi.fn() }));
 // o leitor de código de barras só nos interessa para "digitar manualmente" (revela o formulário)
 vi.mock('@/components/ProductBarcodeScanner', () => ({
-  ProductBarcodeScanner: (p: { onManualEntry?: () => void }) => (
-    <button type="button" onClick={() => p.onManualEntry?.()}>revelar-formulario</button>
+  ProductBarcodeScanner: (p: { onManualEntry?: () => void; onProductConfirmed?: (x: unknown) => void }) => (
+    <div>
+      <button type="button" onClick={() => p.onManualEntry?.()}>revelar-formulario</button>
+      <button type="button" onClick={() => p.onProductConfirmed?.({ barcode: '789', name: 'Ração Golden Adultos', category: 'food', found: true })}>
+        confirmar-produto
+      </button>
+    </div>
   ),
 }));
 
@@ -90,5 +95,29 @@ describe('FoodControlTab — modo rápido (1ª ração)', () => {
     expect(body.duration_days).toBe(30);
     expect(body.no_consumption_control).toBe(true);
     expect(body.daily_amount_g).toBeNull();
+  });
+
+  it('depois que a ração é confirmada, a busca (Buscar/Não encontrei/Escanear) some e fica só o controle, com "‹ Voltar"', async () => {
+    render(<FoodControlTab petId="p1" petName="Baby" species="dog" embedded hideInternalHeader formRequest={{ id: 1, mode: 'quick_setup' }} />);
+    // produto escolhido pela busca/leitura
+    fireEvent.click(screen.getByText('confirmar-produto'));
+    expect(await screen.findByText('Por peso')).toBeTruthy();
+    expect(screen.queryByText('confirmar-produto')).toBeNull();          // a busca saiu
+    expect(screen.queryByText('revelar-formulario')).toBeNull();
+    expect(screen.getByText('‹ Voltar')).toBeTruthy();
+    // "Voltar" reabre a busca
+    fireEvent.click(screen.getByText('‹ Voltar'));
+    expect(screen.getByText('confirmar-produto')).toBeTruthy();
+    expect(screen.queryByText('‹ Voltar')).toBeNull();
+  });
+
+  it('no caminho manual, a busca some quando o tutor termina de digitar o produto', async () => {
+    open();
+    const campo = await screen.findByPlaceholderText('Ex: Royal Canin, Guabi Natural, petisco...');
+    expect(screen.getByText('confirmar-produto')).toBeTruthy();           // enquanto digita, a busca continua à mão
+    fireEvent.change(campo, { target: { value: 'Golden Adultos' } });
+    fireEvent.blur(campo);
+    await waitFor(() => expect(screen.queryByText('confirmar-produto')).toBeNull());
+    expect(screen.getByText('‹ Voltar')).toBeTruthy();
   });
 });
