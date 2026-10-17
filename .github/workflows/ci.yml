@@ -39,7 +39,11 @@ jobs:
         working-directory: apps/web
         run: npx next lint
 
+      # No push para main o job "package" já faz o build de produção (e a
+      # release só é implantada se o CI inteiro passar) — repetir aqui só
+      # gastava ~2 min. Em PR e em outras branches o build continua aqui.
       - name: Build
+        if: github.ref != 'refs/heads/main' || github.event_name != 'push'
         run: npm run web:build
 
   backend:
@@ -73,11 +77,15 @@ jobs:
   # Builds the one artifact that production ever runs. Everything downstream
   # (deploy/release/activate.sh on the VPS) only ever extracts and activates
   # this exact tarball — it never runs `npm ci`/`next build`/`pip install`
-  # itself. Only runs on main, after both gates pass, so a PR branch never
-  # produces a "deployable" package.
+  # itself. Only runs on main, so a PR branch never produces a "deployable"
+  # package.
+  #
+  # Roda EM PARALELO com frontend/backend (antes esperava os dois: ~5 min de
+  # testes + ~3 min de build em série). A trava continua a mesma: o deploy
+  # (deploy-atomic.yml) só dispara quando o workflow CI INTEIRO termina com
+  # sucesso, então um teste vermelho continua impedindo a release de ir ao ar.
   package:
     name: Build & package release artifact
-    needs: [frontend, backend]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-24.04
 
