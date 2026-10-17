@@ -6,6 +6,7 @@ import { BrowserCodeReader, BrowserMultiFormatReader, type IScannerControls } fr
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import { ChevronLeft, X } from 'lucide-react';
 import { ModalPortal } from '@/components/ModalPortal';
+import { useKeyboardSheet } from '@/hooks/useKeyboardSheet';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
@@ -578,27 +579,45 @@ function AwinCatalogConfirmSearch({
         )}
       </div>
       <p className="text-xs text-gray-500">Toque no produto certo pra continuar.</p>
-      <div className="space-y-2">
+      <div className="space-y-3">
         {results.map((result) => (
           <button
             key={result.gtin}
             type="button"
             onClick={() => onPick(result)}
-            className="flex w-full items-center gap-3 rounded-xl border border-white bg-white px-3 py-2.5 text-left shadow-sm transition-all active:scale-[0.98]"
+            className="flex w-full items-start gap-4 rounded-2xl bg-white p-3.5 text-left ring-1 ring-black/5 shadow-[0_4px_16px_-8px_rgba(15,23,42,0.18)] transition-all active:scale-[0.99]"
           >
-            {result.image_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={result.image_url} alt="" className="h-16 w-16 flex-shrink-0 rounded-lg object-contain bg-gray-50" />
-            ) : (
-              <span className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg bg-gray-50 text-2xl">📦</span>
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="text-[14px] font-semibold leading-tight text-gray-900 line-clamp-2">{result.title || 'Produto'}</p>
-              {result.brand && <p className="truncate text-[12px] text-gray-400 mt-0.5">{result.brand}</p>}
-            </div>
-            {result.price != null && (
-              <span className="flex-shrink-0 text-[13px] font-bold text-emerald-600">{formatBRLPrice(result.price)}</span>
-            )}
+            <span className="flex h-[92px] w-[92px] flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-gray-100 bg-gray-50">
+              {result.image_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={result.image_url} alt="" loading="lazy" className="h-full w-full object-cover" />
+              ) : (
+                <span className="text-3xl">🛍️</span>
+              )}
+            </span>
+            <span className="min-w-0 flex-1">
+              {(result.brand || result.category) && (
+                <span className="block truncate text-[11px] font-bold uppercase leading-tight tracking-wide text-gray-400">
+                  {[result.brand, result.category].filter(Boolean).join(' · ')}
+                </span>
+              )}
+              <span className="mt-0.5 block text-[15px] font-bold leading-snug text-gray-900 line-clamp-3">{result.title || 'Produto'}</span>
+              {(result.weight_kg || result.description) && (
+                <span className="mt-0.5 block text-[12px] leading-snug text-gray-500 line-clamp-2">
+                  {result.weight_kg ? `${result.weight_kg} kg` : ''}
+                  {result.weight_kg && result.description ? ' · ' : ''}
+                  {result.description || ''}
+                </span>
+              )}
+              {typeof result.price === 'number' && (
+                <span className="mt-1.5 block text-[14px] font-bold text-emerald-700">
+                  {result.offer_count > 1 ? 'A partir de ' : ''}{formatBRLPrice(result.price)}
+                  {typeof result.list_price === 'number' && result.list_price > result.price && (
+                    <span className="ml-2 text-[12px] font-semibold text-gray-400 line-through">{formatBRLPrice(result.list_price)}</span>
+                  )}
+                </span>
+              )}
+            </span>
           </button>
         ))}
       </div>
@@ -628,6 +647,7 @@ export function ProductDetectionSheetGold({
   onClose,
 }: ProductDetectionSheetProps) {
   useBackHandler(true, onClose);
+  const kbRef = useKeyboardSheet(true);
   const { tutor } = useAuth();
   const cooldownRef = useRef(false);
   const cameraPhotoInputRef = useRef<HTMLInputElement>(null);
@@ -1971,9 +1991,6 @@ export function ProductDetectionSheetGold({
           type="text"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          onFocus={(event) => {
-            window.setTimeout(() => event.target.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300);
-          }}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && query.trim()) selectManual(query.trim());
           }}
@@ -2990,7 +3007,7 @@ export function ProductDetectionSheetGold({
         }}
       />
 
-      <div className="fixed inset-0 z-[200] flex flex-col items-end justify-end sm:items-center sm:justify-center">
+      <div ref={kbRef} className="group fixed inset-0 z-[200] flex flex-col items-end justify-end sm:items-center sm:justify-center data-[kb=true]:justify-start data-[kb=true]:pt-[env(safe-area-inset-top)]">
         <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-md" onClick={() => {
           clearPendingScannedProduct();
           onClose();
@@ -2999,7 +3016,7 @@ export function ProductDetectionSheetGold({
         <div
           className={immersiveMode
             ? 'relative h-full w-full overflow-hidden bg-black'
-            : 'relative isolate flex w-full max-w-lg flex-col overflow-hidden rounded-t-[26px] bg-white shadow-[0_-8px_50px_-8px_rgba(15,23,42,0.35)] ring-1 ring-black/5 animate-slideUp sm:rounded-[26px] sm:animate-scaleIn'}
+            : 'relative isolate flex w-full max-w-lg flex-col overflow-hidden rounded-t-[26px] bg-white shadow-[0_-8px_50px_-8px_rgba(15,23,42,0.35)] ring-1 ring-black/5 animate-slideUp sm:rounded-[26px] sm:animate-scaleIn group-data-[kb=true]:h-full group-data-[kb=true]:!max-h-full'}
           style={immersiveMode ? undefined : { maxHeight: '92dvh' }}
           onClick={event => event.stopPropagation()}
         >
