@@ -389,7 +389,7 @@ function EntryByPlatformCard({ filter }: { filter: GlobalFilter }) {
                 );
               })}
               <tr className="border-t border-slate-100">
-                <td className="py-1 pr-3 font-semibold">Tocaram em "Criar minha conta"</td>
+                <td className="py-1 pr-3 font-semibold">Tocaram em &ldquo;Criar minha conta&rdquo;</td>
                 <td className="py-1 pr-3">{numberFmt(data.platforms.ios.choices.register)}</td>
                 <td className="py-1">{numberFmt(data.platforms.android.choices.register)}</td>
               </tr>
