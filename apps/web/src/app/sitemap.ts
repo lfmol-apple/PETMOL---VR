@@ -1,8 +1,8 @@
+import { SITE_URL } from '@/lib/siteUrl';
 import { MetadataRoute } from 'next';
 import { getAllGuides } from '@/features/guides';
 import { PUBLIC_GUIDES_PAGE_ENABLED } from './publicCommercePages';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 const SERVER_API_BASE_URL = API_BASE_URL.startsWith('http')
   ? API_BASE_URL.replace(/\/$/, '')

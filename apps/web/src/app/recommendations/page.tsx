@@ -1,3 +1,4 @@
+import { SITE_URL } from '@/lib/siteUrl';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
@@ -11,7 +12,6 @@ import {
   type Recommendation,
 } from '@/features/recommendations/data';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 const PAGE_URL = `${SITE_URL}/recommendations`;
 
 export const metadata: Metadata = {

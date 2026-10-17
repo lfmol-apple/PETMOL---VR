@@ -1,6 +1,6 @@
+import { SITE_URL } from '@/lib/siteUrl';
 import { MetadataRoute } from 'next';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
 /**
  * Conteúdo público (/, /guias, /guias/*, /sobre, /politica-editorial,

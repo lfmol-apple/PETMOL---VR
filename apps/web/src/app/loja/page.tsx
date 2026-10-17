@@ -1,3 +1,4 @@
+import { SITE_URL } from '@/lib/siteUrl';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -8,7 +9,6 @@ import {
 } from '@/features/commerce/homeShoppingPartners';
 import { PUBLIC_STORE_PAGE_ENABLED } from '../publicCommercePages';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 // Deriva das lojas ativas (não hardcoded) — no lançamento: Cobasi e Shopee.
 const STORES = HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea);
 const STORE_NAMES = STORES.map((s) => s.name).join(' e ');

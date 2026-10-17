@@ -1,3 +1,4 @@
+import { SITE_URL } from '@/lib/siteUrl';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -18,7 +19,6 @@ import { AffiliateDisclosure } from '@/components/guides/AffiliateDisclosure';
 import { GuideArticleJsonLd } from '@/components/guides/JsonLd';
 import { PUBLIC_GUIDE_DETAIL_PAGE_ENABLED } from '../../publicCommercePages';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
 interface GuidePageProps {
   params: Promise<{ slug: string }>;

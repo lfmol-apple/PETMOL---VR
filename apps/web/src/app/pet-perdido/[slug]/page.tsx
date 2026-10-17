@@ -1,3 +1,4 @@
+import { SITE_URL } from '@/lib/siteUrl';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { API_BASE_URL } from '@/lib/api';
@@ -19,7 +20,6 @@ type PublicMissingPet = {
   found_at: string | null;
 };
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 const SERVER_API_BASE_URL = API_BASE_URL.startsWith('http')
   ? API_BASE_URL
   : `${SITE_URL.replace(/\/$/, '')}${API_BASE_URL}`;
