@@ -1132,7 +1132,7 @@ export function FoodControlTab({
                       onClick={() => revealSearch(item.id)}
                       className="-mb-1 min-h-[32px] text-[13px] font-semibold text-slate-500 hover:text-slate-800"
                     >
-                      ‹ Voltar
+                      ‹ Trocar produto
                     </button>
                   )}
                   <div>
@@ -1247,7 +1247,9 @@ export function FoodControlTab({
                   ) : (
                     <div className={`grid gap-2 ${isQuickSetup ? 'grid-cols-1' : 'grid-cols-2'}`}>
                       <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">Duração (dias)</label>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                          {isQuickSetup ? 'Confirme o tempo: por quantos dias esse pacote dura? (você pode trocar)' : 'Duração (dias)'}
+                        </label>
                         <input
                           type="number"
                           min={1}

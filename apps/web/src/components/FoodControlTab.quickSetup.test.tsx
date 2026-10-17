@@ -48,6 +48,8 @@ describe('FoodControlTab — modo rápido (1ª ração)', () => {
     expect(await screen.findByText('Por peso')).toBeTruthy();
     expect(screen.getByText('Por duração')).toBeTruthy();
     expect(screen.getByText('Como controlar a reposição desta ração:')).toBeTruthy();
+    // 30 é só a sugestão: a tela pede para o tutor CONFIRMAR (ou trocar) o tempo
+    expect(screen.getByText('Confirme o tempo: por quantos dias esse pacote dura? (você pode trocar)')).toBeTruthy();
     expect((screen.getByPlaceholderText('Ex: 30') as HTMLInputElement).value).toBe('30');
   });
 
@@ -97,18 +99,18 @@ describe('FoodControlTab — modo rápido (1ª ração)', () => {
     expect(body.daily_amount_g).toBeNull();
   });
 
-  it('depois que a ração é confirmada, a busca (Buscar/Não encontrei/Escanear) some e fica só o controle, com "‹ Voltar"', async () => {
+  it('depois que a ração é confirmada, a busca (Buscar/Não encontrei/Escanear) some e fica só o controle, com "‹ Trocar produto"', async () => {
     render(<FoodControlTab petId="p1" petName="Baby" species="dog" embedded hideInternalHeader formRequest={{ id: 1, mode: 'quick_setup' }} />);
     // produto escolhido pela busca/leitura
     fireEvent.click(screen.getByText('confirmar-produto'));
     expect(await screen.findByText('Por peso')).toBeTruthy();
     expect(screen.queryByText('confirmar-produto')).toBeNull();          // a busca saiu
     expect(screen.queryByText('revelar-formulario')).toBeNull();
-    expect(screen.getByText('‹ Voltar')).toBeTruthy();
+    expect(screen.getByText('‹ Trocar produto')).toBeTruthy();
     // "Voltar" reabre a busca
-    fireEvent.click(screen.getByText('‹ Voltar'));
+    fireEvent.click(screen.getByText('‹ Trocar produto'));
     expect(screen.getByText('confirmar-produto')).toBeTruthy();
-    expect(screen.queryByText('‹ Voltar')).toBeNull();
+    expect(screen.queryByText('‹ Trocar produto')).toBeNull();
   });
 
   it('no caminho manual, a busca some quando o tutor termina de digitar o produto', async () => {
@@ -118,6 +120,6 @@ describe('FoodControlTab — modo rápido (1ª ração)', () => {
     fireEvent.change(campo, { target: { value: 'Golden Adultos' } });
     fireEvent.blur(campo);
     await waitFor(() => expect(screen.queryByText('confirmar-produto')).toBeNull());
-    expect(screen.getByText('‹ Voltar')).toBeTruthy();
+    expect(screen.getByText('‹ Trocar produto')).toBeTruthy();
   });
 });
