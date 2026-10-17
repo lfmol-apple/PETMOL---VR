@@ -352,7 +352,9 @@ export function FoodControlTab({
   const [formOpen, setFormOpen] = useState(() => !!formRequest);
   const [formMode, setFormMode] = useState<'add' | 'edit' | 'quick_setup'>(() => formRequest?.mode ?? 'edit');
   const [showAdvanced, setShowAdvanced] = useState(() => formRequest?.mode === 'edit');
-  const [methodChosen, setMethodChosen] = useState(false);
+  // Modo rápido (1ª ração): já nasce com "Por duração" (30 dias) escolhida, mas mostra a MESMA escolha
+  // Por peso / Por duração da edição — antes só perguntava a duração (pedido do dono, 17/10/2026).
+  const [methodChosen, setMethodChosen] = useState(() => formRequest?.mode === 'quick_setup');
   const [deleteFeedback, setDeleteFeedback] = useState<string | null>(null);
   const [apiEstimate, setApiEstimate] = useState<{ estimated_end_date: string | null; estimated_days_left: number | null } | null>(null);
   // Uma vez que um item JÁ tem produto (brand preenchido), buscar/escanear
@@ -627,10 +629,11 @@ export function FoodControlTab({
           {
             ...primaryItem,
             isPrimary: true,
-            trackingMethod: 'duration',
             startDate: primaryItem.startDate || localTodayISO(),
-            durationDays: primaryItem.durationDays || '30',
-            dailyConsumptionG: '',
+            // Por peso: usa pacote + consumo/dia como na edição. Por duração (padrão): 30 dias se vazio.
+            ...(primaryItem.trackingMethod === 'weight'
+              ? { trackingMethod: 'weight' as const }
+              : { trackingMethod: 'duration' as const, durationDays: primaryItem.durationDays || '30', dailyConsumptionG: '' }),
           },
         ])
       : !showAdvanced
@@ -643,7 +646,7 @@ export function FoodControlTab({
           })))
       : normalizedItems;
 
-    if (formMode !== 'quick_setup') {
+    {
       const primarySource = getPrimaryItem(sourceItems);
       if (primarySource.trackingMethod === 'weight' && !primarySource.packageSizeKg.trim()) {
         setApiError('Informe o tamanho do pacote em kg.');
@@ -887,6 +890,7 @@ export function FoodControlTab({
       setItems((current) => ensurePrimaryItem([...current, createEmptyFoodItem(false)]));
     }
     if (formRequest.mode === 'quick_setup') {
+      setMethodChosen(true);
       setItems((current) => {
         const primary = getPrimaryItem(current);
         return ensurePrimaryItem([
@@ -1128,7 +1132,7 @@ export function FoodControlTab({
                   </div>
 
                   {/* 2) Regra de controle — só depois da ração identificada. */}
-                  {!isQuickSetup && showAdvanced && (
+                  {(isQuickSetup || showAdvanced) && (
                     <div className="space-y-2">
                       <p className="text-xs font-bold text-amber-700">
                         {methodChosen ? 'Como controlar a reposição desta ração:' : 'Selecione como controlar a ração:'}
@@ -1160,7 +1164,7 @@ export function FoodControlTab({
                     </div>
                   )}
 
-                  {isQuickSetup || !showAdvanced ? (
+                  {!isQuickSetup && !showAdvanced ? (
                     // Empilhado, não grid-cols-2: numa coluna de ~168px (sheet
                     // "sm") "DD/MM/AAAA" + o ícone de calendário cortava em
                     // telas com texto maior (reportado 12/10/2026) — largura
@@ -1225,7 +1229,7 @@ export function FoodControlTab({
                       </div>
                     </>
                   ) : (
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className={`grid gap-2 ${isQuickSetup ? 'grid-cols-1' : 'grid-cols-2'}`}>
                       <div>
                         <label className="block text-xs font-semibold text-gray-600 mb-1">Duração (dias)</label>
                         <input
