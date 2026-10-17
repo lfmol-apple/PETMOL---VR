@@ -113,3 +113,19 @@ class FeedingHistory(Base):
     reason: Mapped[str] = mapped_column(String(16), nullable=False, default="restock")
     purchase_channel: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class FeedingRepurchaseIntent(Base):
+    """Tutor tocou em "Comprar novamente" e saiu para a loja.
+
+    Serve para um único lembrete no dia seguinte ("Chegou a ração? reinicie o
+    controle em 1 toque") se ele não registrar o novo pacote.
+    """
+    __tablename__ = "feeding_repurchase_intents"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    pet_id: Mapped[str] = mapped_column(String(36), ForeignKey("pets.id"), unique=True, nullable=False, index=True)
+    food_brand: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    clicked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    reminded_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

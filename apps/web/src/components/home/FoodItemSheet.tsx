@@ -1310,6 +1310,12 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             onClick={() => {
                               trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
                               if (foodBrand) markFoodRepurchaseIntent(pet.pet_id, foodBrand);
+                              if (foodBrand) {
+                                // Avisa o servidor: se ele não registrar o pacote, chega 1 lembrete no dia seguinte.
+                                void fetch(`${API_BACKEND_BASE}/health/pets/${pet.pet_id}/feeding/repurchase-intent`, {
+                                  method: 'POST', headers: authH(), credentials: 'include', keepalive: true,
+                                }).catch(() => {});
+                              }
                               setMode('buy');
                             }}
                             className={`w-full py-3.5 rounded-2xl active:scale-[0.97] transition-all text-[15px] font-black text-white flex items-center justify-center gap-2.5 ${

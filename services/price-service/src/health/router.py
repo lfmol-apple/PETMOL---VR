@@ -6,7 +6,7 @@ Integrates with existing backend structure.
 """
 import json
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Literal, Optional
 from uuid import uuid4
 
@@ -23,7 +23,8 @@ from ..pets.models import Pet
 from ..pets.vaccine_models import VaccineRecord
 from ..events.models import Event
 from ..product_catalog_lookup import ProductCatalog, normalize_gtin
-from .models import FeedingHistory, FeedingPlan
+from .models import FeedingHistory, FeedingPlan, FeedingRepurchaseIntent
+from .repurchase_reminder import mark_resolved as _mark_repurchase_resolved
 from .catalog import VACCINE_CATALOG, COUNTRY_CONFIG, lookup_vaccine_code
 from .schemas import (
     BulkConfirmRequest,
@@ -894,6 +895,7 @@ async def create_or_update_feeding_plan(
             and existing_plan.food_brand.strip().lower() != str(primary_item.get("food_brand")).strip().lower()
         ):
             _archive_feeding_cycle(db, existing_plan, ended_on=date.today(), reason="switched")
+            _mark_repurchase_resolved(db, pet_id)
 
         existing_plan.deleted_at = None
         existing_plan.species = request.species or existing_plan.species or "dog"
@@ -1143,6 +1145,29 @@ class SetFeedingReminderDateRequest(BaseModel):
     next_reminder_date: str  # YYYY-MM-DD
 
 
+@router.post("/pets/{pet_id}/feeding/repurchase-intent", status_code=status.HTTP_204_NO_CONTENT)
+async def mark_repurchase_intent(
+    pet_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """O tutor tocou em "Comprar novamente": agenda 1 lembrete se ele não registrar o pacote."""
+    _check_pet_ownership(pet_id, current_user, db)
+    plan = _get_active_feeding_plan(db, pet_id)
+    if not plan:
+        return
+    now = datetime.now(timezone.utc)
+    row = db.query(FeedingRepurchaseIntent).filter(FeedingRepurchaseIntent.pet_id == pet_id).first()
+    if row is None:
+        row = FeedingRepurchaseIntent(id=str(uuid4()), pet_id=pet_id)
+        db.add(row)
+    row.food_brand = plan.food_brand
+    row.clicked_at = now
+    row.reminded_at = None
+    row.resolved_at = None
+    db.commit()
+
+
 @router.post("/pets/{pet_id}/feeding/plan/restock")
 async def restock_feeding_plan(
     pet_id: str,
@@ -1179,6 +1204,7 @@ async def restock_feeding_plan(
         purchase_channel=body.purchase_channel,
     )
     plan.last_refill_date = refill_date
+    _mark_repurchase_resolved(db, pet_id)
 
     estimated_end, next_reminder, _ = calculate_food_stock_estimates(
         package_size_kg=plan.package_size_kg,

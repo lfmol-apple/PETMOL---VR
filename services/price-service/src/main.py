@@ -467,6 +467,13 @@ def start_push_scheduler():
         except Exception as exc:
             push_logger.warning("[PETMOL] expiração de Pet Sumido não agendada: %s", exc)
         try:
+            # Lembrete único "Chegou a ração?" p/ quem foi à loja e não registrou o pacote (10h–19h).
+            from .health.repurchase_reminder import send_repurchase_reminders
+            scheduler.add_job(send_repurchase_reminders, "interval", minutes=30,
+                              id="food_repurchase_reminders", max_instances=1, coalesce=True)
+        except Exception as exc:
+            push_logger.warning("[PETMOL] lembrete de recompra não agendado: %s", exc)
+        try:
             # Piloto automático de ativação (ração → notificação): 11h de Brasília, com teto, horário comercial
             # e 1 mensagem por pessoa por semana. Liga/desliga no Dashboard 2 (ver activation_autopilot.py).
             from .activation_autopilot import run_autopilot
