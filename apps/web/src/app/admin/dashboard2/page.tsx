@@ -202,6 +202,7 @@ function GrowthBody({ filter, onFocusTutors }: { filter: GlobalFilter; onFocusTu
       <LeakBanner data={data} />
       <EntryCard filter={filter} />
       <SignupReconCard filter={filter} />
+      <EntryByPlatformCard filter={filter} />
       <FunnelCard data={data} />
       <StuckCards data={data} />
       <PlatformTable rows={data.platforms} />
@@ -352,6 +353,48 @@ function SignupReconCard({ filter }: { filter: GlobalFilter }) {
             {table('Por versão do app', data.by_version)}
             {table('Por método', data.by_method)}
           </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
+type EntryStep = { key: string; label: string; n: number; pct_of_opened: number | null };
+type EntryByPlatform = { since: string; platforms: Record<'ios' | 'android', { steps: EntryStep[]; choices: { register: number; login: number } }> };
+
+/** Funil de entrada lado a lado (iPhone × Android), só com dados confiáveis (a partir de 15/10 se não houver período). */
+function EntryByPlatformCard({ filter }: { filter: GlobalFilter }) {
+  const { data, error, loading } = useAsync<EntryByPlatform>(
+    () => adminGet('/entry-by-platform', { since: filter.since, until: filter.until }),
+    [filter.since, filter.until],
+  );
+  const pctFmt = (v: number | null) => (v == null ? '—' : `${(v * 100).toFixed(1).replace('.', ',')}%`);
+  return (
+    <Card title="Entrada: iPhone × Android"
+      subtitle="Mesmo funil de entrada, separado por aparelho, só com dados confiáveis (a partir de 15/10, a menos que você escolha o período).">
+      {loading && !data ? <Loading /> : error || !data ? <ErrorBox msg={error} /> : (
+        <>
+          <p className="mb-2 text-[11px] text-slate-400">Desde {data.since.slice(0, 10)}</p>
+          <table className="w-full text-left text-[12px]">
+            <thead><tr className="text-slate-400"><th className="py-1 pr-3">Etapa</th><th className="py-1 pr-3">iPhone</th><th className="py-1">Android</th></tr></thead>
+            <tbody>
+              {data.platforms.ios.steps.map((s, i) => {
+                const a = data.platforms.android.steps[i];
+                return (
+                  <tr key={s.key} className="border-t border-slate-100">
+                    <td className="py-1 pr-3 font-semibold">{s.label}</td>
+                    <td className="py-1 pr-3">{numberFmt(s.n)} <span className="text-slate-400">({pctFmt(s.pct_of_opened)})</span></td>
+                    <td className="py-1">{numberFmt(a?.n ?? 0)} <span className="text-slate-400">({pctFmt(a?.pct_of_opened ?? null)})</span></td>
+                  </tr>
+                );
+              })}
+              <tr className="border-t border-slate-100">
+                <td className="py-1 pr-3 font-semibold">Tocaram em "Criar minha conta"</td>
+                <td className="py-1 pr-3">{numberFmt(data.platforms.ios.choices.register)}</td>
+                <td className="py-1">{numberFmt(data.platforms.android.choices.register)}</td>
+              </tr>
+            </tbody>
+          </table>
         </>
       )}
     </Card>
