@@ -85,3 +85,18 @@ def test_admin_delete_user_purges_pets_and_related_rows(client):
         assert db.execute(text("SELECT count(*) FROM users WHERE id = :u"), {"u": user_id}).scalar() == 0
     finally:
         db.close()
+
+
+def test_every_table_with_fk_to_pets_is_purged():
+    """Tabela nova com FK para pets fora de _PET_CHILD_TABLES quebra a exclusão de conta com 500 (FK)
+    em produção — aconteceu com feeding_history/feeding_repurchase_intents."""
+    from src.db import Base
+    from src.main import app  # noqa: F401  (registra todos os modelos)
+    from src.user_auth.purge import _PET_CHILD_TABLES
+
+    missing = sorted({
+        t.name for t in Base.metadata.sorted_tables
+        for fk in t.foreign_keys
+        if fk.column.table.name == "pets" and t.name != "pets" and t.name not in _PET_CHILD_TABLES
+    })
+    assert missing == [], f"Adicione em purge._PET_CHILD_TABLES: {missing}"
