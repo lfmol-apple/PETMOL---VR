@@ -66,3 +66,32 @@ def test_entry_funnel_counts_people_per_screen_and_failures(client):
     assert reasons == {"validation:password": 1, "server": 1}
     # 3 abriram o cadastro e 2 passaram do nome (67%); 2 → 1 concluiu (50%) é a maior perda
     assert body["biggest_leak"]["to_label"] == "Concluíram o cadastro"
+
+
+def test_signup_reconciliation_compara_contas_e_evento(client):
+    headers = _admin_headers()
+    db = SessionLocal()
+    try:
+        com, sem = [], []
+        for i in range(3):
+            u = User(email=f"recon-com-{i}@x.com", password_hash=hash_password("x"), name=f"C{i}")
+            db.add(u); db.commit(); com.append(u.id)
+        for i in range(2):
+            u = User(email=f"recon-sem-{i}@x.com", password_hash=hash_password("x"), name=f"S{i}")
+            db.add(u); db.commit(); sem.append(u.id)
+        for uid in com:
+            _ev(db, "register_completed", f"a-{uid[:6]}", platform="android_capacitor", user_id=uid)
+        for uid in sem:
+            _ev(db, "screen_view", f"b-{uid[:6]}", platform="android_capacitor", user_id=uid)
+        db.commit()
+    finally:
+        db.close()
+
+    r = client.get("/v1/admin/analytics/signup-reconciliation?period_days=7", headers=headers)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["totals"]["accounts"] >= 5
+    assert body["totals"]["with_event"] >= 3
+    assert body["totals"]["with_event"] < body["totals"]["accounts"]
+    assert any(m["key"] == "senha" for m in body["by_method"])
+    assert body["by_day"] and body["by_platform"]

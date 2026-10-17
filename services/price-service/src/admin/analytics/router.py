@@ -127,6 +127,11 @@ def get_growth(db: Session = Depends(get_db), f: AnalyticsFilters = Depends(_fil
     return growth_bi.growth_funnel(db, f)
 
 
+@router.get("/signup-reconciliation")
+def get_signup_reconciliation(db: Session = Depends(get_db), f: AnalyticsFilters = Depends(_filters), _=_Auth):
+    return entry_bi.signup_reconciliation(db, f)
+
+
 @router.get("/entry-funnel")
 def get_entry_funnel(db: Session = Depends(get_db), f: AnalyticsFilters = Depends(_filters), _=_Auth):
     return entry_bi.entry_funnel(db, f)

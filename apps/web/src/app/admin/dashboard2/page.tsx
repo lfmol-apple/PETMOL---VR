@@ -201,6 +201,7 @@ function GrowthBody({ filter, onFocusTutors }: { filter: GlobalFilter; onFocusTu
       <EmailRacaoPanel />
       <LeakBanner data={data} />
       <EntryCard filter={filter} />
+      <SignupReconCard filter={filter} />
       <FunnelCard data={data} />
       <StuckCards data={data} />
       <PlatformTable rows={data.platforms} />
@@ -302,6 +303,60 @@ function LeakBanner({ data }: { data: GrowthResponse }) {
         <p className="mt-1 text-[11px] text-slate-500">Taxa indicativa: compara volumes do período, não as mesmas pessoas.</p>
       )}
     </div>
+  );
+}
+
+type ReconRow = { key: string; accounts: number; with_event: number; pct: number | null };
+type ReconResponse = {
+  totals: { accounts: number; with_event: number; pct: number | null };
+  by_day: ReconRow[]; by_platform: ReconRow[]; by_version: ReconRow[]; by_method: ReconRow[]; note: string;
+};
+
+/** Confere o funil de entrada: contas que nasceram × contas com o evento "cadastro concluído". */
+function SignupReconCard({ filter }: { filter: GlobalFilter }) {
+  const { data, error, loading } = useAsync<ReconResponse>(
+    () => adminGet('/signup-reconciliation', {
+      period_days: filter.period_days, since: filter.since, until: filter.until, platform: filter.platform,
+    }),
+    [filter.period_days, filter.since, filter.until, filter.platform],
+  );
+  const fmt = (v: number | null) => (v == null ? '—' : `${Math.round(v * 100)}%`);
+  const table = (title: string, rows: ReconRow[]) => (
+    <div className="min-w-[220px] flex-1">
+      <p className="mb-1 text-[12px] font-bold text-slate-700">{title}</p>
+      <table className="w-full text-left text-[12px]">
+        <thead><tr className="text-slate-400"><th className="py-1 pr-2"></th><th className="py-1 pr-2">Contas</th><th className="py-1 pr-2">Com evento</th><th className="py-1">%</th></tr></thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.key} className="border-t border-slate-100">
+              <td className="py-1 pr-2 font-semibold">{r.key}</td>
+              <td className="py-1 pr-2">{numberFmt(r.accounts)}</td>
+              <td className="py-1 pr-2">{numberFmt(r.with_event)}</td>
+              <td className="py-1">{fmt(r.pct)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+  return (
+    <Card title="Conferência do cadastro"
+      subtitle="Contas que nasceram × contas com o evento de cadastro concluído. Se forem bem diferentes, a taxa do funil de entrada está errada por medição.">
+      {loading && !data ? <Loading /> : error || !data ? <ErrorBox msg={error} /> : (
+        <>
+          <p className="text-[14px] font-extrabold text-slate-800">
+            {numberFmt(data.totals.accounts)} contas · {numberFmt(data.totals.with_event)} com evento ({fmt(data.totals.pct)})
+          </p>
+          <p className="mb-3 text-[11px] text-slate-400">{data.note}</p>
+          <div className="flex flex-wrap gap-6">
+            {table('Por dia', data.by_day)}
+            {table('Por plataforma', data.by_platform)}
+            {table('Por versão do app', data.by_version)}
+            {table('Por método', data.by_method)}
+          </div>
+        </>
+      )}
+    </Card>
   );
 }
 

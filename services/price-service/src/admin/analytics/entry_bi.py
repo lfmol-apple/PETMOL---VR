@@ -126,3 +126,69 @@ def entry_funnel(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
             "'Viram a tela de entrada' só existe a partir da versão que passou a medir isso.",
         ],
     }
+
+
+def signup_reconciliation(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
+    """Confere o funil: quantas contas NASCERAM (tabela de tutores) × quantas têm o evento
+    `register_completed`. Se as duas colunas não batem, o buraco é de medição, não de desistência.
+    Quebra por dia, plataforma, versão do app e método de login para achar onde o evento se perde."""
+    from datetime import timedelta
+    from ...user_auth.models import User
+    from .growth_bi import _chunks, _platform_of_event, _real_users
+
+    since = f.since or (_utcnow() - timedelta(days=14))
+    q = _real_users(db.query(User.id, User.created_at, User.apple_sub, User.google_sub)).filter(User.created_at >= since)
+    if f.until:
+        q = q.filter(User.created_at <= f.until)
+    users = q.all()
+    ids = [u[0] for u in users]
+
+    has_event: set[str] = set()
+    first_ctx: dict[str, tuple[Optional[str], Optional[str]]] = {}
+    for chunk in _chunks(ids):
+        for (uid,) in db.query(AnalyticsProductEvent.user_id).filter(
+                AnalyticsProductEvent.user_id.in_(chunk),
+                AnalyticsProductEvent.event_name == "register_completed").distinct().all():
+            has_event.add(uid)
+        rows = (db.query(AnalyticsProductEvent.user_id, AnalyticsProductEvent.platform,
+                         AnalyticsProductEvent.app_version, AnalyticsProductEvent.occurred_at)
+                .filter(AnalyticsProductEvent.user_id.in_(chunk))
+                .order_by(AnalyticsProductEvent.occurred_at.asc()).all())
+        for uid, plat, ver, _at in rows:
+            first_ctx.setdefault(uid, (_platform_of_event(plat), ver))
+
+    def bucket() -> dict[str, int]:
+        return {"accounts": 0, "with_event": 0}
+
+    days: dict[str, dict[str, int]] = defaultdict(bucket)
+    plats: dict[str, dict[str, int]] = defaultdict(bucket)
+    vers: dict[str, dict[str, int]] = defaultdict(bucket)
+    methods: dict[str, dict[str, int]] = defaultdict(bucket)
+    for uid, created, apple, google in users:
+        ok = 1 if uid in has_event else 0
+        day = ((created.replace(tzinfo=None) if created else _utcnow().replace(tzinfo=None)) - timedelta(hours=3)).strftime("%Y-%m-%d")
+        plat, ver = first_ctx.get(uid, ("sem evento", None))
+        method = "apple" if apple else ("google" if google else "senha")
+        for d, k in ((days, day), (plats, plat), (vers, ver or "sem versão"), (methods, method)):
+            d[k]["accounts"] += 1
+            d[k]["with_event"] += ok
+
+    def rows_of(d: dict[str, dict[str, int]], sort_key=None, limit: int = 15) -> list[dict[str, Any]]:
+        items = [{"key": k, "accounts": v["accounts"], "with_event": v["with_event"],
+                  "pct": round(v["with_event"] / v["accounts"], 4) if v["accounts"] else None} for k, v in d.items()]
+        items.sort(key=sort_key or (lambda r: -r["accounts"]))
+        return items[:limit]
+
+    total = len(users)
+    with_ev = sum(1 for u in users if u[0] in has_event)
+    return {
+        "generated_at": _utcnow().isoformat(),
+        "totals": {"accounts": total, "with_event": with_ev,
+                   "pct": round(with_ev / total, 4) if total else None},
+        "by_day": rows_of(days, sort_key=lambda r: r["key"], limit=40),
+        "by_platform": rows_of(plats),
+        "by_version": rows_of(vers),
+        "by_method": rows_of(methods),
+        "note": ("with_event = a conta tem o evento register_completed. Se for bem menor que accounts, "
+                 "o evento se perde (ou a conta nasce por outro caminho) e a taxa do funil de entrada fica subestimada."),
+    }
