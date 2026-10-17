@@ -929,7 +929,7 @@ _PUBLIC_BASE = "https://www.petmol.com.br"      # sem www redireciona (308) — 
 EMAIL_RACAO_IMAGE = f"{_PUBLIC_BASE}/email/racao-notificacao.jpg"
 EMAIL_RACAO_LINK = (f"{_PUBLIC_BASE}/go/instalar?utm_source=email&utm_medium=email"
                     "&utm_campaign=racao_notificacao&utm_content=")
-EMAIL_DAILY_CAP = 100       # teto por 24 h quando o envio sai pela Hostinger
+EMAIL_DAILY_CAP = 900       # teto por 24 h pela Hostinger (Starter Business Email = 1.000 por dia; folga para os outros e-mails do app)
 EMAIL_PAUSE_MINUTES = 60    # espera depois de 3 recusas seguidas
 EMAIL_MAX_PAUSES = 3        # depois de 3 esperas sem sucesso, interrompe
 EMAIL_STATE: dict = {"phase": "idle", "started_at": None, "finished_at": None, "result": None, "error": None}
