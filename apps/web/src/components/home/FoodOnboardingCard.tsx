@@ -42,6 +42,8 @@ interface FoodOnboardingCardProps {
   suppressed?: boolean;
 }
 
+const QUICK_SETUP_REQUEST = { id: 1, mode: 'quick_setup' } as const;
+
 export function FoodOnboardingCard({
   petId,
   petName,
@@ -136,7 +138,7 @@ export function FoodOnboardingCard({
             species={species}
             embedded
             hideInternalHeader
-            formRequest={{ id: 1, mode: 'quick_setup' }}
+            formRequest={QUICK_SETUP_REQUEST}
             onSaved={handleSaved}
             onQuickStageChange={setControlVisible}
           />

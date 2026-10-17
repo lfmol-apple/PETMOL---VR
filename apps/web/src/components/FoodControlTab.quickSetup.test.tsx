@@ -43,6 +43,19 @@ function open() {
 }
 
 describe('FoodControlTab — modo rápido (1ª ração)', () => {
+  it('Por peso NÃO volta para 30 dias quando o pai re-renderiza com um formRequest novo', async () => {
+    const props = { petId: 'p1', petName: 'Baby', species: 'dog' as const, embedded: true, hideInternalHeader: true };
+    const { rerender } = render(<FoodControlTab {...props} formRequest={{ id: 1, mode: 'quick_setup' }} />);
+    fireEvent.click(screen.getByText('revelar-formulario'));
+    fireEvent.click(await screen.findByText('Por peso'));
+    expect(screen.getByText('Pacote (kg)')).toBeTruthy();
+    // objeto NOVO (mesmo id/mode), como o pai faz a cada render
+    rerender(<FoodControlTab {...props} formRequest={{ id: 1, mode: 'quick_setup' }} />);
+    rerender(<FoodControlTab {...props} formRequest={{ id: 1, mode: 'quick_setup' }} />);
+    expect(screen.getByText('Pacote (kg)')).toBeTruthy();
+    expect(screen.queryByPlaceholderText('Ex: 30')).toBeNull();
+  });
+
   it('mostra a escolha Por peso / Por duração, com Por duração (30 dias) já escolhida', async () => {
     open();
     expect(await screen.findByText('Por peso')).toBeTruthy();
