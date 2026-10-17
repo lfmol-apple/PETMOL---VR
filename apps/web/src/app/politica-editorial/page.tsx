@@ -1,9 +1,9 @@
+import { SITE_URL } from '@/lib/siteUrl';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { InstitutionalLayout, Bullets } from '@/components/guides/InstitutionalLayout';
 import { InstitutionalJsonLd } from '@/components/guides/JsonLd';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
 const DESCRIPTION =
   'Como os conteúdos dos Guias PETMOL são produzidos: critérios, uso de fontes, separação entre conteúdo editorial e relações comerciais, e política de correção de erros.';

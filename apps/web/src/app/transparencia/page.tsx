@@ -1,10 +1,10 @@
+import { SITE_URL } from '@/lib/siteUrl';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { InstitutionalLayout, Bullets } from '@/components/guides/InstitutionalLayout';
 import { InstitutionalJsonLd } from '@/components/guides/JsonLd';
 import { hasActiveProgramDisclosure, amazonDisclosure } from '@/features/commerce/affiliateDisclosure';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
 const DESCRIPTION =
   'Como o PETMOL se sustenta: participação em programas de afiliados, o que isso significa para você, e como as relações comerciais são separadas do conteúdo editorial.';

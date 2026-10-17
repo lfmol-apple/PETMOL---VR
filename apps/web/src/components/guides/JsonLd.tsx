@@ -1,7 +1,7 @@
+import { SITE_URL } from '@/lib/siteUrl';
 import type { Guide } from '@/features/guides';
 import { getGuideCategory } from '@/features/guides';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
 const ORG = {
   '@type': 'Organization',

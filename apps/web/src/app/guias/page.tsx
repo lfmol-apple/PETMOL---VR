@@ -1,3 +1,4 @@
+import { SITE_URL } from '@/lib/siteUrl';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
@@ -19,7 +20,6 @@ import { EditorialSearch } from '@/components/guides/EditorialSearch';
 import { PopularTopics } from '@/components/guides/PopularTopics';
 import { PUBLIC_GUIDES_PAGE_ENABLED } from '../publicCommercePages';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
 export const metadata: Metadata = {
   title: 'Guias PETMOL — decisões práticas para cães e gatos',
