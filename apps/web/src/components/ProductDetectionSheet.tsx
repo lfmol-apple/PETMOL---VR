@@ -32,7 +32,7 @@ import {
 } from '@/features/product-detection/resolver';
 import { buildPartialFoodName, extractFoodFields } from '@/features/product-detection/foodParser';
 import { submitLearningConfirmation, findLocalCorrection, type ScanDecisionSource } from '@/features/product-detection/learningStore';
-import { searchAwinCatalog, type AwinSearchResult, formatBRLPrice } from '@/features/commerce/productPricing';
+import { searchAwinCatalog, type AwinSearchResult } from '@/features/commerce/productPricing';
 
 type Step =
   | 'entry'
@@ -595,29 +595,19 @@ function AwinCatalogConfirmSearch({
                 <span className="text-3xl">🛍️</span>
               )}
             </span>
-            <span className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1">
               {(result.brand || result.category) && (
-                <span className="block truncate text-[11px] font-bold uppercase leading-tight tracking-wide text-gray-400">
+                <p className="truncate text-[11px] font-bold uppercase leading-tight tracking-wide text-gray-400">
                   {[result.brand, result.category].filter(Boolean).join(' · ')}
-                </span>
+                </p>
               )}
-              <span className="mt-0.5 block text-[15px] font-bold leading-snug text-gray-900 line-clamp-3">{result.title || 'Produto'}</span>
-              {(result.weight_kg || result.description) && (
-                <span className="mt-0.5 block text-[12px] leading-snug text-gray-500 line-clamp-2">
-                  {result.weight_kg ? `${result.weight_kg} kg` : ''}
-                  {result.weight_kg && result.description ? ' · ' : ''}
-                  {result.description || ''}
-                </span>
-              )}
-              {typeof result.price === 'number' && (
-                <span className="mt-1.5 block text-[14px] font-bold text-emerald-700">
-                  {result.offer_count > 1 ? 'A partir de ' : ''}{formatBRLPrice(result.price)}
-                  {typeof result.list_price === 'number' && result.list_price > result.price && (
-                    <span className="ml-2 text-[12px] font-semibold text-gray-400 line-through">{formatBRLPrice(result.list_price)}</span>
-                  )}
-                </span>
-              )}
-            </span>
+              <p className="mt-0.5 text-[15px] font-bold leading-snug text-gray-900 line-clamp-3">{result.title || 'Produto'}</p>
+              {result.weight_kg ? (
+                <p className="mt-0.5 text-[12px] leading-snug text-gray-500">{result.weight_kg} kg</p>
+              ) : null}
+              {/* Sem preço aqui de propósito: ao só ADICIONAR o produto, preço
+                  gera objeção ("vai me cobrar?"). Preço fica só nas telas de compra. */}
+            </div>
           </button>
         ))}
       </div>
