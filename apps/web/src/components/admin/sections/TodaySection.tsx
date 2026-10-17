@@ -90,7 +90,7 @@ export function TodaySection({ onOpenPeople, onOpenLocations, onOpenModeration }
             )}
 
             <div className="grid grid-cols-2 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(190px,1fr))]">
-              <StatCard label="Downloads" tone="good" value={numberFmt(data.metrics.downloads.value)}
+              <StatCard label="1ªs aberturas" tone="good" value={numberFmt(data.metrics.downloads.value)}
                 sub={metricSub(data.metrics.downloads, data.is_today)} onClick={onOpenLocations} />
               <StatCard label="Acessos" value={numberFmt(data.metrics.acessos.value)}
                 sub={`${numberFmt(data.metrics.visitantes.value)} visitantes únicos · ${metricSub(data.metrics.acessos, data.is_today)}`}
@@ -123,12 +123,12 @@ export function TodaySection({ onOpenPeople, onOpenLocations, onOpenModeration }
               </Panel>
 
               <Panel title="Campanhas (top 3)">
-                {data.campaigns.length === 0 ? <p className="text-[13px] text-slate-400">Sem acessos/downloads no dia.</p> : (
+                {data.campaigns.length === 0 ? <p className="text-[13px] text-slate-400">Sem acessos/1ªs aberturas no dia.</p> : (
                   <table className="w-full text-[13px]"><tbody>
                     {data.campaigns.map((c) => (
                       <tr key={`${c.utm_source}|${c.utm_campaign}`} className="border-t border-slate-100 first:border-0">
                         <td className="py-1.5 font-medium">{c.utm_campaign}<span className="text-slate-400"> · {c.utm_source}</span></td>
-                        <td className="py-1.5 text-right tabular-nums">{numberFmt(c.downloads)} downloads</td>
+                        <td className="py-1.5 text-right tabular-nums">{numberFmt(c.downloads)} 1ªs aberturas</td>
                         <td className="py-1.5 text-right tabular-nums">{numberFmt(c.acessos)} acessos</td>
                       </tr>
                     ))}
@@ -142,12 +142,12 @@ export function TodaySection({ onOpenPeople, onOpenLocations, onOpenModeration }
               <Panel title="Onde (top 5 cidades, por IP)" right={onOpenLocations && (
                 <button type="button" onClick={onOpenLocations} className="text-[11px] font-semibold text-[#0056D2] hover:underline">ver tudo →</button>
               )}>
-                {data.cities.length === 0 ? <p className="text-[13px] text-slate-400">Sem acessos/downloads no dia.</p> : (
+                {data.cities.length === 0 ? <p className="text-[13px] text-slate-400">Sem acessos/1ªs aberturas no dia.</p> : (
                   <table className="w-full text-[13px]"><tbody>
                     {data.cities.map((c) => (
                       <tr key={`${c.city}|${c.region}`} className="border-t border-slate-100 first:border-0">
                         <td className="py-1.5 font-medium">{c.city}{c.region ? <span className="text-slate-400"> · {c.region}</span> : null}</td>
-                        <td className="py-1.5 text-right tabular-nums">{numberFmt(c.downloads)} downloads</td>
+                        <td className="py-1.5 text-right tabular-nums">{numberFmt(c.downloads)} 1ªs aberturas</td>
                         <td className="py-1.5 text-right tabular-nums">{numberFmt(c.acessos)} acessos</td>
                       </tr>
                     ))}

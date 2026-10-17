@@ -275,7 +275,7 @@ def growth_funnel(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
 
     steps = [
         _step("acessos", "Acessos", n_acessos, None, n_acessos, "volume"),
-        _step("downloads", "Downloads", n_downloads, n_acessos, n_acessos, "volume"),
+        _step("downloads", "1ªs aberturas do app", n_downloads, n_acessos, n_acessos, "volume"),
         _step("cadastros", "Cadastros", n_cadastros, n_downloads, n_acessos, "volume"),
         _step("pet", "Cadastraram o pet", n_pet, n_cadastros, n_acessos, "cohort"),
         _step("feeding", "Configuraram a alimentação", n_feeding, n_pet, n_acessos, "cohort"),
@@ -372,7 +372,7 @@ def growth_funnel(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
             "mesmas pessoas; a taxa entre eles é indicativa.",
             "Da etapa 'Cadastraram o pet' em diante a taxa é exata: parte só de "
             "quem se cadastrou no período.",
-            "Downloads = 1ª abertura no aparelho (não é o número da App Store/Play).",
+            "1ª abertura = primeira vez que o app abre no aparelho. Pode contar a mais (reinstalação, rede móvel, testes do Google); o número oficial de instalações está no Play Console e no App Store Connect.",
         ] + ([
             "Acessos não têm localização: filtros de UF/cidade não os afetam."
         ] if (f.state or f.city) else []) + ([
