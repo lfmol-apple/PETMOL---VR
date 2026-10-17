@@ -132,6 +132,11 @@ def get_entry_by_platform(db: Session = Depends(get_db), f: AnalyticsFilters = D
     return entry_bi.entry_by_platform(db, f)
 
 
+@router.get("/permission-steps")
+def get_permission_steps(db: Session = Depends(get_db), f: AnalyticsFilters = Depends(_filters), _=_Auth):
+    return entry_bi.permission_steps(db, f)
+
+
 @router.get("/installs-quality")
 def get_installs_quality(db: Session = Depends(get_db), f: AnalyticsFilters = Depends(_filters), _=_Auth):
     return entry_bi.installs_quality(db, f)

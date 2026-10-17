@@ -204,6 +204,7 @@ function GrowthBody({ filter, onFocusTutors }: { filter: GlobalFilter; onFocusTu
       <SignupReconCard filter={filter} />
       <EntryByPlatformCard filter={filter} />
       <InstallsQualityCard filter={filter} />
+      <PermissionStepsCard filter={filter} />
       <FunnelCard data={data} />
       <StuckCards data={data} />
       <PlatformTable rows={data.platforms} />
@@ -459,6 +460,47 @@ function InstallsQualityCard({ filter }: { filter: GlobalFilter }) {
               </div>
             </div>
           ))}
+          <p className="mt-3 text-[11px] text-slate-400">{data.note}</p>
+        </>
+      )}
+    </Card>
+  );
+}
+
+type PermBlock = {
+  push_asked: number; push_results: { key: string; people: number }[]; push_registered_ok: number; push_registered_fail: number;
+  push_failures: { key: string; count: number }[]; location_asked: number; location_results: { key: string; people: number }[];
+};
+type PermSteps = { first_event_at: string | null; ios: PermBlock; android: PermBlock; note: string };
+
+/** Pedido de notificação e de localização, passo a passo, iPhone × Android. */
+function PermissionStepsCard({ filter }: { filter: GlobalFilter }) {
+  const { data, error, loading } = useAsync<PermSteps>(
+    () => adminGet('/permission-steps', { period_days: filter.period_days, since: filter.since, until: filter.until }),
+    [filter.period_days, filter.since, filter.until],
+  );
+  const results = (rows: { key: string; people: number }[]) => rows.length === 0 ? '—' : rows.map((r) => `${r.key}: ${numberFmt(r.people)}`).join(' · ');
+  return (
+    <Card title="Permissões passo a passo: iPhone × Android"
+      subtitle="Notificação: perguntado → resposta → registrado. Localização: perguntado → salvo / negou / estourou o tempo. Só mede a partir da versão nova.">
+      {loading && !data ? <Loading /> : error || !data ? <ErrorBox msg={error} /> : (
+        <>
+          {!data.first_event_at && <p className="mb-2 text-[12px] text-amber-700">Ainda sem eventos: aparecem depois que o app novo for usado.</p>}
+          <table className="w-full text-left text-[12px]">
+            <thead><tr className="text-slate-400"><th className="py-1 pr-3">Passo</th><th className="py-1 pr-3">iPhone</th><th className="py-1">Android</th></tr></thead>
+            <tbody>
+              <tr className="border-t border-slate-100"><td className="py-1 pr-3 font-semibold">Notificação: perguntaram</td><td className="py-1 pr-3">{numberFmt(data.ios.push_asked)}</td><td className="py-1">{numberFmt(data.android.push_asked)}</td></tr>
+              <tr className="border-t border-slate-100"><td className="py-1 pr-3 font-semibold">Notificação: resposta</td><td className="py-1 pr-3">{results(data.ios.push_results)}</td><td className="py-1">{results(data.android.push_results)}</td></tr>
+              <tr className="border-t border-slate-100"><td className="py-1 pr-3 font-semibold">Notificação: registrou</td><td className="py-1 pr-3">{numberFmt(data.ios.push_registered_ok)} ok · {numberFmt(data.ios.push_registered_fail)} falhou</td><td className="py-1">{numberFmt(data.android.push_registered_ok)} ok · {numberFmt(data.android.push_registered_fail)} falhou</td></tr>
+              <tr className="border-t border-slate-100"><td className="py-1 pr-3 font-semibold">Localização: perguntaram</td><td className="py-1 pr-3">{numberFmt(data.ios.location_asked)}</td><td className="py-1">{numberFmt(data.android.location_asked)}</td></tr>
+              <tr className="border-t border-slate-100"><td className="py-1 pr-3 font-semibold">Localização: resultado</td><td className="py-1 pr-3">{results(data.ios.location_results)}</td><td className="py-1">{results(data.android.location_results)}</td></tr>
+            </tbody>
+          </table>
+          {(data.android.push_failures.length > 0 || data.ios.push_failures.length > 0) && (
+            <p className="mt-2 text-[11px] text-slate-500">
+              Motivos de falha no registro: {[...data.ios.push_failures.map((f) => `iPhone ${f.key} (${f.count})`), ...data.android.push_failures.map((f) => `Android ${f.key} (${f.count})`)].join(' · ')}
+            </p>
+          )}
           <p className="mt-3 text-[11px] text-slate-400">{data.note}</p>
         </>
       )}
