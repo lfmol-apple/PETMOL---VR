@@ -123,6 +123,11 @@ _PII_KEYS = {
 }
 
 _SAFE_EVENT_NAMES = {
+    "perm_push_asked",
+    "perm_push_result",
+    "perm_push_registered",
+    "perm_location_asked",
+    "perm_location_result",
     "app_open",
     "session_start",
     "screen_view",

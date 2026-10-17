@@ -966,7 +966,7 @@ async def native_diag(request: Request):
         body = {}
     entry = {
         "at": datetime.now(timezone.utc).isoformat(),
-        "ip": (request.client.host if request.client else None),
+        # IP deliberadamente NÃO guardado (dado pessoal); o user-agent basta para o diagnóstico.
         "ua": request.headers.get("user-agent", "")[:200],
         "data": body if isinstance(body, dict) else {"raw": str(body)[:500]},
     }
@@ -976,8 +976,25 @@ async def native_diag(request: Request):
     return {"ok": True}
 
 
+def _native_diag_guard(request: Request):
+    """Só administrador (login ou chave de leitura) lê o diagnóstico — antes era público. Imports tardios
+    para não criar ciclo com o pacote admin."""
+    from ..admin.deps import get_current_admin_or_readonly_key
+    from ..user_auth.router import COOKIE_NAME
+    db = SessionLocal()
+    try:
+        return get_current_admin_or_readonly_key(
+            db=db,
+            authorization=request.headers.get("authorization"),
+            cookie_token=request.cookies.get(COOKIE_NAME),
+            x_admin_api_key=request.headers.get("x-admin-api-key"),
+        )
+    finally:
+        db.close()
+
+
 @router.get("/native-diag")
-def native_diag_dump():
+def native_diag_dump(_admin=Depends(_native_diag_guard)):
     return {"count": len(_NATIVE_DIAG), "entries": _NATIVE_DIAG[-40:]}
 
 

@@ -12,6 +12,7 @@
 import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor/core';
 import { showAppToast } from '@/features/interactions/userPromptChannel';
 import { markDeepLinkIntent, savePendingDeepLink } from '@/lib/deepLinkIntent';
+import { trackProductEvent } from '@/lib/analytics';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
 
@@ -151,18 +152,23 @@ export async function requestNativePushPermission(): Promise<NativePushPermissio
     setDiag('plugin PushNotifications não está no app (build sem a capability?)');
     return 'denied';
   }
+  const t0 = Date.now();
+  trackProductEvent('perm_push_asked', {});
   try {
     reportDiag('requestNativePushPermission: vai chamar checkPermissions');
     let status = await withTimeout(PushNotifications.checkPermissions(), 6000, 'checkPermissions');
     reportDiag('requestNativePushPermission: checkPermissions=' + status.receive);
+    const before = status.receive;
     if (status.receive === 'prompt' || status.receive === 'prompt-with-rationale') {
       reportDiag('requestNativePushPermission: vai chamar requestPermissions (deve abrir o prompt do iOS)');
       status = await withTimeout(PushNotifications.requestPermissions(), 90000, 'requestPermissions');
     }
     setDiag(`permissão nativa: ${status.receive}`);
+    trackProductEvent('perm_push_result', { result: normalize(status.receive), before: normalize(before), elapsed_ms: Date.now() - t0 });
     return normalize(status.receive);
   } catch (e) {
     setDiag(`requestPermissions: ${(e as Error)?.message ?? String(e)}`);
+    trackProductEvent('perm_push_result', { result: 'error', elapsed_ms: Date.now() - t0 });
     return 'denied';
   }
 }
@@ -217,10 +223,12 @@ async function _registerNativePushOnce(authToken: string): Promise<boolean> {
 
     return await new Promise<boolean>((resolve) => {
       let settled = false;
+      const regStart = Date.now();
       const finish = (value: boolean, why: string) => {
         if (settled) return;
         settled = true;
         setDiag(why);
+        trackProductEvent('perm_push_registered', { ok: value, why: why.slice(0, 80), elapsed_ms: Date.now() - regStart });
         resolve(value);
       };
 
@@ -241,9 +249,10 @@ async function _registerNativePushOnce(authToken: string): Promise<boolean> {
 
       void PushNotifications.register();
 
+      // 25 s (antes 15 s): a 1ª obtenção do token no Android (FCM) pode demorar em aparelho lento/rede ruim.
       setTimeout(
-        () => finish(false, 'APNs não respondeu em 15s (sem registration nem registrationError)'),
-        15_000,
+        () => finish(false, 'push não respondeu em 25s (sem registration nem registrationError)'),
+        25_000,
       );
     });
   } catch (e) {

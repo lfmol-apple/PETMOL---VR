@@ -142,3 +142,37 @@ def test_installs_quality_por_plataforma_normaliza_pais(client):
     # "República Federativa do Brasil" conta como Brasil: não aparece em 'fora do Brasil'
     assert not any("Federativa" in x["key"] for x in a["outside_top"])
     assert "web" in plats
+
+
+def test_native_diag_so_para_admin_e_sem_ip(client):
+    # sem login: recusa
+    r = client.get("/notifications/native-diag")
+    assert r.status_code in (401, 403)
+    # grava uma entrada: o IP não deve ser guardado
+    client.post("/notifications/native-diag", json={"step": "teste", "platform": "android"})
+    headers = _admin_headers()
+    r = client.get("/notifications/native-diag", headers=headers)
+    assert r.status_code == 200, r.text
+    entries = r.json()["entries"]
+    assert entries and all("ip" not in e for e in entries)
+
+
+def test_permission_steps_separa_ios_e_android(client):
+    headers = _admin_headers()
+    db = SessionLocal()
+    try:
+        _ev(db, "perm_location_asked", "pa1", platform="android_capacitor")
+        _ev(db, "perm_location_result", "pa1", platform="android_capacitor", props={"result": "timeout"})
+        _ev(db, "perm_location_asked", "pi1", platform="ios_capacitor")
+        _ev(db, "perm_location_result", "pi1", platform="ios_capacitor", props={"result": "saved"})
+        _ev(db, "perm_push_registered", "pa1", platform="android_capacitor", props={"ok": False, "why": "push não respondeu em 25s"})
+        db.commit()
+    finally:
+        db.close()
+    r = client.get("/v1/admin/analytics/permission-steps?period_days=2", headers=headers)
+    assert r.status_code == 200, r.text
+    b = r.json()
+    assert b["android"]["location_asked"] >= 1 and b["ios"]["location_asked"] >= 1
+    assert any(x["key"] == "timeout" for x in b["android"]["location_results"])
+    assert any(x["key"] == "saved" for x in b["ios"]["location_results"])
+    assert b["android"]["push_registered_fail"] >= 1

@@ -279,3 +279,79 @@ def installs_quality(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
         "note": ("repetidas = aberturas cujo aparelho/navegador (user-agent) já abriu na mesma plataforma nas 24 h "
                  "anteriores. Fora do Brasil costuma ser robô/centro de dados (Google, Meta, Amazon), não pessoa."),
     }
+
+
+_PERM_EVENTS = ("perm_push_asked", "perm_push_result", "perm_push_registered",
+                "perm_location_asked", "perm_location_result")
+
+
+def permission_steps(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
+    """Pedidos de notificação e localização, PASSO A PASSO e por plataforma: perguntado → permitido →
+    obtido/registrado → salvo, e o motivo de cada falha. Mostra em que passo o Android perde em relação ao iPhone.
+    Só existe a partir da versão que passou a medir (eventos perm_*)."""
+    from datetime import timedelta
+    from .growth_bi import _platform_of_event
+
+    since = f.since or (_utcnow() - timedelta(days=30))
+    q = db.query(AnalyticsProductEvent.event_name, AnalyticsProductEvent.platform, AnalyticsProductEvent.user_id,
+                 AnalyticsProductEvent.anonymous_id, AnalyticsProductEvent.properties_json,
+                 AnalyticsProductEvent.received_at).filter(
+        AnalyticsProductEvent.event_name.in_(_PERM_EVENTS), AnalyticsProductEvent.received_at >= since)
+    if f.until:
+        q = q.filter(AnalyticsProductEvent.received_at <= f.until)
+
+    people: dict[str, dict[str, set[str]]] = {}
+    results: dict[str, dict[str, dict[str, int]]] = {}
+    first_seen = None
+    for name, plat, uid, anon, props, at in q.all():
+        group = _platform_of_event(plat)
+        if group not in ("ios", "android"):
+            continue
+        who = uid or anon
+        if not who:
+            continue
+        try:
+            p = json.loads(props) if props else {}
+        except (TypeError, ValueError):
+            p = {}
+        if name in ("perm_push_asked", "perm_location_asked"):
+            key = name
+        elif name == "perm_push_registered":
+            key = "perm_push_registered:" + ("ok" if p.get("ok") else "falhou")
+        else:
+            key = f"{name}:{p.get('result', '?')}"
+        people.setdefault(group, {}).setdefault(key, set()).add(who)
+        if name == "perm_push_registered" and not p.get("ok"):
+            why = str(p.get("why") or "?")[:60]
+            results.setdefault(group, {}).setdefault("push_falhas", {}).setdefault(why, 0)
+            results[group]["push_falhas"][why] += 1
+        if at is not None and (first_seen is None or at < first_seen):
+            first_seen = at
+
+    def count(group: str, key: str) -> int:
+        return len(people.get(group, {}).get(key, set()))
+
+    def block(group: str) -> dict[str, Any]:
+        loc_keys = sorted({k for k in people.get(group, {}) if k.startswith("perm_location_result:")})
+        push_keys = sorted({k for k in people.get(group, {}) if k.startswith("perm_push_result:")})
+        return {
+            "push_asked": count(group, "perm_push_asked"),
+            "push_results": [{"key": k.split(":", 1)[1], "people": count(group, k)} for k in push_keys],
+            "push_registered_ok": count(group, "perm_push_registered:ok"),
+            "push_registered_fail": count(group, "perm_push_registered:falhou"),
+            "push_failures": [{"key": k, "count": v} for k, v in sorted(
+                results.get(group, {}).get("push_falhas", {}).items(), key=lambda kv: -kv[1])[:5]],
+            "location_asked": count(group, "perm_location_asked"),
+            "location_results": [{"key": k.split(":", 1)[1], "people": count(group, k)} for k in loc_keys],
+        }
+
+    return {
+        "generated_at": _utcnow().isoformat(),
+        "since": since.isoformat(),
+        "first_event_at": first_seen.isoformat() if first_seen else None,
+        "ios": block("ios"),
+        "android": block("android"),
+        "note": ("Pessoas distintas por passo. Só conta a partir da versão que passou a medir; nos primeiros dias o "
+                 "volume é pequeno. location 'saved' = posição obtida E gravada; 'timeout' = estourou o tempo; "
+                 "'denied' = a pessoa recusou."),
+    }
