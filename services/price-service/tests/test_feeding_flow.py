@@ -165,3 +165,49 @@ def test_feeding_item_product_id_is_never_accepted_directly_from_client(client):
     plan = client.get(f"/health/pets/{pet_id}/feeding/plan", headers=headers)
     items = plan.json()["plan"]["items"]
     assert items[0]["product_id"] is None
+
+
+def test_restock_and_brand_switch_archive_cycles_in_history(client):
+    from src.health.models import FeedingHistory
+
+    token, pet_id = _signup_login_and_pet(client, "cid-feed-hist", "tutor.racaohist@example.com")
+    headers = _headers("cid-feed-hist", token)
+    started = (date.today() - timedelta(days=30)).isoformat()
+
+    base = {"package_size_kg": 15, "daily_amount_g": 300, "last_refill_date": started}
+    assert client.post(
+        f"/health/pets/{pet_id}/feeding/plan", json={"food_brand": "Golden Fórmula", **base}, headers=headers
+    ).status_code in (200, 201)
+
+    restock = client.post(
+        f"/health/pets/{pet_id}/feeding/plan/restock", json={"purchase_channel": "cobasi"}, headers=headers
+    )
+    assert restock.status_code == 200, restock.text
+
+    # Trocar de marca encerra o ciclo atual como "switched".
+    assert client.post(
+        f"/health/pets/{pet_id}/feeding/plan",
+        json={"food_brand": "Premier Pet", "package_size_kg": 10, "daily_amount_g": 200,
+              "last_refill_date": date.today().isoformat()},
+        headers=headers,
+    ).status_code in (200, 201)
+
+    # Reeditar sem trocar a marca não gera linha nova.
+    assert client.post(
+        f"/health/pets/{pet_id}/feeding/plan",
+        json={"food_brand": "premier pet", "package_size_kg": 10, "daily_amount_g": 250,
+              "last_refill_date": date.today().isoformat()},
+        headers=headers,
+    ).status_code in (200, 201)
+
+    db = SessionLocal()
+    try:
+        rows = db.query(FeedingHistory).filter(FeedingHistory.pet_id == pet_id).order_by(FeedingHistory.created_at).all()
+        assert [(r.food_brand, r.reason) for r in rows] == [
+            ("Golden Fórmula", "restock"),
+            ("Golden Fórmula", "switched"),
+        ]
+        assert rows[0].observed_days == 30
+        assert rows[0].purchase_channel == "cobasi"
+    finally:
+        db.close()

@@ -49,6 +49,8 @@ type EventName =
   | 'food_buy_clicked'
   | 'food_partner_selected'
   | 'food_purchase_confirmed'
+  | 'food_repurchase_switched'
+  | 'food_repurchase_not_yet'
   | 'food_still_has_food'
   | 'food_finished_early'
   | 'food_remind_earlier'
