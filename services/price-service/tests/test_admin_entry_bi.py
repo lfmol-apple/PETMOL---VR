@@ -117,22 +117,28 @@ def test_entry_by_platform_separa_ios_e_android(client):
     assert n("android", "signup_started") >= 1 and n("ios", "signup_started") == 0
 
 
-def test_installs_quality_conta_repetidas_e_fora_do_brasil(client):
+def test_installs_quality_por_plataforma_normaliza_pais(client):
     from src.analytics.install_models import AppInstall
     headers = _admin_headers()
     db = SessionLocal()
     try:
         ua = "Mozilla/5.0 (Linux; Android 14; Pixel 7) PetmolApp"
-        for i in range(2):  # mesmo aparelho/navegador duas vezes em minutos
-            db.add(AppInstall(platform="android", user_agent=ua, country="Brazil", city="SP",
+        for i in range(2):  # mesmo aparelho duas vezes em minutos
+            db.add(AppInstall(platform="android", user_agent=ua, country="República Federativa do Brasil", city="SP",
                               created_at=NOW - timedelta(minutes=10 - i)))
-        db.add(AppInstall(platform="android", user_agent="Mozilla/5.0 (Linux; Android 13; SM-A15)", country="United States",
+        db.add(AppInstall(platform="android", user_agent="Mozilla/5.0 (Linux; Android 13; SM-A15)", country="EUA",
                           city="Mountain View", created_at=NOW - timedelta(minutes=5)))
+        db.add(AppInstall(platform="web", user_agent="Mozilla/5.0 (X11) Chrome", country="Brazil", city="RJ",
+                          created_at=NOW - timedelta(minutes=4)))
         db.commit()
     finally:
         db.close()
     r = client.get("/v1/admin/analytics/installs-quality?period_days=2", headers=headers)
     assert r.status_code == 200, r.text
-    b = r.json()
-    assert b["total"] >= 3 and b["same_ua_within_24h"] >= 1
-    assert any("Mountain View" in x["key"] for x in b["outside_brazil"])
+    plats = {p["platform"]: p for p in r.json()["platforms"]}
+    a = plats["android"]
+    assert a["total"] >= 3 and a["repeated"] >= 1
+    assert a["outside_brazil"] >= 1 and any("Mountain View" in x["key"] for x in a["outside_top"])
+    # "República Federativa do Brasil" conta como Brasil: não aparece em 'fora do Brasil'
+    assert not any("Federativa" in x["key"] for x in a["outside_top"])
+    assert "web" in plats

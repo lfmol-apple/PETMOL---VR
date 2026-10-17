@@ -213,9 +213,25 @@ def entry_by_platform(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
     return out
 
 
+_BR = {"brazil", "brasil", "br", "república federativa do brasil", "republica federativa do brasil"}
+_US = {"united states", "estados unidos", "eua", "us", "usa"}
+
+
+def _norm_country(raw: Optional[str]) -> str:
+    if not raw or not raw.strip():
+        return "sem país"
+    k = raw.strip().lower()
+    if k in _BR:
+        return "Brasil"
+    if k in _US:
+        return "Estados Unidos"
+    return raw.strip()
+
+
 def installs_quality(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
-    """Confere a contagem de "1ªs aberturas": de onde vêm, quantas parecem repetidas e quais dias/horas
-    concentram. Serve para comparar com o Play Console / App Store Connect e achar o que infla o número."""
+    """Confere a contagem de "1ªs aberturas" POR PLATAFORMA: quantas parecem repetidas (mesmo user-agent
+    nas 24 h anteriores), quantas vêm de fora do Brasil (centros de dados/robôs) e quais aparelhos mais
+    se repetem. Serve para comparar com o Play Console / App Store Connect e achar o que infla o número."""
     from datetime import timedelta
     from ...analytics.install_models import AppInstall
 
@@ -224,43 +240,42 @@ def installs_quality(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
                  AppInstall.created_at).filter(AppInstall.created_at >= since)
     if f.until:
         q = q.filter(AppInstall.created_at <= f.until)
-    if f.platform:
-        q = q.filter(AppInstall.platform == f.platform) if f.platform in ("ios", "android", "pwa", "web") else q
     rows = q.order_by(AppInstall.created_at.asc()).all()
 
-    by_platform: dict[str, int] = defaultdict(int)
-    by_country: dict[str, int] = defaultdict(int)
-    by_city_nonbr: dict[str, int] = defaultdict(int)
-    by_hour: dict[int, int] = defaultdict(int)
-    last_by_ua: dict[tuple[str, str], Any] = {}
-    repeated = 0
+    plats: dict[str, dict[str, Any]] = {}
     for plat, country, city, ua, at in rows:
-        by_platform[plat or "?"] += 1
-        by_country[(country or "sem país")] += 1
-        if country and country.lower() not in ("brazil", "brasil", "br"):
-            by_city_nonbr[f"{city or '?'} / {country}"] += 1
-        if at is not None:
-            by_hour[(at - timedelta(hours=3)).hour] += 1
-        key = (plat or "?", ua or "")
-        prev = last_by_ua.get(key)
-        if ua and prev is not None and at is not None and (at - prev) <= timedelta(hours=24):
-            repeated += 1
-        if at is not None:
-            last_by_ua[key] = at
+        p = plats.setdefault(plat or "?", {"total": 0, "repeated": 0, "outside": defaultdict(int), "ua": defaultdict(int),
+                                           "last": {}, "no_country": 0})
+        p["total"] += 1
+        c = _norm_country(country)
+        if c == "sem país":
+            p["no_country"] += 1
+        elif c != "Brasil":
+            p["outside"][f"{city or '?'} / {c}"] += 1
+        if ua:
+            p["ua"][ua[:110]] += 1
+            prev = p["last"].get(ua)
+            if prev is not None and at is not None and (at - prev) <= timedelta(hours=24):
+                p["repeated"] += 1
+            if at is not None:
+                p["last"][ua] = at
 
-    def top(d: dict, n: int = 8):
-        return [{"key": k, "count": v} for k, v in sorted(d.items(), key=lambda kv: -kv[1])[:n]]
+    def top(d: dict, n: int = 6, min_count: int = 1):
+        return [{"key": k, "count": v} for k, v in sorted(d.items(), key=lambda kv: -kv[1])[:n] if v >= min_count]
 
-    total = len(rows)
+    out = []
+    for plat in sorted(plats, key=lambda k: -plats[k]["total"]):
+        p = plats[plat]
+        outside_total = sum(p["outside"].values())
+        out.append({
+            "platform": plat, "total": p["total"], "repeated": p["repeated"],
+            "repeated_pct": round(p["repeated"] / p["total"], 4) if p["total"] else None,
+            "outside_brazil": outside_total, "no_country": p["no_country"],
+            "outside_top": top(p["outside"]), "top_user_agents": top(p["ua"], 5, 2),
+        })
     return {
         "generated_at": _utcnow().isoformat(),
-        "total": total,
-        "by_platform": top(by_platform),
-        "by_country": top(by_country),
-        "outside_brazil": top(by_city_nonbr),
-        "by_hour_sp": [{"hour": h, "count": by_hour.get(h, 0)} for h in range(24)],
-        "same_ua_within_24h": repeated,
-        "same_ua_pct": round(repeated / total, 4) if total else None,
-        "note": ("same_ua_within_24h = aberturas cujo aparelho/navegador (user-agent) já abriu na mesma plataforma "
-                 "nas 24 h anteriores: indício de a mesma pessoa contada mais de uma vez (ou de aparelhos iguais)."),
+        "platforms": out,
+        "note": ("repetidas = aberturas cujo aparelho/navegador (user-agent) já abriu na mesma plataforma nas 24 h "
+                 "anteriores. Fora do Brasil costuma ser robô/centro de dados (Google, Meta, Amazon), não pessoa."),
     }

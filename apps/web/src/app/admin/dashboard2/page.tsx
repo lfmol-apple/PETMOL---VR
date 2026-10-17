@@ -402,42 +402,64 @@ function EntryByPlatformCard({ filter }: { filter: GlobalFilter }) {
   );
 }
 
-type InstallsQuality = {
-  total: number; by_platform: { key: string; count: number }[]; by_country: { key: string; count: number }[];
-  outside_brazil: { key: string; count: number }[]; same_ua_within_24h: number; same_ua_pct: number | null; note: string;
+type InstallsQualityRow = {
+  platform: string; total: number; repeated: number; repeated_pct: number | null; outside_brazil: number; no_country: number;
+  outside_top: { key: string; count: number }[]; top_user_agents: { key: string; count: number }[];
 };
+type InstallsQuality = { platforms: InstallsQualityRow[]; note: string };
 
-/** Qualidade da contagem de "1ªs aberturas": de onde vêm e quantas parecem repetidas. Compare com o Play Console / App Store Connect. */
+/** Qualidade da contagem de "1ªs aberturas" POR plataforma: repetidas e de fora do Brasil. Compare com o Play Console / App Store Connect. */
 function InstallsQualityCard({ filter }: { filter: GlobalFilter }) {
   const { data, error, loading } = useAsync<InstallsQuality>(
     () => adminGet('/installs-quality', { period_days: filter.period_days, since: filter.since, until: filter.until }),
     [filter.period_days, filter.since, filter.until],
   );
-  const list = (title: string, rows: { key: string; count: number }[]) => (
-    <div className="min-w-[200px] flex-1">
-      <p className="mb-1 text-[12px] font-bold text-slate-700">{title}</p>
-      {rows.length === 0 ? <p className="text-[12px] text-slate-400">Nenhum.</p> : (
-        <ul className="space-y-0.5 text-[12px]">
-          {rows.map((r) => <li key={r.key} className="flex justify-between gap-3"><span>{r.key}</span><span className="font-semibold">{numberFmt(r.count)}</span></li>)}
-        </ul>
-      )}
-    </div>
-  );
+  const label = (p: string) => (p === 'android' ? 'Android (app)' : p === 'ios' ? 'iPhone (app)' : p === 'web' ? 'Navegador' : p === 'pwa' ? 'App instalado (PWA)' : p);
   return (
     <Card title="Qualidade das 1ªs aberturas"
-      subtitle="Confira a contagem contra o Play Console e o App Store Connect. Aberturas repetidas ou fora do Brasil inflam o número.">
+      subtitle="Por plataforma. Compare com o Play Console e o App Store Connect: repetidas e fora do Brasil inflam o número. O navegador não entra no funil do app.">
       {loading && !data ? <Loading /> : error || !data ? <ErrorBox msg={error} /> : (
         <>
-          <p className="text-[14px] font-extrabold text-slate-800">
-            {numberFmt(data.total)} 1ªs aberturas · {numberFmt(data.same_ua_within_24h)} parecem repetidas
-            {data.same_ua_pct != null ? ` (${Math.round(data.same_ua_pct * 100)}%)` : ''}
-          </p>
-          <p className="mb-3 text-[11px] text-slate-400">{data.note}</p>
-          <div className="flex flex-wrap gap-6">
-            {list('Por plataforma', data.by_platform)}
-            {list('Por país', data.by_country)}
-            {list('Fora do Brasil (cidade / país)', data.outside_brazil)}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[12px]">
+              <thead><tr className="text-slate-400">
+                <th className="py-1 pr-3"></th><th className="py-1 pr-3">Aberturas</th><th className="py-1 pr-3">Repetidas (24 h)</th>
+                <th className="py-1 pr-3">Fora do Brasil</th><th className="py-1">Sem país</th>
+              </tr></thead>
+              <tbody>
+                {data.platforms.map((r) => (
+                  <tr key={r.platform} className="border-t border-slate-100">
+                    <td className="py-1 pr-3 font-semibold">{label(r.platform)}</td>
+                    <td className="py-1 pr-3">{numberFmt(r.total)}</td>
+                    <td className="py-1 pr-3">{numberFmt(r.repeated)}{r.repeated_pct != null ? ` (${Math.round(r.repeated_pct * 100)}%)` : ''}</td>
+                    <td className="py-1 pr-3">{numberFmt(r.outside_brazil)}</td>
+                    <td className="py-1">{numberFmt(r.no_country)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+          {data.platforms.filter((r) => r.platform === 'android' || r.platform === 'ios').map((r) => (
+            <div key={r.platform} className="mt-4 flex flex-wrap gap-6">
+              <div className="min-w-[220px] flex-1">
+                <p className="mb-1 text-[12px] font-bold text-slate-700">{label(r.platform)}: fora do Brasil</p>
+                {r.outside_top.length === 0 ? <p className="text-[12px] text-slate-400">Nenhum.</p> : (
+                  <ul className="space-y-0.5 text-[12px]">
+                    {r.outside_top.map((x) => <li key={x.key} className="flex justify-between gap-3"><span>{x.key}</span><span className="font-semibold">{numberFmt(x.count)}</span></li>)}
+                  </ul>
+                )}
+              </div>
+              <div className="min-w-[220px] flex-1">
+                <p className="mb-1 text-[12px] font-bold text-slate-700">{label(r.platform)}: aparelhos que mais se repetem</p>
+                {r.top_user_agents.length === 0 ? <p className="text-[12px] text-slate-400">Nenhum repetido.</p> : (
+                  <ul className="space-y-0.5 text-[11px] text-slate-600">
+                    {r.top_user_agents.map((x) => <li key={x.key} className="flex justify-between gap-3"><span className="truncate">{x.key}</span><span className="font-semibold">{numberFmt(x.count)}</span></li>)}
+                  </ul>
+                )}
+              </div>
+            </div>
+          ))}
+          <p className="mt-3 text-[11px] text-slate-400">{data.note}</p>
         </>
       )}
     </Card>
