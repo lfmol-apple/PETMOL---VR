@@ -253,6 +253,8 @@ from .user_auth.users_router import router as users_router
 app.include_router(users_router)
 
 app.include_router(pets_router)
+from .admin.email_pet_photo import router as email_pet_photo_router
+app.include_router(email_pet_photo_router)
 app.include_router(product_lookup_router)
 app.include_router(product_lookup_router, prefix="/api")
 app.include_router(gtin_router)
