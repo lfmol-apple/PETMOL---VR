@@ -1089,6 +1089,7 @@ async def get_feeding_plan(
 @router.delete("/pets/{pet_id}/feeding/plan", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_feeding_plan(
     pet_id: str,
+    reason: Literal["deleted", "switched"] = "deleted",
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -1104,7 +1105,7 @@ async def delete_feeding_plan(
     # O histórico é "melhor esforço": se falhar, o tutor ainda consegue excluir.
     try:
         with db.begin_nested():
-            _archive_feeding_cycle(db, plan, ended_on=date.today(), reason="deleted")
+            _archive_feeding_cycle(db, plan, ended_on=date.today(), reason=reason)
             _mark_repurchase_resolved(db, pet_id)
     except Exception:
         logger.exception("[feeding] falha ao registrar histórico na exclusão (pet=%s)", pet_id)
