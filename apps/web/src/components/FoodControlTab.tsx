@@ -899,16 +899,21 @@ export function FoodControlTab({
     showForm,
   ]);
 
+  // Depende só de id/mode — o pai pode passar um objeto novo a cada render
+  // (ex.: `{ id: 1, mode: 'quick_setup' }` inline) e isso zerava a escolha
+  // "Por peso" de volta para 30 dias a cada re-render.
+  const formRequestId = formRequest?.id;
+  const formRequestMode = formRequest?.mode;
   useEffect(() => {
-    if (!formRequest) return;
+    if (formRequestId == null || !formRequestMode) return;
     setApiError(null);
     setDeleteFeedback(null);
     setSavedOk(false);
-    setShowAdvanced(formRequest.mode === 'edit');
-    if (formRequest.mode === 'add') {
+    setShowAdvanced(formRequestMode === 'edit');
+    if (formRequestMode === 'add') {
       setItems((current) => ensurePrimaryItem([...current, createEmptyFoodItem(false)]));
     }
-    if (formRequest.mode === 'quick_setup') {
+    if (formRequestMode === 'quick_setup') {
       setMethodChosen(true);
       setItems((current) => {
         const primary = getPrimaryItem(current);
@@ -924,9 +929,9 @@ export function FoodControlTab({
         ]);
       });
     }
-    setFormMode(formRequest.mode);
+    setFormMode(formRequestMode);
     setFormOpen(true);
-  }, [formRequest]);
+  }, [formRequestId, formRequestMode]);
 
   return (
     <div className="overflow-x-hidden p-2.5 space-y-2 pb-4 sm:p-3 sm:pb-6">
