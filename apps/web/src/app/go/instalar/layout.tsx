@@ -10,7 +10,8 @@ import type { ReactNode } from 'react';
  */
 const TITLE = 'Baixe o Petmol — grátis e sem anúncios';
 const DESCRIPTION = 'Vacinas, ração, lembretes e alerta de pet perdido no mesmo app. Toque para baixar: iPhone e Android.';
-const IMAGE = '/og/petmol-instalar.jpg';
+// v2 (17/10/2026): Home nova. O WhatsApp guarda a imagem por endereço; trocar o nome força a atualização do cartão.
+const IMAGE = '/og/petmol-instalar-v2.jpg';
 
 export const metadata: Metadata = {
   title: TITLE,

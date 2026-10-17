@@ -6,7 +6,7 @@ describe('/go/instalar — cartão de pré-visualização do link (WhatsApp)', (
     const og = metadata.openGraph as { title?: string; description?: string; images?: { url: string; width: number; height: number }[] };
     expect(og.title).toContain('Petmol');
     expect(og.description).toMatch(/iPhone e Android/);
-    expect(og.images?.[0]).toMatchObject({ url: '/og/petmol-instalar.jpg', width: 1200, height: 630 });
+    expect(og.images?.[0]).toMatchObject({ url: '/og/petmol-instalar-v2.jpg', width: 1200, height: 630 });
   });
 
   it('usa o cartão grande no Twitter/X e não indexa a página de passagem', () => {
