@@ -1,7 +1,7 @@
 'use client';
 
 import { useBackHandler } from '@/lib/backStack';
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { BrowserCodeReader, BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import { ChevronLeft, X } from 'lucide-react';
@@ -36,6 +36,8 @@ import { searchAwinCatalog, type AwinSearchResult } from '@/features/commerce/pr
 
 type Step =
   | 'entry'
+  | 'camera-intro'
+  | 'camera-blocked'
   | 'scanning'
   | 'resolving'
   | 'not-found'
@@ -77,6 +79,8 @@ const CATEGORY_HINT: Record<ProductCategory, string> = {
 
 const STEP_TITLE: Record<Step, string> = {
   entry: 'Adicionar produto',
+  'camera-intro': 'Escanear código',
+  'camera-blocked': 'Câmera bloqueada',
   scanning: 'Escanear código',
   resolving: 'Identificando...',
   'not-found': 'Produto não encontrado',
@@ -449,6 +453,54 @@ function validateProductPhotoFile(file: File): string | null {
   return null;
 }
 
+const CAMERA_FLAG_KEY = 'petmol_camera_state_v1'; // 'granted' | 'denied' (iOS não deixa consultar a permissão)
+
+function readCameraFlag(): 'granted' | 'denied' | null {
+  try {
+    const v = window.localStorage.getItem(CAMERA_FLAG_KEY);
+    return v === 'granted' || v === 'denied' ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCameraFlag(v: 'granted' | 'denied' | null) {
+  try {
+    if (v) window.localStorage.setItem(CAMERA_FLAG_KEY, v);
+    else window.localStorage.removeItem(CAMERA_FLAG_KEY);
+  } catch { /* sem storage: segue sem lembrar */ }
+}
+
+type DevicePlatform = 'ios' | 'android' | 'other';
+
+function detectPlatform(): DevicePlatform {
+  if (typeof navigator === 'undefined') return 'other';
+  const ua = navigator.userAgent || '';
+  if (/iPhone|iPad|iPod/i.test(ua)) return 'ios';
+  if (/Android/i.test(ua)) return 'android';
+  return 'other';
+}
+
+/** Estado da permissão sem abrir a câmera: 'granted' | 'denied' | 'prompt' | 'unknown'. */
+async function queryCameraPermission(): Promise<'granted' | 'denied' | 'prompt' | 'unknown'> {
+  try {
+    const status = await navigator.permissions?.query({ name: 'camera' as PermissionName });
+    if (status && (status.state === 'granted' || status.state === 'denied' || status.state === 'prompt')) return status.state;
+  } catch { /* WebView/iOS sem suporte */ }
+  const flag = readCameraFlag();
+  return flag ?? 'unknown';
+}
+
+function cameraSettingsSteps(platform: DevicePlatform): string[] {
+  if (platform === 'ios') {
+    return ['Abra os Ajustes do iPhone', 'Toque em PETMOL', 'Ative a opção Câmera', 'Volte ao PETMOL e toque em "Já liberei"'];
+  }
+  if (platform === 'android') {
+    return ['Abra as Configurações do celular', 'Apps › PETMOL › Permissões', 'Toque em Câmera › Permitir', 'Volte ao PETMOL e toque em "Já liberei"'];
+  }
+  return ['Toque no cadeado ao lado do endereço do site', 'Permita o acesso à Câmera', 'Volte aqui e toque em "Já liberei"'];
+}
+
 function resolveScannerErrorCode(error: unknown): string {
   if (error && typeof error === 'object' && 'name' in error && typeof (error as { name?: unknown }).name === 'string') {
     const name = (error as { name: string }).name;
@@ -678,13 +730,14 @@ export function ProductDetectionSheetGold({
   const rejectedBarcodesRef = useRef<Set<string>>(new Set());
 
   const initialStep: Step = defaultMode === 'scan'
-    ? 'scanning'
+    ? 'camera-intro'
     : defaultMode === 'manual'
       ? 'manual'
       : defaultMode === 'photo'
         ? 'photo-capture'
         : 'entry';
   const [step, setStep] = useState<Step>(initialStep);
+  const platform = useMemo(() => detectPlatform(), []);
   const [confirmed, setConfirmed] = useState<ScannedProduct | null>(null);
   const [isEditingProduct, setIsEditingProduct] = useState(false);
   const [editName, setEditName] = useState('');
@@ -1559,6 +1612,7 @@ export function ProductDetectionSheetGold({
 
       const video = await waitForVideoElement();
       const stream = await openRearCameraStream();
+      writeCameraFlag('granted');
       console.info('[ProductScanner] streamOpened', {
         tracks: stream.getVideoTracks().map(track => ({
           label: track.label,
@@ -1611,19 +1665,52 @@ export function ProductDetectionSheetGold({
       scanHintTimerRef.current = setTimeout(() => setScanHintVisible(true), 8000);
     } catch (error) {
       await stopScanner();
-      setCameraFailed(true);
-      setScannerError(resolveScannerErrorCode(error));
-      setStep('photo-capture');
+      const code = resolveScannerErrorCode(error);
+      emitProductTelemetry('scanner_camera_error', { code, platform });
       scannerBootingRef.current = false;
+      if (code === 'permission_denied') {
+        writeCameraFlag('denied');
+        emitProductTelemetry('scanner_camera_blocked_shown', { platform, source: 'after_denied' });
+        setCameraFailed(true);
+        setScannerError(code);
+        setStep('camera-blocked');
+        return;
+      }
+      setCameraFailed(true);
+      setScannerError(code);
+      setStep('photo-capture');
     }
-  }, [handleDetectedBarcode, openRearCameraStream, stopScanner, waitForVideoElement, waitForVideoMetadata]);
+  }, [emitProductTelemetry, handleDetectedBarcode, openRearCameraStream, platform, stopScanner, waitForVideoElement, waitForVideoMetadata]);
 
   useEffect(() => {
     if (step !== 'scanning') return;
     void beginScanner();
   }, [beginScanner, step]);
 
-  const startScanner = () => {
+  // Antes de abrir a câmera: se já está liberada vai direto; se já está bloqueada
+  // mostra o passo a passo (sem esperar falhar); senão pede com uma tela nossa
+  // primeiro — o pedido do sistema só aparece depois que o tutor aceita aqui.
+  const [cameraGateChecking, setCameraGateChecking] = useState(defaultMode === 'scan');
+
+  const openCameraGate = useCallback(async () => {
+    setCameraGateChecking(true);
+    const state = await queryCameraPermission();
+    setCameraGateChecking(false);
+    if (state === 'granted') {
+      beginScanFlowRef.current();
+    } else if (state === 'denied') {
+      emitProductTelemetry('scanner_camera_blocked_shown', { platform, source: 'pre_check' });
+      setStep('camera-blocked');
+    } else {
+      setStep('camera-intro');
+    }
+  }, [emitProductTelemetry, platform]);
+
+  const beginScanFlowRef = useRef<() => void>(() => {});
+
+  const startScanner = () => { void openCameraGate(); };
+
+  const beginScanFlow = () => {
     setStep('scanning');
     setScanHintVisible(false);
     setScanSuccess(false);
@@ -1632,6 +1719,14 @@ export function ProductDetectionSheetGold({
     setDetectedBarcode('');
     cooldownRef.current = false;
   };
+  beginScanFlowRef.current = beginScanFlow;
+
+  // Abriu já no scanner (ração/parasitas/medicação): passa pelo mesmo portão.
+  useEffect(() => {
+    if (defaultMode === 'scan') void openCameraGate();
+    // só na abertura
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handlePhotoFile = async (file: File) => {
     resetPhotoAttempt();
@@ -2137,6 +2232,89 @@ export function ProductDetectionSheetGold({
           </div>
         </div>
       )}
+    </div>
+  );
+
+  const renderCameraIntro = () => (
+    <div className="space-y-5 p-5 pb-8">
+      <div className="pt-2 text-center">
+        <p className="mb-3 text-5xl">📷</p>
+        <h2 className="text-[19px] font-bold text-gray-900">Vamos ler o código de barras</h2>
+        <p className="mt-2 text-sm leading-snug text-gray-500">
+          Para escanear, o PETMOL usa a câmera do seu celular. A imagem não é gravada nem enviada — só lemos o código.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={() => {
+          emitProductTelemetry('scanner_camera_intro_allowed', { platform });
+          beginScanFlow();
+        }}
+        className="w-full rounded-2xl bg-[#0056D2] py-4 text-base font-bold text-white shadow-sm transition-all active:scale-95"
+      >
+        Permitir câmera e escanear
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          emitProductTelemetry('scanner_camera_intro_skipped', { platform });
+          setStep('entry');
+        }}
+        className="w-full rounded-2xl border border-gray-200 bg-white py-3.5 text-[14px] font-bold text-gray-700 transition-all active:scale-95"
+      >
+        Prefiro digitar o nome ou usar uma foto
+      </button>
+    </div>
+  );
+
+  const renderCameraBlocked = () => (
+    <div className="space-y-4 p-5 pb-8">
+      <div className="pt-2 text-center">
+        <p className="mb-2 text-4xl">🔒</p>
+        <h2 className="text-[19px] font-bold text-gray-900">A câmera está bloqueada</h2>
+        <p className="mt-1 text-sm text-gray-500">Sem problema — você escolhe o jeito mais fácil:</p>
+      </div>
+
+      <button
+        type="button"
+        onClick={openGalleryPhotoPicker}
+        className="flex w-full items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-left transition-all active:scale-[0.98]"
+      >
+        <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-2xl">🖼️</span>
+        <span>
+          <span className="block text-[15px] font-bold text-emerald-900">Escolher foto da galeria</span>
+          <span className="block text-xs text-emerald-800/80">Uma foto da embalagem com o código de barras visível</span>
+        </span>
+      </button>
+      <button
+        type="button"
+        onClick={() => setStep('manual')}
+        className="flex w-full items-center gap-3 rounded-2xl border border-gray-200 bg-white p-4 text-left transition-all active:scale-[0.98]"
+      >
+        <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100 text-2xl">✏️</span>
+        <span>
+          <span className="block text-[15px] font-bold text-gray-900">Digitar o nome do produto</span>
+          <span className="block text-xs text-gray-500">A gente mostra as opções com foto</span>
+        </span>
+      </button>
+
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <p className="text-[13px] font-bold text-slate-800">Prefere liberar a câmera?</p>
+        <ol className="mt-2 list-decimal space-y-1 pl-5 text-[13px] leading-snug text-slate-600">
+          {cameraSettingsSteps(platform).map((line) => <li key={line}>{line}</li>)}
+        </ol>
+        <button
+          type="button"
+          onClick={() => {
+            writeCameraFlag(null);
+            emitProductTelemetry('scanner_camera_retry_after_blocked', { platform });
+            void openCameraGate().then(() => undefined);
+          }}
+          className="mt-3 w-full rounded-xl border border-blue-200 bg-blue-50 py-3 text-[14px] font-bold text-blue-900 transition-all active:scale-95"
+        >
+          Já liberei — tentar de novo
+        </button>
+      </div>
     </div>
   );
 
@@ -3042,6 +3220,8 @@ export function ProductDetectionSheetGold({
 
           <div className={immersiveMode ? 'h-full' : step === 'confirm' ? 'flex-1 flex flex-col overflow-hidden min-h-0' : 'flex-1 overflow-y-auto overscroll-contain'}>
             {step === 'entry' && renderEntry()}
+            {step === 'camera-intro' && !cameraGateChecking && renderCameraIntro()}
+            {step === 'camera-blocked' && renderCameraBlocked()}
             {step === 'scanning' && renderScanning()}
             {step === 'resolving' && renderResolving()}
             {step === 'photo-capture' && renderPhotoCapture()}
