@@ -15,7 +15,6 @@ import {
 import { PhotoLightboxProvider } from '@/components/admin/PhotoLightbox';
 import { FeedingSection } from '@/components/admin/sections/FeedingSection';
 import { JourneySection } from '@/components/admin/sections/JourneySection';
-import { LandingAbSection } from '@/components/admin/sections/LandingAbSection';
 import { LandingIntroSection } from '@/components/admin/sections/LandingIntroSection';
 import { LocationsSection } from '@/components/admin/sections/LocationsSection';
 import { DownloadsSection } from '@/components/admin/sections/DownloadsSection';
@@ -357,9 +356,6 @@ export default function AdminDashboardPage() {
 
           {tab === 'aquisicao' && (
             <div className="space-y-4">
-              <AccordionPanel id={SECTION_IDS.M} letter="M" title="Aquisição e Conversão — Landing A/B" subtitle="segue o período · visitas, cliques em baixar e conversão por versão" open={open.M} onToggle={() => toggle('M')}>
-                <LandingAbSection filter={filter} />
-              </AccordionPanel>
               <AccordionPanel id={SECTION_IDS.N} letter="N" title="Comercial na entrada (mobile)" subtitle="segue o período · pôster, assistiu, pulou, concluiu e downloads" open={open.N} onToggle={() => toggle('N')}>
                 <LandingIntroSection filter={filter} />
               </AccordionPanel>

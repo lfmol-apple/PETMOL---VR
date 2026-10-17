@@ -10,11 +10,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { PremiumScreenShell } from '@/components/premium';
 import { useAdmin } from '@/hooks/useAdmin';
-import { adminGet, type CampaignsResponse, type GlobalFilter } from '@/lib/admin/analyticsApi';
+import { adminGet, type GlobalFilter } from '@/lib/admin/analyticsApi';
 import { getToken } from '@/lib/auth-token';
 import {
   FAILURE_LABEL, PLATFORM_LABEL, pct,
-  type CampaignsPanelSummary, type CampaignState, type EntryResponse, type FoodCampaignResults, type ActivationItem, type CampaignActivationRow, type GrowthPlatformRow, type GrowthResponse, type GrowthSeriesPoint, type GrowthStep,
+  type CampaignsPanelSummary, type CampaignState, type EntryResponse, type FoodCampaignResults, type ActivationItem, type GrowthPlatformRow, type GrowthResponse, type GrowthSeriesPoint, type GrowthStep,
 } from '@/lib/admin/growthApi';
 import { useAsync, Loading, ErrorBox, numberFmt, RetentionSection, FeaturesSection } from '@/components/admin/sections/sections';
 import { FeedingSection } from '@/components/admin/sections/FeedingSection';
@@ -205,8 +205,6 @@ function GrowthBody({ filter, onFocusTutors }: { filter: GlobalFilter; onFocusTu
       <FunnelCard data={data} />
       <StuckCards data={data} />
       <PlatformTable rows={data.platforms} />
-      <CampaignActivationTable rows={data.campaigns_activation} />
-      <CampaignTable filter={filter} />
       <RetentionBlock filter={filter} onFocusTutors={onFocusTutors} />
       <PermissionsBlock />
       <FoodCampaignCard />
@@ -838,61 +836,6 @@ function PermissionsBlock() {
   );
 }
 
-const brl = (v: number | null | undefined) =>
-  v == null ? '—' : `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-function CampaignActivationTable({ rows }: { rows: CampaignActivationRow[] }) {
-  return (
-    <Card title="Meta por campanha de origem"
-      subtitle="Das pessoas que vieram de cada campanha, quantas chegaram a pet, ração, notificação e localização, e quanto custou cada tutor que completou a meta.">
-      <div className="overflow-x-auto">
-        <table className="w-full text-[13px]">
-          <thead>
-            <tr className="text-left text-[11px] uppercase tracking-wide text-slate-400">
-              <th className="py-1.5 pr-3">Origem</th>
-              <th className="px-2 text-right">Cadastros</th>
-              <th className="px-2 text-right">Pet</th>
-              <th className="px-2 text-right">Ração</th>
-              <th className="px-2 text-right">Notificação</th>
-              <th className="px-2 text-right">GPS</th>
-              <th className="px-2 text-right">Meta completa</th>
-              <th className="px-2 text-right">Gasto</th>
-              <th className="px-2 text-right">Custo por cadastro</th>
-              <th className="pl-2 text-right">Custo por tutor ativado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.name} className="border-t border-slate-100">
-                <td className="py-2 pr-3 font-semibold text-slate-700">{r.name}</td>
-                <td className="px-2 text-right">{numberFmt(r.cadastros)}</td>
-                {([r.pet, r.feeding, r.push, r.location] as const).map((n, i) => (
-                  <td key={i} className="px-2 text-right">
-                    {numberFmt(n)} <span className="text-slate-400">({pct(r.cadastros ? n / r.cadastros : null)})</span>
-                  </td>
-                ))}
-                <td className="px-2 text-right font-bold text-slate-800">
-                  {numberFmt(r.complete)} <span className="font-medium text-slate-400">({pct(r.cadastros ? r.complete / r.cadastros : null)})</span>
-                </td>
-                <td className="px-2 text-right">{brl(r.gasto_brl)}</td>
-                <td className="px-2 text-right">{brl(r.custo_por_cadastro)}</td>
-                <td className={`pl-2 text-right font-bold ${r.gasto_brl && !r.complete ? 'text-rose-600' : 'text-slate-800'}`}>
-                  {r.custo_por_ativado != null ? brl(r.custo_por_ativado) : r.gasto_brl ? 'nenhum ativado' : '—'}
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && <tr><td colSpan={10} className="py-6 text-center text-slate-400">Nenhum cadastro no período.</td></tr>}
-          </tbody>
-        </table>
-      </div>
-      <p className="mt-2 text-[11px] text-slate-500">
-        Gasto é o que você lança em Locais, no Mission Control; sem gasto lançado, sem custo. Em vermelho: dinheiro gasto sem nenhum tutor ativado.
-        {' '}&quot;(sem origem rastreada)&quot; = cadastro sem aparelho ligado a um acesso medido; &quot;(direto/orgânico)&quot; = sem campanha em nenhum toque.
-      </p>
-    </Card>
-  );
-}
-
 function RetentionBlock({ filter, onFocusTutors }: { filter: GlobalFilter; onFocusTutors: (g: TutorsPreset['goal']) => void }) {
   return (
     <PhotoLightboxProvider>
@@ -913,50 +856,6 @@ function RetentionBlock({ filter, onFocusTutors }: { filter: GlobalFilter; onFoc
         </div>
       </Card>
     </PhotoLightboxProvider>
-  );
-}
-
-function CampaignTable({ filter }: { filter: GlobalFilter }) {
-  const { data, error, loading } = useAsync<CampaignsResponse>(
-    () => adminGet('/campaigns', { since: filter.since, until: filter.until, platform: filter.platform }),
-    [filter.since, filter.until, filter.platform],
-  );
-  return (
-    <Card title="Por campanha" subtitle="De onde vêm os downloads e quantos viram cadastro. Gasto lançado em Locais, no Mission Control.">
-      {loading && !data ? <Loading /> : error || !data ? <ErrorBox msg={error} /> : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-[13px]">
-            <thead>
-              <tr className="text-left text-[11px] uppercase tracking-wide text-slate-400">
-                <th className="py-1.5 pr-3">Campanha</th>
-                <th className="px-2 text-right">Acessos</th>
-                <th className="px-2 text-right">Downloads</th>
-                <th className="px-2 text-right">Cadastros</th>
-                <th className="px-2 text-right">Download → cadastro</th>
-                <th className="pl-2 text-right">Custo por cadastro</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.campaigns.map((c) => (
-                <tr key={`${c.utm_source}|${c.utm_medium}|${c.utm_campaign}`} className="border-t border-slate-100">
-                  <td className="py-2 pr-3 font-semibold text-slate-700">{c.utm_campaign}</td>
-                  <td className="px-2 text-right">{numberFmt(c.acessos)}</td>
-                  <td className="px-2 text-right">{numberFmt(c.downloads)}</td>
-                  <td className="px-2 text-right">{numberFmt(c.cadastros)}</td>
-                  <td className="px-2 text-right text-slate-500">{c.downloads ? pct(c.cadastros / c.downloads) : '—'}</td>
-                  <td className="pl-2 text-right text-slate-500">
-                    {c.custo_por_cadastro == null ? '—' : `R$ ${c.custo_por_cadastro.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}`}
-                  </td>
-                </tr>
-              ))}
-              {data.campaigns.length === 0 && (
-                <tr><td colSpan={6} className="py-6 text-center text-slate-400">Nada no período.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Card>
   );
 }
 
