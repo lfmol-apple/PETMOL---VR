@@ -199,6 +199,7 @@ function GrowthBody({ filter, onFocusTutors }: { filter: GlobalFilter; onFocusTu
       <TodayBlock onFocusTutors={onFocusTutors} />
       <CampaignsPanel />
       <EmailRacaoPanel />
+      <EmailRacaoPanel template="foto" />
       <LeakBanner data={data} />
       <EntryCard filter={filter} />
       <SignupReconCard filter={filter} />
@@ -817,15 +818,18 @@ function CampaignsPanel() {
 
 type EmailRacaoSummary = {
   subject: string; sendgrid: boolean; eligible: number; no_food: number; no_push: number; skipped_recent: number;
-  state: CampaignState;
+  state: CampaignState; template?: string; variants?: { key: string; example: string }[]; multi_pet?: number;
 };
 type EmailArm = { people: number; no_food_at_send: number; food_now: number; no_push_at_send: number; push_now: number };
 
-/** E-mail "Recado Importante": teste só para o admin logado, ensaio, envio real e efeito (enviados × controle). */
-function EmailRacaoPanel() {
+/** E-mail de campanha (2 modelos): teste só para o admin logado, ensaio, envio real e efeito (enviados × controle).
+ *  template "recado" = Recado Importante (imagem única); "foto" = ração com nome do tutor e foto dos pets sem ração. */
+function EmailRacaoPanel({ template = 'recado' }: { template?: 'recado' | 'foto' }) {
   const [refresh, setRefresh] = useState(0);
-  const { data, error, loading } = useAsync<EmailRacaoSummary>(() => panelFetch('/email-racao/summary'), [refresh], { intervalMs: 8000 });
-  const results = useAsync<{ sent: EmailArm | null; control: EmailArm | null }>(() => panelFetch('/email-racao/results'), [refresh], { intervalMs: 60000 });
+  const [variant, setVariant] = useState('contando');
+  const isFoto = template === 'foto';
+  const { data, error, loading } = useAsync<EmailRacaoSummary>(() => panelFetch(`/email-racao/summary?template=${template}`), [refresh, template], { intervalMs: 8000 });
+  const results = useAsync<{ sent: EmailArm | null; control: EmailArm | null }>(() => panelFetch(`/email-racao/results?template=${template}`), [refresh, template], { intervalMs: 60000 });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirm, setConfirm] = useState(false);
@@ -841,15 +845,33 @@ function EmailRacaoPanel() {
   const r = st?.result as Record<string, unknown> | null | undefined;
 
   return (
-    <Card title="E-mail: Recado Importante"
-      subtitle="Imagem clicável + botão, com link para a loja certa (iPhone/Android). Uma mensagem por pessoa, mesmo com vários pets.">
+    <Card title={isFoto ? 'E-mail: ração com a foto do pet' : 'E-mail: Recado Importante'}
+      subtitle={isFoto
+        ? 'Personalizado por tutor: nome dele e foto (nome embaixo) de cada pet SEM ração. Foto, faixa e botão abrem a página do app na loja (iPhone/Android). Uma mensagem por pessoa, no máximo 1 por semana.'
+        : 'Imagem clicável + botão, com link para a loja certa (iPhone/Android). Uma mensagem por pessoa, mesmo com vários pets.'}>
       {loading && !data ? <Loading /> : error || !data ? <ErrorBox msg={error} /> : (
         <>
-          <p className="text-[12px] text-slate-500">Assunto: <strong className="text-slate-800">{data.subject}</strong></p>
+          {isFoto && data.variants ? (
+            <fieldset className="mb-2">
+              <legend className="text-[12px] font-bold text-slate-700">Assunto (você escolhe; o nome do tutor e do pet entram em cada e-mail)</legend>
+              <div className="mt-1 space-y-1">
+                {data.variants.map((v) => (
+                  <label key={v.key} className="flex cursor-pointer items-center gap-2 text-[12.5px] text-slate-700">
+                    <input type="radio" name={`variant-${template}`} checked={variant === v.key} onChange={() => setVariant(v.key)} />
+                    <span>“{v.example}”</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          ) : (
+            <p className="text-[12px] text-slate-500">Assunto: <strong className="text-slate-800">{data.subject}</strong></p>
+          )}
           <p className="mt-1 text-[14px] font-extrabold text-slate-800">
             {numberFmt(data.eligible)} receberiam agora{' '}
             <span className="font-medium text-slate-500">
-              ({numberFmt(data.no_food)} com ração faltando · {numberFmt(data.no_push)} sem notificação · {numberFmt(data.skipped_recent)} já receberam há menos de 7 dias)
+              {isFoto
+                ? `(${numberFmt(data.multi_pet ?? 0)} com mais de um pet sem ração · ${numberFmt(data.skipped_recent)} já receberam algum e-mail há menos de 7 dias)`
+                : `(${numberFmt(data.no_food)} com ração faltando · ${numberFmt(data.no_push)} sem notificação · ${numberFmt(data.skipped_recent)} já receberam há menos de 7 dias)`}
             </span>
           </p>
           {!data.sendgrid && (
@@ -873,10 +895,10 @@ function EmailRacaoPanel() {
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" disabled={busy}
-              onClick={() => act(() => panelFetch('/email-racao/test', { method: 'POST' }), 'Teste enviado para o seu e-mail.')}
+              onClick={() => act(() => panelFetch(`/email-racao/test?template=${template}&variant=${variant}`, { method: 'POST' }), 'Teste enviado para o seu e-mail (com os seus pets).')}
               className="rounded-lg border border-[#0056D2] bg-white px-3 py-1.5 text-[12px] font-bold text-[#0056D2] disabled:opacity-40">Enviar teste para mim</button>
             <button type="button" disabled={busy || st?.phase === 'running'}
-              onClick={() => act(() => panelFetch('/email-racao/run', { method: 'POST', body: JSON.stringify({ dry_run: true }) }))}
+              onClick={() => act(() => panelFetch('/email-racao/run', { method: 'POST', body: JSON.stringify({ dry_run: true, template, variant }) }))}
               className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-600 disabled:opacity-40">Ensaio</button>
             <button type="button" disabled={busy || st?.phase === 'running' || data.eligible === 0}
               onClick={() => setConfirm(true)}
@@ -886,7 +908,7 @@ function EmailRacaoPanel() {
             <div className="mt-3 rounded-lg bg-amber-50 p-3 text-[13px] text-amber-900">
               <p><strong>Enviar e-mail para cerca de {numberFmt(Math.round(data.eligible * 0.9))} pessoas agora?</strong> 10% ficam de fora de propósito (grupo de controle, para medir o efeito). Não dá para desfazer.</p>
               <div className="mt-2 flex gap-2">
-                <button type="button" disabled={busy} onClick={() => act(() => panelFetch('/email-racao/run', { method: 'POST', body: JSON.stringify({ dry_run: false, holdout_pct: 10 }) }))}
+                <button type="button" disabled={busy} onClick={() => act(() => panelFetch('/email-racao/run', { method: 'POST', body: JSON.stringify({ dry_run: false, holdout_pct: 10, template, variant }) }))}
                   className="rounded-lg bg-[#0056D2] px-3 py-1.5 text-[12px] font-bold text-white">Sim, enviar</button>
                 <button type="button" onClick={() => setConfirm(false)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[12px] font-bold text-slate-600">Cancelar</button>
               </div>

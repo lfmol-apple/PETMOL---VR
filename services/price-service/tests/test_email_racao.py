@@ -85,3 +85,84 @@ def test_hostinger_recusa_espera_e_retoma_sem_duplicar_controle(monkeypatch):
     assert 3600 in waits                       # esperou 1 h
     assert res["failed"] >= 3 and res["sent"] >= 1
     assert "stopped" not in res                # não desistiu
+
+
+def _user_named(db, email, name):
+    u = User(id=str(uuid.uuid4()), email=email, name=name, password_hash=hash_password("x"))
+    db.add(u); db.commit()
+    return u.id
+
+
+def test_modelo_foto_personaliza_por_tutor_e_pets_sem_racao(monkeypatch):
+    """Cada tutor recebe o nome dele e SÓ os pets sem ração (com a foto de cada um); controle e 'recente' respeitados."""
+    import src.admin.activation_campaign_router as r
+    import src.mailer as mailer
+    from src.admin.activation_campaign_router import ActivationCampaignContact
+
+    tag = uuid.uuid4().hex[:6]
+    db = SessionLocal()
+    try:
+        ana = _user_named(db, f"ana-{tag}@x.com", "Ana Souza")
+        ted = Pet(id=str(uuid.uuid4()), user_id=ana, name="Ted", species="dog", sex="male")
+        mel = Pet(id=str(uuid.uuid4()), user_id=ana, name="Mel", species="dog", sex="female")
+        db.add_all([ted, mel]); db.commit()
+        db.add(FeedingPlan(id=str(uuid.uuid4()), pet_id=mel.id, species="dog", country_code="BR", food_brand="Golden")); db.commit()
+        bia = _user_named(db, f"bia-{tag}@x.com", "Bia Lima")
+        rex = Pet(id=str(uuid.uuid4()), user_id=bia, name="Rex", species="dog", sex="male")
+        db.add(rex); db.commit()
+        recente = _user_named(db, f"rec-{tag}@x.com", "Rita")
+        _pet(db, recente, "Luna")
+        db.add(ActivationCampaignContact(campaign="email_racao__nofood", user_id=recente)); db.commit()
+        ted_id, rex_id, mel_id = ted.id, rex.id, mel.id
+    finally:
+        db.close()
+
+    sent = {}
+    monkeypatch.setattr(r, "_sleep", lambda s: None)
+    monkeypatch.setattr(mailer, "sendgrid_configured", lambda: False)
+    monkeypatch.setattr(r, "EMAIL_DAILY_CAP", 10_000)
+    monkeypatch.setattr(mailer, "send_mail", lambda **kw: sent.__setitem__(kw["to"], kw) or True)
+
+    r._run_email_racao(False, 0, pause_seconds=0, template="foto", variant="contando")
+
+    a = sent[f"ana-{tag}@x.com"]
+    assert a["subject"] == "Ana, o Ted está contando com você"          # nome do tutor + do pet (só o sem ração)
+    assert ted_id in a["body_html"] and mel_id not in a["body_html"]    # foto só do pet sem ração
+    assert "a ração do Ted" in a["body_html"]
+    b = sent[f"bia-{tag}@x.com"]
+    assert b["subject"].startswith("Bia,") and rex_id in b["body_html"]
+    assert f"rec-{tag}@x.com" not in sent                               # recebeu o outro modelo há <7 dias
+
+    db = SessionLocal()
+    try:
+        rows = {c for (c,) in db.query(ActivationCampaignContact.campaign).filter(
+            ActivationCampaignContact.user_id.in_([ana, bia])).all()}
+    finally:
+        db.close()
+    assert any(c.startswith("email_racao2__") for c in rows)            # registrado no modelo novo
+    assert not any(c.startswith("email_racao__") for c in rows)         # sem contaminar o modelo antigo
+
+
+def test_foto_do_pet_assinada_redimensionada_e_com_ilustracao_sem_foto(client):
+    import base64, io
+    from PIL import Image
+    from src.admin.email_pet_photo import photo_sig
+
+    big = io.BytesIO(); Image.new("RGB", (3000, 2000), (200, 120, 60)).save(big, "JPEG")   # foto "grande" embutida (cadastro antigo)
+    db = SessionLocal()
+    try:
+        uid = _user(db, f"foto-{uuid.uuid4().hex[:6]}@x.com")
+        com = Pet(id=str(uuid.uuid4()), user_id=uid, name="Com", species="dog",
+                  photo="data:image/jpeg;base64," + base64.b64encode(big.getvalue()).decode())
+        sem = Pet(id=str(uuid.uuid4()), user_id=uid, name="Sem", species="dog")
+        db.add_all([com, sem]); db.commit()
+        com_id, sem_id = com.id, sem.id
+    finally:
+        db.close()
+
+    r = client.get(f"/v1/email/pet-photo/{com_id}/{photo_sig(com_id)}.jpg?k=hero")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg"
+    assert Image.open(io.BytesIO(r.content)).size == (1120, 560) and len(r.content) < 200_000   # leve p/ e-mail
+    assert client.get(f"/v1/email/pet-photo/{com_id}/{'0' * 24}.jpg").status_code == 404         # assinatura errada
+    r2 = client.get(f"/v1/email/pet-photo/{sem_id}/{photo_sig(sem_id)}.jpg?k=sq")                # sem foto -> ilustração
+    assert r2.status_code == 200 and Image.open(io.BytesIO(r2.content)).size == (480, 480)
