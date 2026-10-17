@@ -970,12 +970,14 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                   hideInternalHeader
                   onRequestBack={handleEditBackToView}
                   onStateChange={handleFoodControlStateChange}
-                  onSaved={async () => {
+                  onSaved={async (info) => {
                     onSaved?.();
                     await refreshFoodPlan();
                     dispatchFoodPlanUpdated();
                     const isQuickSetup = formRequest?.mode === 'quick_setup';
-                    showSuccessAndReturnToMain(isQuickSetup ? 'Ração salva' : 'Plano atualizado');
+                    showSuccessAndReturnToMain(
+                      info?.deleted ? 'Controle excluído — fica no histórico' : isQuickSetup ? 'Ração salva' : 'Plano atualizado',
+                    );
                   }}
                 />
               </div>

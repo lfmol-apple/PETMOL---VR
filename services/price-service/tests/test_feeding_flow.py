@@ -211,3 +211,38 @@ def test_restock_and_brand_switch_archive_cycles_in_history(client):
         assert rows[0].purchase_channel == "cobasi"
     finally:
         db.close()
+
+
+def test_deleting_plan_records_cycle_in_history_and_allows_new_plan(client):
+    from src.health.models import FeedingHistory
+
+    token, pet_id = _signup_login_and_pet(client, "cid-feed-del", "tutor.racaodel@example.com")
+    headers = _headers("cid-feed-del", token)
+    started = (date.today() - timedelta(days=10)).isoformat()
+    assert client.post(
+        f"/health/pets/{pet_id}/feeding/plan",
+        json={"food_brand": "Royal Canin Urinary", "package_size_kg": 7, "daily_amount_g": 150, "last_refill_date": started},
+        headers=headers,
+    ).status_code in (200, 201)
+
+    assert client.delete(f"/health/pets/{pet_id}/feeding/plan", headers=headers).status_code == 204
+
+    db = SessionLocal()
+    try:
+        rows = db.query(FeedingHistory).filter(FeedingHistory.pet_id == pet_id).all()
+        assert [(r.food_brand, r.reason, r.observed_days) for r in rows] == [("Royal Canin Urinary", "deleted", 10)]
+    finally:
+        db.close()
+
+    # novo controle logo em seguida funciona e NÃO duplica o histórico
+    assert client.post(
+        f"/health/pets/{pet_id}/feeding/plan",
+        json={"food_brand": "Premier Pet", "package_size_kg": 10, "daily_amount_g": 200,
+              "last_refill_date": date.today().isoformat()},
+        headers=headers,
+    ).status_code in (200, 201)
+    db = SessionLocal()
+    try:
+        assert db.query(FeedingHistory).filter(FeedingHistory.pet_id == pet_id).count() == 1
+    finally:
+        db.close()

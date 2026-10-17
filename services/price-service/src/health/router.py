@@ -1097,6 +1097,9 @@ async def delete_feeding_plan(
           status_code=status.HTTP_404_NOT_FOUND,
           detail="Plano de alimentação não encontrado para este pet"
       )
+    # Registra o ciclo que o tutor está encerrando (estoque não importa).
+    _archive_feeding_cycle(db, plan, ended_on=date.today(), reason="deleted")
+    _mark_repurchase_resolved(db, pet_id)
     plan.deleted_at = datetime.utcnow()
     plan.updated_at = datetime.utcnow()
     db.commit()
