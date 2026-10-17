@@ -1148,7 +1148,7 @@ export function FoodControlTab({
                     <div className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
                       <div className="min-w-0">
                         <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Ração</p>
-                        <p className="mt-0.5 line-clamp-2 break-words text-[14px] font-bold leading-snug text-slate-800">{item.brand}</p>
+                        <p className="mt-0.5 break-words text-[14px] font-bold leading-snug text-slate-800">{item.brand}</p>
                       </div>
                       <button
                         type="button"
@@ -1161,13 +1161,16 @@ export function FoodControlTab({
                   ) : (
                     <div>
                       <label className="block text-xs font-semibold text-gray-600 mb-1">Marca / Produto</label>
-                      <input
-                        type="text"
+                      {/* textarea que cresce: o nome completo do produto escolhido
+                          tem que aparecer inteiro (o tutor confere se é o certo). */}
+                      <textarea
+                        rows={Math.min(5, Math.max(1, Math.ceil(item.brand.length / 30)))}
                         value={item.brand}
-                        onChange={e => updateItem(item.id, (current) => ({ ...current, brand: e.target.value }))}
+                        onChange={e => updateItem(item.id, (current) => ({ ...current, brand: e.target.value.replace(/\n/g, ' ') }))}
+                        onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
                         onBlur={() => { if (isQuickSetup && item.brand.trim()) hideSearch(item.id); }}
                         placeholder="Ex: Royal Canin, Guabi Natural, petisco..."
-                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
+                        className="w-full resize-none border border-gray-200 rounded-xl px-3 py-2.5 text-base leading-snug focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
                       />
                     </div>
                   )}
