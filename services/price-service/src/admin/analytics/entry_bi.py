@@ -192,3 +192,22 @@ def signup_reconciliation(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
         "note": ("with_event = a conta tem o evento register_completed. Se for bem menor que accounts, "
                  "o evento se perde (ou a conta nasce por outro caminho) e a taxa do funil de entrada fica subestimada."),
     }
+
+
+# Os eventos de entrada só são confiáveis desde 15/10/2026 (antes, `register_completed` não disparava
+# quando o cadastro vinha com redirecionamento). Sem período escolhido, o comparativo parte daí.
+ENTRY_RELIABLE_SINCE = "2026-10-15T13:00:00Z"
+
+
+def entry_by_platform(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
+    """Funil de entrada lado a lado: iPhone × Android, só com dados confiáveis."""
+    out: dict[str, Any] = {"since": (f.since.isoformat() if f.since else ENTRY_RELIABLE_SINCE), "platforms": {}}
+    for plat in ("ios", "android"):
+        f2 = AnalyticsFilters.build(
+            since=(f.since.isoformat() if f.since else ENTRY_RELIABLE_SINCE),
+            until=(f.until.isoformat() if f.until else None),
+            platform=plat,
+        )
+        res = entry_funnel(db, f2)
+        out["platforms"][plat] = {"steps": res["steps"], "choices": res["choices"], "failures": res["failures"]}
+    return out

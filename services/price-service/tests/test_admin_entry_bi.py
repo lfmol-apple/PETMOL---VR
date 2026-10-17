@@ -95,3 +95,23 @@ def test_signup_reconciliation_compara_contas_e_evento(client):
     assert body["totals"]["with_event"] < body["totals"]["accounts"]
     assert any(m["key"] == "senha" for m in body["by_method"])
     assert body["by_day"] and body["by_platform"]
+
+
+def test_entry_by_platform_separa_ios_e_android(client):
+    headers = _admin_headers()
+    db = SessionLocal()
+    try:
+        for a in ("i1", "i2"):
+            _ev(db, "app_open", a, platform="ios_capacitor")
+        for a in ("d1", "d2", "d3"):
+            _ev(db, "app_open", a, platform="android_capacitor")
+        _ev(db, "signup_started", "d1", platform="android_capacitor")
+        db.commit()
+    finally:
+        db.close()
+    r = client.get("/v1/admin/analytics/entry-by-platform?since=2000-01-01T00:00:00Z", headers=headers)
+    assert r.status_code == 200, r.text
+    p = r.json()["platforms"]
+    n = lambda plat, key: next(s["n"] for s in p[plat]["steps"] if s["key"] == key)
+    assert n("ios", "opened") >= 2 and n("android", "opened") >= 3
+    assert n("android", "signup_started") >= 1 and n("ios", "signup_started") == 0
