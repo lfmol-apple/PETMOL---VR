@@ -17,6 +17,7 @@ import { getToken } from '@/lib/auth-token';
 import { localTodayISO } from '@/lib/localDate';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { petDo } from '@/lib/petGender';
+import { clearFoodRepurchase, getPendingFoodRepurchase, markFoodRepurchaseIntent, snoozeFoodRepurchase } from '@/lib/foodRepurchase';
 import { CoachMark } from '@/components/CoachMark';
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
 import { guessFoodKind, type ScannedProduct } from '@/lib/productScanner';
@@ -514,6 +515,60 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   }, [onClose]);
   useBackHandler(true, handleClose);
   useBackHandler(Boolean(pendingClassifyProduct), () => setPendingClassifyProduct(null));
+
+  // ── Recompra: "Comprou?" ao voltar da loja ────────────────────────────────
+  const [repurchasePending, setRepurchasePending] = useState(false);
+  const [repurchaseBusy, setRepurchaseBusy] = useState(false);
+
+  useEffect(() => {
+    const check = () => setRepurchasePending(getPendingFoodRepurchase(pet.pet_id) !== null);
+    check();
+    const onVisible = () => { if (document.visibilityState === 'visible') check(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', check);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', check);
+    };
+  }, [pet.pet_id]);
+
+  const handleRepurchaseYes = async () => {
+    if (repurchaseBusy) return;
+    setRepurchaseBusy(true);
+    try {
+      const res = await fetch(`${API_BACKEND_BASE}/health/pets/${pet.pet_id}/feeding/plan/restock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authH() },
+        credentials: 'include',
+        body: JSON.stringify({ refill_date: localTodayISO() }),
+      });
+      if (!res.ok) throw new Error('restock failed');
+      trackV1Metric('food_purchase_confirmed', { pet_id: pet.pet_id, source: 'return_from_store' });
+      clearFoodRepurchase();
+      setRepurchasePending(false);
+      await refreshFoodPlan();
+      dispatchFoodPlanUpdated();
+      showSuccessAndReturnToMain('Novo ciclo iniciado');
+    } catch {
+      setFeedback({ msg: 'Não deu pra registrar agora. Tente de novo.', tone: 'red' });
+    } finally {
+      setRepurchaseBusy(false);
+    }
+  };
+
+  const handleRepurchaseSwitched = () => {
+    trackV1Metric('food_repurchase_switched', { pet_id: pet.pet_id });
+    clearFoodRepurchase();
+    setRepurchasePending(false);
+    setFormRequest({ id: Date.now(), mode: 'edit' });
+    setMode('edit');
+  };
+
+  const handleRepurchaseNotYet = () => {
+    trackV1Metric('food_repurchase_not_yet', { pet_id: pet.pet_id });
+    snoozeFoodRepurchase();
+    setRepurchasePending(false);
+  };
 
   type RefreshedPlanAlert = { recommendedAlertDate: string | null; reminderTime: string | null; brand: string } | null;
 
@@ -1132,6 +1187,32 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             esporádicos da aba "🦴 Petiscos". */}
                         {viewSection === 'racao' && (
                         <>
+                          {/* 0. Voltou da loja? Reinicia o controle em um toque */}
+                          {repurchasePending && foodBrand && (
+                            <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+                              <div>
+                                <p className="text-[16px] font-black text-gray-900 leading-tight">Comprou a ração {petDo(pet)} {pet.pet_name}?</p>
+                                <p className="text-[13px] text-gray-600 mt-0.5 leading-snug">
+                                  Se for a mesma ({foodBrand}), a gente reinicia o controle a partir de hoje.
+                                </p>
+                              </div>
+                              <button type="button" onClick={() => { void handleRepurchaseYes(); }} disabled={repurchaseBusy}
+                                className="w-full min-h-[48px] rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-[15px] font-black text-white active:scale-[0.98] transition-all disabled:opacity-60">
+                                {repurchaseBusy ? 'Registrando…' : 'Sim, reiniciar o controle'}
+                              </button>
+                              <div className="grid grid-cols-2 gap-2">
+                                <button type="button" onClick={handleRepurchaseSwitched}
+                                  className="min-h-[44px] rounded-2xl border border-gray-200 bg-white text-[13px] font-bold text-gray-700 active:scale-[0.98] transition-all">
+                                  Mudei de ração
+                                </button>
+                                <button type="button" onClick={handleRepurchaseNotYet}
+                                  className="min-h-[44px] rounded-2xl border border-gray-200 bg-white text-[13px] font-bold text-gray-500 active:scale-[0.98] transition-all">
+                                  Ainda não
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
                           {/* 1. Status principal */}
                           <div className={`rounded-3xl border p-4 ${
                             foodTone === 'critical' ? 'border-red-200 bg-red-50/70'
@@ -1228,6 +1309,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                           <button type="button"
                             onClick={() => {
                               trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
+                              if (foodBrand) markFoodRepurchaseIntent(pet.pet_id, foodBrand);
                               setMode('buy');
                             }}
                             className={`w-full py-3.5 rounded-2xl active:scale-[0.97] transition-all text-[15px] font-black text-white flex items-center justify-center gap-2.5 ${

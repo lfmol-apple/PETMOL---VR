@@ -23,7 +23,7 @@ from ..pets.models import Pet
 from ..pets.vaccine_models import VaccineRecord
 from ..events.models import Event
 from ..product_catalog_lookup import ProductCatalog, normalize_gtin
-from .models import FeedingPlan
+from .models import FeedingHistory, FeedingPlan
 from .catalog import VACCINE_CATALOG, COUNTRY_CONFIG, lookup_vaccine_code
 from .schemas import (
     BulkConfirmRequest,
@@ -887,6 +887,14 @@ async def create_or_update_feeding_plan(
         reminder_time_changed = existing_plan.reminder_time != new_reminder_time
         reminder_source = "manual" if request.next_purchase_date else "calculated"
 
+        if (
+            existing_plan.deleted_at is None
+            and (existing_plan.food_brand or "").strip()
+            and (primary_item.get("food_brand") or "").strip()
+            and existing_plan.food_brand.strip().lower() != str(primary_item.get("food_brand")).strip().lower()
+        ):
+            _archive_feeding_cycle(db, existing_plan, ended_on=date.today(), reason="switched")
+
         existing_plan.deleted_at = None
         existing_plan.species = request.species or existing_plan.species or "dog"
         existing_plan.country_code = request.country_code or existing_plan.country_code or "BR"
@@ -1099,6 +1107,36 @@ class SnoozeFeedingPlanRequest(BaseModel):
 
 class RestockFeedingPlanRequest(BaseModel):
     refill_date: Optional[str] = None  # YYYY-MM-DD; defaults to today
+    purchase_channel: Optional[str] = None  # cobasi | petz | shopee | ... (opcional)
+
+
+def _archive_feeding_cycle(
+    db: Session,
+    plan: FeedingPlan,
+    *,
+    ended_on: date,
+    reason: str,
+    purchase_channel: Optional[str] = None,
+) -> None:
+    """Guarda o ciclo que está terminando no histórico (sem commit)."""
+    if not (plan.food_brand or "").strip() or not plan.last_refill_date:
+        return
+    observed = (ended_on - plan.last_refill_date).days
+    if observed < 0:
+        return
+    db.add(FeedingHistory(
+        id=str(uuid4()),
+        pet_id=plan.pet_id,
+        food_brand=plan.food_brand,
+        package_size_kg=plan.package_size_kg,
+        daily_amount_g=plan.daily_amount_g,
+        planned_duration_days=plan.duration_days,
+        started_on=plan.last_refill_date,
+        ended_on=ended_on,
+        observed_days=observed,
+        reason=reason,
+        purchase_channel=(purchase_channel or None) and purchase_channel[:32],
+    ))
 
 
 class SetFeedingReminderDateRequest(BaseModel):
@@ -1136,6 +1174,10 @@ async def restock_feeding_plan(
     else:
         refill_date = date.today()
 
+    _archive_feeding_cycle(
+        db, plan, ended_on=refill_date, reason="restock",
+        purchase_channel=body.purchase_channel,
+    )
     plan.last_refill_date = refill_date
 
     estimated_end, next_reminder, _ = calculate_food_stock_estimates(

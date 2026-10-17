@@ -90,3 +90,26 @@ class FeedingPlan(Base):
     
     # Relationships
     pet: Mapped["Pet"] = relationship("Pet", back_populates="feeding_plan")
+
+
+class FeedingHistory(Base):
+    """Um ciclo de ração já encerrado de um pet (marca, pacote, duração real).
+
+    Alimenta previsão de recompra, ofertas e segmentação de marketing.
+    Gravado quando o tutor registra um novo pacote (restock) ou troca de ração.
+    """
+    __tablename__ = "feeding_history"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    pet_id: Mapped[str] = mapped_column(String(36), ForeignKey("pets.id"), nullable=False, index=True)
+    food_brand: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    package_size_kg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    daily_amount_g: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    planned_duration_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    started_on: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    ended_on: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    observed_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # restock = repôs o mesmo produto | switched = trocou de ração
+    reason: Mapped[str] = mapped_column(String(16), nullable=False, default="restock")
+    purchase_channel: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
