@@ -264,12 +264,12 @@ export function RoutineWalkButton({ petId, petName }: { petId: string; petName: 
 
   return (
     <>
-      <div className="absolute bottom-2.5 left-2.5 z-20 sm:bottom-3 sm:left-3">
+      <div className="relative">
         {showIntro && !cfg.enabled && (
-          <div className="absolute bottom-full left-0 mb-2 w-[210px] rounded-2xl bg-white p-2.5 text-[12.5px] font-bold leading-snug text-slate-900 shadow-xl">
+          <div className="absolute left-full top-1/2 ml-2.5 w-[210px] -translate-y-1/2 rounded-2xl bg-white p-2.5 text-[12.5px] font-bold leading-snug text-slate-900 shadow-xl">
             Novo: lembrete de passeio
             <span className="mt-0.5 block text-[11.5px] font-semibold text-slate-500">Toque no relógio e escolha o horário.</span>
-            <span className="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-white" aria-hidden="true" />
+            <span className="absolute -left-1.5 top-1/2 h-3 w-3 -translate-y-1/2 rotate-45 bg-white" aria-hidden="true" />
           </div>
         )}
         <div className="relative">
