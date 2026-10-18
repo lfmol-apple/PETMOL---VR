@@ -97,6 +97,23 @@ describe('GroomingItemSheet — tela rápida (abre primeiro)', () => {
     expect(screen.getByTestId('em-dia')).toBeTruthy();
   });
 
+  it('"Não quero mais lembretes": desativa direto da tela rápida (salva active:false) e o histórico fica', async () => {
+    const onRoutineChange = vi.fn();
+    render(<GroomingItemSheet petId="p1" petName="Baby" groomingRecords={[rec()] as never} routine={{ active: true, resumed_on: null }}
+      onRoutineChange={onRoutineChange} onClose={vi.fn()} onRefresh={async () => undefined} />);
+    await act(async () => { fireEvent.click(screen.getByText('Não quero mais lembretes')); });
+    const put = calls.find((c) => c.method === 'PUT');
+    expect(put!.url).toContain('/pets/p1/grooming-routine');
+    expect(put!.body).toEqual({ active: false });
+    expect(onRoutineChange).toHaveBeenCalled();
+  });
+
+  it('desativado: o botão some e fica o "Reativar lembretes"', () => {
+    open([rec()], { active: false, resumed_on: null });
+    expect(screen.queryByText('Não quero mais lembretes')).toBeNull();
+    expect(screen.getByText('Reativar lembretes')).toBeTruthy();
+  });
+
   it('"Registrar com mais detalhes" abre o formulário completo de sempre', () => {
     open([rec()]);
     fireEvent.click(screen.getByText('Registrar com mais detalhes'));

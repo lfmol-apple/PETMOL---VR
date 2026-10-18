@@ -801,6 +801,11 @@ export function GroomingItemSheet({
                   </button>
                   <button type="button" onClick={startAdd}
                     className="block w-full py-1 text-center text-[13px] font-semibold text-slate-500 active:opacity-60">Registrar com mais detalhes</button>
+                  {/* Sair da rotina sem caçar: o histórico fica guardado e dá para reativar a qualquer hora. */}
+                  {!paused && last && (
+                    <button type="button" disabled={routineBusy} onClick={() => void toggleRoutine(false)}
+                      className="block w-full py-1 text-center text-[13px] font-semibold text-slate-400 active:opacity-60 disabled:opacity-60">Não quero mais lembretes</button>
+                  )}
                 </>
               )}
 
