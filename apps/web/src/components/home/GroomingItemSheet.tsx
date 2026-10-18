@@ -662,13 +662,32 @@ export function GroomingItemSheet({
           {mode === 'view' && (
             <div className="px-4 pt-3 pb-5 space-y-2.5">
 
+              {/* Interruptor único dos lembretes, sempre no topo (ativar / desativar). */}
+              {last && (
+                <div data-testid="lembretes-topo" className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm">
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-semibold text-[#1C1C1E]">Lembretes de banho e tosa</p>
+                    <p className="text-[12px] text-[#8E8E93]">{paused ? 'Desativados' : 'Ativos'}</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={!paused}
+                    aria-label="Lembretes de banho e tosa"
+                    disabled={routineBusy}
+                    onClick={() => void toggleRoutine(paused)}
+                    className={`relative !h-[29px] !min-h-[29px] !w-[48px] !min-w-[48px] shrink-0 rounded-full p-0 transition-colors disabled:opacity-60 ${paused ? 'bg-slate-300' : 'bg-emerald-500'}`}
+                  >
+                    <span className={`absolute left-[3px] top-[3px] h-[23px] w-[23px] rounded-full bg-white shadow transition-transform ${paused ? '' : 'translate-x-[19px]'}`} />
+                  </button>
+                </div>
+              )}
+
               {/* Lembretes desativados: aviso claro e um toque para reativar. */}
               {paused && (
                 <div data-testid="lembretes-desativados" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <p className="text-[15px] font-black text-[#1C1C1E]">Lembretes de banho e tosa desativados</p>
-                  <p className="mt-1 text-[13px] leading-snug text-slate-500">Não vamos mais avisar. Seu histórico fica guardado.</p>
-                  <button type="button" disabled={routineBusy} onClick={() => void toggleRoutine(true)}
-                    className="mt-3 w-full rounded-xl bg-emerald-500 py-3 text-[15px] font-extrabold text-white active:scale-[0.98] disabled:opacity-60">Reativar lembretes</button>
+                  <p className="mt-1 text-[13px] leading-snug text-slate-500">Não vamos mais avisar. Seu histórico fica guardado. Para voltar a ser lembrado, ligue o interruptor acima.</p>
                 </div>
               )}
 
@@ -801,11 +820,6 @@ export function GroomingItemSheet({
                   </button>
                   <button type="button" onClick={startAdd}
                     className="block w-full py-1 text-center text-[13px] font-semibold text-slate-500 active:opacity-60">Registrar com mais detalhes</button>
-                  {/* Sair da rotina sem caçar: o histórico fica guardado e dá para reativar a qualquer hora. */}
-                  {!paused && last && (
-                    <button type="button" disabled={routineBusy} onClick={() => void toggleRoutine(false)}
-                      className="block w-full py-1 text-center text-[13px] font-semibold text-slate-400 active:opacity-60 disabled:opacity-60">Não quero mais lembretes</button>
-                  )}
                 </>
               )}
 
@@ -1003,23 +1017,6 @@ export function GroomingItemSheet({
                   </button>
                   {remindersOpen && (
                     <div data-testid="lembretes-painel" className="mt-2 space-y-3 rounded-2xl bg-white p-4 shadow-sm">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-[14px] font-semibold text-[#1C1C1E]">Lembretes de banho e tosa</p>
-                          <p className="text-[12px] text-[#8E8E93]">{paused ? 'Desativados — o histórico fica guardado' : 'Ativos'}</p>
-                        </div>
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={!paused}
-                          aria-label="Lembretes de banho e tosa"
-                          disabled={routineBusy}
-                          onClick={() => void toggleRoutine(paused)}
-                          className={`relative !h-[29px] !min-h-[29px] !w-[48px] !min-w-[48px] shrink-0 rounded-full p-0 transition-colors disabled:opacity-60 ${paused ? 'bg-slate-300' : 'bg-emerald-500'}`}
-                        >
-                          <span className={`absolute left-[3px] top-[3px] h-[23px] w-[23px] rounded-full bg-white shadow transition-transform ${paused ? '' : 'translate-x-[19px]'}`} />
-                        </button>
-                      </div>
                       {schedLast && !paused && (
                         <button
                           type="button"
