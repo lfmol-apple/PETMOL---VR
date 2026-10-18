@@ -21,6 +21,14 @@ describe('GroomingRoutineButton', () => {
     expect(b.className).not.toContain('animate-pulse');
   });
 
+  it('é hora (dentro da folga): âmbar fixo, sem piscar e sem risquinho', () => {
+    render(<GroomingRoutineButton state="due" onClick={vi.fn()} />);
+    const b = screen.getByRole('button', { name: 'Banho e tosa — é hora' });
+    expect(b.className).toContain('bg-amber-500');
+    expect(b.className).not.toContain('animate-pulse');
+    expect(screen.queryByTestId('banho-inativo')).toBeNull();
+  });
+
   it('atrasado: pisca âmbar (diferente do vermelho do sino e da localização)', () => {
     render(<GroomingRoutineButton state="overdue" onClick={vi.fn()} />);
     const b = screen.getByRole('button', { name: 'Banho e tosa — atrasado' });

@@ -23,7 +23,7 @@ describe('effectiveGroomingRecords', () => {
 
 describe('banheirinha com a rotina desativada/retomada', () => {
   const iso = (off: number) => { const d = new Date(); d.setDate(d.getDate() + off); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-  const overdue = [{ id: 'a', type: 'bath', date: iso(-60), next_recommended_date: iso(-10) }] as never;
+  const overdue = [{ id: 'a', type: 'bath', date: iso(-60), next_recommended_date: iso(-20), frequency_days: 40 }] as never;
 
   it('com registros atrasados mas lembretes desativados: nada de piscar — fica "none" (risquinho)', () => {
     expect(groomingRoutineState('p1', overdue)).toBe('overdue');

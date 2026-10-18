@@ -368,19 +368,46 @@ function processGrooming(p: PetCareDomainParams): PetCareReminder[] {
   return result;
 }
 
-export type GroomingRoutineState = 'overdue' | 'scheduled' | 'none';
+export type GroomingRoutineState = 'overdue' | 'due' | 'scheduled' | 'none';
+
+/** Folga antes de o atraso "pesar": ~20% do intervalo do tutor, no mínimo 2 dias. */
+export function groomingToleranceDays(intervalDays: number): number {
+  return Math.max(2, Math.round(intervalDays * 0.2));
+}
+
+function groomingIntervalDays(g: GroomingRecord): number {
+  if (g.frequency_days && g.frequency_days > 0) return g.frequency_days;
+  const start = parseLocalDate(g.date);
+  const next = g.next_recommended_date ? parseLocalDate(g.next_recommended_date) : null;
+  if (start && next) {
+    const d = Math.round((next.getTime() - start.getTime()) / 86_400_000);
+    if (d > 0) return d;
+  }
+  return 30;
+}
 
 /**
- * Estado da banheirinha: atrasado (pisca vermelho) · agendado e ainda não ocorreu (verde) ·
- * nunca controlado (apagado com risquinho). Usa a mesma derivação dos lembretes de banho/tosa.
+ * Estado da banheirinha:
+ *  - overdue ..... passou da data E da folga (~20% do intervalo, mín. 2 dias): pisca âmbar
+ *  - due ......... passou da data mas ainda dentro da folga ("é hora"): âmbar fixo, sem piscar
+ *  - scheduled ... agendado e ainda não ocorreu (futuro ou hoje): verde
+ *  - none ........ nunca controlado: apagado com risquinho
+ * Usa a mesma derivação dos lembretes de banho/tosa.
  */
 export function groomingRoutineState(petId: string, records: GroomingRecord[]): GroomingRoutineState {
   const reminders = processGrooming({
     pet_id: petId, pet_name: '', vaccines: [], parasiteControls: [], groomingRecords: records,
     feedingPlan: null, petEvents: [],
   });
-  if (reminders.some((r) => r.status === 'overdue')) return 'overdue';
-  return reminders.length > 0 ? 'scheduled' : 'none';
+  let state: GroomingRoutineState = reminders.length > 0 ? 'scheduled' : 'none';
+  for (const r of reminders) {
+    if (r.status !== 'overdue') continue;
+    const rec = records.find((g) => g.id === r.source_record_id);
+    const tolerance = groomingToleranceDays(rec ? groomingIntervalDays(rec) : 30);
+    if (-r.diff > tolerance) return 'overdue';
+    state = 'due';
+  }
+  return state;
 }
 
 function processFood(p: PetCareDomainParams): PetCareReminder[] {
