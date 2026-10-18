@@ -16,6 +16,7 @@ import { careAssetSrc } from '@/lib/careAssets';
 import { CARE_STATE, careStateFromDaysUntilDue } from '@/lib/careState';
 import { scheduleUniqueReminder, buildRemindAt, subtractDays } from '@/features/notifications/pushService';
 import { DateField } from '@/components/ui/DateField';
+import { groomingInsights, suggestedInterval } from '@/lib/groomingInsights';
 import { DEFAULT_GROOMING_ROUTINE, effectiveGroomingRecords, saveGroomingRoutine, type GroomingRoutineConfig } from '@/lib/groomingRoutine';
 
 const PRIMARY_BTN = 'bg-[#0056D2] hover:bg-[#004ab8] active:bg-[#003f9e] text-white shadow-lg shadow-blue-500/25';
@@ -285,6 +286,56 @@ export function GroomingItemSheet({
       } catch { /* push é best-effort */ }
       closeQuick();
       showToast(`📅 Combinado! Próximo: ${fmtDate(quickDate)}`);
+      await onRefresh();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // ── Histórico mais rico + intervalo sugerido ────────────────────────────────
+  const insights = groomingInsights(sorted);
+  const [showAllHistory, setShowAllHistory] = useState(false);
+  const HISTORY_PREVIEW = 3;
+  const visibleHistory = showAllHistory ? sorted : sorted.slice(0, HISTORY_PREVIEW);
+  const suggestionKey = `petmol_groom_interval_dismissed_${petId}`;
+  const [dismissedSuggestion, setDismissedSuggestion] = useState<number | null>(() => {
+    try { const v = window.localStorage.getItem(suggestionKey); return v ? Number(v) : null; } catch { return null; }
+  });
+  const suggested = !paused && schedLast ? suggestedInterval(insights.typicalDays, schedLast.frequency_days) : null;
+  const showSuggestion = suggested != null && suggested !== dismissedSuggestion;
+
+  function dismissSuggestion() {
+    if (suggested == null) return;
+    setDismissedSuggestion(suggested);
+    try { window.localStorage.setItem(suggestionKey, String(suggested)); } catch { /* melhor esforço */ }
+  }
+
+  // "Usar N dias": troca só o intervalo do lembrete (e a data do próximo a partir do último serviço).
+  async function handleUseSuggested() {
+    if (!schedLast || suggested == null) return;
+    setSaving(true);
+    try {
+      const token = getToken();
+      if (!token) { showToast('⚠️ Sessão expirada. Faça login novamente.'); return; }
+      const next = addDays(schedLast.date.slice(0, 10), suggested);
+      const res = await fetch(`${API_BASE_URL}/pets/${petId}/grooming/${schedLast.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ frequency_days: suggested, next_recommended_date: next, reminder_enabled: true }),
+      });
+      if (!res.ok) { showToast(`❌ Erro ao atualizar (${res.status}).`); return; }
+      try {
+        const remindAt = resolveRemindAt(next, schedLast.alert_days_before ?? 3, schedLast.scheduled_time || '09:00');
+        const t = getToken();
+        if (remindAt && t) {
+          const { icon, label } = groomingLabel(schedLast.type);
+          void scheduleUniqueReminder({
+            pet_id: petId, type: 'grooming', title: `${icon} ${label}: ${petName || 'seu pet'}`,
+            body: `Hora de agendar o ${label.toLowerCase()} do ${petName || 'seu pet'} no petshop 🐾`, remind_at: remindAt,
+          }, t);
+        }
+      } catch { /* push é best-effort */ }
+      showToast(`✅ Pronto! Avisos a cada ${suggested} dias.`);
       await onRefresh();
     } finally {
       setSaving(false);
@@ -781,48 +832,94 @@ export function GroomingItemSheet({
                 </a>
               )}
 
+              {/* Intervalo sugerido pelo hábito real do tutor */}
+              {showSuggestion && (
+                <div data-testid="intervalo-sugerido" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <p className="text-[14px] font-semibold leading-snug text-[#1C1C1E]">
+                    {petName ? `${petName} costuma` : 'Costuma'} tomar banho a cada <b>{suggested} dias</b>. O lembrete está em {schedLast?.frequency_days ?? '—'}.
+                  </p>
+                  <div className="mt-2.5 flex gap-2">
+                    <button type="button" disabled={saving} onClick={() => void handleUseSuggested()}
+                      className="flex-1 rounded-xl bg-emerald-500 py-2.5 text-[14px] font-extrabold text-white active:scale-[0.98] disabled:opacity-60">Usar {suggested} dias</button>
+                    <button type="button" onClick={dismissSuggestion}
+                      className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[14px] font-bold text-slate-600 active:scale-[0.98]">Agora não</button>
+                  </div>
+                </div>
+              )}
+
               {/* History */}
               {sorted.length > 0 && (
                 <div>
-                  <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wider px-1 mb-2">
-                    Histórico ({sorted.length})
-                  </p>
+                  <div className="mb-2 flex items-end justify-between gap-3 px-1">
+                    <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wider">
+                      Histórico ({sorted.length})
+                    </p>
+                    {(insights.averageDays != null || insights.totalCost != null) && (
+                      <p data-testid="historico-resumo" className="text-right text-[12px] font-semibold text-[#8E8E93]">
+                        {insights.averageDays != null && <>média a cada <b className="text-[#1C1C1E]">{insights.averageDays} dias</b></>}
+                        {insights.averageDays != null && insights.totalCost != null && ' · '}
+                        {insights.totalCost != null && <>R$ {insights.totalCost.toFixed(2).replace('.', ',')} no total</>}
+                      </p>
+                    )}
+                  </div>
                   <div className="bg-white rounded-2xl overflow-hidden shadow-sm divide-y divide-[#F2F2F7]">
-                    {sorted.map((rec) => {
+                    {!paused && nextDate && schedLast && (
+                      <div data-testid="historico-proximo" className="px-4 py-3 bg-emerald-50/60">
+                        <p className={`text-[14px] font-semibold ${status.overdue ? 'text-amber-700' : 'text-emerald-800'}`}>📅 Próximo: {fmtDate(nextDate)}</p>
+                        {(() => {
+                          const hist = parseRescheduleHistory(schedLast.reschedule_history);
+                          const from = hist.length ? hist[hist.length - 1].from : null;
+                          return from ? <p className="text-[12px] text-emerald-700/80">Reagendado de {fmtDate(from)}</p> : null;
+                        })()}
+                      </div>
+                    )}
+                    {visibleHistory.map((rec, idx) => {
+                      const gap = insights.gapsDays[idx];
                       return (
-                        <div key={rec.id} className="flex items-center gap-3 px-4 py-3">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[14px] font-medium text-[#1C1C1E]">{TYPE_LABELS[rec.type]}</p>
-                            <p className="text-[12px] text-[#8E8E93]">
-                              {fmtDate(rec.date)}
-                              {rec.cost != null ? ` · R$ ${rec.cost.toFixed(2).replace('.', ',')}` : ''}
-                              {rec.location ? ` · ${rec.location}` : ''}
-                            </p>
+                        <div key={rec.id}>
+                          <div className="flex items-center gap-3 px-4 py-3">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[14px] font-medium text-[#1C1C1E]">{TYPE_LABELS[rec.type]}</p>
+                              <p className="text-[12px] text-[#8E8E93]">
+                                {fmtDate(rec.date)}
+                                {rec.cost != null ? ` · R$ ${rec.cost.toFixed(2).replace('.', ',')}` : ''}
+                                {rec.location ? ` · ${rec.location}` : ''}
+                              </p>
+                            </div>
+                            <div className="flex gap-2 flex-shrink-0">
+                              <button
+                                onClick={() => startEdit(rec)}
+                                className="w-8 h-8 rounded-full bg-[#F2F2F7] flex items-center justify-center active:opacity-60"
+                                aria-label="Editar"
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteId(rec.id)}
+                                className="w-8 h-8 rounded-full bg-[#FFF1F0] flex items-center justify-center active:opacity-60"
+                                aria-label="Remover"
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="#FF3B30" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                                  <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                                </svg>
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex gap-2 flex-shrink-0">
-                            <button
-                              onClick={() => startEdit(rec)}
-                              className="w-8 h-8 rounded-full bg-[#F2F2F7] flex items-center justify-center active:opacity-60"
-                              aria-label="Editar"
-                            >
-                              <svg viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
-                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => setConfirmDeleteId(rec.id)}
-                              className="w-8 h-8 rounded-full bg-[#FFF1F0] flex items-center justify-center active:opacity-60"
-                              aria-label="Remover"
-                            >
-                              <svg viewBox="0 0 24 24" fill="none" stroke="#FF3B30" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
-                                <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                              </svg>
-                            </button>
-                          </div>
+                          {gap != null && idx < visibleHistory.length - 1 && (
+                            <p data-testid="historico-intervalo" className="bg-[#F9F9FB] px-4 py-1 text-[11.5px] text-[#8E8E93]">⏱ {gap} dias entre os dois</p>
+                          )}
                         </div>
                       );
                     })}
+                    {sorted.length > HISTORY_PREVIEW && (
+                      <button type="button" onClick={() => setShowAllHistory((v) => !v)}
+                        className="w-full px-4 py-3 text-center text-[13px] font-semibold text-[#0056D2]">
+                        {showAllHistory ? 'Mostrar menos' : `Ver os ${sorted.length} serviços`}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
