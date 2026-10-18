@@ -368,6 +368,21 @@ function processGrooming(p: PetCareDomainParams): PetCareReminder[] {
   return result;
 }
 
+export type GroomingRoutineState = 'overdue' | 'scheduled' | 'none';
+
+/**
+ * Estado da banheirinha: atrasado (pisca vermelho) · agendado e ainda não ocorreu (verde) ·
+ * nunca controlado (apagado com risquinho). Usa a mesma derivação dos lembretes de banho/tosa.
+ */
+export function groomingRoutineState(petId: string, records: GroomingRecord[]): GroomingRoutineState {
+  const reminders = processGrooming({
+    pet_id: petId, pet_name: '', vaccines: [], parasiteControls: [], groomingRecords: records,
+    feedingPlan: null, petEvents: [],
+  });
+  if (reminders.some((r) => r.status === 'overdue')) return 'overdue';
+  return reminders.length > 0 ? 'scheduled' : 'none';
+}
+
 function processFood(p: PetCareDomainParams): PetCareReminder[] {
   const plan = p.feedingPlan;
   if (!plan) return [];
