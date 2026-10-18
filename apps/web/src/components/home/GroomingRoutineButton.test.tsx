@@ -21,11 +21,11 @@ describe('GroomingRoutineButton', () => {
     expect(b.className).not.toContain('animate-pulse');
   });
 
-  it('atrasado: pisca vermelho, igual ao sino e à localização', () => {
+  it('atrasado: pisca âmbar (diferente do vermelho do sino e da localização)', () => {
     render(<GroomingRoutineButton state="overdue" onClick={vi.fn()} />);
     const b = screen.getByRole('button', { name: 'Banho e tosa — atrasado' });
     expect(b.className).toContain('animate-pulse');
-    expect(b.className).toContain('bg-red-500');
+    expect(b.className).toContain('bg-amber-500');
     expect(screen.queryByTestId('banho-inativo')).toBeNull();
   });
 });

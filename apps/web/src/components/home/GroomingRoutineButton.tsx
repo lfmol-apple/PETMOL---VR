@@ -18,14 +18,14 @@ export function BathShowerIcon({ className }: { className?: string }) {
 
 /**
  * Banheirinha no canto inferior esquerdo da foto do pet (acima do passeio): abre o sheet de Banho e Tosa.
- *  - atrasado ........... pisca vermelho (igual ao sino/localização desativados)
+ *  - atrasado ........... pisca âmbar (diferente do vermelho do sino/localização desativados)
  *  - agendado, a ocorrer  verde
  *  - nunca controlado ... apagado com risquinho
  */
 export function GroomingRoutineButton({ state, onClick }: { state: GroomingRoutineState; onClick: () => void }) {
   const label = state === 'overdue' ? 'Banho e tosa — atrasado' : state === 'scheduled' ? 'Banho e tosa — agendado' : 'Banho e tosa';
   const tone =
-    state === 'overdue' ? 'animate-pulse border-red-300 bg-red-500 hover:bg-red-600'
+    state === 'overdue' ? 'animate-pulse border-amber-200 bg-amber-500 hover:bg-amber-600'
     : state === 'scheduled' ? 'border-white bg-emerald-500 hover:bg-emerald-600'
     : 'border-white/40 bg-black/30 hover:bg-black/50';
   return (
