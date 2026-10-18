@@ -28,6 +28,7 @@ export interface PetWithHealth extends PetBase {
   vaccines?: VaccineRecord[];
   parasite_controls?: ParasiteControl[];
   grooming_records?: GroomingRecord[];
+  grooming_routine?: { active: boolean; resumed_on?: string | null };
   health_data?: {
     vaccines?: VaccineRecord[];
     parasite_controls?: ParasiteControl[];

@@ -724,6 +724,11 @@ def send_due_reminders() -> None:
             # (a linha fica pendente; o job de rotina a limpa).
             if reminder.type == "walk" and not get_settings().routine_walk_enabled:
                 continue
+            # Banho/tosa: o tutor desativou os lembretes deste pet — não envia (a linha fica pendente).
+            if reminder.type == "grooming":
+                from ..pets.grooming_routine import grooming_paused
+                if grooming_paused(db, reminder.pet_id):
+                    continue
             if reminder.type in _UNIQUE_PER_PET_TYPES:
                 dedup_key = (reminder.pet_id or "", reminder.type)
             elif reminder.type in _MED_TYPES:

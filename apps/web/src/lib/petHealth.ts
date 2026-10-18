@@ -247,6 +247,7 @@ export interface PetHealthProfile {
   parasite_history: Parasite[];
   parasite_controls?: ParasiteControl[]; // Controles parasitários (vermífugos, antipulgas, etc)
   grooming_records?: GroomingRecord[]; // Registros de banho e tosa
+  grooming_routine?: { active: boolean; resumed_on?: string | null }; // lembretes de banho/tosa: ativo, desativado ou retomado
   documents: HealthDocument[];
   daily_walks: DailyWalk[];
   activity_goals?: ActivityGoals;

@@ -553,8 +553,10 @@ app.include_router(vaccine_router)
 # Include parasite + grooming CRUD routers
 from .pets.parasite_router import router as parasite_router
 from .pets.grooming_router import router as grooming_router
+from .pets.grooming_routine import router as grooming_routine_router
 app.include_router(parasite_router)
 app.include_router(grooming_router)
+app.include_router(grooming_routine_router)
 
 # Include vaccine suggestions router (global vaccine database)
 from .vaccines import router as vaccine_suggestions_router

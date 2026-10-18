@@ -52,6 +52,7 @@ const NoNearbyMissingPetsOverlay = dynamic(() => import('@/components/home/NoNea
 import { MissingPetAlertCard, type NearbyAlert } from '@/components/home/MissingPetAlertCard';
 import type { PetCareReminder } from '@/lib/petCareDomain';
 import { groomingRoutineState } from '@/lib/petCareDomain';
+import { effectiveGroomingRecords } from '@/lib/groomingRoutine';
 import { useMultipetInteractions } from '@/features/interactions/useMultipetInteractions';
 import type { PetInteractionItem } from '@/features/interactions/types';
 import { openHomeContextualCommerce, resolvePushActionSheetCommerceIntent } from '@/features/commerce/homeContextualCommerce';
@@ -659,6 +660,7 @@ function HomePageInner() {
   // Banho e Tosa — gerenciado por useGroomingManagement
   const {
     groomingRecords, setGroomingRecords,
+    groomingRoutine, setGroomingRoutine,
     editingGrooming, setEditingGrooming,
     groomingDueAlerts, setGroomingDueAlerts,
     groomingFormData, setGroomingFormData,
@@ -2509,7 +2511,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       upcomingUrgent={hasUrgentReminder}
                       onOpenUpcoming={() => setShowUpcomingSheet(true)}
                       onOpenGrooming={handleOpenGrooming}
-                      groomingState={groomingRoutineState(currentPet.pet_id, groomingRecords)}
+                      groomingState={groomingRoutineState(currentPet.pet_id, effectiveGroomingRecords(groomingRecords, groomingRoutine))}
                     />
 
                   {/* Compartilhar cuidado — só para o dono do pet. Compacto,
@@ -2555,7 +2557,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     petEvents={petEvents}
                     vaccines={vaccines}
                     parasiteControls={parasiteControls}
-                    groomingRecords={groomingRecords}
+                    groomingRecords={effectiveGroomingRecords(groomingRecords, groomingRoutine)}
                     feedingPlan={feedingPlan}
                     viewerPreferenceId={homePreferenceScopeId}
                     currentPet={currentPet}
@@ -2954,6 +2956,8 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           petSpecies={currentPet?.species}
           petPhotoUrl={currentPet?.photo}
           groomingRecords={groomingRecords}
+          routine={groomingRoutine}
+          onRoutineChange={setGroomingRoutine}
           onClose={closeGroomingSheet}
           onGoHome={() => goHome(closeGroomingSheet)}
           onRefresh={loadGroomingRecords}
