@@ -109,16 +109,19 @@ describe('GroomingItemSheet — tela rápida (abre primeiro)', () => {
     expect(screen.getByTestId('em-dia')).toBeTruthy();
   });
 
-  it('o interruptor de lembretes fica SEMPRE no topo, na tela rápida e na completa', () => {
+  it('o cartão do banho e tosa vem primeiro e o interruptor logo abaixo (compacto), na tela rápida e na completa', () => {
     open([rec()]);
     const topo = screen.getByTestId('lembretes-topo');
     expect(topo.textContent).toContain('Lembretes de banho e tosa');
+    // ordem: cartão do banho e tosa ANTES do interruptor
+    const emDia = screen.getByTestId('em-dia');
+    expect(emDia.compareDocumentPosition(topo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByRole('switch', { name: 'Lembretes de banho e tosa' }).getAttribute('aria-checked')).toBe('true');
     fireEvent.click(screen.getByText('Histórico e ajustes'));
     expect(screen.getByTestId('lembretes-topo')).toBeTruthy();
   });
 
-  it('desativar direto do topo (tela rápida): salva active:false e o histórico fica', async () => {
+  it('desativar direto pelo interruptor (tela rápida): salva active:false e o histórico fica', async () => {
     const onRoutineChange = vi.fn();
     render(<GroomingItemSheet petId="p1" petName="Baby" groomingRecords={[rec()] as never} routine={{ active: true, resumed_on: null }}
       onRoutineChange={onRoutineChange} onClose={vi.fn()} onRefresh={async () => undefined} />);

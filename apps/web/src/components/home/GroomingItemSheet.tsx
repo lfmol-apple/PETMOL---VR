@@ -564,6 +564,27 @@ export function GroomingItemSheet({
   const labelCls = 'block text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wider mb-1.5';
 
   // ── Render ────────────────────────────────────────────────────────────────
+  // Interruptor único dos lembretes (ativar / desativar): logo abaixo do cartão principal, compacto, nas duas telas.
+  const remindersSwitch = last ? (
+                <div data-testid="lembretes-topo" className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-2.5 shadow-sm">
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-semibold text-[#1C1C1E]">Lembretes de banho e tosa</p>
+                    <p className="text-[12px] text-[#8E8E93]">{paused ? 'Desativados' : 'Ativos'}</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={!paused}
+                    aria-label="Lembretes de banho e tosa"
+                    disabled={routineBusy}
+                    onClick={() => void toggleRoutine(paused)}
+                    className={`relative !h-[29px] !min-h-[29px] !w-[48px] !min-w-[48px] shrink-0 rounded-full p-0 transition-colors disabled:opacity-60 ${paused ? 'bg-slate-300' : 'bg-emerald-500'}`}
+                  >
+                    <span className={`absolute left-[3px] top-[3px] h-[23px] w-[23px] rounded-full bg-white shadow transition-transform ${paused ? '' : 'translate-x-[19px]'}`} />
+                  </button>
+                </div>
+  ) : null;
+
   return (
     <>
     <ActivationAskSheet
@@ -662,32 +683,11 @@ export function GroomingItemSheet({
           {mode === 'view' && (
             <div className="px-4 pt-3 pb-5 space-y-2.5">
 
-              {/* Interruptor único dos lembretes, sempre no topo (ativar / desativar). */}
-              {last && (
-                <div data-testid="lembretes-topo" className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm">
-                  <div className="min-w-0">
-                    <p className="text-[14px] font-semibold text-[#1C1C1E]">Lembretes de banho e tosa</p>
-                    <p className="text-[12px] text-[#8E8E93]">{paused ? 'Desativados' : 'Ativos'}</p>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={!paused}
-                    aria-label="Lembretes de banho e tosa"
-                    disabled={routineBusy}
-                    onClick={() => void toggleRoutine(paused)}
-                    className={`relative !h-[29px] !min-h-[29px] !w-[48px] !min-w-[48px] shrink-0 rounded-full p-0 transition-colors disabled:opacity-60 ${paused ? 'bg-slate-300' : 'bg-emerald-500'}`}
-                  >
-                    <span className={`absolute left-[3px] top-[3px] h-[23px] w-[23px] rounded-full bg-white shadow transition-transform ${paused ? '' : 'translate-x-[19px]'}`} />
-                  </button>
-                </div>
-              )}
-
               {/* Lembretes desativados: aviso claro e um toque para reativar. */}
               {paused && (
                 <div data-testid="lembretes-desativados" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <p className="text-[15px] font-black text-[#1C1C1E]">Lembretes de banho e tosa desativados</p>
-                  <p className="mt-1 text-[13px] leading-snug text-slate-500">Não vamos mais avisar. Seu histórico fica guardado. Para voltar a ser lembrado, ligue o interruptor acima.</p>
+                  <p className="mt-1 text-[13px] leading-snug text-slate-500">Não vamos mais avisar. Seu histórico fica guardado. Para voltar a ser lembrado, ligue o interruptor abaixo.</p>
                 </div>
               )}
 
@@ -796,6 +796,8 @@ export function GroomingItemSheet({
                     </div>
                   )}
 
+                  {remindersSwitch}
+
                   {last?.location_phone && (
                     <a
                       href={buildWhatsAppUrl(last.location_phone)}
@@ -828,6 +830,8 @@ export function GroomingItemSheet({
 
               {panel === 'full' && (
               <>
+              {remindersSwitch}
+
               {/* Last service card — iOS grouped table */}
               {last ? (
                 <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
