@@ -2507,6 +2507,8 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       upcomingCount={allUpcomingReminders.length}
                       upcomingUrgent={hasUrgentReminder}
                       onOpenUpcoming={() => setShowUpcomingSheet(true)}
+                      onOpenGrooming={handleOpenGrooming}
+                      groomingActive={groomingRecords.some((g) => Boolean(g.next_recommended_date) || (g.frequency_days ?? 0) > 0)}
                     />
 
                   {/* Compartilhar cuidado — só para o dono do pet. Compacto,
