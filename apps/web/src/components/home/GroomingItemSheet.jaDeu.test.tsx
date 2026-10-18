@@ -37,7 +37,7 @@ const rec = (over: Record<string, unknown> = {}) => ({
 }) as never;
 
 function open(records: unknown[]) {
-  return render(<GroomingItemSheet petId="p1" petName="Baby" groomingRecords={records as never} onClose={vi.fn()} onRefresh={async () => undefined} />);
+  return render(<GroomingItemSheet initialPanel="full" petId="p1" petName="Baby" groomingRecords={records as never} onClose={vi.fn()} onRefresh={async () => undefined} />);
 }
 
 describe('GroomingItemSheet — cartão "Já deu?"', () => {

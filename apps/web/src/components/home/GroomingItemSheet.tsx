@@ -127,6 +127,8 @@ interface GroomingItemSheetProps {
   /** Lembretes de banho/tosa do pet (ativo por padrão). Desativado: nada é lembrado e a banheirinha fica com o risquinho. */
   routine?: GroomingRoutineConfig;
   onRoutineChange?: (cfg: GroomingRoutineConfig) => void;
+  /** 'quick' (padrão): tela curta com uma ação só; 'full': histórico e ajustes completos. */
+  initialPanel?: 'quick' | 'full';
   onClose: () => void;
   onGoHome?: () => void;
   onRefresh: () => Promise<void>;
@@ -143,12 +145,14 @@ export function GroomingItemSheet({
   groomingRecords,
   routine = DEFAULT_GROOMING_ROUTINE,
   onRoutineChange,
+  initialPanel = 'quick',
   onClose,
   onRefresh,
   onGoHome,
 }: GroomingItemSheetProps) {
   const petPhotoSrc = resolvePetPhotoUrl(petPhotoUrl);
   const [mode, setMode] = useState<ViewMode>('view');
+  const [panel, setPanel] = useState<'quick' | 'full'>(initialPanel);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -227,16 +231,15 @@ export function GroomingItemSheet({
 
   // "Já dei": registra o serviço com a data escolhida, repetindo tipo, local e rotina do último registro.
   async function handleQuickDid() {
-    if (!last) return;
-    const type = last.type;
+    const type: GroomingType = last?.type ?? 'bath_grooming';
     const ok = await submitAdd({
       date: quickDate,
       type,
-      location: last.location || '',
-      location_phone: last.location_phone || '',
-      frequency_days: String(last.frequency_days ?? FREQ_DEFAULTS[type]),
-      reminder_days: String(last.alert_days_before ?? 3),
-      reminder_time: last.scheduled_time || '09:00',
+      location: last?.location || '',
+      location_phone: last?.location_phone || '',
+      frequency_days: String(last?.frequency_days ?? FREQ_DEFAULTS[type]),
+      reminder_days: String(last?.alert_days_before ?? 3),
+      reminder_time: last?.scheduled_time || '09:00',
     });
     if (ok) closeQuick();
   }
@@ -293,6 +296,7 @@ export function GroomingItemSheet({
   }
 
   // ── Histórico mais rico + intervalo sugerido ────────────────────────────────
+  const refType: GroomingType = last?.type ?? 'bath_grooming';
   const insights = groomingInsights(sorted);
   const [showAllHistory, setShowAllHistory] = useState(false);
   // Tela simples: histórico e lembretes ficam FECHADOS (uma linha cada) até o tutor tocar.
@@ -637,7 +641,7 @@ export function GroomingItemSheet({
           }}
           media={<SheetAvatar src={petPhotoSrc} alt={petName || 'Pet'} fallback={petSpecies === 'cat' ? '🐱' : '🐶'} />}
           onClose={onClose}
-          onBack={mode !== 'view' ? () => { setMode('view'); setEditRecord(null); } : undefined}
+          onBack={mode !== 'view' ? () => { setMode('view'); setEditRecord(null); } : panel === 'full' ? () => setPanel('quick') : undefined}
           action={mode === 'edit' && editRecord ? (
             <button
               type="button"
@@ -683,12 +687,12 @@ export function GroomingItemSheet({
               )}
 
               {/* Passou da data (ou o tutor quer mudar a data do próximo): pergunta em vez de acusar. */}
-              {!paused && ((schedLast && (status.overdue || quick === 'when')) || (last && quick === 'did')) && (
+              {!paused && ((schedLast && (status.overdue || quick === 'when')) || quick === 'did') && (
                 <div data-testid="ja-deu" className="rounded-2xl border border-amber-200 bg-white p-4 shadow-sm">
                   {quick === null && (
                     <>
                       <p className="text-[16px] font-black leading-tight text-[#1C1C1E]">
-                        O {groomingLabel(last.type).label.toLowerCase()} {petName ? `de ${petName} ` : ''}estava previsto para {fmtDate(nextDate)}. Já deu?
+                        O {groomingLabel(refType).label.toLowerCase()} {petName ? `de ${petName} ` : ''}estava previsto para {fmtDate(nextDate)}. Já deu?
                       </p>
                       <div className="mt-3 space-y-2">
                         <button type="button" onClick={() => openQuick('did')}
@@ -703,7 +707,7 @@ export function GroomingItemSheet({
                   {quick !== null && (
                     <>
                       <p className="text-[16px] font-black leading-tight text-[#1C1C1E]">
-                        {quick === 'did' ? `Quando foi o ${groomingLabel(last.type).label.toLowerCase()}${petName ? ` de ${petName}` : ''}?` : `Quando vai ser o próximo${petName ? ` de ${petName}` : ''}?`}
+                        {quick === 'did' ? `Quando foi o ${groomingLabel(refType).label.toLowerCase()}${petName ? ` de ${petName}` : ''}?` : `Quando vai ser o próximo${petName ? ` de ${petName}` : ''}?`}
                       </p>
                       <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Escolher data">
                         {(quick === 'did'
@@ -730,7 +734,7 @@ export function GroomingItemSheet({
                       )}
                       <p className="mt-3 text-[12.5px] leading-snug text-slate-500">
                         {quick === 'did'
-                          ? <>Vamos registrar <b>{groomingLabel(last.type).label}</b>{last.location ? <> no <b>{last.location}</b></> : null}, como da última vez. Próximo aviso: <b>{fmtDate(addDays(quickDate, last.frequency_days ?? FREQ_DEFAULTS[last.type]))}</b>.</>
+                          ? <>Vamos registrar <b>{groomingLabel(refType).label}</b>{last?.location ? <> no <b>{last.location}</b></> : null}, como da última vez. Próximo aviso: <b>{fmtDate(addDays(quickDate, last?.frequency_days ?? FREQ_DEFAULTS[refType]))}</b>.</>
                           : <>O histórico não muda: só a data do próximo.</>}
                       </p>
                       <button type="button" disabled={saving || !quickDate}
@@ -745,6 +749,63 @@ export function GroomingItemSheet({
                 </div>
               )}
 
+              {/* ── TELA RÁPIDA: uma coisa só, conforme a situação ───────────────── */}
+              {panel === 'quick' && (
+                <>
+                  {!paused && schedLast && !status.overdue && quick === null && (
+                    <div data-testid="em-dia" className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
+                      <p className="text-[16px] font-black leading-tight text-[#1C1C1E]">
+                        Próximo {groomingLabel(schedLast.type).label.toLowerCase()}{petName ? ` de ${petName}` : ''}: {fmtDate(nextDate)}
+                      </p>
+                      <p className="mt-0.5 text-[13px] text-slate-500">{status.label}</p>
+                      <button type="button" onClick={() => openQuick('did')}
+                        className="mt-3 w-full rounded-xl bg-emerald-500 py-3 text-[15px] font-extrabold text-white active:scale-[0.98]">✅ Dei banho hoje</button>
+                    </div>
+                  )}
+
+                  {!paused && !schedLast && quick === null && !(routine.resumed_on && last && !resumePromptHidden) && (
+                    <div data-testid="primeiro-banho" className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
+                      <p className="text-[16px] font-black leading-tight text-[#1C1C1E]">
+                        {last ? 'Sem banho agendado. ' : ''}Quando foi o último banho{petName ? ` de ${petName}` : ''}?
+                      </p>
+                      <p className="mt-1 text-[12.5px] leading-snug text-slate-500">Você escolhe a data e a gente avisa quando for a hora do próximo.</p>
+                      <button type="button" onClick={() => openQuick('did')}
+                        className="mt-3 w-full rounded-xl bg-emerald-500 py-3 text-[15px] font-extrabold text-white active:scale-[0.98]">✅ Informar o último banho</button>
+                    </div>
+                  )}
+
+                  {last?.location_phone && (
+                    <a
+                      href={buildWhatsAppUrl(last.location_phone)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 bg-white rounded-2xl px-4 py-3.5 shadow-sm active:opacity-70 transition-opacity"
+                    >
+                      <div className="w-11 h-11 rounded-[12px] bg-[#25D366] flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <WhatsAppIcon className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[15px] font-semibold text-[#1C1C1E]">Agendar via WhatsApp</p>
+                        {last.location && <p className="text-[13px] text-[#8E8E93] truncate">{last.location}</p>}
+                      </div>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="#C7C7CC" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 flex-shrink-0">
+                        <path d="M9 18l6-6-6-6" />
+                      </svg>
+                    </a>
+                  )}
+
+                  <button type="button" onClick={() => setPanel('full')}
+                    className="flex w-full items-center justify-between rounded-2xl bg-white px-4 py-3.5 text-left shadow-sm active:opacity-70">
+                    <span className="text-[14px] font-semibold text-[#1C1C1E]">Histórico e ajustes</span>
+                    <span className="flex items-center gap-2 text-[12px] font-semibold text-[#8E8E93]">{sorted.length > 0 ? `${sorted.length} serviço${sorted.length === 1 ? '' : 's'}` : ''}<span className="text-[#C7C7CC]">›</span></span>
+                  </button>
+                  <button type="button" onClick={startAdd}
+                    className="block w-full py-1 text-center text-[13px] font-semibold text-slate-500 active:opacity-60">Registrar com mais detalhes</button>
+                </>
+              )}
+
+              {panel === 'full' && (
+              <>
               {/* Last service card — iOS grouped table */}
               {last ? (
                 <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
@@ -978,6 +1039,8 @@ export function GroomingItemSheet({
                   )}
                 </div>
               )}
+              </>
+              )}
             </div>
           )}
 
@@ -1198,7 +1261,7 @@ export function GroomingItemSheet({
 
         {/* Fora do scroll — o botão principal de cada modo nunca fica
             escondido abaixo da rolagem */}
-        {mode === 'view' && (
+        {mode === 'view' && panel === 'full' && (
           <div className="flex-shrink-0 px-4 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] border-t border-[#E5E5EA] bg-white space-y-2">
             <button
               onClick={startAdd}
