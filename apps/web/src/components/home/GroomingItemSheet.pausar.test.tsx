@@ -46,6 +46,14 @@ function open(routine: { active: boolean; resumed_on?: string | null }, records:
 }
 
 describe('GroomingItemSheet — desativar e retomar os lembretes', () => {
+  it('ao desligar/religar pelo interruptor (no fim), a tela volta ao topo, onde ficam o aviso e o botão Reativar', async () => {
+    const scrollTo = vi.fn();
+    (Element.prototype as unknown as { scrollTo: unknown }).scrollTo = scrollTo;
+    open({ active: true, resumed_on: null });
+    await act(async () => { fireEvent.click(screen.getByRole('switch', { name: 'Lembretes de banho e tosa' })); });
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
+  });
+
   it('ativo: mostra a linha "Lembretes de banho e tosa · Ativos"; desligar salva e avisa o histórico fica', async () => {
     const { onRoutineChange } = open({ active: true, resumed_on: null });
     const sw = screen.getByRole('switch', { name: 'Lembretes de banho e tosa' });

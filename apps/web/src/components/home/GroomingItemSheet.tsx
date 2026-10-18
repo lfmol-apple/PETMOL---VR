@@ -303,6 +303,9 @@ export function GroomingItemSheet({
       onRoutineChange?.(saved);
       closeQuick();
       setResumePromptHidden(false);
+      // O interruptor fica no fim do sheet; o aviso ("Reativar lembretes" / convite do último banho)
+      // aparece no topo — leva o tutor até lá para ele ver o resultado e o botão.
+      scrollBodyRef.current?.scrollTo?.({ top: 0, behavior: 'smooth' });
       showToast(nextActive ? '✅ Lembretes reativados.' : 'Lembretes desativados. Seu histórico fica guardado.');
     } finally {
       setRoutineBusy(false);
