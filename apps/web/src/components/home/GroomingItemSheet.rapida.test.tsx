@@ -97,21 +97,30 @@ describe('GroomingItemSheet — tela rápida (abre primeiro)', () => {
     expect(screen.getByTestId('em-dia')).toBeTruthy();
   });
 
-  it('"Não quero mais lembretes": desativa direto da tela rápida (salva active:false) e o histórico fica', async () => {
+  it('o interruptor de lembretes fica SEMPRE no topo, na tela rápida e na completa', () => {
+    open([rec()]);
+    const topo = screen.getByTestId('lembretes-topo');
+    expect(topo.textContent).toContain('Lembretes de banho e tosa');
+    expect(screen.getByRole('switch', { name: 'Lembretes de banho e tosa' }).getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(screen.getByText('Histórico e ajustes'));
+    expect(screen.getByTestId('lembretes-topo')).toBeTruthy();
+  });
+
+  it('desativar direto do topo (tela rápida): salva active:false e o histórico fica', async () => {
     const onRoutineChange = vi.fn();
     render(<GroomingItemSheet petId="p1" petName="Baby" groomingRecords={[rec()] as never} routine={{ active: true, resumed_on: null }}
       onRoutineChange={onRoutineChange} onClose={vi.fn()} onRefresh={async () => undefined} />);
-    await act(async () => { fireEvent.click(screen.getByText('Não quero mais lembretes')); });
+    await act(async () => { fireEvent.click(screen.getByRole('switch', { name: 'Lembretes de banho e tosa' })); });
     const put = calls.find((c) => c.method === 'PUT');
     expect(put!.url).toContain('/pets/p1/grooming-routine');
     expect(put!.body).toEqual({ active: false });
     expect(onRoutineChange).toHaveBeenCalled();
   });
 
-  it('desativado: o botão some e fica o "Reativar lembretes"', () => {
+  it('desativado: o interruptor continua no topo (desligado) e o aviso explica como voltar', () => {
     open([rec()], { active: false, resumed_on: null });
-    expect(screen.queryByText('Não quero mais lembretes')).toBeNull();
-    expect(screen.getByText('Reativar lembretes')).toBeTruthy();
+    expect(screen.getByRole('switch', { name: 'Lembretes de banho e tosa' }).getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByTestId('lembretes-desativados').textContent).toContain('interruptor');
   });
 
   it('"Registrar com mais detalhes" abre o formulário completo de sempre', () => {
