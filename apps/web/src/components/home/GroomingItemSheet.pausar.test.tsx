@@ -50,15 +50,17 @@ describe('GroomingItemSheet — desativar e retomar os lembretes', () => {
     const scrollTo = vi.fn();
     (Element.prototype as unknown as { scrollTo: unknown }).scrollTo = scrollTo;
     open({ active: true, resumed_on: null });
+    fireEvent.click(screen.getByText('Lembretes'));
     await act(async () => { fireEvent.click(screen.getByRole('switch', { name: 'Lembretes de banho e tosa' })); });
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
   });
 
   it('ativo: mostra a linha "Lembretes de banho e tosa · Ativos"; desligar salva e avisa o histórico fica', async () => {
     const { onRoutineChange } = open({ active: true, resumed_on: null });
+    fireEvent.click(screen.getByText('Lembretes'));
     const sw = screen.getByRole('switch', { name: 'Lembretes de banho e tosa' });
     expect(sw.getAttribute('aria-checked')).toBe('true');
-    expect(screen.getByText('Ativos')).toBeTruthy();
+    expect(screen.getAllByText('Ativos').length).toBeGreaterThan(0);
     await act(async () => { fireEvent.click(sw); });
     const put = calls.find((c) => c.method === 'PUT');
     expect(put!.url).toContain('/pets/p1/grooming-routine');
@@ -76,6 +78,7 @@ describe('GroomingItemSheet — desativar e retomar os lembretes', () => {
     expect(screen.getByText('Último serviço')).toBeTruthy();
     expect(screen.getByText('Agendar via WhatsApp')).toBeTruthy();
     expect(screen.getByText('Registrar banho/tosa')).toBeTruthy();                   // registrar continua possível
+    fireEvent.click(screen.getByText('Lembretes'));
     expect(screen.getByRole('switch', { name: 'Lembretes de banho e tosa' }).getAttribute('aria-checked')).toBe('false');
   });
 

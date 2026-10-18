@@ -295,6 +295,9 @@ export function GroomingItemSheet({
   // ── Histórico mais rico + intervalo sugerido ────────────────────────────────
   const insights = groomingInsights(sorted);
   const [showAllHistory, setShowAllHistory] = useState(false);
+  // Tela simples: histórico e lembretes ficam FECHADOS (uma linha cada) até o tutor tocar.
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [remindersOpen, setRemindersOpen] = useState(false);
   const HISTORY_PREVIEW = 3;
   const visibleHistory = showAllHistory ? sorted : sorted.slice(0, HISTORY_PREVIEW);
   const suggestionKey = `petmol_groom_interval_dismissed_${petId}`;
@@ -832,37 +835,29 @@ export function GroomingItemSheet({
                 </a>
               )}
 
-              {/* Intervalo sugerido pelo hábito real do tutor */}
-              {showSuggestion && (
-                <div data-testid="intervalo-sugerido" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <p className="text-[14px] font-semibold leading-snug text-[#1C1C1E]">
-                    {petName ? `${petName} costuma` : 'Costuma'} tomar banho a cada <b>{suggested} dias</b>. O lembrete está em {schedLast?.frequency_days ?? '—'}.
-                  </p>
-                  <div className="mt-2.5 flex gap-2">
-                    <button type="button" disabled={saving} onClick={() => void handleUseSuggested()}
-                      className="flex-1 rounded-xl bg-emerald-500 py-2.5 text-[14px] font-extrabold text-white active:scale-[0.98] disabled:opacity-60">Usar {suggested} dias</button>
-                    <button type="button" onClick={dismissSuggestion}
-                      className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[14px] font-bold text-slate-600 active:scale-[0.98]">Agora não</button>
-                  </div>
-                </div>
-              )}
-
               {/* History */}
               {sorted.length > 0 && (
                 <div>
-                  <div className="mb-2 flex items-end justify-between gap-3 px-1">
-                    <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wider">
-                      Histórico ({sorted.length})
-                    </p>
-                    {(insights.averageDays != null || insights.totalCost != null) && (
-                      <p data-testid="historico-resumo" className="text-right text-[12px] font-semibold text-[#8E8E93]">
-                        {insights.averageDays != null && <>média a cada <b className="text-[#1C1C1E]">{insights.averageDays} dias</b></>}
-                        {insights.averageDays != null && insights.totalCost != null && ' · '}
-                        {insights.totalCost != null && <>R$ {insights.totalCost.toFixed(2).replace('.', ',')} no total</>}
-                      </p>
-                    )}
-                  </div>
-                  <div className="bg-white rounded-2xl overflow-hidden shadow-sm divide-y divide-[#F2F2F7]">
+                  <button
+                    type="button"
+                    onClick={() => setHistoryOpen((v) => !v)}
+                    aria-expanded={historyOpen}
+                    className="flex w-full items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3.5 text-left shadow-sm active:opacity-70"
+                  >
+                    <span className="text-[14px] font-semibold text-[#1C1C1E]">Histórico ({sorted.length})</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      {(insights.averageDays != null || insights.totalCost != null) && (
+                        <span data-testid="historico-resumo" className="truncate text-right text-[12px] font-semibold text-[#8E8E93]">
+                          {insights.averageDays != null && <>média a cada <b className="text-[#1C1C1E]">{insights.averageDays} dias</b></>}
+                          {insights.averageDays != null && insights.totalCost != null && ' · '}
+                          {insights.totalCost != null && <>R$ {insights.totalCost.toFixed(2).replace('.', ',')}</>}
+                        </span>
+                      )}
+                      <span className={`text-[#C7C7CC] transition-transform ${historyOpen ? 'rotate-90' : ''}`}>›</span>
+                    </span>
+                  </button>
+                  {historyOpen && (
+                  <div className="mt-2 bg-white rounded-2xl overflow-hidden shadow-sm divide-y divide-[#F2F2F7]">
                     {!paused && nextDate && schedLast && (
                       <div data-testid="historico-proximo" className="px-4 py-3 bg-emerald-50/60">
                         <p className={`text-[14px] font-semibold ${status.overdue ? 'text-amber-700' : 'text-emerald-800'}`}>📅 Próximo: {fmtDate(nextDate)}</p>
@@ -921,27 +916,66 @@ export function GroomingItemSheet({
                       </button>
                     )}
                   </div>
+                  )}
                 </div>
               )}
 
-              {/* Lembretes de banho e tosa: linha discreta (padrão das configurações do iPhone). */}
+              {/* Lembretes: uma linha; ao tocar abre o interruptor, "Mudar a data" e a sugestão de intervalo. */}
               {last && (
-                <div className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm">
-                  <div className="min-w-0">
-                    <p className="text-[14px] font-semibold text-[#1C1C1E]">Lembretes de banho e tosa</p>
-                    <p className="text-[12px] text-[#8E8E93]">{paused ? 'Desativados — o histórico fica guardado' : 'Ativos'}</p>
-                  </div>
+                <div>
                   <button
                     type="button"
-                    role="switch"
-                    aria-checked={!paused}
-                    aria-label="Lembretes de banho e tosa"
-                    disabled={routineBusy}
-                    onClick={() => void toggleRoutine(paused)}
-                    className={`relative !h-[29px] !min-h-[29px] !w-[48px] !min-w-[48px] shrink-0 rounded-full p-0 transition-colors disabled:opacity-60 ${paused ? 'bg-slate-300' : 'bg-emerald-500'}`}
+                    onClick={() => setRemindersOpen((v) => !v)}
+                    aria-expanded={remindersOpen}
+                    className="flex w-full items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3.5 text-left shadow-sm active:opacity-70"
                   >
-                    <span className={`absolute left-[3px] top-[3px] h-[23px] w-[23px] rounded-full bg-white shadow transition-transform ${paused ? '' : 'translate-x-[19px]'}`} />
+                    <span className="text-[14px] font-semibold text-[#1C1C1E]">Lembretes</span>
+                    <span className="flex items-center gap-2 text-[12px] font-semibold text-[#8E8E93]">
+                      {paused ? 'Desativados' : 'Ativos'}
+                      <span className={`text-[#C7C7CC] transition-transform ${remindersOpen ? 'rotate-90' : ''}`}>›</span>
+                    </span>
                   </button>
+                  {remindersOpen && (
+                    <div data-testid="lembretes-painel" className="mt-2 space-y-3 rounded-2xl bg-white p-4 shadow-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[14px] font-semibold text-[#1C1C1E]">Lembretes de banho e tosa</p>
+                          <p className="text-[12px] text-[#8E8E93]">{paused ? 'Desativados — o histórico fica guardado' : 'Ativos'}</p>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={!paused}
+                          aria-label="Lembretes de banho e tosa"
+                          disabled={routineBusy}
+                          onClick={() => void toggleRoutine(paused)}
+                          className={`relative !h-[29px] !min-h-[29px] !w-[48px] !min-w-[48px] shrink-0 rounded-full p-0 transition-colors disabled:opacity-60 ${paused ? 'bg-slate-300' : 'bg-emerald-500'}`}
+                        >
+                          <span className={`absolute left-[3px] top-[3px] h-[23px] w-[23px] rounded-full bg-white shadow transition-transform ${paused ? '' : 'translate-x-[19px]'}`} />
+                        </button>
+                      </div>
+                      {schedLast && !paused && (
+                        <button
+                          type="button"
+                          onClick={() => { setRemindersOpen(false); openQuick('when'); }}
+                          className="w-full rounded-xl border border-slate-200 bg-white py-2.5 text-[14px] font-bold text-slate-700 active:scale-[0.98]"
+                        >Mudar a data do próximo banho</button>
+                      )}
+                      {showSuggestion && (
+                        <div data-testid="intervalo-sugerido" className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-[13.5px] font-semibold leading-snug text-[#1C1C1E]">
+                            {petName ? `${petName} costuma` : 'Costuma'} tomar banho a cada <b>{suggested} dias</b>. O lembrete está em {schedLast?.frequency_days ?? '—'}.
+                          </p>
+                          <div className="mt-2.5 flex gap-2">
+                            <button type="button" disabled={saving} onClick={() => void handleUseSuggested()}
+                              className="flex-1 rounded-xl bg-emerald-500 py-2.5 text-[14px] font-extrabold text-white active:scale-[0.98] disabled:opacity-60">Usar {suggested} dias</button>
+                            <button type="button" onClick={dismissSuggestion}
+                              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[14px] font-bold text-slate-600 active:scale-[0.98]">Agora não</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1172,14 +1206,6 @@ export function GroomingItemSheet({
             >
               Registrar banho/tosa
             </button>
-            {schedLast && !paused && (
-              <button
-                onClick={() => openQuick('when')}
-                className="w-full py-1 text-[13px] font-medium text-slate-500 active:opacity-60 transition-opacity"
-              >
-                Mudar a data do próximo banho
-              </button>
-            )}
           </div>
         )}
         {mode === 'add' && (

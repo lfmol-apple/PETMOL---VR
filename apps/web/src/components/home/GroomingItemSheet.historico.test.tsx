@@ -54,9 +54,11 @@ describe('GroomingItemSheet — histórico mais rico', () => {
     open(records(45));
     const resumo = screen.getByTestId('historico-resumo').textContent!;
     expect(resumo).toContain('média a cada 44 dias');
-    expect(resumo).toContain('R$ 290,00 no total');
-    expect(screen.getByTestId('historico-proximo').textContent).toContain('Próximo:');
+    expect(resumo).toContain('R$ 290,00');
     expect(screen.getByText(/Histórico \(4\)/)).toBeTruthy();
+    expect(screen.queryByTestId('historico-proximo')).toBeNull();        // fechado por padrão
+    fireEvent.click(screen.getByText(/Histórico \(4\)/));
+    expect(screen.getByTestId('historico-proximo').textContent).toContain('Próximo:');
     // 3 primeiros + botão; 2 intervalos entre os 3 visíveis
     expect(screen.getAllByTestId('historico-intervalo')).toHaveLength(2);
     fireEvent.click(screen.getByText('Ver os 4 serviços'));
@@ -71,6 +73,7 @@ describe('GroomingItemSheet — histórico mais rico', () => {
     const recs = records(45);
     (recs[0] as unknown as Record<string, unknown>).reschedule_history = [{ from: d(-3), to: d(35), at: new Date().toISOString() }];
     open(recs);
+    fireEvent.click(screen.getByText(/Histórico \(4\)/));
     expect(screen.getByTestId('historico-proximo').textContent).toContain('Reagendado de');
   });
 
@@ -84,6 +87,7 @@ describe('GroomingItemSheet — histórico mais rico', () => {
 describe('GroomingItemSheet — intervalo sugerido', () => {
   it('lembrete em 15 dias e hábito de 44: sugere; "Usar 44 dias" só troca o intervalo e a data do próximo', async () => {
     open(records(15));
+    fireEvent.click(screen.getByText('Lembretes'));
     expect(screen.getByTestId('intervalo-sugerido').textContent).toContain('44 dias');
     await act(async () => { fireEvent.click(screen.getByText('Usar 44 dias')); });
     const patch = calls.find((c) => c.method === 'PATCH');
@@ -99,15 +103,19 @@ describe('GroomingItemSheet — intervalo sugerido', () => {
 
   it('"Agora não" esconde e lembra a escolha', () => {
     open(records(15));
+    fireEvent.click(screen.getByText('Lembretes'));
     fireEvent.click(screen.getByText('Agora não'));
     expect(screen.queryByTestId('intervalo-sugerido')).toBeNull();
     cleanup();
     open(records(15));
+    fireEvent.click(screen.getByText('Lembretes'));
     expect(screen.queryByTestId('intervalo-sugerido')).toBeNull();
   });
 
   it('lembretes desativados: sem sugestão e sem linha de próximo, mas o histórico rico continua', () => {
     open(records(15), { active: false, resumed_on: null });
+    fireEvent.click(screen.getByText('Lembretes'));
+    fireEvent.click(screen.getByText(/Histórico \(4\)/));
     expect(screen.queryByTestId('intervalo-sugerido')).toBeNull();
     expect(screen.queryByTestId('historico-proximo')).toBeNull();
     expect(screen.getByTestId('historico-resumo')).toBeTruthy();

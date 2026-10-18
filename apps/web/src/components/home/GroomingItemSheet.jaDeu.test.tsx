@@ -79,9 +79,10 @@ describe('GroomingItemSheet — cartão "Já deu?"', () => {
     expect(calls.some((c) => c.method === 'POST')).toBe(false);
   });
 
-  it('o link do rodapé abre o seletor de data mesmo em dia, e "Voltar" fecha', async () => {
+  it('"Mudar a data do próximo banho" (dentro de Lembretes) abre o seletor mesmo em dia, e "Voltar" fecha', async () => {
     open([rec({ next_recommended_date: iso(10) })]);
     expect(screen.queryByTestId('ja-deu')).toBeNull();
+    fireEvent.click(screen.getByText('Lembretes'));
     fireEvent.click(screen.getByText('Mudar a data do próximo banho'));
     await waitFor(() => expect(screen.getByText(/Quando vai ser o próximo/)).toBeTruthy());
     fireEvent.click(screen.getByText('Voltar'));
