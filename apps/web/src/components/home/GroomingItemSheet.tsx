@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import type { GroomingRecord, GroomingType } from '@/lib/types/home';
@@ -31,6 +31,22 @@ function addDays(dateStr: string, days: number): string {
   const dt = new Date(y, m - 1, d);
   dt.setDate(dt.getDate() + days);
   return dateToLocalISO(dt);
+}
+
+/** Sábado mais próximo (hoje, se for sábado) — atalho "Este fim de semana". */
+function nextSaturday(): string {
+  const t = new Date();
+  const add = (6 - t.getDay() + 7) % 7;
+  t.setDate(t.getDate() + add);
+  return dateToLocalISO(t);
+}
+
+function parseRescheduleHistory(v: unknown): Array<{ from: string | null; to: string; at: string }> {
+  if (Array.isArray(v)) return v as Array<{ from: string | null; to: string; at: string }>;
+  if (typeof v === 'string' && v.trim()) {
+    try { const j = JSON.parse(v); return Array.isArray(j) ? j : []; } catch { return []; }
+  }
+  return [];
 }
 
 function diffDays(dateStr?: string | null): number | null {
@@ -184,6 +200,88 @@ export function GroomingItemSheet({
     setMode('add');
   }
 
+  // ── "Já deu?" / mudar a data do próximo ───────────────────────────────────
+  // quick: 'did' = já fez (registra com a data escolhida) · 'when' = quando vai ser (só muda a data do próximo)
+  const [quick, setQuick] = useState<null | 'did' | 'when'>(null);
+  const [quickDate, setQuickDate] = useState<string>(localTodayISO());
+  const [quickOther, setQuickOther] = useState(false);
+  const scrollBodyRef = useRef<HTMLDivElement>(null);
+
+  function openQuick(kind: 'did' | 'when') {
+    setQuick(kind);
+    setQuickDate(kind === 'did' ? localTodayISO() : addDays(localTodayISO(), 1));
+    setQuickOther(false);
+    scrollBodyRef.current?.scrollTo?.({ top: 0, behavior: 'smooth' });
+  }
+  function closeQuick() { setQuick(null); setQuickOther(false); }
+
+  // "Já dei": registra o serviço com a data escolhida, repetindo tipo, local e rotina do último registro.
+  async function handleQuickDid() {
+    if (!last) return;
+    const type = last.type;
+    const ok = await submitAdd({
+      date: quickDate,
+      type,
+      location: last.location || '',
+      location_phone: last.location_phone || '',
+      frequency_days: String(last.frequency_days ?? FREQ_DEFAULTS[type]),
+      reminder_days: String(last.alert_days_before ?? 3),
+      reminder_time: last.scheduled_time || '09:00',
+    });
+    if (ok) closeQuick();
+  }
+
+  // "Quando vai ser": só muda a data do PRÓXIMO (o histórico não é tocado) e guarda o reagendamento.
+  async function handleQuickWhen() {
+    if (!last) return;
+    setSaving(true);
+    try {
+      const token = getToken();
+      if (!token) { showToast('⚠️ Sessão expirada. Faça login novamente.'); return; }
+      const history = [
+        ...parseRescheduleHistory(last.reschedule_history),
+        { from: last.next_recommended_date ? last.next_recommended_date.split('T')[0] : null, to: quickDate, at: new Date().toISOString() },
+      ];
+      const res = await fetch(`${API_BASE_URL}/pets/${petId}/grooming/${last.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          next_recommended_date: quickDate,
+          reminder_enabled: true,
+          rescheduled_count: (last.rescheduled_count ?? 0) + 1,
+          reschedule_history: history,
+        }),
+      });
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => '');
+        showToast(`❌ Erro ao agendar (${res.status}). ${errorText || 'Tente novamente.'}`);
+        return;
+      }
+      try {
+        const remindAt = resolveRemindAt(quickDate, last.alert_days_before ?? 3, last.scheduled_time || '09:00');
+        const t = getToken();
+        if (remindAt && t) {
+          const { icon, label } = groomingLabel(last.type);
+          const petshopName = last.location?.trim();
+          void scheduleUniqueReminder({
+            pet_id: petId,
+            type: 'grooming',
+            title: `${icon} ${label}: ${petName || 'seu pet'}`,
+            body: petshopName
+              ? `Agendar ${label.toLowerCase()} do ${petName || 'seu pet'} · Toque para falar com ${petshopName} 🐾`
+              : `Hora de agendar o ${label.toLowerCase()} do ${petName || 'seu pet'} no petshop 🐾`,
+            remind_at: remindAt,
+          }, t);
+        }
+      } catch { /* push é best-effort */ }
+      closeQuick();
+      showToast(`📅 Combinado! Próximo: ${fmtDate(quickDate)}`);
+      await onRefresh();
+    } finally {
+      setSaving(false);
+    }
+  }
+
   // ── Toast ─────────────────────────────────────────────────────────────────
   function showToast(msg: string) {
     setToast(msg);
@@ -191,46 +289,47 @@ export function GroomingItemSheet({
   }
 
   // ── Add handler ───────────────────────────────────────────────────────────
-  async function handleAdd() {
-    if (!addForm.date) return;
+  async function submitAdd(form: typeof addForm): Promise<boolean> {
+    if (!form.date) return false;
+    let ok = false;
     setSaving(true);
     try {
       const token = getToken();
-      if (!token) { showToast('⚠️ Sessão expirada. Faça login novamente.'); return; }
+      if (!token) { showToast('⚠️ Sessão expirada. Faça login novamente.'); return false; }
 
-      const freq = parseInt(addForm.frequency_days, 10) || FREQ_DEFAULTS[addForm.type];
-      const nextRec = addDays(addForm.date, freq);
+      const freq = parseInt(form.frequency_days, 10) || FREQ_DEFAULTS[form.type];
+      const nextRec = addDays(form.date, freq);
 
       const res = await fetch(`${API_BASE_URL}/pets/${petId}/grooming`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          type: addForm.type,
-          date: addForm.date,
-          location: addForm.location || null,
-          location_phone: addForm.location_phone || null,
+          type: form.type,
+          date: form.date,
+          location: form.location || null,
+          location_phone: form.location_phone || null,
           cost: null,
           notes: null,
           next_recommended_date: nextRec,
           frequency_days: freq,
           reminder_enabled: true,
-          alert_days_before: parseInt(addForm.reminder_days) || 3,
-          scheduled_time: addForm.reminder_time || '09:00',
+          alert_days_before: parseInt(form.reminder_days) || 3,
+          scheduled_time: form.reminder_time || '09:00',
         }),
       });
 
       if (res.ok) {
         // Agendar lembrete de push para próximo serviço
         try {
-          const freq = parseInt(addForm.frequency_days, 10) || FREQ_DEFAULTS[addForm.type];
-          const nextDate = addDays(addForm.date, freq);
-          const daysBefore = parseInt(addForm.reminder_days, 10) || 3;
-          const remindAt = resolveRemindAt(nextDate, daysBefore, addForm.reminder_time || '09:00');
+          const freq = parseInt(form.frequency_days, 10) || FREQ_DEFAULTS[form.type];
+          const nextDate = addDays(form.date, freq);
+          const daysBefore = parseInt(form.reminder_days, 10) || 3;
+          const remindAt = resolveRemindAt(nextDate, daysBefore, form.reminder_time || '09:00');
           if (remindAt) {
             const t = getToken();
             if (t) {
-              const { icon, label } = groomingLabel(addForm.type);
-              const petshopName = addForm.location?.trim();
+              const { icon, label } = groomingLabel(form.type);
+              const petshopName = form.location?.trim();
               void scheduleUniqueReminder({
                 pet_id: petId,
                 type: 'grooming',
@@ -245,8 +344,9 @@ export function GroomingItemSheet({
         } catch { /* push é best-effort */ }
 
         setMode('view');
-        setJustSavedPhone(addForm.location_phone || null);
+        setJustSavedPhone(form.location_phone || null);
         setAddForm(f => ({ ...f, date: localTodayISO() }));
+        ok = true;
         await onRefresh();
         setJustSaved(true);
       } else {
@@ -256,7 +356,10 @@ export function GroomingItemSheet({
     } finally {
       setSaving(false);
     }
+    return ok;
   }
+
+  async function handleAdd() { await submitAdd(addForm); }
 
   // ── Edit handlers ─────────────────────────────────────────────────────────
   function startEdit(rec: GroomingRecord) {
@@ -465,11 +568,74 @@ export function GroomingItemSheet({
         />
 
         {/* Scrollable body */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
+        <div ref={scrollBodyRef} className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
 
           {/* ── VIEW MODE ─────────────────────────────────────────────────── */}
           {mode === 'view' && (
             <div className="px-4 pt-3 pb-5 space-y-2.5">
+
+              {/* Passou da data (ou o tutor quer mudar a data do próximo): pergunta em vez de acusar. */}
+              {last && (status.overdue || quick) && (
+                <div data-testid="ja-deu" className="rounded-2xl border border-amber-200 bg-white p-4 shadow-sm">
+                  {quick === null && (
+                    <>
+                      <p className="text-[16px] font-black leading-tight text-[#1C1C1E]">
+                        O {groomingLabel(last.type).label.toLowerCase()} {petName ? `de ${petName} ` : ''}estava previsto para {fmtDate(nextDate)}. Já deu?
+                      </p>
+                      <div className="mt-3 space-y-2">
+                        <button type="button" onClick={() => openQuick('did')}
+                          className="w-full rounded-xl bg-emerald-500 py-3 text-[15px] font-extrabold text-white active:scale-[0.98]">✅ Já dei</button>
+                        <button type="button" onClick={() => openQuick('when')}
+                          className="w-full rounded-xl border border-slate-200 bg-white py-3 text-[15px] font-bold text-slate-700 active:scale-[0.98]">📅 Ainda não</button>
+                        <button type="button" onClick={() => nextEditableRecord && startEdit(nextEditableRecord)}
+                          className="block w-full pt-1 text-center text-[13px] font-semibold text-[#0056D2]">Mudou a rotina?</button>
+                      </div>
+                    </>
+                  )}
+                  {quick !== null && (
+                    <>
+                      <p className="text-[16px] font-black leading-tight text-[#1C1C1E]">
+                        {quick === 'did' ? `Quando foi o ${groomingLabel(last.type).label.toLowerCase()}${petName ? ` de ${petName}` : ''}?` : `Quando vai ser o próximo${petName ? ` de ${petName}` : ''}?`}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Escolher data">
+                        {(quick === 'did'
+                          ? [['Hoje', localTodayISO()], ['Ontem', addDays(localTodayISO(), -1)]]
+                          : [['Hoje', localTodayISO()], ['Amanhã', addDays(localTodayISO(), 1)], ['Este fim de semana', nextSaturday()]]
+                        ).map(([label, iso]) => {
+                          const on = !quickOther && quickDate === iso;
+                          return (
+                            <button key={label} type="button" aria-pressed={on}
+                              onClick={() => { setQuickOther(false); setQuickDate(iso); }}
+                              className={`rounded-full border px-3.5 py-2 text-[14px] font-bold ${on ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-600'}`}>{label}</button>
+                          );
+                        })}
+                        <button type="button" aria-pressed={quickOther} onClick={() => setQuickOther(true)}
+                          className={`rounded-full border px-3.5 py-2 text-[14px] font-bold ${quickOther ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-600'}`}>
+                          {quick === 'did' ? 'Outra data' : 'Escolher data'}
+                        </button>
+                      </div>
+                      {quickOther && (
+                        <div className="mt-2">
+                          <DateField value={quickDate} onChange={(iso) => setQuickDate(iso)}
+                            inputClassName={`${inputCls} w-full pr-11 tabular-nums`} />
+                        </div>
+                      )}
+                      <p className="mt-3 text-[12.5px] leading-snug text-slate-500">
+                        {quick === 'did'
+                          ? <>Vamos registrar <b>{groomingLabel(last.type).label}</b>{last.location ? <> no <b>{last.location}</b></> : null}, como da última vez. Próximo aviso: <b>{fmtDate(addDays(quickDate, last.frequency_days ?? FREQ_DEFAULTS[last.type]))}</b>.</>
+                          : <>O histórico não muda: só a data do próximo.</>}
+                      </p>
+                      <button type="button" disabled={saving || !quickDate}
+                        onClick={() => void (quick === 'did' ? handleQuickDid() : handleQuickWhen())}
+                        className="mt-3 w-full rounded-xl bg-emerald-500 py-3 text-[15px] font-extrabold text-white active:scale-[0.98] disabled:opacity-60">
+                        {quick === 'did' ? 'Registrar' : `Agendar para ${fmtDate(quickDate)}`}
+                      </button>
+                      <button type="button" onClick={closeQuick}
+                        className="block w-full pt-2 text-center text-[13px] font-semibold text-slate-500">Voltar</button>
+                    </>
+                  )}
+                </div>
+              )}
 
               {/* Last service card — iOS grouped table */}
               {last ? (
@@ -836,11 +1002,10 @@ export function GroomingItemSheet({
             </button>
             {last && (
               <button
-                onClick={() => nextEditableRecord && startEdit(nextEditableRecord)}
-                disabled={!nextEditableRecord}
-                className="w-full py-1 text-[13px] font-medium text-slate-500 disabled:opacity-30 active:opacity-60 transition-opacity"
+                onClick={() => openQuick('when')}
+                className="w-full py-1 text-[13px] font-medium text-slate-500 active:opacity-60 transition-opacity"
               >
-                Editar próximo agendamento
+                Mudar a data do próximo banho
               </button>
             )}
           </div>

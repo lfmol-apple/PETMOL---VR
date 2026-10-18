@@ -58,6 +58,8 @@ export interface GroomingRecord {
   frequency_days?: number; // Frequência ideal (14 dias para banho, 45 para tosa, etc)
   reminder_enabled?: boolean;
   alert_days_before?: number;
+  rescheduled_count?: number; // quantas vezes o tutor mudou a data do próximo
+  reschedule_history?: Array<{ from: string | null; to: string; at: string }> | string | null;
 }
 
 // Interface de resposta da API de OCR de cartão de vacina
