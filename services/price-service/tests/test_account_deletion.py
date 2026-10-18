@@ -100,3 +100,21 @@ def test_every_table_with_fk_to_pets_is_purged():
         if fk.column.table.name == "pets" and t.name != "pets" and t.name not in _PET_CHILD_TABLES
     })
     assert missing == [], f"Adicione em purge._PET_CHILD_TABLES: {missing}"
+
+
+def test_every_user_fk_without_cascade_is_purged():
+    """FK para users sem ON DELETE CASCADE/SET NULL precisa ser limpa por purge_user_data."""
+    import inspect
+    from src.db import Base
+    from src.main import app  # noqa: F401
+    from src.user_auth import purge
+
+    src = inspect.getsource(purge)
+    missing = sorted({
+        t.name for t in Base.metadata.sorted_tables
+        for fk in t.foreign_keys
+        if fk.column.table.name == "users" and t.name != "users"
+        and (fk.ondelete or "").upper() not in ("CASCADE", "SET NULL")
+        and t.name not in src
+    })
+    assert missing == [], f"FK para users sem cascade fora do purge: {missing}"

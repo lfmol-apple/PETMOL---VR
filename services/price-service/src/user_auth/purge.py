@@ -97,6 +97,8 @@ def purge_user_data(db: Session, user) -> list[str]:
         ("notification_pendencies", "user_id"),
         ("reminders", "user_id"),
         ("user_consents", "user_id"),
+        # FK sem cascade: conta que também é admin não podia ser excluída (500)
+        ("admin_users", "user_id"),
         ("missing_pets", "user_id"),
         ("missing_pet_followers", "finder_user_id"),
         ("found_reports", "finder_user_id"),
