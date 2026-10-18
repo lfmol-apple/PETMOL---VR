@@ -60,6 +60,18 @@ describe('GroomingItemSheet — tela rápida (abre primeiro)', () => {
     expect(post!.body).toMatchObject({ type: 'bath_grooming', date: d(0), location: 'Mundo dos Bichos', frequency_days: 45 });
   });
 
+  it('em dia: "Mudar a data" edita o banho programado aqui mesmo (só a data do próximo)', async () => {
+    open([rec()]);
+    fireEvent.click(screen.getByText('✏️ Mudar a data'));
+    expect(screen.getByText(/Quando vai ser o próximo/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Amanhã' }));
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Agendar para/ })); });
+    const patch = calls.find((c) => c.method === 'PATCH');
+    expect(patch!.url).toContain('/pets/p1/grooming/g1');
+    expect(patch!.body).toMatchObject({ next_recommended_date: d(1), rescheduled_count: 1 });
+    expect(calls.some((c) => c.method === 'POST')).toBe(false);
+  });
+
   it('passou da data: abre direto no "Já deu?" (Já dei / Ainda não)', () => {
     open([rec({ date: d(-60), next_recommended_date: d(-15) })]);
     expect(screen.getByTestId('ja-deu')).toBeTruthy();
@@ -97,16 +109,19 @@ describe('GroomingItemSheet — tela rápida (abre primeiro)', () => {
     expect(screen.getByTestId('em-dia')).toBeTruthy();
   });
 
-  it('o interruptor de lembretes fica SEMPRE no topo, na tela rápida e na completa', () => {
+  it('o cartão do banho e tosa vem primeiro e o interruptor logo abaixo (compacto), na tela rápida e na completa', () => {
     open([rec()]);
     const topo = screen.getByTestId('lembretes-topo');
     expect(topo.textContent).toContain('Lembretes de banho e tosa');
+    // ordem: cartão do banho e tosa ANTES do interruptor
+    const emDia = screen.getByTestId('em-dia');
+    expect(emDia.compareDocumentPosition(topo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByRole('switch', { name: 'Lembretes de banho e tosa' }).getAttribute('aria-checked')).toBe('true');
     fireEvent.click(screen.getByText('Histórico e ajustes'));
     expect(screen.getByTestId('lembretes-topo')).toBeTruthy();
   });
 
-  it('desativar direto do topo (tela rápida): salva active:false e o histórico fica', async () => {
+  it('desativar direto pelo interruptor (tela rápida): salva active:false e o histórico fica', async () => {
     const onRoutineChange = vi.fn();
     render(<GroomingItemSheet petId="p1" petName="Baby" groomingRecords={[rec()] as never} routine={{ active: true, resumed_on: null }}
       onRoutineChange={onRoutineChange} onClose={vi.fn()} onRefresh={async () => undefined} />);
