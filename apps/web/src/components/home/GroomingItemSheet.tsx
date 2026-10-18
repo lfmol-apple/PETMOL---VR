@@ -90,10 +90,13 @@ function computeStatus(nextDate?: string | null) {
   const key = careStateFromDaysUntilDue(diff);
   const s = CARE_STATE[key];
   let label = diff === null ? 'Sem agendamento' : s.label;
-  if (diff != null && diff < 0) label = `Atrasado há ${Math.abs(diff)} dia${Math.abs(diff) !== 1 ? 's' : ''}`;
+  // Passou da data: o app não sabe se o banho não aconteceu ou só não foi registrado,
+  // então o topo não acusa ("Atrasado há N dias", em vermelho) — diz a data prevista, em âmbar.
+  const overdue = diff != null && diff < 0;
+  if (overdue) label = `Previsto para ${fmtDate(nextDate)}`;
   else if (diff === 0) label = 'Hoje';
   else if (diff != null && diff > 0) label = `Em ${diff} dia${diff !== 1 ? 's' : ''}`;
-  return { key, label, bg: s.chip, text: s.chipText, dot: s.dot };
+  return { key, label, bg: s.chip, text: overdue ? 'text-amber-700' : s.chipText, dot: s.dot, overdue };
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -443,7 +446,7 @@ export function GroomingItemSheet({
           subtitle={petName || undefined}
           status={{
             label: nextDate ? status.label.charAt(0).toUpperCase() + status.label.slice(1) : 'Sem agendamento',
-            tone: status.key === "critical" ? "danger" : status.key === "attention" ? "warn" : status.key === "ok" ? "good" : "neutral",
+            tone: status.overdue ? "warn" : status.key === "critical" ? "danger" : status.key === "attention" ? "warn" : status.key === "ok" ? "good" : "neutral",
           }}
           media={<SheetAvatar src={petPhotoSrc} alt={petName || 'Pet'} fallback={petSpecies === 'cat' ? '🐱' : '🐶'} />}
           onClose={onClose}
