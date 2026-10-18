@@ -31,14 +31,14 @@ function open(records: unknown[]) {
 }
 
 describe('GroomingItemSheet — o que não pode se perder', () => {
-  it('mantém último serviço, WhatsApp, histórico, registrar e editar próximo agendamento', () => {
+  it('mantém último serviço, WhatsApp, histórico, registrar e mudar a data do próximo', () => {
     open([rec({}), rec({ id: 'g2', date: iso(-85), next_recommended_date: iso(-40) })]);
     expect(screen.getByText('Higiene e Petshop')).toBeTruthy();
     expect(screen.getByText('Último serviço')).toBeTruthy();
     expect(screen.getByText('Agendar via WhatsApp')).toBeTruthy();
     expect(screen.getByText(/Histórico \(2\)/)).toBeTruthy();
     expect(screen.getByText('Registrar banho/tosa')).toBeTruthy();
-    expect(screen.getByText('Editar próximo agendamento')).toBeTruthy();
+    expect(screen.getByText('Mudar a data do próximo banho')).toBeTruthy();   // antes: "Editar próximo agendamento"
     expect(screen.getAllByText(/Mundo dos Bichos/).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('button', { name: /Editar|Excluir/ }).length).toBeGreaterThan(0);
   });
