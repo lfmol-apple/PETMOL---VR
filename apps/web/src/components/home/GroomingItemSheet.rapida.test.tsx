@@ -60,6 +60,18 @@ describe('GroomingItemSheet — tela rápida (abre primeiro)', () => {
     expect(post!.body).toMatchObject({ type: 'bath_grooming', date: d(0), location: 'Mundo dos Bichos', frequency_days: 45 });
   });
 
+  it('em dia: "Mudar a data" edita o banho programado aqui mesmo (só a data do próximo)', async () => {
+    open([rec()]);
+    fireEvent.click(screen.getByText('✏️ Mudar a data'));
+    expect(screen.getByText(/Quando vai ser o próximo/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Amanhã' }));
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Agendar para/ })); });
+    const patch = calls.find((c) => c.method === 'PATCH');
+    expect(patch!.url).toContain('/pets/p1/grooming/g1');
+    expect(patch!.body).toMatchObject({ next_recommended_date: d(1), rescheduled_count: 1 });
+    expect(calls.some((c) => c.method === 'POST')).toBe(false);
+  });
+
   it('passou da data: abre direto no "Já deu?" (Já dei / Ainda não)', () => {
     open([rec({ date: d(-60), next_recommended_date: d(-15) })]);
     expect(screen.getByTestId('ja-deu')).toBeTruthy();

@@ -779,6 +779,9 @@ export function GroomingItemSheet({
                       <p className="mt-0.5 text-[13px] text-slate-500">{status.label}</p>
                       <button type="button" onClick={() => openQuick('did')}
                         className="mt-3 w-full rounded-xl bg-emerald-500 py-3 text-[15px] font-extrabold text-white active:scale-[0.98]">✅ Dei banho hoje</button>
+                      {/* Editar o banho programado aqui mesmo: muda só a data do próximo. */}
+                      <button type="button" onClick={() => openQuick('when')}
+                        className="mt-2 w-full rounded-xl border border-slate-200 bg-white py-2.5 text-[14px] font-bold text-slate-700 active:scale-[0.98]">✏️ Mudar a data</button>
                     </div>
                   )}
 
