@@ -1,5 +1,6 @@
 import type { PetWithHealth } from '@/features/pets/types';
 import { buildPetCareReminders, type PetCareReminder } from '@/lib/petCareDomain';
+import { effectiveGroomingRecords } from '@/lib/groomingRoutine';
 import type { PetEventRecord } from '@/lib/petEvents';
 import type { FeedingPlanEntry } from '@/lib/types/homeForms';
 import type {
@@ -60,7 +61,7 @@ export function buildCanonicalEventsForPet(
     pet_name: pet.pet_name,
     vaccines: pet.vaccines ?? pet.health_data?.vaccines ?? [],
     parasiteControls: pet.parasite_controls ?? pet.health_data?.parasite_controls ?? [],
-    groomingRecords: pet.grooming_records ?? pet.health_data?.grooming_records ?? [],
+    groomingRecords: effectiveGroomingRecords(pet.grooming_records ?? pet.health_data?.grooming_records ?? [], pet.grooming_routine),
     feedingPlan,
     petEvents,
   }, options);

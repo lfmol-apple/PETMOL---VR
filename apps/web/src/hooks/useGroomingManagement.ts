@@ -7,6 +7,7 @@ import { addGroomingRecord, updateGroomingRecord, deleteGroomingRecord } from '@
 import type { GroomingRecord, GroomingType, PlaceDetails } from '@/lib/types/home';
 import type { GroomingFormData } from '@/lib/types/homeForms';
 import type { PetHealthProfile } from '@/lib/petHealth';
+import { DEFAULT_GROOMING_ROUTINE, fetchGroomingRoutine, type GroomingRoutineConfig } from '@/lib/groomingRoutine';
 
 interface UseGroomingManagementParams {
   selectedPetId: string | null;
@@ -45,6 +46,8 @@ export function useGroomingManagement({
   t,
 }: UseGroomingManagementParams) {
   const [groomingRecords, setGroomingRecords] = useState<GroomingRecord[]>([]);
+  // Lembretes de banho/tosa (ativo / desativado / retomado em…), por pet — evita aplicar o de um pet no outro ao trocar.
+  const [routineByPet, setRoutineByPet] = useState<Record<string, GroomingRoutineConfig>>({});
   const [editingGrooming, setEditingGrooming] = useState<GroomingRecord | null>(null);
   const [groomingDueAlerts, setGroomingDueAlerts] = useState<
     { petName: string; type: string; daysOverdue: number }[]
@@ -86,6 +89,8 @@ export function useGroomingManagement({
         frequency_days: number;
         reminder_enabled?: boolean;
         alert_days_before?: number;
+        rescheduled_count?: number;
+        reschedule_history?: GroomingRecord['reschedule_history'];
       }> = await res.json();
       const _d = (raw: string | null | undefined): string =>
         raw ? raw.replace('T', ' ').split(' ')[0] : '';
@@ -108,14 +113,18 @@ export function useGroomingManagement({
             frequency_days: g.frequency_days,
             reminder_enabled: g.reminder_enabled,
             alert_days_before: g.alert_days_before,
+            rescheduled_count: g.rescheduled_count ?? 0,
+            reschedule_history: g.reschedule_history ?? null,
           }) as GroomingRecord,
       );
       const sorted = records.sort(
         (a, b) => createLocalDate(b.date).getTime() - createLocalDate(a.date).getTime(),
       );
       setGroomingRecords(sorted);
+      const routine = await fetchGroomingRoutine(pet.pet_id);
+      setRoutineByPet((prev) => ({ ...prev, [pet.pet_id]: routine }));
       setPets((prevPets) =>
-        prevPets.map((p) => (p.pet_id === pet.pet_id ? { ...p, grooming_records: sorted } : p)),
+        prevPets.map((p) => (p.pet_id === pet.pet_id ? { ...p, grooming_records: sorted, grooming_routine: routine } : p)),
       );
 
       // Banho/tosa fica como histórico/serviço, sem alerta ou cobrança de controle ativo.
@@ -328,7 +337,17 @@ export function useGroomingManagement({
     setGroomingFormData({ ...DEFAULT_FORM, date: localTodayISO() });
   };
 
+  const activePetId = (pets.find((p) => p.pet_id === selectedPetId) || pets[0])?.pet_id;
+  const groomingRoutine = (activePetId && routineByPet[activePetId]) || DEFAULT_GROOMING_ROUTINE;
+  const setGroomingRoutine = (cfg: GroomingRoutineConfig) => {
+    if (!activePetId) return;
+    setRoutineByPet((prev) => ({ ...prev, [activePetId]: cfg }));
+    setPets((prevPets) => prevPets.map((p) => (p.pet_id === activePetId ? { ...p, grooming_routine: cfg } : p)));
+  };
+
   return {
+    groomingRoutine,
+    setGroomingRoutine,
     groomingRecords,
     setGroomingRecords,
     editingGrooming,

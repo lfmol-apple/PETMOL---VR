@@ -16,6 +16,7 @@ import { careAssetSrc } from '@/lib/careAssets';
 import { CARE_STATE, careStateFromDaysUntilDue } from '@/lib/careState';
 import { scheduleUniqueReminder, buildRemindAt, subtractDays } from '@/features/notifications/pushService';
 import { DateField } from '@/components/ui/DateField';
+import { DEFAULT_GROOMING_ROUTINE, effectiveGroomingRecords, saveGroomingRoutine, type GroomingRoutineConfig } from '@/lib/groomingRoutine';
 
 const PRIMARY_BTN = 'bg-[#0056D2] hover:bg-[#004ab8] active:bg-[#003f9e] text-white shadow-lg shadow-blue-500/25';
 
@@ -122,6 +123,9 @@ interface GroomingItemSheetProps {
   petSpecies?: string;
   petPhotoUrl?: string | null;
   groomingRecords: GroomingRecord[];
+  /** Lembretes de banho/tosa do pet (ativo por padrão). Desativado: nada é lembrado e a banheirinha fica com o risquinho. */
+  routine?: GroomingRoutineConfig;
+  onRoutineChange?: (cfg: GroomingRoutineConfig) => void;
   onClose: () => void;
   onGoHome?: () => void;
   onRefresh: () => Promise<void>;
@@ -136,6 +140,8 @@ export function GroomingItemSheet({
   petSpecies,
   petPhotoUrl,
   groomingRecords,
+  routine = DEFAULT_GROOMING_ROUTINE,
+  onRoutineChange,
   onClose,
   onRefresh,
   onGoHome,
@@ -161,7 +167,10 @@ export function GroomingItemSheet({
   );
   const last = sorted[0] ?? null;
   const nextEditableRecord = sorted.find((r) => !!r.next_recommended_date) ?? last;
-  const nextDate = last?.next_recommended_date?.split('T')[0] ?? null;
+  // Agendamento (atraso/"Já deu?"): só conta o que vale — desativado = nada; retomado = só registros novos.
+  const paused = routine.active === false;
+  const schedLast = effectiveGroomingRecords(sorted, routine)[0] ?? null;
+  const nextDate = schedLast?.next_recommended_date?.split('T')[0] ?? null;
   const status = computeStatus(nextDate);
 
   // ── Add form ──────────────────────────────────────────────────────────────
@@ -233,22 +242,22 @@ export function GroomingItemSheet({
 
   // "Quando vai ser": só muda a data do PRÓXIMO (o histórico não é tocado) e guarda o reagendamento.
   async function handleQuickWhen() {
-    if (!last) return;
+    if (!schedLast) return;
     setSaving(true);
     try {
       const token = getToken();
       if (!token) { showToast('⚠️ Sessão expirada. Faça login novamente.'); return; }
       const history = [
-        ...parseRescheduleHistory(last.reschedule_history),
-        { from: last.next_recommended_date ? last.next_recommended_date.split('T')[0] : null, to: quickDate, at: new Date().toISOString() },
+        ...parseRescheduleHistory(schedLast.reschedule_history),
+        { from: schedLast.next_recommended_date ? schedLast.next_recommended_date.split('T')[0] : null, to: quickDate, at: new Date().toISOString() },
       ];
-      const res = await fetch(`${API_BASE_URL}/pets/${petId}/grooming/${last.id}`, {
+      const res = await fetch(`${API_BASE_URL}/pets/${petId}/grooming/${schedLast.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           next_recommended_date: quickDate,
           reminder_enabled: true,
-          rescheduled_count: (last.rescheduled_count ?? 0) + 1,
+          rescheduled_count: (schedLast.rescheduled_count ?? 0) + 1,
           reschedule_history: history,
         }),
       });
@@ -258,11 +267,11 @@ export function GroomingItemSheet({
         return;
       }
       try {
-        const remindAt = resolveRemindAt(quickDate, last.alert_days_before ?? 3, last.scheduled_time || '09:00');
+        const remindAt = resolveRemindAt(quickDate, schedLast.alert_days_before ?? 3, schedLast.scheduled_time || '09:00');
         const t = getToken();
         if (remindAt && t) {
-          const { icon, label } = groomingLabel(last.type);
-          const petshopName = last.location?.trim();
+          const { icon, label } = groomingLabel(schedLast.type);
+          const petshopName = schedLast.location?.trim();
           void scheduleUniqueReminder({
             pet_id: petId,
             type: 'grooming',
@@ -279,6 +288,24 @@ export function GroomingItemSheet({
       await onRefresh();
     } finally {
       setSaving(false);
+    }
+  }
+
+  // ── Desativar / retomar os lembretes de banho e tosa ───────────────────────
+  const [routineBusy, setRoutineBusy] = useState(false);
+  const [resumePromptHidden, setResumePromptHidden] = useState(false);
+  async function toggleRoutine(nextActive: boolean) {
+    if (routineBusy) return;
+    setRoutineBusy(true);
+    try {
+      const saved = await saveGroomingRoutine(petId, nextActive);
+      if (!saved) { showToast('❌ Não deu pra salvar agora. Tente de novo.'); return; }
+      onRoutineChange?.(saved);
+      closeQuick();
+      setResumePromptHidden(false);
+      showToast(nextActive ? '✅ Lembretes reativados.' : 'Lembretes desativados. Seu histórico fica guardado.');
+    } finally {
+      setRoutineBusy(false);
     }
   }
 
@@ -548,8 +575,8 @@ export function GroomingItemSheet({
           title="Higiene e Petshop"
           subtitle={petName || undefined}
           status={{
-            label: nextDate ? status.label.charAt(0).toUpperCase() + status.label.slice(1) : 'Sem agendamento',
-            tone: status.overdue ? "warn" : status.key === "critical" ? "danger" : status.key === "attention" ? "warn" : status.key === "ok" ? "good" : "neutral",
+            label: paused ? 'Lembretes desativados' : nextDate ? status.label.charAt(0).toUpperCase() + status.label.slice(1) : 'Sem agendamento',
+            tone: paused ? "neutral" : status.overdue ? "warn" : status.key === "critical" ? "danger" : status.key === "attention" ? "warn" : status.key === "ok" ? "good" : "neutral",
           }}
           media={<SheetAvatar src={petPhotoSrc} alt={petName || 'Pet'} fallback={petSpecies === 'cat' ? '🐱' : '🐶'} />}
           onClose={onClose}
@@ -574,8 +601,32 @@ export function GroomingItemSheet({
           {mode === 'view' && (
             <div className="px-4 pt-3 pb-5 space-y-2.5">
 
+              {/* Lembretes desativados: aviso claro e um toque para reativar. */}
+              {paused && (
+                <div data-testid="lembretes-desativados" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <p className="text-[15px] font-black text-[#1C1C1E]">Lembretes de banho e tosa desativados</p>
+                  <p className="mt-1 text-[13px] leading-snug text-slate-500">Não vamos mais avisar. Seu histórico fica guardado.</p>
+                  <button type="button" disabled={routineBusy} onClick={() => void toggleRoutine(true)}
+                    className="mt-3 w-full rounded-xl bg-emerald-500 py-3 text-[15px] font-extrabold text-white active:scale-[0.98] disabled:opacity-60">Reativar lembretes</button>
+                </div>
+              )}
+
+              {/* Reativou e ainda não há registro novo: a contagem recomeça no próximo registro. */}
+              {!paused && routine.resumed_on && !schedLast && last && !quick && !resumePromptHidden && (
+                <div data-testid="recomecar" className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
+                  <p className="text-[16px] font-black leading-tight text-[#1C1C1E]">Lembretes reativados. Quando foi o último {groomingLabel(last.type).label.toLowerCase()}{petName ? ` de ${petName}` : ''}?</p>
+                  <p className="mt-1 text-[12.5px] leading-snug text-slate-500">O histórico continua aqui. O próximo aviso passa a contar do novo registro.</p>
+                  <div className="mt-3 space-y-2">
+                    <button type="button" onClick={() => openQuick('did')}
+                      className="w-full rounded-xl bg-emerald-500 py-3 text-[15px] font-extrabold text-white active:scale-[0.98]">✅ Registrar banho</button>
+                    <button type="button" onClick={() => setResumePromptHidden(true)}
+                      className="block w-full pt-1 text-center text-[13px] font-semibold text-slate-500">Agora não</button>
+                  </div>
+                </div>
+              )}
+
               {/* Passou da data (ou o tutor quer mudar a data do próximo): pergunta em vez de acusar. */}
-              {last && (status.overdue || quick) && (
+              {!paused && ((schedLast && (status.overdue || quick === 'when')) || (last && quick === 'did')) && (
                 <div data-testid="ja-deu" className="rounded-2xl border border-amber-200 bg-white p-4 shadow-sm">
                   {quick === null && (
                     <>
@@ -770,6 +821,27 @@ export function GroomingItemSheet({
                       );
                     })}
                   </div>
+                </div>
+              )}
+
+              {/* Lembretes de banho e tosa: linha discreta (padrão das configurações do iPhone). */}
+              {last && (
+                <div className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm">
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-semibold text-[#1C1C1E]">Lembretes de banho e tosa</p>
+                    <p className="text-[12px] text-[#8E8E93]">{paused ? 'Desativados — o histórico fica guardado' : 'Ativos'}</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={!paused}
+                    aria-label="Lembretes de banho e tosa"
+                    disabled={routineBusy}
+                    onClick={() => void toggleRoutine(paused)}
+                    className={`relative !h-[29px] !min-h-[29px] !w-[48px] !min-w-[48px] shrink-0 rounded-full p-0 transition-colors disabled:opacity-60 ${paused ? 'bg-slate-300' : 'bg-emerald-500'}`}
+                  >
+                    <span className={`absolute left-[3px] top-[3px] h-[23px] w-[23px] rounded-full bg-white shadow transition-transform ${paused ? '' : 'translate-x-[19px]'}`} />
+                  </button>
                 </div>
               )}
             </div>
@@ -1000,7 +1072,7 @@ export function GroomingItemSheet({
             >
               Registrar banho/tosa
             </button>
-            {last && (
+            {schedLast && !paused && (
               <button
                 onClick={() => openQuick('when')}
                 className="w-full py-1 text-[13px] font-medium text-slate-500 active:opacity-60 transition-opacity"
