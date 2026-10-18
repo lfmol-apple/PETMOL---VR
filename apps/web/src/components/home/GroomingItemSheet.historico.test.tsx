@@ -45,7 +45,7 @@ function records(freq: number) {
 }
 
 function open(recs: unknown[], routine = { active: true as boolean, resumed_on: null as string | null }) {
-  render(<GroomingItemSheet petId="p1" petName="Baby" groomingRecords={recs as never} routine={routine}
+  render(<GroomingItemSheet initialPanel="full" petId="p1" petName="Baby" groomingRecords={recs as never} routine={routine}
     onRoutineChange={vi.fn()} onClose={vi.fn()} onRefresh={async () => undefined} />);
 }
 

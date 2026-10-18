@@ -40,7 +40,7 @@ const rec = (over: Record<string, unknown> = {}) => ({
 
 function open(routine: { active: boolean; resumed_on?: string | null }, records: unknown[] = [rec(), rec({ id: 'g0', date: iso(-85), next_recommended_date: iso(-40) })]) {
   const onRoutineChange = vi.fn();
-  render(<GroomingItemSheet petId="p1" petName="Baby" groomingRecords={records as never} routine={routine}
+  render(<GroomingItemSheet initialPanel="full" petId="p1" petName="Baby" groomingRecords={records as never} routine={routine}
     onRoutineChange={onRoutineChange} onClose={vi.fn()} onRefresh={async () => undefined} />);
   return { onRoutineChange };
 }
