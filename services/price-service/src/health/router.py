@@ -5,6 +5,7 @@ Health endpoints with authentication and pet ownership validation.
 Integrates with existing backend structure.
 """
 import json
+import logging
 
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Literal, Optional
@@ -53,6 +54,8 @@ from .services import (
 
 # Health v1 routes are defined under /health and mounted with + without "/api"
 # in main.py to support proxy variations (/api prefix stripped or preserved).
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/health", tags=["health"])
 
 
@@ -1086,6 +1089,7 @@ async def get_feeding_plan(
 @router.delete("/pets/{pet_id}/feeding/plan", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_feeding_plan(
     pet_id: str,
+    reason: Literal["deleted", "switched"] = "deleted",
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -1097,6 +1101,14 @@ async def delete_feeding_plan(
           status_code=status.HTTP_404_NOT_FOUND,
           detail="Plano de alimentação não encontrado para este pet"
       )
+    # Registra o ciclo que o tutor está encerrando (estoque não importa).
+    # O histórico é "melhor esforço": se falhar, o tutor ainda consegue excluir.
+    try:
+        with db.begin_nested():
+            _archive_feeding_cycle(db, plan, ended_on=date.today(), reason=reason)
+            _mark_repurchase_resolved(db, pet_id)
+    except Exception:
+        logger.exception("[feeding] falha ao registrar histórico na exclusão (pet=%s)", pet_id)
     plan.deleted_at = datetime.utcnow()
     plan.updated_at = datetime.utcnow()
     db.commit()

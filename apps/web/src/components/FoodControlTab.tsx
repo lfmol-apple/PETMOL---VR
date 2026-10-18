@@ -82,7 +82,7 @@ export interface FoodControlTabProps {
   petName?: string;
   countryCode?: string;
   species?: 'dog' | 'cat';
-  onSaved?: () => void;
+  onSaved?: (info?: { deleted?: boolean }) => void;
   onStateChange?: (state: FoodControlTabState) => void;
   /** Modo rápido: avisa quando a tela do CONTROLE já está à vista (ração escolhida/digitada) — o pai usa para
    *  tirar "Fazer depois" e o texto de introdução, deixando a janela mais curta. */
@@ -785,7 +785,7 @@ export function FoodControlTab({
 
   const handleDelete = async () => {
     const accepted = await requestUserDecision(
-      'Excluir este registro de alimentação? Isso remove o ciclo atual — você vai precisar registrar de novo depois.',
+      'Excluir este controle de alimentação? Ele fica guardado no histórico e você pode cadastrar outra ração em seguida.',
       {
         title: 'Excluir controle de alimentação',
         tone: 'danger',
@@ -815,7 +815,7 @@ export function FoodControlTab({
       } else {
         setDeleteFeedback('Registro removido com sucesso.');
       }
-      onSaved?.();
+      onSaved?.({ deleted: true });
     } catch {
       localStorage.removeItem(storageKey);
       setItems([createEmptyFoodItem(true)]);

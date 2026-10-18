@@ -50,6 +50,8 @@ type EventName =
   | 'food_partner_selected'
   | 'food_purchase_confirmed'
   | 'food_repurchase_switched'
+  | 'food_replace_started'
+  | 'food_replace_confirmed'
   | 'food_repurchase_not_yet'
   | 'food_still_has_food'
   | 'food_finished_early'

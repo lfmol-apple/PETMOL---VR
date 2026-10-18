@@ -211,3 +211,79 @@ def test_restock_and_brand_switch_archive_cycles_in_history(client):
         assert rows[0].purchase_channel == "cobasi"
     finally:
         db.close()
+
+
+def test_deleting_plan_records_cycle_in_history_and_allows_new_plan(client):
+    from src.health.models import FeedingHistory
+
+    token, pet_id = _signup_login_and_pet(client, "cid-feed-del", "tutor.racaodel@example.com")
+    headers = _headers("cid-feed-del", token)
+    started = (date.today() - timedelta(days=10)).isoformat()
+    assert client.post(
+        f"/health/pets/{pet_id}/feeding/plan",
+        json={"food_brand": "Royal Canin Urinary", "package_size_kg": 7, "daily_amount_g": 150, "last_refill_date": started},
+        headers=headers,
+    ).status_code in (200, 201)
+
+    assert client.delete(f"/health/pets/{pet_id}/feeding/plan", headers=headers).status_code == 204
+
+    db = SessionLocal()
+    try:
+        rows = db.query(FeedingHistory).filter(FeedingHistory.pet_id == pet_id).all()
+        assert [(r.food_brand, r.reason, r.observed_days) for r in rows] == [("Royal Canin Urinary", "deleted", 10)]
+    finally:
+        db.close()
+
+    # novo controle logo em seguida funciona e NÃO duplica o histórico
+    assert client.post(
+        f"/health/pets/{pet_id}/feeding/plan",
+        json={"food_brand": "Premier Pet", "package_size_kg": 10, "daily_amount_g": 200,
+              "last_refill_date": date.today().isoformat()},
+        headers=headers,
+    ).status_code in (200, 201)
+    db = SessionLocal()
+    try:
+        assert db.query(FeedingHistory).filter(FeedingHistory.pet_id == pet_id).count() == 1
+    finally:
+        db.close()
+
+
+def test_delete_still_works_if_history_write_fails(client, monkeypatch):
+    from src.health import router as health_router
+
+    token, pet_id = _signup_login_and_pet(client, "cid-feed-delfail", "tutor.racaodelfail@example.com")
+    headers = _headers("cid-feed-delfail", token)
+    assert client.post(
+        f"/health/pets/{pet_id}/feeding/plan",
+        json={"food_brand": "Golden", "package_size_kg": 15, "daily_amount_g": 300,
+              "last_refill_date": (date.today() - timedelta(days=5)).isoformat()},
+        headers=headers,
+    ).status_code in (200, 201)
+
+    def boom(*a, **k):
+        raise RuntimeError("history down")
+    monkeypatch.setattr(health_router, "_archive_feeding_cycle", boom)
+
+    assert client.delete(f"/health/pets/{pet_id}/feeding/plan", headers=headers).status_code == 204
+    assert client.get(f"/health/pets/{pet_id}/feeding/plan", headers=headers).status_code in (200, 404)
+
+
+def test_delete_with_reason_switched_is_recorded_as_switched(client):
+    from src.health.models import FeedingHistory
+
+    token, pet_id = _signup_login_and_pet(client, "cid-feed-sw", "tutor.racaosw@example.com")
+    headers = _headers("cid-feed-sw", token)
+    assert client.post(
+        f"/health/pets/{pet_id}/feeding/plan",
+        json={"food_brand": "Golden", "package_size_kg": 15, "daily_amount_g": 300,
+              "last_refill_date": (date.today() - timedelta(days=20)).isoformat()},
+        headers=headers,
+    ).status_code in (200, 201)
+    assert client.delete(f"/health/pets/{pet_id}/feeding/plan?reason=switched", headers=headers).status_code == 204
+    assert client.delete(f"/health/pets/{pet_id}/feeding/plan?reason=qualquer", headers=headers).status_code == 422
+    db = SessionLocal()
+    try:
+        rows = db.query(FeedingHistory).filter(FeedingHistory.pet_id == pet_id).all()
+        assert [(r.reason, r.observed_days) for r in rows] == [("switched", 20)]
+    finally:
+        db.close()

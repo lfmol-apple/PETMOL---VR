@@ -188,6 +188,8 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   // do servidor (refreshFoodPlan), já que nesse ponto vamos mostrar o estado
   // real de novo, não mais a escolha "finge que está vazio".
   const [showFreshChoice, setShowFreshChoice] = useState(false);
+  // "Trocar ração": a antiga só é encerrada DEPOIS que a nova é escolhida — desistir não perde o controle.
+  const [replacingFood, setReplacingFood] = useState(false);
   const [nextReminderDate, setNextReminderDate]   = useState<string | null>(null);
   const [reminderTime, setReminderTime]           = useState<string | null>(null);
   // Produto recém-escaneado aguardando a escolha "ração principal" vs
@@ -487,7 +489,32 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
     setMode('edit');
   };
 
+  const replaceFoodWithProduct = async (product: ScannedProduct) => {
+    setBusy(true);
+    try {
+      const res = await fetch(`${API_BACKEND_BASE}/health/pets/${pet.pet_id}/feeding/plan?reason=switched`, {
+        method: 'DELETE',
+        headers: authH(),
+        credentials: 'include',
+      });
+      if (!res.ok && res.status !== 404) throw new Error('delete failed');
+      trackV1Metric('food_replace_confirmed', { pet_id: pet.pet_id });
+      setReplacingFood(false);
+      setShowFreshChoice(false);
+      // Daqui em diante é o mesmo fluxo da 1ª ração (ciclo novo, começando hoje).
+      persistScannedFoodProduct(product, true);
+    } catch {
+      setFeedback({ msg: 'Não deu pra trocar agora. A ração atual foi mantida.', tone: 'red' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleFoodProductConfirmed = (product: ScannedProduct, intent: 'ask' | 'secondary' = foodScanIntent) => {
+    if (replacingFood) {
+      void replaceFoodWithProduct(product);
+      return;
+    }
     if (!hasFood) {
       // Primeiro cadastro NÃO é garantia de ração principal — o tutor pode
       // muito bem escanear um petisco primeiro (bug real reportado: um
@@ -970,12 +997,14 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                   hideInternalHeader
                   onRequestBack={handleEditBackToView}
                   onStateChange={handleFoodControlStateChange}
-                  onSaved={async () => {
+                  onSaved={async (info) => {
                     onSaved?.();
                     await refreshFoodPlan();
                     dispatchFoodPlanUpdated();
                     const isQuickSetup = formRequest?.mode === 'quick_setup';
-                    showSuccessAndReturnToMain(isQuickSetup ? 'Ração salva' : 'Plano atualizado');
+                    showSuccessAndReturnToMain(
+                      info?.deleted ? 'Controle excluído — fica no histórico' : isQuickSetup ? 'Ração salva' : 'Plano atualizado',
+                    );
                   }}
                 />
               </div>
@@ -1149,7 +1178,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
 
                         <button
                           type="button"
-                          onClick={() => (showFreshChoice ? setShowFreshChoice(false) : handleClose())}
+                          onClick={() => { if (showFreshChoice) { setShowFreshChoice(false); setReplacingFood(false); } else handleClose(); }}
                           className="w-full py-2 text-[12px] font-medium text-gray-300 hover:text-gray-500 transition-colors"
                         >
                           {showFreshChoice ? 'Cancelar' : 'Fazer depois'}
@@ -1293,6 +1322,30 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             <span className="flex-1 min-w-0">
                               <span className="block text-[15px] font-bold text-gray-900">Editar plano</span>
                               <span className="block text-[12px] font-medium text-gray-500">Produto, peso, duração, datas ou fim da ração</span>
+                            </span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-gray-400 flex-shrink-0" aria-hidden="true">
+                              <path d="M9 6l6 6-6 6" />
+                            </svg>
+                          </button>
+
+                          {/* Trocar ração (ex.: o veterinário mandou trocar): escolhe a nova
+                              pelo mesmo fluxo da 1ª ração; a atual só sai quando a nova é
+                              escolhida e fica guardada no histórico. */}
+                          <button type="button"
+                            onClick={() => {
+                              trackV1Metric('food_replace_started', { pet_id: pet.pet_id });
+                              setReplacingFood(true);
+                              setShowFreshChoice(true);
+                            }}
+                            className="w-full flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-left shadow-sm hover:bg-gray-50 active:scale-[0.98] transition-all"
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-gray-500 flex-shrink-0" aria-hidden="true">
+                              <path d="M17 3l4 4-4 4" /><path d="M3 11V9a2 2 0 0 1 2-2h16" />
+                              <path d="M7 21l-4-4 4-4" /><path d="M21 13v2a2 2 0 0 1-2 2H3" />
+                            </svg>
+                            <span className="flex-1 min-w-0">
+                              <span className="block text-[15px] font-bold text-gray-900">Trocar ração</span>
+                              <span className="block text-[12px] font-medium text-gray-500">Mudou de ração? A atual fica guardada no histórico</span>
                             </span>
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-gray-400 flex-shrink-0" aria-hidden="true">
                               <path d="M9 6l6 6-6 6" />
