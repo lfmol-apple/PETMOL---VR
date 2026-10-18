@@ -1,5 +1,7 @@
 'use client';
 
+import type { GroomingRoutineState } from '@/lib/petCareDomain';
+
 /** Banheirinha com chuveiro: o cano sobe da borda da banheira, faz a curva e termina na ducha. Traço fino. */
 export function BathShowerIcon({ className }: { className?: string }) {
   return (
@@ -16,21 +18,26 @@ export function BathShowerIcon({ className }: { className?: string }) {
 
 /**
  * Banheirinha no canto inferior esquerdo da foto do pet (acima do passeio): abre o sheet de Banho e Tosa.
- * Verde = o pet tem lembrete de banho/tosa; apagado com risquinho = ainda não tem.
+ *  - atrasado ........... pisca âmbar (diferente do vermelho do sino/localização desativados)
+ *  - agendado, a ocorrer  verde
+ *  - nunca controlado ... apagado com risquinho
  */
-export function GroomingRoutineButton({ active, onClick }: { active: boolean; onClick: () => void }) {
+export function GroomingRoutineButton({ state, onClick }: { state: GroomingRoutineState; onClick: () => void }) {
+  const label = state === 'overdue' ? 'Banho e tosa — atrasado' : state === 'scheduled' ? 'Banho e tosa — agendado' : 'Banho e tosa';
+  const tone =
+    state === 'overdue' ? 'animate-pulse border-amber-200 bg-amber-500 hover:bg-amber-600'
+    : state === 'scheduled' ? 'border-white bg-emerald-500 hover:bg-emerald-600'
+    : 'border-white/40 bg-black/30 hover:bg-black/50';
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label={active ? 'Banho e tosa — lembrete ligado' : 'Banho e tosa'}
-      title="Banho e tosa"
-      className={`relative flex h-8 w-8 items-center justify-center rounded-full border text-white shadow-lg backdrop-blur-md transition-all active:scale-90 sm:h-9 sm:w-9 ${
-        active ? 'border-white bg-emerald-500 hover:bg-emerald-600' : 'border-white/40 bg-black/30 hover:bg-black/50'
-      }`}
+      aria-label={label}
+      title={label}
+      className={`relative flex h-8 w-8 items-center justify-center rounded-full border text-white shadow-lg backdrop-blur-md transition-all active:scale-90 sm:h-9 sm:w-9 ${tone}`}
     >
       <BathShowerIcon className="h-[18px] w-[18px]" />
-      {!active && (
+      {state === 'none' && (
         <span
           data-testid="banho-inativo"
           aria-hidden="true"

@@ -51,6 +51,7 @@ const NearbyMissingPetsStoryOverlay = dynamic(() => import('@/components/home/Ne
 const NoNearbyMissingPetsOverlay = dynamic(() => import('@/components/home/NoNearbyMissingPetsOverlay').then(m => ({ default: m.NoNearbyMissingPetsOverlay })), { ssr: false });
 import { MissingPetAlertCard, type NearbyAlert } from '@/components/home/MissingPetAlertCard';
 import type { PetCareReminder } from '@/lib/petCareDomain';
+import { groomingRoutineState } from '@/lib/petCareDomain';
 import { useMultipetInteractions } from '@/features/interactions/useMultipetInteractions';
 import type { PetInteractionItem } from '@/features/interactions/types';
 import { openHomeContextualCommerce, resolvePushActionSheetCommerceIntent } from '@/features/commerce/homeContextualCommerce';
@@ -2508,7 +2509,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       upcomingUrgent={hasUrgentReminder}
                       onOpenUpcoming={() => setShowUpcomingSheet(true)}
                       onOpenGrooming={handleOpenGrooming}
-                      groomingActive={groomingRecords.some((g) => Boolean(g.next_recommended_date) || (g.frequency_days ?? 0) > 0)}
+                      groomingState={groomingRoutineState(currentPet.pet_id, groomingRecords)}
                     />
 
                   {/* Compartilhar cuidado — só para o dono do pet. Compacto,
