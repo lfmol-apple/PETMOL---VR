@@ -14,7 +14,8 @@ export const DEFAULT_GROOMING_ROUTINE: GroomingRoutineConfig = { active: true, r
 /**
  * Registros que contam para o AGENDAMENTO (atraso, alertas, cor da banheirinha):
  *  - desativado → nenhum (mesmo havendo registros);
- *  - retomado → só os feitos a partir do dia da retomada (os antigos ficam só no histórico);
+ *  - retomado → os feitos a partir do dia da retomada **e os que ainda têm o próximo banho pela frente**
+ *    (um agendamento vigente não precisa recomeçar); só o que já estava vencido na retomada fica de fora;
  *  - ativo, nunca pausado → todos.
  * O histórico mostrado no sheet NÃO passa por aqui: ele sempre mostra tudo.
  */
@@ -25,7 +26,9 @@ export function effectiveGroomingRecords(
   if (!routine || routine.active !== false && !routine.resumed_on) return records;
   if (routine.active === false) return [];
   const since = routine.resumed_on as string;
-  return records.filter((r) => (r.date || '').slice(0, 10) >= since);
+  return records.filter(
+    (r) => (r.date || '').slice(0, 10) >= since || (r.next_recommended_date || '').slice(0, 10) >= since,
+  );
 }
 
 function headers(): Record<string, string> {
