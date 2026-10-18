@@ -290,6 +290,15 @@ export function RoutineWalkButton({ petId, petName }: { petId: string; petName: 
             }`}
           >
             <AlarmClock className="h-4 w-4" strokeWidth={2.3} />
+            {/* Risquinho diagonal = rotina inativa (o verde já diz "ativa"). Fino e com
+                contorno escuro sutil pra ler sobre qualquer foto. */}
+            {!cfg.enabled && !showIntro && (
+              <span
+                data-testid="rotina-inativa"
+                aria-hidden="true"
+                className="pointer-events-none absolute left-1/2 top-1/2 h-[1.5px] w-[22px] -translate-x-1/2 -translate-y-1/2 -rotate-45 rounded-full bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.25)]"
+              />
+            )}
           </button>
         </div>
       </div>

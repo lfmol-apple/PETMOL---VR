@@ -38,6 +38,21 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe('RoutineWalkButton', () => {
+  it('desligado: risquinho de inativo; ligado: sem risquinho (verde)', async () => {
+    mockApi(OFF);
+    // intro já vista, pra não cair no estado "convite" azul
+    localStorage.setItem('petmol_routine_walk_intro_v1', JSON.stringify({ shown: 3, day: '2000-01-01', opened: true }));
+    const first = render(<RoutineWalkButton petId="p1" petName="Baby" />);
+    await screen.findByRole('button', { name: /Rotina/ });
+    expect(screen.getByTestId('rotina-inativa')).toBeTruthy();
+    first.unmount();
+
+    mockApi({ ...OFF, enabled: true });
+    render(<RoutineWalkButton petId="p1" petName="Baby" />);
+    await screen.findByRole('button', { name: 'Rotina ligada' });
+    expect(screen.queryByTestId('rotina-inativa')).toBeNull();
+  });
+
   it('servidor com o recurso desligado (404): não desenha nada', async () => {
     const f = mockApi(null);
     const { container } = render(<RoutineWalkButton petId="p1" petName="Baby" />);
