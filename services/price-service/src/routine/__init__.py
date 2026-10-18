@@ -214,3 +214,7 @@ def put_walk(pet_id: str, body: WalkIn, current_user: User = Depends(get_current
     db.commit()
     sync_pet_reminder(db, cfg)
     return _out(cfg)
+
+
+# Rotina do banho (18/10/2026) — importado no fim para registrar o modelo e reaproveitar os helpers acima.
+from .bath import router as bath_router, ensure_bath_reminders, bath_routine_active  # noqa: E402,F401

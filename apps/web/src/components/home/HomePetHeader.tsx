@@ -7,6 +7,7 @@ import { Bell, BellOff, MapPin, MapPinOff, ClipboardList } from 'lucide-react';
 import { useI18n } from '@/lib/I18nContext';
 import { HomeAttentionOverlays } from '@/components/home/HomeAttentionOverlays';
 import { RoutineWalkButton } from '@/components/home/RoutineWalk';
+import { RoutineBathButton } from '@/components/home/RoutineBath';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
 import { requestLocationAndPersist, stopSharingLocation } from '@/features/interactions/requestCorePermissions';
 import { queryGeolocationPermission, type GeolocationPermissionState } from '@/lib/silentLocationRefresh';
@@ -511,9 +512,12 @@ export function HomePetHeader({
           </button>
         </div>
 
-        {/* Rotina do pet (canto inferior esquerdo, antes vazio): lembrete de passeio.
-            Só desenha se o servidor ligar o recurso (routine_walk_enabled). */}
-        <RoutineWalkButton petId={currentPet.pet_id} petName={currentPet.pet_name} />
+        {/* Rotina do pet (canto inferior esquerdo): banho em cima, passeio embaixo.
+            Cada botão só desenha se o servidor ligar o recurso (routine_bath_enabled / routine_walk_enabled). */}
+        <div className="absolute bottom-2.5 left-2.5 z-20 flex flex-col gap-2 sm:bottom-3 sm:left-3">
+          <RoutineBathButton petId={currentPet.pet_id} petName={currentPet.pet_name} />
+          <RoutineWalkButton petId={currentPet.pet_id} petName={currentPet.pet_name} />
+        </div>
 
         {/* Botão de ação no canto inferior direito — só "editar este pet"
             (lápis). Controle pequeno e indispensável, continua sobre a

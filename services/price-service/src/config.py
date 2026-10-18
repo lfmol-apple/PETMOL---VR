@@ -97,6 +97,8 @@ class Settings(BaseSettings):
     medications_enabled: bool = True
     # Rotina do pet / lembrete de passeio (16/10/2026). DESLIGADO por padrão: religar = env ROUTINE_WALK_ENABLED=true + restart.
     routine_walk_enabled: bool = False
+    # Rotina do pet / lembrete de banho e tosa (18/10/2026). DESLIGADO por padrão: religar = env ROUTINE_BATH_ENABLED=true + restart.
+    routine_bath_enabled: bool = False
 
     # Preço real da Cobasi (API pública de catálogo VTEX) para a Loja do Baby.
     # Cache longo de propósito — reduz volume de chamadas à Cobasi (evitar

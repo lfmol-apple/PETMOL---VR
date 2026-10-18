@@ -441,6 +441,11 @@ def start_push_scheduler():
         except Exception as exc:
             push_logger.warning(f"[routine] job de passeio não iniciado: {exc}")
         try:
+            from .routine import ensure_bath_reminders
+            scheduler.add_job(ensure_bath_reminders, "interval", minutes=5, id="ensure_bath_reminders")
+        except Exception as exc:
+            push_logger.warning(f"[routine] job de banho não iniciado: {exc}")
+        try:
             from .user_auth.maintenance import prune_orphan_guest_accounts
             scheduler.add_job(prune_orphan_guest_accounts, "cron", hour=4, minute=17,
                               id="prune_orphan_guest_accounts")
@@ -526,6 +531,9 @@ app.include_router(health_router)
 from .routine import router as routine_router
 app.include_router(routine_router)
 app.include_router(routine_router, prefix="/api")
+from .routine import bath_router as routine_bath_router
+app.include_router(routine_bath_router)
+app.include_router(routine_bath_router, prefix="/api")
 
 # Include health v1 router (PETMOL MUNDO integration - feeding control + snapshot)
 from .health.router import router as health_v1_router
