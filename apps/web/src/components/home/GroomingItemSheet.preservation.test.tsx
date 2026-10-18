@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 vi.mock('@/lib/auth-token', () => ({ getToken: () => 'tok' }));
 vi.mock('@/lib/backStack', () => ({ useBackHandler: () => undefined }));
@@ -38,9 +38,12 @@ describe('GroomingItemSheet — o que não pode se perder', () => {
     expect(screen.getByText('Agendar via WhatsApp')).toBeTruthy();
     expect(screen.getByText(/Histórico \(2\)/)).toBeTruthy();
     expect(screen.getByText('Registrar banho/tosa')).toBeTruthy();
+    // tela simples: histórico e lembretes são linhas fechadas — nada some, só abre ao tocar
+    fireEvent.click(screen.getByText('Lembretes'));
     expect(screen.getByText('Mudar a data do próximo banho')).toBeTruthy();   // antes: "Editar próximo agendamento"
+    fireEvent.click(screen.getByText(/Histórico \(2\)/));
     expect(screen.getAllByText(/Mundo dos Bichos/).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('button', { name: /Editar|Excluir/ }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: /Editar|Remover/ }).length).toBeGreaterThan(0);
   });
 
   it('passou da data: não acusa "Atrasado há N dias"; diz a data prevista', () => {
