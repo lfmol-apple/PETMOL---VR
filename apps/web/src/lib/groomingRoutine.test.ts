@@ -14,10 +14,16 @@ describe('effectiveGroomingRecords', () => {
     expect(effectiveGroomingRecords(all, { active: false, resumed_on: null })).toEqual([]);
     expect(effectiveGroomingRecords(all, { active: false, resumed_on: '2026-10-01' })).toEqual([]);
   });
-  it('retomado: só contam os registros a partir do dia da retomada', () => {
+  it('retomado: contam os registros a partir do dia da retomada (os antigos ficam só no histórico)', () => {
     const got = effectiveGroomingRecords(all, { active: true, resumed_on: '2026-10-01' });
     expect(got.map((x) => x.id)).toEqual(['c']);
     expect(effectiveGroomingRecords(all, { active: true, resumed_on: '2026-10-20' }).map((x) => x.id)).toEqual(['c']);
+  });
+  it('retomado: um registro antigo cujo PRÓXIMO banho ainda está pela frente continua valendo', () => {
+    const vigente = [{ id: 'v', date: '2026-09-15', type: 'bath', next_recommended_date: '2026-10-27' }] as never;
+    expect(effectiveGroomingRecords(vigente, { active: true, resumed_on: '2026-10-18' }).map((x) => x.id)).toEqual(['v']);
+    const vencido = [{ id: 'x', date: '2026-07-30', type: 'bath', next_recommended_date: '2026-09-13' }] as never;
+    expect(effectiveGroomingRecords(vencido, { active: true, resumed_on: '2026-10-18' })).toEqual([]);
   });
 });
 
@@ -33,5 +39,13 @@ describe('banheirinha com a rotina desativada/retomada', () => {
     expect(groomingRoutineState('p1', effectiveGroomingRecords(overdue, { active: true, resumed_on: iso(0) }))).toBe('none');
     const withNew = [...(overdue as never[]), { id: 'n', type: 'bath', date: iso(0), next_recommended_date: iso(15) }] as never;
     expect(groomingRoutineState('p1', effectiveGroomingRecords(withNew, { active: true, resumed_on: iso(0) }))).toBe('scheduled');
+  });
+});
+
+describe('o caso do Baby: último banho 15/09, próximo 27/10, desativou e reativou em 18/10', () => {
+  const iso = (off: number) => { const d = new Date(); d.setDate(d.getDate() + off); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  it('a banheirinha continua verde (agendado), não com risquinho', () => {
+    const baby = [{ id: 'b', type: 'bath_grooming', date: iso(-33), next_recommended_date: iso(9), frequency_days: 45 }] as never;
+    expect(groomingRoutineState('p1', effectiveGroomingRecords(baby, { active: true, resumed_on: iso(0) }))).toBe('scheduled');
   });
 });
