@@ -31,6 +31,7 @@ const iso = (off: number) => {
   const d = new Date(); d.setDate(d.getDate() + off);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
+const br = (off: number) => { const t = new Date(); t.setDate(t.getDate() + off); return `${String(t.getDate()).padStart(2, '0')}/${String(t.getMonth() + 1).padStart(2, '0')}/${t.getFullYear()}`; };
 const rec = (over: Record<string, unknown> = {}) => ({
   id: 'g1', type: 'bath_grooming', date: iso(-40), location: 'Mundo dos Bichos', location_phone: '11999998888',
   next_recommended_date: iso(-5), frequency_days: 45, ...over,
@@ -56,7 +57,7 @@ describe('GroomingItemSheet — cartão "Já deu?"', () => {
   it('"Já dei" + Ontem: registra um serviço novo repetindo tipo e petshop; não mexe nos antigos', async () => {
     open([rec()]);
     fireEvent.click(screen.getByText('✅ Já dei'));
-    fireEvent.click(screen.getByRole('button', { name: 'Ontem' }));
+    fireEvent.change(screen.getByPlaceholderText('DD/MM/AAAA'), { target: { value: br(-1) } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^Registrar (banho e tosa|banho|tosa)$/i })); });
     const post = calls.find((c) => c.method === 'POST' && c.url.endsWith('/pets/p1/grooming'));
     expect(post).toBeTruthy();

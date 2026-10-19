@@ -29,6 +29,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 const d = (off: number) => { const t = new Date(); t.setDate(t.getDate() + off); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; };
+const br = (off: number) => { const t = new Date(); t.setDate(t.getDate() + off); return `${String(t.getDate()).padStart(2, '0')}/${String(t.getMonth() + 1).padStart(2, '0')}/${t.getFullYear()}`; };
 const rec = (over: Record<string, unknown> = {}) => ({
   id: 'g1', type: 'bath_grooming', date: d(-10), location: 'Mundo dos Bichos', location_phone: '11999998888',
   next_recommended_date: d(35), frequency_days: 45, ...over,
@@ -84,10 +85,10 @@ describe('GroomingItemSheet — tela rápida (abre primeiro)', () => {
     open([]);
     expect(screen.getByTestId('primeiro-banho').textContent).toContain('Quando foi o último banho de Baby?');
     fireEvent.click(screen.getByText('✅ Informar o último banho'));
-    fireEvent.click(screen.getByRole('button', { name: 'Ontem' }));
+    fireEvent.change(screen.getByPlaceholderText('DD/MM/AAAA'), { target: { value: br(-1) } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^Registrar (banho e tosa|banho|tosa)$/i })); });
     const post = calls.find((c) => c.method === 'POST');
-    expect(post!.body).toMatchObject({ type: 'bath_grooming', date: d(-1), frequency_days: 30 });   // padrão do app para banho + tosa
+    expect(post!.body).toMatchObject({ type: 'bath_grooming', date: d(-1), frequency_days: 15 });   // padrão: 15 dias
   });
 
   it('desativado: só o aviso com "Reativar lembretes"', () => {
