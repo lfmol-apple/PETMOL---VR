@@ -94,7 +94,7 @@ describe('GroomingItemSheet — desativar e retomar os lembretes', () => {
     expect(screen.getByTestId('recomecar')).toBeTruthy();
     expect(screen.getByText(/Histórico \(2\)/)).toBeTruthy();
     fireEvent.click(screen.getByText('✅ Registrar banho'));
-    expect(screen.getByText(/Quando foi o/)).toBeTruthy();
+    expect(screen.getByText('O que foi feito?')).toBeTruthy();
   });
 
   it('retomado com registro novo: volta a agendar normalmente e o convite some', () => {
