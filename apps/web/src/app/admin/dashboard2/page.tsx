@@ -23,6 +23,7 @@ import { TodaySection, BaseStrip } from '@/components/admin/sections/TodaySectio
 import { PhotoLightboxProvider } from '@/components/admin/PhotoLightbox';
 import { TutorsSection, type TutorsPreset } from './TutorsSection';
 import { fmtSpDate, spDayBounds, spStartOfToday, spYesterdayRange } from '@/lib/analytics/spTime';
+import { DateField } from '@/components/ui/DateField';
 
 type PresetKey = '24h' | 'today' | 'yesterday' | '7d' | '30d' | '90d' | 'all' | 'custom';
 const PRESETS: { key: PresetKey; label: string }[] = [
@@ -143,13 +144,13 @@ function FilterBar({
           ))}
         </div>
         <div className="flex items-center gap-1">
-          <input type="date" value={from} aria-label="De"
-            onChange={(e) => { setFrom(e.target.value); applyRange(e.target.value, to); }}
-            className={`rounded-md border px-2 py-1 ${preset === 'custom' ? 'border-[#0056D2]' : 'border-slate-200'}`} />
+          <DateField value={from} ariaLabel="De" className="w-[8.5rem]"
+            onChange={(iso) => { setFrom(iso); applyRange(iso, to); }}
+            inputClassName={`w-full rounded-md border px-2 py-1 pr-8 text-[13px] tabular-nums ${preset === 'custom' ? 'border-[#0056D2]' : 'border-slate-200'}`} />
           <span className="text-slate-400">até</span>
-          <input type="date" value={to} aria-label="Até"
-            onChange={(e) => { setTo(e.target.value); applyRange(from, e.target.value); }}
-            className={`rounded-md border px-2 py-1 ${preset === 'custom' ? 'border-[#0056D2]' : 'border-slate-200'}`} />
+          <DateField value={to} ariaLabel="Até" className="w-[8.5rem]"
+            onChange={(iso) => { setTo(iso); applyRange(from, iso); }}
+            inputClassName={`w-full rounded-md border px-2 py-1 pr-8 text-[13px] tabular-nums ${preset === 'custom' ? 'border-[#0056D2]' : 'border-slate-200'}`} />
         </div>
         <select value={filter.platform || ''} aria-label="Plataforma"
           onChange={(e) => setFilter((f) => ({ ...f, platform: e.target.value || undefined }))}

@@ -11,6 +11,7 @@ import { useState } from 'react';
 import { adminGet, type LocationsResponse, type LocationRow } from '@/lib/admin/analyticsApi';
 import { spStartOfToday, spYesterdayRange, spDayBounds, fmtSpDate } from '@/lib/analytics/spTime';
 import { useAsync, Panel, Loading, ErrorBox, numberFmt } from './sections';
+import { DateField } from '@/components/ui/DateField';
 
 type PlatformFilter = '' | 'ios' | 'android' | 'pwa';
 
@@ -91,13 +92,13 @@ export function DownloadsSection() {
           </button>
         ))}
         <div className="flex items-center gap-1">
-          <input type="date" value={customFrom} aria-label="De"
-            onChange={(e) => { setCustomFrom(e.target.value); setDatePreset('custom'); }}
-            className={`rounded-md border px-2 py-1 ${datePreset === 'custom' ? 'border-[#0056D2]' : 'border-slate-200'}`} />
+          <DateField value={customFrom} ariaLabel="De" className="w-[8.5rem]"
+            onChange={(iso) => { setCustomFrom(iso); setDatePreset('custom'); }}
+            inputClassName={`w-full rounded-md border px-2 py-1 pr-8 text-[13px] tabular-nums ${datePreset === 'custom' ? 'border-[#0056D2]' : 'border-slate-200'}`} />
           <span className="text-slate-400">até</span>
-          <input type="date" value={customTo} aria-label="Até"
-            onChange={(e) => { setCustomTo(e.target.value); setDatePreset('custom'); }}
-            className={`rounded-md border px-2 py-1 ${datePreset === 'custom' ? 'border-[#0056D2]' : 'border-slate-200'}`} />
+          <DateField value={customTo} ariaLabel="Até" className="w-[8.5rem]"
+            onChange={(iso) => { setCustomTo(iso); setDatePreset('custom'); }}
+            inputClassName={`w-full rounded-md border px-2 py-1 pr-8 text-[13px] tabular-nums ${datePreset === 'custom' ? 'border-[#0056D2]' : 'border-slate-200'}`} />
         </div>
       </div>
 

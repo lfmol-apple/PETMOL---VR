@@ -23,6 +23,8 @@ interface DateFieldProps {
   className?: string;
   inputClassName?: string;
   required?: boolean;
+  /** Rótulo para leitores de tela quando não há <label> visível (ex.: filtros compactos). */
+  ariaLabel?: string;
 }
 
 function isoToBr(iso: string): string {
@@ -54,7 +56,7 @@ function formatDigits(digits: string): string {
 
 export function DateField({
   id, value, onChange, max, min, placeholder = 'DD/MM/AAAA',
-  className = '', inputClassName, required,
+  className = '', inputClassName, required, ariaLabel,
 }: DateFieldProps) {
   const [text, setText] = useState(() => isoToBr(value));
   const nativeRef = useRef<HTMLInputElement>(null);
@@ -97,6 +99,7 @@ export function DateField({
     <div className={`relative ${className}`}>
       <input
         id={id}
+        aria-label={ariaLabel}
         type="text"
         inputMode="numeric"
         autoComplete="off"

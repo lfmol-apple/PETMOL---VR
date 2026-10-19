@@ -25,6 +25,7 @@ import { TodaySection, BaseStrip } from '@/components/admin/sections/TodaySectio
 import dynamic from 'next/dynamic';
 import { OperationsSection } from '@/components/admin/sections/OperationsSection';
 import { spStartOfToday, spYesterdayRange, fmtSpDate, spDayBounds } from '@/lib/analytics/spTime';
+import { DateField } from '@/components/ui/DateField';
 
 // Leaflet toca em `window`/`document` no import — dinâmico e sem SSR, senão
 // quebra a renderização no servidor.
@@ -246,13 +247,13 @@ export default function AdminDashboardPage() {
           ))}
         </div>
         <div className="flex items-center gap-1">
-          <input type="date" value={customFrom} aria-label="De"
-            onChange={(e) => { const v = e.target.value; setCustomFrom(v); applyCustomRange(v, customTo); }}
-            className={`rounded-md border px-2 py-1 ${datePreset === 'custom' ? 'border-[#0056D2]' : 'border-slate-200'}`} />
+          <DateField value={customFrom} ariaLabel="De" className="w-[8.5rem]"
+            onChange={(v) => { setCustomFrom(v); applyCustomRange(v, customTo); }}
+            inputClassName={`w-full rounded-md border px-2 py-1 pr-8 text-[13px] tabular-nums ${datePreset === 'custom' ? 'border-[#0056D2]' : 'border-slate-200'}`} />
           <span className="text-slate-400">até</span>
-          <input type="date" value={customTo} aria-label="Até"
-            onChange={(e) => { const v = e.target.value; setCustomTo(v); applyCustomRange(customFrom, v); }}
-            className={`rounded-md border px-2 py-1 ${datePreset === 'custom' ? 'border-[#0056D2]' : 'border-slate-200'}`} />
+          <DateField value={customTo} ariaLabel="Até" className="w-[8.5rem]"
+            onChange={(v) => { setCustomTo(v); applyCustomRange(customFrom, v); }}
+            inputClassName={`w-full rounded-md border px-2 py-1 pr-8 text-[13px] tabular-nums ${datePreset === 'custom' ? 'border-[#0056D2]' : 'border-slate-200'}`} />
         </div>
         <select value={filter.platform || ''} aria-label="Plataforma"
           onChange={(e) => setFilter((f) => ({ ...f, platform: e.target.value || undefined }))}

@@ -15,6 +15,7 @@ import { adminGet, type BriefResponse, type BriefMetric, type OverviewResponse }
 import { StatCard } from '@/components/admin/charts/Charts';
 import { spIsoDate, spYesterdayRange } from '@/lib/analytics/spTime';
 import { useAsync, Panel, Loading, ErrorBox, numberFmt } from './sections';
+import { DateField } from '@/components/ui/DateField';
 
 type DayMode = 'today' | 'yesterday' | 'custom';
 
@@ -61,8 +62,8 @@ export function TodaySection({ onOpenPeople, onOpenLocations, onOpenModeration }
           </button>
         ))}
         {mode === 'custom' && (
-          <input type="date" value={customDay} aria-label="Dia" onChange={(e) => setCustomDay(e.target.value)}
-            className="rounded-md border border-slate-200 px-2 py-1" />
+          <DateField value={customDay} ariaLabel="Dia" className="w-[8.5rem]" onChange={(iso) => setCustomDay(iso)}
+            inputClassName="w-full rounded-md border border-slate-200 px-2 py-1 pr-8 text-[13px] tabular-nums" />
         )}
         {data && <span className="ml-1 font-semibold text-slate-500">{data.label}</span>}
       </div>

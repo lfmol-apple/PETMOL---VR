@@ -7,6 +7,7 @@ import { requestUserConfirmation } from '@/features/interactions/userPromptChann
 import { getToken } from '@/lib/auth-token';
 import { useAdmin } from '@/hooks/useAdmin';
 import { fmtSpDay } from '@/lib/analytics/spTime';
+import { DateField } from '@/components/ui/DateField';
 
 interface Pet {
   id: string;
@@ -409,11 +410,10 @@ export default function AdminPetsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento (opcional)</label>
-                  <input
-                    type="date"
+                  <DateField
                     value={formData.birth_date}
-                    onChange={(e) => setFormData({ ...formData, birth_date: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056D2] focus:border-transparent"
+                    onChange={(iso) => setFormData({ ...formData, birth_date: iso })}
+                    inputClassName="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg tabular-nums focus:ring-2 focus:ring-[#0056D2] focus:border-transparent"
                   />
                 </div>
                 <div className="flex gap-2">
