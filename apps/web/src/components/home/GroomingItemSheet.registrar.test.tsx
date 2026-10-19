@@ -80,24 +80,12 @@ describe('"Dei banho hoje" — formulário de registro', () => {
     expect(post().body).toMatchObject({ frequency_days: 17 });
   });
 
-  it('Lembrete: Semanalmente / A cada 15 dias / A cada mês definem o intervalo entre banhos', async () => {
+  it('Lembrete: "Lembrar X dias antes" com X livre (e não há atalhos de intervalo: "Repetir a cada" resolve)', async () => {
     open([rec()]);
     fireEvent.click(screen.getByText('✅ Dei banho hoje'));
-    const freq = () => (screen.getByLabelText('Repetir a cada (dias)') as HTMLInputElement).value;
-    fireEvent.click(screen.getByRole('button', { name: 'Semanalmente' }));
-    expect(freq()).toBe('7');
-    fireEvent.click(screen.getByRole('button', { name: 'A cada 15 dias' }));
-    expect(freq()).toBe('15');
-    fireEvent.click(screen.getByRole('button', { name: 'A cada mês' }));
-    expect(freq()).toBe('30');
-    await register();
-    expect(post().body).toMatchObject({ frequency_days: 30 });
-  });
-
-  it('Lembrete: "Lembrar X dias antes" com X livre', async () => {
-    open([rec()]);
-    fireEvent.click(screen.getByText('✅ Dei banho hoje'));
-    fireEvent.click(screen.getByRole('button', { name: 'Lembrar X dias antes' }));
+    expect(screen.queryByRole('button', { name: 'Semanalmente' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'A cada 15 dias' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'A cada mês' })).toBeNull();
     fireEvent.change(screen.getByLabelText('Dias de antecedência do lembrete'), { target: { value: '5' } });
     await register();
     expect(post().body).toMatchObject({ alert_days_before: 5 });

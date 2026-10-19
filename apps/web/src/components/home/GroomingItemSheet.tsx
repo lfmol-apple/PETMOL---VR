@@ -222,7 +222,6 @@ export function GroomingItemSheet({
   // Formulário "Registrar banho": tipo, repetir a cada (dias), lembrete e petshop — tudo pré-preenchido.
   const [quickType, setQuickType] = useState<GroomingType>('bath_grooming');
   const [quickFreq, setQuickFreq] = useState('30');
-  const [quickReminder, setQuickReminder] = useState<'before' | 'weekly' | 'biweekly' | 'monthly'>('before');
   const [quickDaysBefore, setQuickDaysBefore] = useState('3');
   const [quickPlace, setQuickPlace] = useState('');
   const [quickPhone, setQuickPhone] = useState('');
@@ -235,7 +234,6 @@ export function GroomingItemSheet({
     if (kind === 'did') {
       setQuickType(last?.type ?? 'bath_grooming');
       setQuickFreq(String(last?.frequency_days ?? 30));        // padrão 30; o tutor muda para quantos quiser
-      setQuickReminder('before');
       setQuickDaysBefore(String(last?.alert_days_before ?? 3));
       setQuickPlace(last?.location || '');
       setQuickPhone(last?.location_phone || '');
@@ -785,28 +783,16 @@ export function GroomingItemSheet({
                           <div>
                             <label className="mb-1.5 block text-[12px] font-bold text-slate-500" htmlFor="quick-freq">Repetir a cada (dias)</label>
                             <input id="quick-freq" type="number" inputMode="numeric" min={1} max={365} value={quickFreq}
-                              onChange={(e) => { setQuickFreq(e.target.value); setQuickReminder('before'); }}
+                              onChange={(e) => setQuickFreq(e.target.value)}
                               className={`${inputCls} w-full text-center`} />
                           </div>
-                          <div role="group" aria-label="Lembrete">
-                            <p className="mb-1.5 text-[12px] font-bold text-slate-500">Lembrete</p>
-                            <div className="flex flex-wrap gap-2">
-                              {([['before', 'Lembrar X dias antes', null], ['weekly', 'Semanalmente', 7], ['biweekly', 'A cada 15 dias', 15], ['monthly', 'A cada mês', 30]] as Array<['before' | 'weekly' | 'biweekly' | 'monthly', string, number | null]>).map(([mode, label, days]) => (
-                                <button key={mode} type="button" aria-pressed={quickReminder === mode}
-                                  onClick={() => { setQuickReminder(mode); if (days) setQuickFreq(String(days)); }}
-                                  className={`rounded-full border px-3 py-2 text-[13px] font-bold ${quickReminder === mode ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-600'}`}>{label}</button>
-                              ))}
-                            </div>
-                            {quickReminder === 'before' && (
-                              <label className="mt-2 flex items-center gap-2 text-[13px] text-slate-500">
-                                Lembrar
-                                <input type="number" inputMode="numeric" min={0} max={60} aria-label="Dias de antecedência do lembrete" value={quickDaysBefore}
-                                  onChange={(e) => setQuickDaysBefore(e.target.value)}
-                                  className="w-16 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-[14px] font-bold text-slate-900" />
-                                dias antes
-                              </label>
-                            )}
-                          </div>
+                          <label className="flex items-center gap-2 text-[13px] text-slate-600">
+                            Lembrar
+                            <input type="number" inputMode="numeric" min={0} max={60} aria-label="Dias de antecedência do lembrete" value={quickDaysBefore}
+                              onChange={(e) => setQuickDaysBefore(e.target.value)}
+                              className="w-16 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-[14px] font-bold text-slate-900" />
+                            dias antes
+                          </label>
                           {!last?.location_phone && (
                             <div className="space-y-2" data-testid="petshop-campos">
                               <p className="text-[12px] font-bold text-slate-500">Petshop (opcional)</p>
