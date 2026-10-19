@@ -55,7 +55,7 @@ describe('GroomingItemSheet — tela rápida (abre primeiro)', () => {
   it('em dia: "Dei banho hoje" → Registrar cria o serviço novo repetindo tipo e petshop (2 toques)', async () => {
     open([rec()]);
     fireEvent.click(screen.getByText('✅ Dei banho hoje'));
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Registrar' })); });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^Registrar (banho e tosa|banho|tosa)$/i })); });
     const post = calls.find((c) => c.method === 'POST' && c.url.endsWith('/pets/p1/grooming'));
     expect(post!.body).toMatchObject({ type: 'bath_grooming', date: d(0), location: 'Mundo dos Bichos', frequency_days: 45 });
   });
@@ -85,7 +85,7 @@ describe('GroomingItemSheet — tela rápida (abre primeiro)', () => {
     expect(screen.getByTestId('primeiro-banho').textContent).toContain('Quando foi o último banho de Baby?');
     fireEvent.click(screen.getByText('✅ Informar o último banho'));
     fireEvent.click(screen.getByRole('button', { name: 'Ontem' }));
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Registrar' })); });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^Registrar (banho e tosa|banho|tosa)$/i })); });
     const post = calls.find((c) => c.method === 'POST');
     expect(post!.body).toMatchObject({ type: 'bath_grooming', date: d(-1), frequency_days: 30 });   // padrão do app para banho + tosa
   });

@@ -57,7 +57,7 @@ describe('GroomingItemSheet — cartão "Já deu?"', () => {
     open([rec()]);
     fireEvent.click(screen.getByText('✅ Já dei'));
     fireEvent.click(screen.getByRole('button', { name: 'Ontem' }));
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Registrar' })); });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /^Registrar (banho e tosa|banho|tosa)$/i })); });
     const post = calls.find((c) => c.method === 'POST' && c.url.endsWith('/pets/p1/grooming'));
     expect(post).toBeTruthy();
     expect(post!.body).toMatchObject({ type: 'bath_grooming', date: iso(-1), location: 'Mundo dos Bichos', location_phone: '11999998888', frequency_days: 45 });
