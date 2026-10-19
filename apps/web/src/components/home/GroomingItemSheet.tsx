@@ -35,6 +35,14 @@ function addDays(dateStr: string, days: number): string {
   return dateToLocalISO(dt);
 }
 
+/** "2026-10-19" → "Segunda-feira" (ajuda a fixar a data na cabeça). */
+function weekdayLabel(iso: string): string {
+  const [y, m, d] = (iso || '').slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return '';
+  const w = new Date(y, m - 1, d).toLocaleDateString('pt-BR', { weekday: 'long' });
+  return w.charAt(0).toUpperCase() + w.slice(1);
+}
+
 /** Sábado mais próximo (hoje, se for sábado) — atalho "Este fim de semana". */
 function nextSaturday(): string {
   const t = new Date();
@@ -221,8 +229,9 @@ export function GroomingItemSheet({
   const [quickOther, setQuickOther] = useState(false);
   // Formulário "Registrar banho": tipo, repetir a cada (dias), lembrete e petshop — tudo pré-preenchido.
   const [quickType, setQuickType] = useState<GroomingType>('bath_grooming');
-  const [quickFreq, setQuickFreq] = useState('30');
+  const [quickFreq, setQuickFreq] = useState('15');
   const [quickDaysBefore, setQuickDaysBefore] = useState('3');
+  const [quickTime, setQuickTime] = useState('09:00');
   const [quickPlace, setQuickPlace] = useState('');
   const [quickPhone, setQuickPhone] = useState('');
   const scrollBodyRef = useRef<HTMLDivElement>(null);
@@ -232,8 +241,9 @@ export function GroomingItemSheet({
     setQuickDate(kind === 'did' ? localTodayISO() : addDays(localTodayISO(), 1));
     setQuickOther(false);
     if (kind === 'did') {
-      setQuickType(last?.type ?? 'bath_grooming');
-      setQuickFreq(String(last?.frequency_days ?? 30));        // padrão 30; o tutor muda para quantos quiser
+      setQuickType(last?.type === 'bath' ? 'bath' : 'bath_grooming');   // quase ninguém faz só tosa
+      setQuickFreq(String(last?.frequency_days ?? 15));        // padrão 15; o tutor muda para quantos quiser
+      setQuickTime(last?.scheduled_time || '09:00');
       setQuickDaysBefore(String(last?.alert_days_before ?? 3));
       setQuickPlace(last?.location || '');
       setQuickPhone(last?.location_phone || '');
@@ -254,7 +264,7 @@ export function GroomingItemSheet({
       location_phone: quickPhone.trim(),
       frequency_days: String(freq),
       reminder_days: String(Number.isFinite(before) && before >= 0 ? before : 3),
-      reminder_time: last?.scheduled_time || '09:00',
+      reminder_time: quickTime || '09:00',
     });
     if (ok) closeQuick();
   }
@@ -382,6 +392,35 @@ export function GroomingItemSheet({
       showToast(nextActive ? '✅ Lembretes reativados.' : 'Lembretes desativados. Seu histórico fica guardado.');
     } finally {
       setRoutineBusy(false);
+    }
+  }
+
+  // ── Petshop (nome + WhatsApp) editável direto na tela rápida ────────────────
+  const [editingPetshop, setEditingPetshop] = useState(false);
+  const [psName, setPsName] = useState('');
+  const [psPhone, setPsPhone] = useState('');
+  function startEditPetshop() {
+    setPsName(last?.location || '');
+    setPsPhone(last?.location_phone || '');
+    setEditingPetshop(true);
+  }
+  async function savePetshop() {
+    if (!last) return;
+    setSaving(true);
+    try {
+      const token = getToken();
+      if (!token) { showToast('⚠️ Sessão expirada. Faça login novamente.'); return; }
+      const res = await fetch(`${API_BASE_URL}/pets/${petId}/grooming/${last.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ location: psName.trim() || null, location_phone: psPhone.trim() || null }),
+      });
+      if (!res.ok) { showToast(`❌ Erro ao salvar (${res.status}).`); return; }
+      setEditingPetshop(false);
+      showToast('✅ Petshop atualizado.');
+      await onRefresh();
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -738,28 +777,93 @@ export function GroomingItemSheet({
                       </div>
                     </>
                   )}
-                  {quick !== null && (
-                    <>
+                  {quick === 'did' && (
+                    <div data-testid="form-registrar">
                       <p className="text-[16px] font-black leading-tight text-[#1C1C1E]">
-                        {quick === 'did' ? `Registrar ${groomingLabel(quickType).label.toLowerCase()}${petName ? ` de ${petName}` : ''}` : `Quando vai ser o próximo${petName ? ` de ${petName}` : ''}?`}
+                        Registrar {groomingLabel(quickType).label.toLowerCase()}{petName ? ` de ${petName}` : ''}
                       </p>
-                      {quick === 'did' && (
-                        <div className="mt-3" role="group" aria-label="Tipo do serviço">
-                          <p className="mb-1.5 text-[12px] font-bold text-slate-500">O que foi feito?</p>
-                          <div className="flex flex-wrap gap-2">
-                            {([['bath', 'Banho'], ['bath_grooming', 'Banho e Tosa'], ['grooming', 'Tosa']] as Array<[GroomingType, string]>).map(([t, label]) => (
-                              <button key={t} type="button" aria-pressed={quickType === t} onClick={() => setQuickType(t)}
-                                className={`rounded-full border px-3.5 py-2 text-[14px] font-bold ${quickType === t ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-600'}`}>{label}</button>
-                            ))}
+
+                      {/* Tipo: controle segmentado (quase ninguém faz só tosa) */}
+                      <div className="mt-3 flex rounded-xl bg-slate-100 p-1" role="group" aria-label="Tipo do serviço">
+                        {([['bath', 'Banho'], ['bath_grooming', 'Banho e Tosa']] as Array<[GroomingType, string]>).map(([t, label]) => (
+                          <button key={t} type="button" aria-pressed={quickType === t} onClick={() => setQuickType(t)}
+                            className={`flex-1 rounded-lg py-2 text-[14px] font-bold transition-all ${quickType === t ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-500'}`}>{label}</button>
+                        ))}
+                      </div>
+
+                      {/* Data digitável (hoje por padrão) + dia da semana na frente */}
+                      <p className="mb-1 mt-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">Quando foi</p>
+                      <div className="flex items-center gap-3">
+                        <div className="min-w-0 flex-1">
+                          <DateField value={quickDate} onChange={(iso) => setQuickDate(iso)}
+                            inputClassName="w-full min-w-0 rounded-xl border border-[#E5E5EA] bg-white px-3 py-2.5 pr-11 text-[15px] font-semibold tabular-nums text-[#1C1C1E] focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30" />
+                        </div>
+                        {quickDate && <span data-testid="dia-da-semana" className="shrink-0 text-[14px] font-bold text-slate-700">{weekdayLabel(quickDate)}</span>}
+                      </div>
+
+                      {/* Repetir · Lembrar · Hora — numa linha só */}
+                      <div className="mt-3 grid grid-cols-3 gap-2">
+                        <div>
+                          <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">Repetir a cada</p>
+                          <div className="flex items-center gap-1.5">
+                            <input type="number" inputMode="numeric" min={1} max={365} aria-label="Repetir a cada (dias)" value={quickFreq}
+                              onChange={(e) => setQuickFreq(e.target.value)}
+                              className="w-full min-w-0 rounded-xl border border-[#E5E5EA] bg-white px-2 py-2.5 text-center text-[15px] font-bold tabular-nums text-[#1C1C1E] focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30" />
+                            <span className="text-[12px] font-semibold text-slate-400">dias</span>
                           </div>
                         </div>
-                      )}
-                      {quick === 'did' && <p className="mt-3 mb-1.5 text-[12px] font-bold text-slate-500">Quando foi?</p>}
-                      <div className={`${quick === 'did' ? '' : 'mt-3 '}flex flex-wrap gap-2`} role="group" aria-label="Escolher data">
-                        {(quick === 'did'
-                          ? [['Hoje', localTodayISO()], ['Ontem', addDays(localTodayISO(), -1)]]
-                          : [['Hoje', localTodayISO()], ['Amanhã', addDays(localTodayISO(), 1)], ['Este fim de semana', nextSaturday()]]
-                        ).map(([label, iso]) => {
+                        <div>
+                          <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">Lembrar</p>
+                          <div className="flex items-center gap-1.5">
+                            <input type="number" inputMode="numeric" min={0} max={60} aria-label="Dias de antecedência do lembrete" value={quickDaysBefore}
+                              onChange={(e) => setQuickDaysBefore(e.target.value)}
+                              className="w-full min-w-0 rounded-xl border border-[#E5E5EA] bg-white px-2 py-2.5 text-center text-[15px] font-bold tabular-nums text-[#1C1C1E] focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30" />
+                            <span className="text-[12px] font-semibold text-slate-400">antes</span>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">Hora</p>
+                          <input type="time" step={60} aria-label="Hora do lembrete" value={quickTime}
+                            onChange={(e) => setQuickTime(e.target.value)}
+                            className="w-full min-w-0 rounded-xl border border-[#E5E5EA] bg-white px-2 py-2.5 text-[15px] font-bold tabular-nums text-[#1C1C1E] focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30" />
+                        </div>
+                      </div>
+
+                      {/* Petshop: nome + WhatsApp (sempre ao alcance, já preenchidos se existirem) */}
+                      <div className="mt-3" data-testid="petshop-campos">
+                        <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">Petshop (opcional)</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input type="text" aria-label="Nome do petshop" placeholder="Nome" maxLength={200} value={quickPlace}
+                            onChange={(e) => setQuickPlace(e.target.value)}
+                            className="w-full min-w-0 rounded-xl border border-[#E5E5EA] bg-white px-3 py-2.5 text-[14px] text-[#1C1C1E] placeholder:text-[#C7C7CC] focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30" />
+                          <div className="relative">
+                            <WhatsAppIcon className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#25D366]" />
+                            <input type="tel" inputMode="tel" aria-label="WhatsApp do petshop" placeholder="WhatsApp" maxLength={40} value={quickPhone}
+                              onChange={(e) => setQuickPhone(e.target.value)}
+                              className="w-full min-w-0 rounded-xl border border-[#E5E5EA] bg-white py-2.5 pl-8 pr-2 text-[14px] text-[#1C1C1E] placeholder:text-[#C7C7CC] focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30" />
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="mt-3 text-[12.5px] leading-snug text-slate-500">
+                        {quickDate
+                          ? <>Próximo aviso: <b className="text-slate-700">{fmtDate(addDays(quickDate, parseInt(quickFreq, 10) > 0 ? parseInt(quickFreq, 10) : 15))}</b> · {weekdayLabel(addDays(quickDate, parseInt(quickFreq, 10) > 0 ? parseInt(quickFreq, 10) : 15))}</>
+                          : <>Informe a data do serviço.</>}
+                      </p>
+                      <button type="button" disabled={saving || !quickDate} onClick={() => void handleQuickDid()}
+                        className="mt-3 w-full rounded-xl bg-emerald-500 py-3 text-[15px] font-extrabold text-white shadow-[0_8px_20px_-8px_rgba(16,185,129,0.55)] active:scale-[0.98] disabled:opacity-60">
+                        Registrar {groomingLabel(quickType).label.toLowerCase()}
+                      </button>
+                      <button type="button" onClick={closeQuick}
+                        className="block w-full pt-2 text-center text-[13px] font-semibold text-slate-500">Voltar</button>
+                    </div>
+                  )}
+
+                  {quick === 'when' && (
+                    <>
+                      <p className="text-[16px] font-black leading-tight text-[#1C1C1E]">Quando vai ser o próximo{petName ? ` de ${petName}` : ''}?</p>
+                      <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Escolher data">
+                        {[['Hoje', localTodayISO()], ['Amanhã', addDays(localTodayISO(), 1)], ['Este fim de semana', nextSaturday()]].map(([label, iso]) => {
                           const on = !quickOther && quickDate === iso;
                           return (
                             <button key={label} type="button" aria-pressed={on}
@@ -769,50 +873,22 @@ export function GroomingItemSheet({
                         })}
                         <button type="button" aria-pressed={quickOther} onClick={() => setQuickOther(true)}
                           className={`rounded-full border px-3.5 py-2 text-[14px] font-bold ${quickOther ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-600'}`}>
-                          {quick === 'did' ? 'Outra data' : 'Escolher data'}
+                          Escolher data
                         </button>
                       </div>
                       {quickOther && (
-                        <div className="mt-2">
-                          <DateField value={quickDate} onChange={(iso) => setQuickDate(iso)}
-                            inputClassName={`${inputCls} w-full pr-11 tabular-nums`} />
-                        </div>
-                      )}
-                      {quick === 'did' && (
-                        <div className="mt-3 space-y-3">
-                          <div>
-                            <label className="mb-1.5 block text-[12px] font-bold text-slate-500" htmlFor="quick-freq">Repetir a cada (dias)</label>
-                            <input id="quick-freq" type="number" inputMode="numeric" min={1} max={365} value={quickFreq}
-                              onChange={(e) => setQuickFreq(e.target.value)}
-                              className={`${inputCls} w-full text-center`} />
+                        <div className="mt-2 flex items-center gap-3">
+                          <div className="min-w-0 flex-1">
+                            <DateField value={quickDate} onChange={(iso) => setQuickDate(iso)}
+                              inputClassName={`${inputCls} w-full pr-11 tabular-nums`} />
                           </div>
-                          <label className="flex items-center gap-2 text-[13px] text-slate-600">
-                            Lembrar
-                            <input type="number" inputMode="numeric" min={0} max={60} aria-label="Dias de antecedência do lembrete" value={quickDaysBefore}
-                              onChange={(e) => setQuickDaysBefore(e.target.value)}
-                              className="w-16 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-[14px] font-bold text-slate-900" />
-                            dias antes
-                          </label>
-                          {!last?.location_phone && (
-                            <div className="space-y-2" data-testid="petshop-campos">
-                              <p className="text-[12px] font-bold text-slate-500">Petshop (opcional)</p>
-                              <input type="text" aria-label="Nome do petshop" placeholder="Nome do petshop" maxLength={200} value={quickPlace}
-                                onChange={(e) => setQuickPlace(e.target.value)} className={inputCls} />
-                              <input type="tel" inputMode="tel" aria-label="WhatsApp do petshop" placeholder="WhatsApp do petshop com DDD" maxLength={40} value={quickPhone}
-                                onChange={(e) => setQuickPhone(e.target.value)} className={inputCls} />
-                            </div>
-                          )}
+                          {quickDate && <span data-testid="dia-da-semana" className="shrink-0 text-[14px] font-bold text-slate-700">{weekdayLabel(quickDate)}</span>}
                         </div>
                       )}
-                      <p className="mt-3 text-[12.5px] leading-snug text-slate-500">
-                        {quick === 'did'
-                          ? <>Próximo aviso: <b>{fmtDate(addDays(quickDate, parseInt(quickFreq, 10) > 0 ? parseInt(quickFreq, 10) : 30))}</b>.</>
-                          : <>O histórico não muda: só a data do próximo.</>}
-                      </p>
-                      <button type="button" disabled={saving || !quickDate}
-                        onClick={() => void (quick === 'did' ? handleQuickDid() : handleQuickWhen())}
+                      <p className="mt-3 text-[12.5px] leading-snug text-slate-500">O histórico não muda: só a data do próximo.</p>
+                      <button type="button" disabled={saving || !quickDate} onClick={() => void handleQuickWhen()}
                         className="mt-3 w-full rounded-xl bg-emerald-500 py-3 text-[15px] font-extrabold text-white active:scale-[0.98] disabled:opacity-60">
-                        {quick === 'did' ? `Registrar ${groomingLabel(quickType).label.toLowerCase()}` : `Agendar para ${fmtDate(quickDate)}`}
+                        Agendar para {fmtDate(quickDate)}
                       </button>
                       <button type="button" onClick={closeQuick}
                         className="block w-full pt-2 text-center text-[13px] font-semibold text-slate-500">Voltar</button>
@@ -869,6 +945,35 @@ export function GroomingItemSheet({
                         <path d="M9 18l6-6-6-6" />
                       </svg>
                     </a>
+                  )}
+
+                  {last && !editingPetshop && (
+                    <button type="button" onClick={startEditPetshop}
+                      className="block w-full py-0.5 text-center text-[13px] font-semibold text-[#0056D2] active:opacity-60">
+                      {last.location_phone ? 'Alterar o WhatsApp do petshop' : 'Adicionar o WhatsApp do petshop'}
+                    </button>
+                  )}
+                  {last && editingPetshop && (
+                    <div data-testid="editar-petshop" className="rounded-2xl bg-white p-4 shadow-sm">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Petshop</p>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <input type="text" aria-label="Nome do petshop (editar)" placeholder="Nome" maxLength={200} value={psName}
+                          onChange={(e) => setPsName(e.target.value)}
+                          className="w-full min-w-0 rounded-xl border border-[#E5E5EA] bg-white px-3 py-2.5 text-[14px] text-[#1C1C1E] placeholder:text-[#C7C7CC] focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30" />
+                        <div className="relative">
+                          <WhatsAppIcon className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#25D366]" />
+                          <input type="tel" inputMode="tel" aria-label="WhatsApp do petshop (editar)" placeholder="WhatsApp" maxLength={40} value={psPhone}
+                            onChange={(e) => setPsPhone(e.target.value)}
+                            className="w-full min-w-0 rounded-xl border border-[#E5E5EA] bg-white py-2.5 pl-8 pr-2 text-[14px] text-[#1C1C1E] placeholder:text-[#C7C7CC] focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30" />
+                        </div>
+                      </div>
+                      <div className="mt-3 flex gap-2">
+                        <button type="button" disabled={saving} onClick={() => void savePetshop()}
+                          className="flex-1 rounded-xl bg-emerald-500 py-2.5 text-[14px] font-extrabold text-white active:scale-[0.98] disabled:opacity-60">Salvar</button>
+                        <button type="button" onClick={() => setEditingPetshop(false)}
+                          className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[14px] font-bold text-slate-600 active:scale-[0.98]">Cancelar</button>
+                      </div>
+                    </div>
                   )}
 
                   <button type="button" onClick={() => setPanel('full')}

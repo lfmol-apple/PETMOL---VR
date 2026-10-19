@@ -29,6 +29,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 const d = (off: number) => { const t = new Date(); t.setDate(t.getDate() + off); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; };
+const br = (off: number) => { const t = new Date(); t.setDate(t.getDate() + off); return `${String(t.getDate()).padStart(2, '0')}/${String(t.getMonth() + 1).padStart(2, '0')}/${t.getFullYear()}`; };
 const rec = (over: Record<string, unknown> = {}) => ({
   id: 'g1', type: 'bath', date: d(-10), location: 'Mundo dos Bichos', location_phone: '11999998888',
   next_recommended_date: d(35), frequency_days: 45, alert_days_before: 3, ...over,
@@ -45,7 +46,7 @@ describe('"Dei banho hoje" — formulário de registro', () => {
   it('abre com tudo preenchido: tipo do último, data de hoje, repetir a cada do último, 3 dias antes', async () => {
     open([rec()]);
     fireEvent.click(screen.getByText('✅ Dei banho hoje'));
-    expect(screen.getByText('O que foi feito?')).toBeTruthy();
+    expect(screen.getByTestId('form-registrar')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Banho', pressed: true })).toBeTruthy();   // tipo do último registro
     expect((screen.getByLabelText('Repetir a cada (dias)') as HTMLInputElement).value).toBe('45');
     expect((screen.getByLabelText('Dias de antecedência do lembrete') as HTMLInputElement).value).toBe('3');
@@ -62,19 +63,25 @@ describe('"Dei banho hoje" — formulário de registro', () => {
     expect(post().body).toMatchObject({ type: 'bath_grooming' });
   });
 
-  it('a data pode ser mudada, inclusive para antes (Ontem / outra data passada)', async () => {
+  it('a data já vem digitável (hoje) com o dia da semana na frente; pode ser mudada, inclusive para antes', async () => {
     open([rec()]);
     fireEvent.click(screen.getByText('✅ Dei banho hoje'));
-    fireEvent.click(screen.getByRole('button', { name: 'Ontem' }));
+    const campo = screen.getByPlaceholderText('DD/MM/AAAA') as HTMLInputElement;
+    expect(campo.value).toBe(br(0));                              // hoje por padrão, sem botões Hoje/Ontem
+    expect(screen.queryByRole('button', { name: 'Hoje' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Ontem' })).toBeNull();
+    fireEvent.change(campo, { target: { value: '19/10/2026' } });
+    expect(screen.getByTestId('dia-da-semana').textContent).toBe('Segunda-feira');
+    fireEvent.change(campo, { target: { value: br(-3) } });
     await register();
-    expect(post().body).toMatchObject({ date: d(-1) });
+    expect(post().body).toMatchObject({ date: d(-3) });
   });
 
-  it('sem registro anterior: Repetir a cada vem 30 e o tutor muda para quantos quiser', async () => {
+  it('sem registro anterior: Repetir a cada vem 15 e o tutor muda para quantos quiser', async () => {
     open([]);
     fireEvent.click(screen.getByText('✅ Informar o último banho'));
     const freq = screen.getByLabelText('Repetir a cada (dias)') as HTMLInputElement;
-    expect(freq.value).toBe('30');
+    expect(freq.value).toBe('15');
     fireEvent.change(freq, { target: { value: '17' } });
     await register();
     expect(post().body).toMatchObject({ frequency_days: 17 });
@@ -91,21 +98,40 @@ describe('"Dei banho hoje" — formulário de registro', () => {
     expect(post().body).toMatchObject({ alert_days_before: 5 });
   });
 
-  it('sem número de WhatsApp salvo: pede nome e WhatsApp do petshop e grava no registro', async () => {
+  it('só dois tipos (Banho / Banho e Tosa) — quase ninguém faz só tosa', () => {
+    open([rec()]);
+    fireEvent.click(screen.getByText('✅ Dei banho hoje'));
+    expect(screen.getByRole('button', { name: 'Banho' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Banho e Tosa' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Tosa' })).toBeNull();
+  });
+
+  it('hora e minuto do lembrete são escolhidos e gravados', async () => {
+    open([rec()]);
+    fireEvent.click(screen.getByText('✅ Dei banho hoje'));
+    fireEvent.change(screen.getByLabelText('Hora do lembrete'), { target: { value: '07:45' } });
+    await register();
+    expect(post().body).toMatchObject({ scheduled_time: '07:45' });
+  });
+
+  it('petshop: sem número salvo, os campos vêm vazios e o que o tutor digitar é gravado', async () => {
     open([rec({ location: '', location_phone: '' })]);
     fireEvent.click(screen.getByText('✅ Dei banho hoje'));
-    expect(screen.getByTestId('petshop-campos')).toBeTruthy();
+    expect((screen.getByLabelText('WhatsApp do petshop') as HTMLInputElement).value).toBe('');
     fireEvent.change(screen.getByLabelText('Nome do petshop'), { target: { value: 'Petshop X' } });
     fireEvent.change(screen.getByLabelText('WhatsApp do petshop'), { target: { value: '(11) 98888-7777' } });
     await register();
     expect(post().body).toMatchObject({ location: 'Petshop X', location_phone: '(11) 98888-7777' });
   });
 
-  it('com número de WhatsApp já salvo: não pergunta de novo, e o botão do WhatsApp continua na tela', () => {
+  it('petshop: com número já salvo, o campo vem preenchido (dá para editar) e o botão do WhatsApp continua na tela', async () => {
     open([rec()]);
     expect(screen.getByText('Agendar via WhatsApp')).toBeTruthy();
     fireEvent.click(screen.getByText('✅ Dei banho hoje'));
-    expect(screen.queryByTestId('petshop-campos')).toBeNull();
+    expect((screen.getByLabelText('WhatsApp do petshop') as HTMLInputElement).value).toBe('11999998888');
+    fireEvent.change(screen.getByLabelText('WhatsApp do petshop'), { target: { value: '11977776666' } });
+    await register();
+    expect(post().body).toMatchObject({ location_phone: '11977776666' });
   });
 
   it('intervalo inválido não registra', async () => {
@@ -114,5 +140,23 @@ describe('"Dei banho hoje" — formulário de registro', () => {
     fireEvent.change(screen.getByLabelText('Repetir a cada (dias)'), { target: { value: '0' } });
     await register();
     expect(calls.some((c) => c.method === 'POST')).toBe(false);
+  });
+
+  it('na tela rápida dá para adicionar/alterar o WhatsApp do petshop sem registrar banho (PATCH só de nome e telefone)', async () => {
+    open([rec({ location: '', location_phone: '' })]);
+    fireEvent.click(screen.getByText('Adicionar o WhatsApp do petshop'));
+    fireEvent.change(screen.getByLabelText('Nome do petshop (editar)'), { target: { value: 'Petshop Y' } });
+    fireEvent.change(screen.getByLabelText('WhatsApp do petshop (editar)'), { target: { value: '(11) 95555-4444' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Salvar' })); });
+    const patch = calls.find((c) => c.method === 'PATCH');
+    expect(patch!.url).toContain('/pets/p1/grooming/g1');
+    expect(patch!.body).toEqual({ location: 'Petshop Y', location_phone: '(11) 95555-4444' });
+    expect(calls.some((c) => c.method === 'POST')).toBe(false);
+  });
+
+  it('com número salvo o link vira "Alterar o WhatsApp do petshop" e abre preenchido', () => {
+    open([rec()]);
+    fireEvent.click(screen.getByText('Alterar o WhatsApp do petshop'));
+    expect((screen.getByLabelText('WhatsApp do petshop (editar)') as HTMLInputElement).value).toBe('11999998888');
   });
 });
