@@ -69,7 +69,7 @@ describe('GroomingItemSheet — cartão "Já deu?"', () => {
   it('"Ainda não" + Amanhã: só muda a data do próximo e guarda o reagendamento (sem criar registro)', async () => {
     open([rec()]);
     fireEvent.click(screen.getByText('📅 Ainda não'));
-    fireEvent.click(screen.getByRole('button', { name: 'Amanhã' }));
+    fireEvent.change(screen.getByPlaceholderText('DD/MM/AAAA'), { target: { value: br(1) } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Agendar para/ })); });
     const patch = calls.find((c) => c.method === 'PATCH');
     expect(patch!.url).toContain('/pets/p1/grooming/g1');

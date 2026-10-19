@@ -27,16 +27,25 @@ describe('DateField — regra de datas do PETMOL: digitar é o padrão; o calend
     expect(onChange).toHaveBeenCalledWith('');
   });
 
-  it('o ícone do calendário abre o seletor nativo (iPhone/Android) e o escolhido volta como ISO', () => {
+  it('o calendário abre o seletor nativo do aparelho: <input type="date"> transparente POR CIMA do ícone, tocável (iOS exige o toque direto)', () => {
     const onChange = vi.fn();
-    const showPicker = vi.fn();
     const { container } = render(<DateField value="2026-10-19" onChange={onChange} />);
+    const native = container.querySelector('input[type="date"]') as HTMLInputElement;
+    expect(native).toBeTruthy();
+    expect(native.className).toContain('opacity-0');
+    expect(native.className).not.toContain('pointer-events-none');   // o dedo precisa chegar nele
+    expect(native.className).toMatch(/\bright-0\b/);                  // fica sobre o ícone, à direita
+    fireEvent.change(native, { target: { value: '2026-11-02' } });
+    expect(onChange).toHaveBeenLastCalledWith('2026-11-02');
+  });
+
+  it('o botão do calendário continua para teclado/leitor de tela e usa showPicker quando existe', () => {
+    const showPicker = vi.fn();
+    const { container } = render(<DateField value="2026-10-19" onChange={vi.fn()} />);
     const native = container.querySelector('input[type="date"]') as HTMLInputElement & { showPicker?: () => void };
     native.showPicker = showPicker;
     fireEvent.click(screen.getByRole('button', { name: 'Abrir calendário' }));
     expect(showPicker).toHaveBeenCalledTimes(1);
-    fireEvent.change(native, { target: { value: '2026-11-02' } });
-    expect(onChange).toHaveBeenLastCalledWith('2026-11-02');
   });
 
   it('aceita rótulo de acessibilidade para filtros compactos', () => {

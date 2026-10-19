@@ -118,8 +118,9 @@ export function DateField({
       >
         <CalendarDays className="h-5 w-5" strokeWidth={2} />
       </button>
-      {/* Invisível — só existe pra abrir o seletor nativo do SO quando o
-          tutor prefere tocar em vez de digitar. */}
+      {/* O seletor nativo do iPhone/Android: um <input type="date"> TRANSPARENTE por cima do ícone. O toque do
+          dedo cai direto nele (sem JavaScript no meio), que é o jeito que o iOS exige para abrir o seletor.
+          O botão acima continua para teclado/leitor de tela. */}
       <input
         ref={nativeRef}
         type="date"
@@ -129,7 +130,7 @@ export function DateField({
         onChange={(e) => onChange(e.target.value)}
         tabIndex={-1}
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 h-full w-full opacity-0"
+        className="absolute right-0 top-0 z-10 h-full w-12 cursor-pointer opacity-0"
       />
     </div>
   );

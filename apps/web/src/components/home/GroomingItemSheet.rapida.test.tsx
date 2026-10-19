@@ -65,7 +65,7 @@ describe('GroomingItemSheet — tela rápida (abre primeiro)', () => {
     open([rec()]);
     fireEvent.click(screen.getByText('✏️ Mudar a data'));
     expect(screen.getByText(/Quando vai ser o próximo/)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Amanhã' }));
+    fireEvent.change(screen.getByPlaceholderText('DD/MM/AAAA'), { target: { value: br(1) } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Agendar para/ })); });
     const patch = calls.find((c) => c.method === 'PATCH');
     expect(patch!.url).toContain('/pets/p1/grooming/g1');

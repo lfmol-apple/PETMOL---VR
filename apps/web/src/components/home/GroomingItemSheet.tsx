@@ -43,14 +43,6 @@ function weekdayLabel(iso: string): string {
   return w.charAt(0).toUpperCase() + w.slice(1);
 }
 
-/** Sábado mais próximo (hoje, se for sábado) — atalho "Este fim de semana". */
-function nextSaturday(): string {
-  const t = new Date();
-  const add = (6 - t.getDay() + 7) % 7;
-  t.setDate(t.getDate() + add);
-  return dateToLocalISO(t);
-}
-
 function parseRescheduleHistory(v: unknown): Array<{ from: string | null; to: string; at: string }> {
   if (Array.isArray(v)) return v as Array<{ from: string | null; to: string; at: string }>;
   if (typeof v === 'string' && v.trim()) {
@@ -226,7 +218,6 @@ export function GroomingItemSheet({
   // quick: 'did' = já fez (registra com a data escolhida) · 'when' = quando vai ser (só muda a data do próximo)
   const [quick, setQuick] = useState<null | 'did' | 'when'>(null);
   const [quickDate, setQuickDate] = useState<string>(localTodayISO());
-  const [quickOther, setQuickOther] = useState(false);
   // Formulário "Registrar banho": tipo, repetir a cada (dias), lembrete e petshop — tudo pré-preenchido.
   const [quickType, setQuickType] = useState<GroomingType>('bath_grooming');
   const [quickFreq, setQuickFreq] = useState('15');
@@ -238,8 +229,9 @@ export function GroomingItemSheet({
 
   function openQuick(kind: 'did' | 'when') {
     setQuick(kind);
-    setQuickDate(kind === 'did' ? localTodayISO() : addDays(localTodayISO(), 1));
-    setQuickOther(false);
+    // 'did': hoje; 'when': a data que já está programada (se ainda não passou) ou amanhã
+    const programada = nextDate && nextDate >= localTodayISO() ? nextDate : addDays(localTodayISO(), 1);
+    setQuickDate(kind === 'did' ? localTodayISO() : programada);
     if (kind === 'did') {
       setQuickType(last?.type === 'bath' ? 'bath' : 'bath_grooming');   // quase ninguém faz só tosa
       setQuickFreq(String(last?.frequency_days ?? 15));        // padrão 15; o tutor muda para quantos quiser
@@ -250,7 +242,7 @@ export function GroomingItemSheet({
     }
     scrollBodyRef.current?.scrollTo?.({ top: 0, behavior: 'smooth' });
   }
-  function closeQuick() { setQuick(null); setQuickOther(false); }
+  function closeQuick() { setQuick(null); }
 
   // "Já dei": registra o serviço com a data escolhida, repetindo tipo, local e rotina do último registro.
   async function handleQuickDid() {
@@ -862,29 +854,14 @@ export function GroomingItemSheet({
                   {quick === 'when' && (
                     <>
                       <p className="text-[16px] font-black leading-tight text-[#1C1C1E]">Quando vai ser o próximo{petName ? ` de ${petName}` : ''}?</p>
-                      <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Escolher data">
-                        {[['Hoje', localTodayISO()], ['Amanhã', addDays(localTodayISO(), 1)], ['Este fim de semana', nextSaturday()]].map(([label, iso]) => {
-                          const on = !quickOther && quickDate === iso;
-                          return (
-                            <button key={label} type="button" aria-pressed={on}
-                              onClick={() => { setQuickOther(false); setQuickDate(iso); }}
-                              className={`rounded-full border px-3.5 py-2 text-[14px] font-bold ${on ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-600'}`}>{label}</button>
-                          );
-                        })}
-                        <button type="button" aria-pressed={quickOther} onClick={() => setQuickOther(true)}
-                          className={`rounded-full border px-3.5 py-2 text-[14px] font-bold ${quickOther ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-600'}`}>
-                          Escolher data
-                        </button>
-                      </div>
-                      {quickOther && (
-                        <div className="mt-2 flex items-center gap-3">
-                          <div className="min-w-0 flex-1">
-                            <DateField value={quickDate} onChange={(iso) => setQuickDate(iso)}
-                              inputClassName={`${inputCls} w-full pr-11 tabular-nums`} />
-                          </div>
-                          {quickDate && <span data-testid="dia-da-semana" className="shrink-0 text-[14px] font-bold text-slate-700">{weekdayLabel(quickDate)}</span>}
+                      <p className="mb-1 mt-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">Data</p>
+                      <div className="flex items-center gap-3">
+                        <div className="min-w-0 flex-1">
+                          <DateField value={quickDate} onChange={(iso) => setQuickDate(iso)}
+                            inputClassName="w-full min-w-0 rounded-xl border border-[#E5E5EA] bg-white px-3 py-2.5 pr-11 text-[15px] font-semibold tabular-nums text-[#1C1C1E] focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30" />
                         </div>
-                      )}
+                        {quickDate && <span data-testid="dia-da-semana" className="shrink-0 text-[14px] font-bold text-slate-700">{weekdayLabel(quickDate)}</span>}
+                      </div>
                       <p className="mt-3 text-[12.5px] leading-snug text-slate-500">O histórico não muda: só a data do próximo.</p>
                       <button type="button" disabled={saving || !quickDate} onClick={() => void handleQuickWhen()}
                         className="mt-3 w-full rounded-xl bg-emerald-500 py-3 text-[15px] font-extrabold text-white active:scale-[0.98] disabled:opacity-60">
