@@ -28,6 +28,7 @@ import { spIsoDate } from '@/lib/analytics/spTime';
 import { StatCard } from '@/components/admin/charts/Charts';
 import { Pagination, fmtDateTimeFull } from '@/components/admin/DataTable';
 import { useAsync, Panel, Loading, ErrorBox, numberFmt, GeoSection } from './sections';
+import { DateField } from '@/components/ui/DateField';
 
 type GroupBy = 'campaign' | 'city_state' | 'cadastros' | 'platform';
 type SortBy = 'total' | 'downloads' | 'acessos';
@@ -174,7 +175,8 @@ function CampaignSpendPanel({ campaignNames, onChanged }: { campaignNames: strin
         </label>
         <datalist id="campaign-names">{campaignNames.map((n) => <option key={n} value={n} />)}</datalist>
         <label className="flex flex-col gap-0.5">Dia do gasto
-          <input type="date" value={day} onChange={(e) => setDay(e.target.value)} className="rounded-md border border-slate-200 px-2 py-1" />
+          <DateField value={day} ariaLabel="Dia do gasto" className="w-[8.5rem]" onChange={(iso) => setDay(iso)}
+            inputClassName="w-full rounded-md border border-slate-200 px-2 py-1 pr-8 text-[13px] tabular-nums" />
         </label>
         <label className="flex flex-col gap-0.5">Valor (R$)
           <input inputMode="decimal" placeholder="150,50" value={amount} onChange={(e) => setAmount(e.target.value)}

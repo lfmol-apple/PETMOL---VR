@@ -103,12 +103,24 @@ export function HealthMedicationPanel({
           {/* Data e hora */}
           <div>
             <label className="text-xs text-gray-500 font-medium block mb-1">Data e hora *</label>
-            <input
-              type="datetime-local"
-              value={eventFormData.scheduled_at}
-              onChange={e => setEventFormData(prev => ({ ...prev, scheduled_at: e.target.value }))}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30"
-            />
+            {/* Data digitável (o calendário abre o seletor do aparelho) + hora e minuto. */}
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <DateField
+                  value={(eventFormData.scheduled_at || '').slice(0, 10)}
+                  onChange={(iso) => setEventFormData(prev => ({ ...prev, scheduled_at: iso ? `${iso}T${(prev.scheduled_at || '').slice(11, 16) || '09:00'}` : '' }))}
+                  inputClassName="w-full min-w-0 border border-gray-200 rounded-xl px-3 py-2 pr-10 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30"
+                />
+              </div>
+              <input
+                type="time"
+                step={60}
+                aria-label="Hora"
+                value={(eventFormData.scheduled_at || '').slice(11, 16) || '09:00'}
+                onChange={e => setEventFormData(prev => ((prev.scheduled_at || '').slice(0, 10) ? { ...prev, scheduled_at: `${prev.scheduled_at.slice(0, 10)}T${e.target.value || '09:00'}` } : prev))}
+                className="border border-gray-200 rounded-xl px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30"
+              />
+            </div>
           </div>
 
           {/* Veterinário prescritor */}
