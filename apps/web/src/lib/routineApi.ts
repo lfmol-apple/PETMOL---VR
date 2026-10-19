@@ -13,6 +13,20 @@ function headers(): Record<string, string> {
   return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 }
 
+/** Resultado detalhado: 'off' = recurso desligado no servidor (404); 'error' = rede/servidor fora (mantém o que já se sabe). */
+export type WalkFetch = { status: 'ok'; cfg: WalkConfig } | { status: 'off' } | { status: 'error' };
+
+export async function fetchWalkStatus(petId: string): Promise<WalkFetch> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/pets/${petId}/routine/walk`, { headers: headers(), cache: 'no-store' });
+    if (res.status === 404) return { status: 'off' };
+    if (!res.ok) return { status: 'error' };
+    return { status: 'ok', cfg: (await res.json()) as WalkConfig };
+  } catch {
+    return { status: 'error' };
+  }
+}
+
 /** null = recurso desligado no servidor (404) ou indisponível: a tela não mostra o relógio. */
 export async function fetchWalk(petId: string): Promise<WalkConfig | null> {
   try {

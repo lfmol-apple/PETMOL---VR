@@ -5,7 +5,8 @@ import { AlarmClock } from 'lucide-react';
 
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
 import { showAppToast } from '@/features/interactions/userPromptChannel';
-import { deviceTimeZone, fetchWalk, saveWalk, type WalkConfig } from '@/lib/routineApi';
+import { deviceTimeZone, fetchWalkStatus, saveWalk, type WalkConfig } from '@/lib/routineApi';
+import { readRoutineCache, writeRoutineCache } from '@/lib/routineCache';
 
 const DAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const INTRO_KEY = 'petmol_routine_walk_intro_v1';
@@ -91,7 +92,8 @@ function TimeField({ value, label, onCommit }: { value: string; label: string; o
  * (routine_walk_enabled) — desligado, o GET responde 404 e nada é desenhado.
  */
 export function RoutineWalkButton({ petId, petName }: { petId: string; petName: string }) {
-  const [cfg, setCfg] = useState<WalkConfig | null>(null);
+  // Cache-first: o relógio aparece na hora com o último estado conhecido; o servidor confirma em seguida.
+  const [cfg, setCfg] = useState<WalkConfig | null>(() => readRoutineCache<WalkConfig>(`walk_${petId}`));
   const [open, setOpen] = useState(false);
   const [showIntro, setShowIntro] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -103,9 +105,13 @@ export function RoutineWalkButton({ petId, petName }: { petId: string; petName: 
 
   useEffect(() => {
     let alive = true;
-    setCfg(null);
-    void fetchWalk(petId).then((c) => {
-      if (!alive || !c) return;
+    setCfg(readRoutineCache<WalkConfig>(`walk_${petId}`));
+    void fetchWalkStatus(petId).then((r) => {
+      if (!alive) return;
+      if (r.status === 'off') { writeRoutineCache(`walk_${petId}`, null); setCfg(null); return; }   // recurso desligado: some
+      if (r.status === 'error') return;                                                            // sem rede: mantém o que já se sabe
+      const c = r.cfg;
+      writeRoutineCache(`walk_${petId}`, c);
       setCfg(c);
       const intro = readIntro();
       if (!intro.opened && !c.enabled && intro.shown <= INTRO_MAX_DAYS) {
@@ -130,7 +136,7 @@ export function RoutineWalkButton({ petId, petName }: { petId: string; petName: 
     setBusy(true);
     const saved = await saveWalk(petId, next);
     setBusy(false);
-    if (saved) setCfg(saved);
+    if (saved) { setCfg(saved); writeRoutineCache(`walk_${petId}`, saved); }
     else setCfg(cfg);                     // não salvou: volta ao que estava
   };
 
