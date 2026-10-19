@@ -51,8 +51,9 @@ const NearbyMissingPetsStoryOverlay = dynamic(() => import('@/components/home/Ne
 const NoNearbyMissingPetsOverlay = dynamic(() => import('@/components/home/NoNearbyMissingPetsOverlay').then(m => ({ default: m.NoNearbyMissingPetsOverlay })), { ssr: false });
 import { MissingPetAlertCard, type NearbyAlert } from '@/components/home/MissingPetAlertCard';
 import type { PetCareReminder } from '@/lib/petCareDomain';
-import { groomingRoutineState } from '@/lib/petCareDomain';
+import { groomingRoutineState, type GroomingRoutineState } from '@/lib/petCareDomain';
 import { effectiveGroomingRecords } from '@/lib/groomingRoutine';
+import { readRoutineCache, writeRoutineCache } from '@/lib/routineCache';
 import { useMultipetInteractions } from '@/features/interactions/useMultipetInteractions';
 import type { PetInteractionItem } from '@/features/interactions/types';
 import { openHomeContextualCommerce, resolvePushActionSheetCommerceIntent } from '@/features/commerce/homeContextualCommerce';
@@ -660,7 +661,7 @@ function HomePageInner() {
   // Banho e Tosa — gerenciado por useGroomingManagement
   const {
     groomingRecords, setGroomingRecords,
-    groomingRoutine, setGroomingRoutine,
+    groomingRoutine, setGroomingRoutine, groomingLoaded,
     editingGrooming, setEditingGrooming,
     groomingDueAlerts, setGroomingDueAlerts,
     groomingFormData, setGroomingFormData,
@@ -1345,6 +1346,15 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
   // Current pet based on selection
   const currentPet = pets.find(p => p.pet_id === selectedPetId) || pets[0];
+
+  // Banheirinha: enquanto os registros/lembretes do pet não chegam, mostra o ÚLTIMO estado conhecido (guardado no
+  // aparelho) ou um botão neutro — nunca o "nunca controlado" falso que aparecia antes de carregar.
+  const groomingLiveState = currentPet ? groomingRoutineState(currentPet.pet_id, effectiveGroomingRecords(groomingRecords, groomingRoutine)) : 'none';
+  const groomingCachedState = currentPet ? readRoutineCache<GroomingRoutineState>(`banho_${currentPet.pet_id}`) : null;
+  const groomingButtonState: GroomingRoutineState | 'loading' = groomingLoaded ? groomingLiveState : (groomingCachedState ?? 'loading');
+  useEffect(() => {
+    if (currentPet && groomingLoaded) writeRoutineCache(`banho_${currentPet.pet_id}`, groomingLiveState);
+  }, [currentPet?.pet_id, groomingLoaded, groomingLiveState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Carrega cuidadores sempre que o pet selecionado muda (só para o dono)
   useEffect(() => {
@@ -2511,7 +2521,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       upcomingUrgent={hasUrgentReminder}
                       onOpenUpcoming={() => setShowUpcomingSheet(true)}
                       onOpenGrooming={handleOpenGrooming}
-                      groomingState={groomingRoutineState(currentPet.pet_id, effectiveGroomingRecords(groomingRecords, groomingRoutine))}
+                      groomingState={groomingButtonState}
                     />
 
                   {/* Compartilhar cuidado — só para o dono do pet. Compacto,

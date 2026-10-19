@@ -48,6 +48,8 @@ export function useGroomingManagement({
   const [groomingRecords, setGroomingRecords] = useState<GroomingRecord[]>([]);
   // Lembretes de banho/tosa (ativo / desativado / retomado em…), por pet — evita aplicar o de um pet no outro ao trocar.
   const [routineByPet, setRoutineByPet] = useState<Record<string, GroomingRoutineConfig>>({});
+  // Pets cujos registros + configuração já chegaram do servidor (a banheirinha só confia no cálculo depois disso).
+  const [loadedPetIds, setLoadedPetIds] = useState<string[]>([]);
   const [editingGrooming, setEditingGrooming] = useState<GroomingRecord | null>(null);
   const [groomingDueAlerts, setGroomingDueAlerts] = useState<
     { petName: string; type: string; daysOverdue: number }[]
@@ -65,6 +67,8 @@ export function useGroomingManagement({
   const loadGroomingRecords = async () => {
     const pet = pets.find((p) => p.pet_id === selectedPetId) || pets[0];
     if (!pet) return;
+    // Registros e configuração dos lembretes são buscados AO MESMO TEMPO (antes: um depois do outro).
+    const routinePromise = fetchGroomingRoutine(pet.pet_id);
     try {
       const savedToken = getToken();
       const res = await fetch(`${API_BASE_URL}/pets/${pet.pet_id}/grooming`, {
@@ -121,8 +125,9 @@ export function useGroomingManagement({
         (a, b) => createLocalDate(b.date).getTime() - createLocalDate(a.date).getTime(),
       );
       setGroomingRecords(sorted);
-      const routine = await fetchGroomingRoutine(pet.pet_id);
+      const routine = await routinePromise;
       setRoutineByPet((prev) => ({ ...prev, [pet.pet_id]: routine }));
+      setLoadedPetIds((prev) => (prev.includes(pet.pet_id) ? prev : [...prev, pet.pet_id]));
       setPets((prevPets) =>
         prevPets.map((p) => (p.pet_id === pet.pet_id ? { ...p, grooming_records: sorted, grooming_routine: routine } : p)),
       );
@@ -346,6 +351,7 @@ export function useGroomingManagement({
   };
 
   return {
+    groomingLoaded: Boolean(activePetId && loadedPetIds.includes(activePetId)),
     groomingRoutine,
     setGroomingRoutine,
     groomingRecords,

@@ -23,13 +23,13 @@ export function BathShowerIcon({ className }: { className?: string }) {
  *  - agendado, a ocorrer  verde
  *  - nunca controlado ... apagado com risquinho
  */
-export function GroomingRoutineButton({ state, onClick }: { state: GroomingRoutineState; onClick: () => void }) {
+export function GroomingRoutineButton({ state, onClick }: { state: GroomingRoutineState | 'loading'; onClick: () => void }) {
   const label = state === 'overdue' ? 'Banho e tosa — atrasado' : state === 'due' ? 'Banho e tosa — é hora' : state === 'scheduled' ? 'Banho e tosa — agendado' : 'Banho e tosa';
   const tone =
     state === 'overdue' ? 'animate-pulse border-amber-200 bg-amber-500 hover:bg-amber-600'
     : state === 'due' ? 'border-amber-200 bg-amber-500 hover:bg-amber-600'
     : state === 'scheduled' ? 'border-white bg-emerald-500 hover:bg-emerald-600'
-    : 'border-white/40 bg-black/30 hover:bg-black/50';
+    : 'border-white/40 bg-black/30 hover:bg-black/50';   // none e loading (carregando: neutro, sem risquinho)
   return (
     <button
       type="button"

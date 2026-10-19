@@ -37,6 +37,44 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
+describe('RoutineWalkButton — aparece na hora (cache) e confirma com o servidor', () => {
+  const CACHE_KEY = 'petmol_rotina_cache_v1_walk_p1';
+  const ON = { enabled: true, days: [1, 2, 3, 4, 5], times: ['18:00'], tz: 'America/Sao_Paulo' };
+
+  it('com o último estado guardado, o relógio já está na tela ANTES da resposta do servidor', async () => {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(ON));
+    let release: (v: unknown) => void = () => undefined;
+    vi.stubGlobal('fetch', vi.fn(() => new Promise((res) => { release = res; })));
+    render(<RoutineWalkButton petId="p1" petName="Baby" />);
+    expect(screen.getByRole('button', { name: 'Rotina ligada' })).toBeTruthy();     // sem esperar o servidor
+    await act(async () => { release({ ok: true, status: 200, json: async () => ON }); });
+  });
+
+  it('servidor diz 404 (recurso desligado): o relógio some e o cache é apagado', async () => {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(ON));
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 404, json: async () => ({}) })));
+    const { container } = render(<RoutineWalkButton petId="p1" petName="Baby" />);
+    await waitFor(() => expect(container.querySelector('button')).toBeNull());
+    expect(localStorage.getItem(CACHE_KEY)).toBeNull();
+  });
+
+  it('sem rede (erro): mantém o relógio do cache', async () => {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(ON));
+    const f = vi.fn(async () => { throw new Error('offline'); });
+    vi.stubGlobal('fetch', f);
+    render(<RoutineWalkButton petId="p1" petName="Baby" />);
+    await waitFor(() => expect(f).toHaveBeenCalled());
+    expect(screen.getByRole('button', { name: 'Rotina ligada' })).toBeTruthy();
+  });
+
+  it('resposta do servidor atualiza o cache', async () => {
+    mockApi({ ...ON, enabled: false });
+    render(<RoutineWalkButton petId="p1" petName="Baby" />);
+    await screen.findByRole('button', { name: /Rotina/ });
+    expect(JSON.parse(localStorage.getItem(CACHE_KEY) as string).enabled).toBe(false);
+  });
+});
+
 describe('RoutineWalkButton', () => {
   it('desligado: risquinho de inativo; ligado: sem risquinho (verde)', async () => {
     mockApi(OFF);

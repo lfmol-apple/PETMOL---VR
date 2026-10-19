@@ -56,7 +56,7 @@ interface HomePetHeaderProps {
   onOpenUpcoming: () => void;
   /** Banheirinha: abre o sheet de Banho e Tosa; `groomingState` = atrasado / agendado / nunca controlado. */
   onOpenGrooming?: () => void;
-  groomingState?: GroomingRoutineState;
+  groomingState?: GroomingRoutineState | 'loading';
 }
 
 export function HomePetHeader({
