@@ -27,6 +27,9 @@ import { FoodControlTab } from '@/components/FoodControlTab';
 import { ActivationAskSheet } from '@/components/home/ActivationAskSheet';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
 
+/** Abaixo do cabeçalho global (sticky z-50): o Perfil e o ☰ continuam tocáveis com o passo de ração aberto. */
+const ONBOARDING_SHEET_Z = 45;
+
 interface FoodOnboardingCardProps {
   petId: string;
   petName: string;
@@ -117,7 +120,9 @@ export function FoodOnboardingCard({
       }}
       onDismiss={finish}
     />
-    <SheetShell open={!suppressed} onClose={handleSkip} tone="grey" variant="center" size="sm" z={SHEET_Z.raised} hideHandle>
+    {/* z=45 (abaixo do cabeçalho, z-50): esse passo aparece SOZINHO ao abrir a Home — não pode cobrir o cabeçalho
+        (Perfil, ☰), senão o 1º toque em "Perfil" só fechava o sheet e parecia que "nada acontece". */}
+    <SheetShell open={!suppressed} onClose={handleSkip} tone="grey" variant="center" size="sm" z={ONBOARDING_SHEET_Z} hideHandle>
       <SheetHeader
         tone="petmol"
         wrapTitle
