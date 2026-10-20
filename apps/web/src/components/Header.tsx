@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { User } from 'lucide-react';
 import { ContentMenu } from '@/components/ContentMenu';
+import { getToken, setToken } from '@/lib/auth-token';
 
 export function Header() {
   const { t } = useI18n();
@@ -29,6 +30,13 @@ export function Header() {
   }, []);
 
   const handleLogout = () => { initiateLogout(); };
+
+  // Antes de abrir o Perfil, garante o cookie de sessão que o servidor exige (se expirou no aparelho mas o token
+  // ainda existe, o servidor mandava para o login e voltava para a Home — "não abre").
+  const refreshSessionCookie = () => {
+    const t = getToken();
+    if (t) setToken(t);
+  };
 
   // Mostrar header simplificado na landing page (quando não autenticado)
   const isLandingPage = pathname === '/' && !userLabel;
@@ -72,14 +80,17 @@ export function Header() {
                 "Sair" saiu daqui e foi para o menu ☰ (09/10/2026). */}
             {userLabel ? (
               <div className="flex items-center gap-3">
-                <Link
+                {/* <a> comum (página inteira), não <Link>: com o app aberto durante um deploy, a navegação
+                    do Next falha em silêncio por versão velha e o Perfil "não abria". Aqui sempre carrega a atual. */}
+                <a
                   href={profileHref}
+                  onClick={refreshSessionCookie}
                   title="Abrir o perfil"
                   className="inline-flex items-center gap-2 h-9 px-3 rounded-xl bg-[#0056D2] text-white text-sm font-bold hover:bg-[#0047ad] shadow-md transition-all active:scale-95"
                 >
                   <User className="h-4 w-4" strokeWidth={2.4} />
                   <span>{userLabel}</span>
-                </Link>
+                </a>
                 <a
                   href={helpHref}
                   target="_blank"
@@ -114,15 +125,16 @@ export function Header() {
                 Em telas muito estreitas o nome prioriza o ícone: encolhe
                 primeiro que o resto do header. */}
             {userLabel ? (
-              <Link
+              <a
                 href={profileHref}
+                onClick={refreshSessionCookie}
                 title="Abrir o perfil"
                 className="inline-flex min-w-0 items-center gap-1.5 h-9 px-2.5 rounded-xl bg-[#0056D2] text-white text-xs font-bold hover:bg-[#0047ad] shadow-md transition-all active:scale-95"
                 aria-label="Perfil"
               >
                 <User className="h-4 w-4 flex-shrink-0" strokeWidth={2.4} />
                 <span className="truncate max-w-[72px]">{userLabel}</span>
-              </Link>
+              </a>
             ) : (
               !isLandingPage && (
                 <Link
