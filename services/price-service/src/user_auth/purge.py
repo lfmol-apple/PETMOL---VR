@@ -18,6 +18,7 @@ _PET_CHILD_TABLES = [
     'analytics_events',
     'care_plans',
     'events',
+    'feeding_adjustments',
     'feeding_history',
     'feeding_plans',
     'feeding_repurchase_intents',
