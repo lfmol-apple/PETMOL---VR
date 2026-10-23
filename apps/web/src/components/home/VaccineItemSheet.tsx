@@ -98,6 +98,8 @@ export interface VaccineItemSheetProps {
   onEditVaccine: (v: VaccineRecord) => void;
   onDeleteVaccine: (v: VaccineRecord) => void;
   onConfirmVaccine?: (v: VaccineRecord) => void;
+  /** "Não preciso mais deste lembrete" (só nas vacinas de "Revisar"): limpa a próxima dose; o histórico fica. */
+  onDismissReminder?: (v: VaccineRecord) => void;
   onDeleteAllVaccines: () => void;
   onRefreshVaccines: () => void;
   pendingCardFiles: File[];
@@ -128,6 +130,7 @@ export function VaccineItemSheet({
   onEditVaccine,
   onDeleteVaccine,
   onConfirmVaccine,
+  onDismissReminder,
   onDeleteAllVaccines,
   onRefreshVaccines,
   pendingCardFiles,
@@ -544,6 +547,7 @@ export function VaccineItemSheet({
                       confirmDeleteId={confirmDeleteId}
                       onEdit={onEditVaccine}
                       onConfirm={onConfirmVaccine}
+                      onDismiss={onDismissReminder}
                       onDeleteClick={handleDeleteClick}
                       borderColor="border-l-rose-500"
                       statusBadge={<span className="text-[10px] bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-semibold">Revisar</span>}
@@ -889,6 +893,7 @@ function VaccineRow({
   onEdit,
   onDeleteClick,
   onConfirm,
+  onDismiss,
   borderColor,
   statusBadge,
 }: {
@@ -898,6 +903,7 @@ function VaccineRow({
   onEdit: (v: VaccineRecord) => void;
   onDeleteClick: (v: VaccineRecord) => void;
   onConfirm?: (v: VaccineRecord) => void;
+  onDismiss?: (v: VaccineRecord) => void;
   borderColor: string;
   statusBadge?: React.ReactNode;
 }) {
@@ -968,6 +974,15 @@ function VaccineRow({
           </p>
           {v.notes && !SYSTEM_GENERATED_NOTES.has(v.notes.trim()) && (
             <p className="text-xs text-gray-500 mt-1 italic line-clamp-2">📝 {v.notes}</p>
+          )}
+          {onDismiss && (
+            <button
+              type="button"
+              onClick={() => onDismiss(v)}
+              className="mt-1.5 text-[12px] font-semibold text-[#0056D2] underline-offset-2 hover:underline active:opacity-60"
+            >
+              Não preciso mais deste lembrete
+            </button>
           )}
         </div>
 

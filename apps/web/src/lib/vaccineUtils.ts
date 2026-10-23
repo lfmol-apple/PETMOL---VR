@@ -247,10 +247,23 @@ export function vaccineGroupKey(v: Pick<VaccineRecord, 'vaccine_code' | 'vaccine
  *
  * This is the single authoritative dedup pass used everywhere in the app.
  */
+/**
+ * Chave de SUBSTITUIÇÃO: quem manda é "a dose mais nova substitui a mais velha". Polivalentes (V3/V4/V5 nos gatos,
+ * V8/V10/V11 nos cães, "múltipla"/"polivalente") são UMA família só: um V4 de 2026 aposenta o V5 (ou o V4 sem código) de
+ * 2024 — antes o app tratava como vacinas diferentes e a antiga ficava "vencida" para sempre em "Revisar".
+ */
+export function vaccineSupersedeKey(v: Pick<VaccineRecord, 'vaccine_code' | 'vaccine_name' | 'vaccine_type'>): string {
+  if (v.vaccine_type === 'multiple') return 'POLYVALENT';
+  if (v.vaccine_code && /POLYVALENT/i.test(v.vaccine_code)) return 'POLYVALENT';
+  const name = normalizeVaccineText(v.vaccine_name || '');
+  if (/^v ?\d{1,2}\b/.test(name) || /\b(polivalente|multipla|quadrupla|quintupla|octupla|decupla)\b/.test(name)) return 'POLYVALENT';
+  return vaccineGroupKey(v);
+}
+
 export function latestVaccinePerGroup(vaccines: VaccineRecord[]): Map<string, VaccineRecord> {
   const map = new Map<string, VaccineRecord>();
   for (const v of vaccines) {
-    const key = vaccineGroupKey(v);
+    const key = vaccineSupersedeKey(v);
     const prev = map.get(key);
     if (!prev) {
       map.set(key, v);
@@ -318,7 +331,8 @@ export function buildCanonicalVaccineState(records: VaccineRecord[]): CanonicalV
 
   const latestByGroup = latestVaccinePerGroup(records);
 
-  const groups: CanonicalVaccineGroup[] = Array.from(latestByGroup.entries()).map(([code, v]) => {
+  const groups: CanonicalVaccineGroup[] = Array.from(latestByGroup.values()).map((v) => {
+    const code = vaccineGroupKey(v);
     const nextDue = v.next_dose_date;
     let daysToNextDue: number | null = null;
     let status: VaccineGroupStatus = 'unknown';
