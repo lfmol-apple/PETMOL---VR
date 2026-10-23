@@ -637,6 +637,7 @@ function HomePageInner() {
     handleEditVaccine,
     handleDeleteVaccine,
     handleConfirmVaccine,
+    handleDismissVaccineReminder,
     handleDeleteAllVaccines,
     handleReportVaccineIssue,
     handleSubmitFeedback,
@@ -2928,6 +2929,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           onEditVaccine={handleVaccineEdit}
           onDeleteVaccine={(v) => { handleDeleteVaccine(v); }}
           onConfirmVaccine={(v) => { handleConfirmVaccine(v); }}
+          onDismissReminder={(v) => { void handleDismissVaccineReminder(v); }}
           onDeleteAllVaccines={deleteAllVaccines}
           onRefreshVaccines={refreshVaccines}
           pendingCardFiles={pendingCardFiles}

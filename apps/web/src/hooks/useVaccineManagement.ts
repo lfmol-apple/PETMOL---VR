@@ -468,6 +468,39 @@ export function useVaccineManagement({
   // Tutor abriu um registro vindo de leitura por IA e confirma que conferiu
   // com a carteirinha. Some o selo "não conferido" e o lembrete volta ao normal.
 
+  // "Não preciso mais deste lembrete": limpa a próxima dose (e o aviso) do registro — o histórico fica.
+  // Dá ao tutor uma saída de um toque quando a dose foi refeita com outro nome/data e o registro antigo ficou "vencido".
+  const handleDismissVaccineReminder = async (vaccine: VaccineRecord) => {
+    const currentPet = getCurrentPet();
+    const savedToken = getToken();
+    if (!savedToken) {
+      showBlockingNotice('Sessão expirada. Faça login novamente.');
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE_URL}/vaccines/${vaccine.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${savedToken}` },
+        body: JSON.stringify({ next_dose_date: null, reminder_enabled: false }),
+      });
+      if (!res.ok) {
+        showBlockingNotice('Não consegui remover o lembrete. Tente de novo.');
+        return;
+      }
+      const clear = (v: VaccineRecord): VaccineRecord =>
+        v.id === vaccine.id ? { ...v, next_dose_date: undefined, reminder_enabled: false } : v;
+      setVaccines((prev) => prev.map(clear));
+      if (currentPet) {
+        setPets((prevPets) =>
+          prevPets.map((p) => (p.pet_id === currentPet.pet_id ? { ...p, vaccines: (p.vaccines || []).map(clear) } : p)),
+        );
+      }
+      showAppToast('Lembrete removido. O histórico foi mantido.');
+    } catch {
+      showBlockingNotice('Não consegui remover o lembrete. Verifique a conexão.');
+    }
+  };
+
   const handleConfirmVaccine = async (vaccine: VaccineRecord) => {
     const currentPet = getCurrentPet();
     const savedToken = getToken();
@@ -1104,6 +1137,7 @@ export function useVaccineManagement({
     handleEditVaccine,
     handleDeleteVaccine,
     handleConfirmVaccine,
+    handleDismissVaccineReminder,
     handleDeleteAllVaccines,
     handleReportVaccineIssue,
     handleSubmitFeedback,

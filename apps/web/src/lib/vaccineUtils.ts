@@ -242,15 +242,51 @@ export function vaccineGroupKey(v: Pick<VaccineRecord, 'vaccine_code' | 'vaccine
 // ---------------------------------------------------------------------------
 
 /**
- * Given a list of VaccineRecords, returns a Map keyed by vaccineGroupKey
- * containing only the MOST RECENT record per group (by date_administered).
+ * Identidade pelo NOME (sem códigos): "V4" e "v4 (anual)" são o mesmo nome; "V4" e "V5" NÃO são.
+ * O app nunca decide que uma versão/vacina substitui outra — isso é decisão do veterinário.
+ */
+function vaccineNameIdentity(v: Pick<VaccineRecord, 'vaccine_name' | 'vaccine_type'>): string {
+  return normalizeVaccineText(v.vaccine_name || v.vaccine_type || '')
+    .replace(/\(.*?\)/g, '')
+    .replace(/\b(anual|annual|booster|refor[cç]o|dose\s*\d+|\d+[aª°]\s*dose)\b/g, '')
+    .replace(/[-\u2013\u2014]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Para cada grupo (vacina "de verdade"), devolve só o registro MAIS RECENTE (por date_administered).
+ *
+ * Dois registros são a MESMA vacina quando compartilham o código de catálogo OU o mesmo nome (ligação transitiva):
+ * um "V4" antigo sem código e um "V4" novo com `CAT_POLYVALENT` são a mesma vacina — antes caíam em grupos diferentes
+ * e o antigo ficava "vencido" para sempre. Versões diferentes (V4 × V5, V8 × V10) continuam grupos SEPARADOS.
  *
  * This is the single authoritative dedup pass used everywhere in the app.
  */
 export function latestVaccinePerGroup(vaccines: VaccineRecord[]): Map<string, VaccineRecord> {
+  // union-find sobre as chaves de identidade (código/alias e nome)
+  const parent = new Map<string, string>();
+  const find = (x: string): string => {
+    let r = x;
+    while ((parent.get(r) ?? r) !== r) r = parent.get(r) as string;
+    parent.set(x, r);
+    return r;
+  };
+  const union = (a: string, b: string) => {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) parent.set(ra, rb);
+  };
+  for (const v of vaccines) {
+    const k1 = vaccineGroupKey(v);
+    const k2 = `nome:${vaccineNameIdentity(v)}`;
+    find(k1); find(k2);
+    union(k1, k2);
+  }
+
   const map = new Map<string, VaccineRecord>();
   for (const v of vaccines) {
-    const key = vaccineGroupKey(v);
+    const key = find(vaccineGroupKey(v));
     const prev = map.get(key);
     if (!prev) {
       map.set(key, v);
@@ -318,7 +354,8 @@ export function buildCanonicalVaccineState(records: VaccineRecord[]): CanonicalV
 
   const latestByGroup = latestVaccinePerGroup(records);
 
-  const groups: CanonicalVaccineGroup[] = Array.from(latestByGroup.entries()).map(([code, v]) => {
+  const groups: CanonicalVaccineGroup[] = Array.from(latestByGroup.values()).map((v) => {
+    const code = vaccineGroupKey(v);
     const nextDue = v.next_dose_date;
     let daysToNextDue: number | null = null;
     let status: VaccineGroupStatus = 'unknown';
