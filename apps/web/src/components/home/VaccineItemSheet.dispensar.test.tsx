@@ -42,7 +42,7 @@ describe('VaccineItemSheet — saída para a vacina "vencida" que ficou para tr�
     expect((onDismiss.mock.calls[0][0] as { id: string }).id).toBe('antiga');
   });
 
-  it('o caso do Aron: V4 antigo + V4 novo (código diferente) → NÃO aparece em "Revisar"', () => {
+  it('o caso do Aron: "V4" antigo + "V4" novo (um com código, outro sem) = mesma vacina → NÃO aparece em "Revisar"', () => {
     const lista = [
       { ...(vac('a1', 'V4', 'multiple', d(-1065), d(-700)) as object), vaccine_code: null },
       { ...(vac('a3', 'V4', 'multiple', d(-4), d(361)) as object), vaccine_code: 'CAT_POLYVALENT' },
@@ -50,5 +50,15 @@ describe('VaccineItemSheet — saída para a vacina "vencida" que ficou para tr�
     open(lista);
     expect(screen.queryByText('Não preciso mais deste lembrete')).toBeNull();
     expect(screen.queryByText(/vale revisar|para revisar/)).toBeNull();
+  });
+
+  it('o caso do Percy: V5 antiga × V4 nova são vacinas diferentes — o app NÃO decide: a V5 segue em Revisar, com aviso neutro e a escolha do tutor', () => {
+    const onDismiss = open([vac('p2', 'V5', 'multiple', d(-680), d(-674)), vac('p4', 'V4', 'multiple', d(-4), d(361))]);
+    expect(screen.getAllByText(/vale revisar|para revisar/).length).toBeGreaterThan(0);                // continua pendente
+    const aviso = screen.getByText(/Há um registro mais recente de vacina polivalente: V4/);
+    expect(aviso.textContent).toContain('Se o seu veterinário considerou este registro atendido');   // informa, não julga
+    expect(aviso.textContent).not.toMatch(/substitu|equivale|cobre|não precisa/i);                      // sem afirmação clínica
+    fireEvent.click(screen.getByText('Não preciso mais deste lembrete'));                              // decisão do tutor
+    expect((onDismiss.mock.calls[0][0] as { id: string }).id).toBe('p2');
   });
 });

@@ -51,6 +51,26 @@ const SYSTEM_GENERATED_NOTES = new Set([
   'Adicionado via Quick Add',
 ]);
 
+const CATEGORY_LABEL: Record<string, string> = {
+  multiple: 'vacina polivalente',
+  rabies: 'antirrábica',
+};
+
+/**
+ * O app NÃO decide se uma vacina/versão substitui outra (isso é do veterinário). Quando há um registro mais recente da
+ * MESMA categoria mas de outro nome/versão (ex.: V5 antiga × V4 nova), só informa — e o tutor decide dispensar o lembrete.
+ */
+function newerSameCategoryNote(v: VaccineRecord, all: VaccineRecord[]): string | undefined {
+  if (!v.vaccine_type) return undefined;
+  const mine = v.date_administered || '';
+  const newer = all
+    .filter((r) => r.id !== v.id && r.vaccine_type === v.vaccine_type && (r.date_administered || '') > mine)
+    .sort((a, b) => (b.date_administered || '').localeCompare(a.date_administered || ''))[0];
+  if (!newer) return undefined;
+  const category = CATEGORY_LABEL[v.vaccine_type] ?? 'mesma categoria';
+  return `Há um registro mais recente de ${category}: ${newer.vaccine_name} (${fmtDate(newer.date_administered)}). Se o seu veterinário considerou este registro atendido, você pode dispensar o lembrete.`;
+}
+
 function fmtRelativeDays(diff: number | null): string {
   if (diff === null) return '';
   if (diff < 0) {
@@ -548,6 +568,7 @@ export function VaccineItemSheet({
                       onEdit={onEditVaccine}
                       onConfirm={onConfirmVaccine}
                       onDismiss={onDismissReminder}
+                      newerNote={newerSameCategoryNote(v, vaccines)}
                       onDeleteClick={handleDeleteClick}
                       borderColor="border-l-rose-500"
                       statusBadge={<span className="text-[10px] bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-semibold">Revisar</span>}
@@ -894,6 +915,7 @@ function VaccineRow({
   onDeleteClick,
   onConfirm,
   onDismiss,
+  newerNote,
   borderColor,
   statusBadge,
 }: {
@@ -904,6 +926,8 @@ function VaccineRow({
   onDeleteClick: (v: VaccineRecord) => void;
   onConfirm?: (v: VaccineRecord) => void;
   onDismiss?: (v: VaccineRecord) => void;
+  /** Aviso neutro (sem juízo clínico): existe registro mais recente da mesma categoria, de outra versão/nome. */
+  newerNote?: string;
   borderColor: string;
   statusBadge?: React.ReactNode;
 }) {
@@ -974,6 +998,9 @@ function VaccineRow({
           </p>
           {v.notes && !SYSTEM_GENERATED_NOTES.has(v.notes.trim()) && (
             <p className="text-xs text-gray-500 mt-1 italic line-clamp-2">📝 {v.notes}</p>
+          )}
+          {onDismiss && newerNote && (
+            <p className="mt-1 text-[11.5px] leading-snug text-slate-500">{newerNote}</p>
           )}
           {onDismiss && (
             <button

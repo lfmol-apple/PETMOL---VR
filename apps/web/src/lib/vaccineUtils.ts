@@ -242,28 +242,51 @@ export function vaccineGroupKey(v: Pick<VaccineRecord, 'vaccine_code' | 'vaccine
 // ---------------------------------------------------------------------------
 
 /**
- * Given a list of VaccineRecords, returns a Map keyed by vaccineGroupKey
- * containing only the MOST RECENT record per group (by date_administered).
+ * Identidade pelo NOME (sem códigos): "V4" e "v4 (anual)" são o mesmo nome; "V4" e "V5" NÃO são.
+ * O app nunca decide que uma versão/vacina substitui outra — isso é decisão do veterinário.
+ */
+function vaccineNameIdentity(v: Pick<VaccineRecord, 'vaccine_name' | 'vaccine_type'>): string {
+  return normalizeVaccineText(v.vaccine_name || v.vaccine_type || '')
+    .replace(/\(.*?\)/g, '')
+    .replace(/\b(anual|annual|booster|refor[cç]o|dose\s*\d+|\d+[aª°]\s*dose)\b/g, '')
+    .replace(/[-\u2013\u2014]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Para cada grupo (vacina "de verdade"), devolve só o registro MAIS RECENTE (por date_administered).
+ *
+ * Dois registros são a MESMA vacina quando compartilham o código de catálogo OU o mesmo nome (ligação transitiva):
+ * um "V4" antigo sem código e um "V4" novo com `CAT_POLYVALENT` são a mesma vacina — antes caíam em grupos diferentes
+ * e o antigo ficava "vencido" para sempre. Versões diferentes (V4 × V5, V8 × V10) continuam grupos SEPARADOS.
  *
  * This is the single authoritative dedup pass used everywhere in the app.
  */
-/**
- * Chave de SUBSTITUIÇÃO: quem manda é "a dose mais nova substitui a mais velha". Polivalentes (V3/V4/V5 nos gatos,
- * V8/V10/V11 nos cães, "múltipla"/"polivalente") são UMA família só: um V4 de 2026 aposenta o V5 (ou o V4 sem código) de
- * 2024 — antes o app tratava como vacinas diferentes e a antiga ficava "vencida" para sempre em "Revisar".
- */
-export function vaccineSupersedeKey(v: Pick<VaccineRecord, 'vaccine_code' | 'vaccine_name' | 'vaccine_type'>): string {
-  if (v.vaccine_type === 'multiple') return 'POLYVALENT';
-  if (v.vaccine_code && /POLYVALENT/i.test(v.vaccine_code)) return 'POLYVALENT';
-  const name = normalizeVaccineText(v.vaccine_name || '');
-  if (/^v ?\d{1,2}\b/.test(name) || /\b(polivalente|multipla|quadrupla|quintupla|octupla|decupla)\b/.test(name)) return 'POLYVALENT';
-  return vaccineGroupKey(v);
-}
-
 export function latestVaccinePerGroup(vaccines: VaccineRecord[]): Map<string, VaccineRecord> {
+  // union-find sobre as chaves de identidade (código/alias e nome)
+  const parent = new Map<string, string>();
+  const find = (x: string): string => {
+    let r = x;
+    while ((parent.get(r) ?? r) !== r) r = parent.get(r) as string;
+    parent.set(x, r);
+    return r;
+  };
+  const union = (a: string, b: string) => {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) parent.set(ra, rb);
+  };
+  for (const v of vaccines) {
+    const k1 = vaccineGroupKey(v);
+    const k2 = `nome:${vaccineNameIdentity(v)}`;
+    find(k1); find(k2);
+    union(k1, k2);
+  }
+
   const map = new Map<string, VaccineRecord>();
   for (const v of vaccines) {
-    const key = vaccineSupersedeKey(v);
+    const key = find(vaccineGroupKey(v));
     const prev = map.get(key);
     if (!prev) {
       map.set(key, v);
