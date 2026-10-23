@@ -9,7 +9,7 @@ import pytest
 
 import src.notifications as notif
 from src.db import SessionLocal
-from src.notifications import PushSubscription, Reminder
+from src.notifications import MedicationLostNotice, PushSubscription, Reminder
 from src.notifications.medication_sync import reconcile_medication_reminders
 
 BRT = timezone(timedelta(hours=-3))
@@ -188,6 +188,34 @@ def test_reminder_without_destination_after_2h_notifies_tutor(ctx, monkeypatch):
     assert "Apoquel" in tutor_mail["subject"]
     assert "Ativar notificações" in tutor_mail["body_text"]
     assert tutor_mail.get("body_html") and "Apoquel" in tutor_mail["body_html"]
+    # Cada aviso fica gravado (o histórico do mailer vive só na memória).
+    with SessionLocal() as db:
+        notices = db.query(MedicationLostNotice).filter(MedicationLostNotice.user_id == c.uid).all()
+    assert sorted(n.audience for n in notices) == ["admin", "tutor"]
+    assert all(n.email_ok and "Apoquel" in (n.medications or "") and n.pet_id == c.pid for n in notices)
+
+
+def test_lost_notice_records_failed_email(ctx, monkeypatch):
+    """Se o servidor de e-mail recusar, o registro marca email_ok=False."""
+    c = ctx
+    with SessionLocal() as db:
+        db.query(PushSubscription).filter(PushSubscription.user_id == c.uid).delete()
+        db.commit()
+    monkeypatch.setattr(notif, "apns_configured", lambda: True)
+    monkeypatch.setattr("src.mailer.send_mail", lambda **kw: False)
+
+    t = _now_hhmm_plus(30)
+    _create(c, "Apoquel 16mg", {"frequency_mode": "vezes_dia", "times_per_day": 1, "first_dose_time": t, "reminder_times": [t], "treatment_days": 5})
+    reconcile_medication_reminders()
+    with SessionLocal() as db:
+        for r in db.query(Reminder).filter(Reminder.pet_id == c.pid, Reminder.sent == False):  # noqa: E712
+            r.remind_at = datetime.now(timezone.utc) - timedelta(hours=2, minutes=1)
+        db.commit()
+    notif.send_due_reminders()
+
+    with SessionLocal() as db:
+        notices = db.query(MedicationLostNotice).filter(MedicationLostNotice.user_id == c.uid).all()
+    assert len(notices) == 2 and not any(n.email_ok for n in notices)
 
 
 def test_deleting_medication_event_purges_its_pending_reminders(ctx):

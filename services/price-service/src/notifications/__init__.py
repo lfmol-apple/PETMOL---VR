@@ -89,6 +89,24 @@ class Reminder(Base):
     created_at  = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
+class MedicationLostNotice(Base):
+    """Registro permanente de cada aviso de "remédio não entregue" que o PETMOL
+    mandou por e-mail (ao admin e ao tutor). O histórico do mailer vive só na
+    memória do serviço e zera a cada deploy — sem esta tabela não há como provar
+    depois que o tutor foi avisado. Só registra; não altera nenhum envio."""
+    __tablename__ = "medication_lost_notices"
+
+    id          = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id     = Column(String(36), nullable=True, index=True)   # tutor do lembrete
+    pet_id      = Column(String(36), nullable=True, index=True)
+    audience    = Column(String(10), nullable=False)               # "tutor" | "admin"
+    reason      = Column(String(120), nullable=True)
+    medications = Column(Text, nullable=True)
+    remind_at   = Column(DateTime(timezone=True), nullable=True)
+    email_ok    = Column(Boolean, nullable=False, default=False)   # e-mail aceito pelo servidor de envio
+    created_at  = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+
+
 class PushSubscription(Base):
     """Web Push subscription — uma linha por dispositivo/navegador.
 
@@ -516,6 +534,19 @@ def _medication_deep_link(db, group, pet_id: Optional[str]) -> str:
     return f"{base}&eventId={','.join(ids)}" if ids else base
 
 
+def _record_lost_notice(db, group, audience: str, reason: str, ok: bool) -> None:
+    """Grava o aviso enviado (ou que falhou) em medication_lost_notices."""
+    try:
+        first = group[0]
+        db.add(MedicationLostNotice(
+            user_id=first.user_id, pet_id=first.pet_id, audience=audience, reason=reason[:120],
+            medications=", ".join(dict.fromkeys(_medication_name(r) for r in group)),
+            remind_at=first.remind_at, email_ok=bool(ok),
+        ))
+    except Exception as exc:  # o registro nunca derruba o envio
+        logger.warning(f"registro de aviso de remédio perdido falhou: {exc}")
+
+
 def _alert_admin_medication_lost(db, group, reason: str) -> None:
     """Aviso de remédio que NÃO pôde ser entregue: e-mail ao admin (o push do
     próprio tutor é justamente o que falhou), para o problema nunca ficar mudo."""
@@ -531,8 +562,9 @@ def _alert_admin_medication_lost(db, group, reason: str) -> None:
             f"Remédio(s): {nomes}\nHorário previsto: {when}\nMotivo: {reason}\n\n"
             "Verifique o push do aparelho (token nativo/assinatura) do tutor."
         )
-        send_mail(to=get_settings().admin_master_email, subject="⚠️ PETMOL — aviso de remédio não entregue",
-                  body_text=body)
+        ok = send_mail(to=get_settings().admin_master_email, subject="⚠️ PETMOL — aviso de remédio não entregue",
+                       body_text=body)
+        _record_lost_notice(db, group, "admin", reason, ok)
     except Exception as exc:  # nunca deixa o alerta derrubar o envio
         logger.warning(f"alerta de remédio perdido falhou: {exc}")
 
@@ -626,7 +658,8 @@ def _notify_tutor_medication_lost(db, group) -> None:
         tutor_first = (tutor.name or "").split(" ")[0] if tutor.name else ""
 
         subject, body_text, body_html = _tutor_medication_lost_copy(tutor_first, pet_name, meds)
-        send_mail(to=tutor.email, subject=subject, body_text=body_text, body_html=body_html)
+        ok = send_mail(to=tutor.email, subject=subject, body_text=body_text, body_html=body_html)
+        _record_lost_notice(db, group, "tutor", "sem destino ativo por mais de 2h", ok)
     except Exception as exc:  # nunca deixa o aviso ao tutor derrubar o scheduler
         logger.warning(f"aviso de remédio ao tutor falhou: {exc}")
 
