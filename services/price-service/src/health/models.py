@@ -129,3 +129,18 @@ class FeedingRepurchaseIntent(Base):
     clicked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     reminded_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class FeedingAdjustment(Base):
+    """Cada vez que a duração da ração foi ajustada (botões do aviso, "Ajustar
+    duração" ou desfazer). Guarda de→para para sabermos o quanto a previsão
+    original errava, sem perder o ciclo em andamento."""
+    __tablename__ = "feeding_adjustments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    pet_id: Mapped[str] = mapped_column(String(36), ForeignKey("pets.id"), nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(24), nullable=False)
+    from_duration_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    to_duration_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    elapsed_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

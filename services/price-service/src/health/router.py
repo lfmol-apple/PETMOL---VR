@@ -24,7 +24,7 @@ from ..pets.models import Pet
 from ..pets.vaccine_models import VaccineRecord
 from ..events.models import Event
 from ..product_catalog_lookup import ProductCatalog, normalize_gtin
-from .models import FeedingHistory, FeedingPlan, FeedingRepurchaseIntent
+from .models import FeedingAdjustment, FeedingHistory, FeedingPlan, FeedingRepurchaseIntent
 from .repurchase_reminder import mark_resolved as _mark_repurchase_resolved
 from .catalog import VACCINE_CATALOG, COUNTRY_CONFIG, lookup_vaccine_code
 from .schemas import (
@@ -1325,9 +1325,63 @@ async def set_feeding_reminder_date(
 
 
 class AdjustFeedingCycleRequest(BaseModel):
-    action: Literal['finished_early', 'still_has', 'remind_earlier', 'remind_later', 'set_end_date']
+    action: Literal[
+        'finished_early', 'still_has', 'remind_earlier', 'remind_later', 'set_end_date',
+        'remaining', 'set_duration',
+    ]
     days: int = 3
     target_date: Optional[str] = None  # YYYY-MM-DD, obrigatório para set_end_date
+    # "Quanto resta no pacote?" (action=remaining): quase acabando | metade | bastante
+    remaining: Optional[Literal['almost', 'half', 'plenty']] = None
+    duration_days: Optional[int] = None  # action=set_duration (também usado para desfazer)
+
+
+# Fração do pacote que ainda resta, por resposta do tutor ("Quanto resta?").
+_REMAINING_FRACTION = {'almost': 0.125, 'half': 0.5, 'plenty': 0.85}
+_MIN_ELAPSED_FOR_LEARNING = 3   # dias de ciclo mínimos para aprender com um toque
+_MAX_DURATION_DAYS = 365
+
+
+def _apply_adjusted_duration(plan: FeedingPlan, new_days: int, today: date) -> int:
+    """Põe `new_days` como duração do ciclo atual e recalcula tudo que depende dela
+    (consumo diário, fim previsto, alerta, item principal). Limita o valor a algo
+    razoável para um toque errado não gerar previsão absurda. Retorna o valor aplicado."""
+    elapsed = (today - plan.last_refill_date).days if plan.last_refill_date else 0
+    previous = plan.duration_days
+    if not previous and plan.last_refill_date and plan.estimated_end_date:
+        previous = (plan.estimated_end_date - plan.last_refill_date).days or None
+    upper = _MAX_DURATION_DAYS
+    if previous and previous > 0:
+        upper = min(upper, max(previous * 3, previous + 14))
+    new_days = max(1, elapsed, min(int(new_days), upper))
+
+    plan.duration_days = new_days
+    if plan.package_size_kg and plan.package_size_kg > 0:
+        plan.daily_amount_g = round((plan.package_size_kg * 1000) / new_days, 1)
+    estimated_end, next_reminder, _ = calculate_food_stock_estimates(
+        package_size_kg=plan.package_size_kg,
+        daily_amount_g=plan.daily_amount_g,
+        last_refill_date=plan.last_refill_date,
+        safety_buffer_days=plan.safety_buffer_days,
+        enabled=plan.enabled,
+        no_consumption_control=plan.no_consumption_control,
+        duration_days=new_days,
+    )
+    plan.estimated_end_date = estimated_end
+    plan.next_reminder_date = next_reminder
+    plan.reminder_source = "manual"
+
+    # Mantém o item principal (items_json) coerente com o plano.
+    try:
+        items = _parse_feeding_items_from_plan(plan)
+        primary = _get_primary_feeding_item(items)
+        primary["duration_days"] = new_days
+        if plan.daily_amount_g is not None:
+            primary["daily_amount_g"] = plan.daily_amount_g
+        plan.items_json = _serialize_feeding_items(items)
+    except Exception:  # o item é só espelho; o plano é a fonte
+        logger.exception("[feeding] falha ao espelhar ajuste no items_json (pet=%s)", plan.pet_id)
+    return new_days
 
 
 @router.patch("/pets/{pet_id}/feeding/plan/adjust")
@@ -1354,14 +1408,46 @@ async def adjust_feeding_cycle(
         )
 
     today = date.today()
+    previous_duration = plan.duration_days
+    if not previous_duration and plan.last_refill_date and plan.estimated_end_date:
+        previous_duration = (plan.estimated_end_date - plan.last_refill_date).days or None
+    elapsed = (today - plan.last_refill_date).days if plan.last_refill_date else None
+    adjusted_duration: Optional[int] = None
 
     if body.action == 'finished_early':
         plan.estimated_end_date = today
         plan.next_reminder_date = today
+        # Aprende com o que aconteceu de verdade: o ciclo durou `elapsed` dias.
+        if elapsed is not None and elapsed >= _MIN_ELAPSED_FOR_LEARNING:
+            adjusted_duration = _apply_adjusted_duration(plan, elapsed, today)
+            plan.estimated_end_date = today
+            plan.next_reminder_date = today
 
     elif body.action == 'still_has':
         base = plan.next_reminder_date or today
         plan.next_reminder_date = base + timedelta(days=body.days)
+        # Ainda tem ração: o fim real é depois do previsto — estende a duração também.
+        if plan.last_refill_date and plan.estimated_end_date:
+            new_end = max(plan.estimated_end_date, today) + timedelta(days=max(1, body.days))
+            reminder_keep = plan.next_reminder_date
+            adjusted_duration = _apply_adjusted_duration(plan, (new_end - plan.last_refill_date).days, today)
+            plan.next_reminder_date = reminder_keep
+
+    elif body.action == 'remaining':
+        if body.remaining is None:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail="remaining é obrigatório para a ação remaining")
+        if elapsed is None or elapsed < _MIN_ELAPSED_FOR_LEARNING:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                                detail="Ciclo muito recente para ajustar a duração")
+        consumed = 1 - _REMAINING_FRACTION[body.remaining]
+        adjusted_duration = _apply_adjusted_duration(plan, round(elapsed / consumed), today)
+
+    elif body.action == 'set_duration':
+        if not body.duration_days or body.duration_days <= 0:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail="duration_days é obrigatório para a ação set_duration")
+        adjusted_duration = _apply_adjusted_duration(plan, body.duration_days, today)
 
     elif body.action == 'remind_earlier':
         plan.safety_buffer_days = (plan.safety_buffer_days or 3) + body.days
@@ -1399,6 +1485,12 @@ async def adjust_feeding_cycle(
             plan.duration_days = (target - start).days
 
     plan.updated_at = datetime.utcnow()
+    if adjusted_duration is not None:
+        db.add(FeedingAdjustment(
+            id=str(uuid4()), pet_id=pet_id, action=body.action,
+            from_duration_days=previous_duration, to_duration_days=adjusted_duration,
+            elapsed_days=elapsed,
+        ))
     db.commit()
 
     return {
@@ -1408,6 +1500,10 @@ async def adjust_feeding_cycle(
         "next_reminder_date": plan.next_reminder_date.isoformat() if plan.next_reminder_date else None,
         "safety_buffer_days": plan.safety_buffer_days,
         "daily_amount_g": plan.daily_amount_g,
+        "previous_duration_days": previous_duration,
+        "duration_days": plan.duration_days,
+        "duration_adjusted": adjusted_duration is not None,
+        "estimated_days_left": calculate_days_until_out(plan.estimated_end_date, today) if plan.estimated_end_date else None,
     }
 
 
