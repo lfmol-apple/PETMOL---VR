@@ -191,7 +191,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   const [showFreshChoice, setShowFreshChoice] = useState(false);
   // "Trocar ração": a antiga só é encerrada DEPOIS que a nova é escolhida — desistir não perde o controle.
   const [replacingFood, setReplacingFood] = useState(false);
-  // "Ajustar duração": sheet de ajuste + aviso do que mudou (com "Desfazer").
+  // "Editar duração": o tutor escolhe os dias; aviso do que mudou (com "Desfazer").
   const [showAdjust, setShowAdjust] = useState(false);
   const [adjustNotice, setAdjustNotice] = useState<{ from: number | null; to: number } | null>(null);
   const [nextReminderDate, setNextReminderDate]   = useState<string | null>(null);
@@ -959,6 +959,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
       open={showAdjust}
       petId={pet.pet_id}
       petLabel={`${petDo(pet)} ${pet.pet_name}`}
+      startDate={foodState.startDate}
       elapsedDays={elapsedCycleDays}
       currentDurationDays={foodState.durationDays ?? (foodState.daysLeft != null ? elapsedCycleDays + Math.max(0, foodState.daysLeft) : null)}
       onClose={() => setShowAdjust(false)}
@@ -1327,8 +1328,8 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                                   <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-white/80 px-3 py-2.5 text-[13px] text-gray-800" role="status">
                                     <span>
                                       {adjustNotice.from && adjustNotice.from !== adjustNotice.to
-                                        ? <>Ajustei a duração de <b>{adjustNotice.from}</b> para <b>{adjustNotice.to} dias</b>. O próximo pacote já usa esse ritmo.</>
-                                        : <>Duração ajustada para <b>{adjustNotice.to} dias</b>.</>}
+                                        ? <>Duração alterada de <b>{adjustNotice.from}</b> para <b>{adjustNotice.to} dias</b>.</>
+                                        : <>Duração definida em <b>{adjustNotice.to} dias</b>.</>}
                                     </span>
                                     {adjustNotice.from && adjustNotice.from !== adjustNotice.to && (
                                       <button type="button" onClick={() => { void handleUndoAdjust(); }}
@@ -1341,7 +1342,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                                 {foodState.startDate && (
                                   <button type="button" onClick={() => setShowAdjust(true)}
                                     className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white px-3.5 py-2 text-[13px] font-extrabold text-emerald-700 active:scale-[0.98] transition-all">
-                                    <span aria-hidden>⚖️</span> Não bate? Ajustar duração
+                                    Editar duração
                                   </button>
                                 )}
                               </>

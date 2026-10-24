@@ -10,28 +10,28 @@ export interface FoodDurationAdjustResult {
   durationDays: number;
 }
 
-type Remaining = 'almost' | 'half' | 'plenty';
+const MAX_DAYS = 365;
 
-const OPTIONS: { key: Remaining; label: string; hint: string; fill: number }[] = [
-  { key: 'almost', label: 'Quase acabando', hint: 'menos de um quarto', fill: 14 },
-  { key: 'half', label: 'Mais ou menos metade', hint: 'cerca de 50%', fill: 50 },
-  { key: 'plenty', label: 'Ainda bastante', hint: 'mais de três quartos', fill: 86 },
-];
-
-// Só dá pra medir o ritmo depois de alguns dias de ciclo (o servidor recusa antes disso).
-export const MIN_ELAPSED_DAYS_TO_MEASURE = 3;
+function endDateLabel(startISO: string | null, days: number): string | null {
+  if (!startISO || !Number.isFinite(days) || days <= 0) return null;
+  const d = new Date(`${startISO}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setDate(d.getDate() + days);
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
 
 /**
- * "Ajustar duração": o tutor corrige a previsão da ração do jeito mais fácil —
- * olhando o pacote ("Quanto resta?") ou digitando a duração em dias.
- * O servidor refaz fim previsto, alerta e consumo diário (PATCH …/feeding/plan/adjust).
+ * "Editar duração": quem decide é o tutor. Ele escolhe quantos dias este pacote
+ * dura (contando do início) e o app só recalcula fim previsto e alerta com esse
+ * número — sem estimar nada por conta própria. (PATCH …/feeding/plan/adjust, set_duration)
  */
 export function FoodDurationAdjustSheet({
-  open, petId, petLabel, elapsedDays, currentDurationDays, onClose, onAdjusted,
+  open, petId, petLabel, startDate, elapsedDays, currentDurationDays, onClose, onAdjusted,
 }: {
   open: boolean;
   petId: string;
   petLabel: string; // ex.: "do Thor" / "da Mel"
+  startDate: string | null; // início do pacote (YYYY-MM-DD)
   elapsedDays: number;
   currentDurationDays: number | null;
   onClose: () => void;
@@ -42,12 +42,19 @@ export function FoodDurationAdjustSheet({
   const [error, setError] = useState<string | null>(null);
   if (!open) return null;
 
-  const canMeasure = elapsedDays >= MIN_ELAPSED_DAYS_TO_MEASURE;
-  const typedDays = Number.parseInt(days, 10);
-  const typedValid = Number.isFinite(typedDays) && typedDays >= Math.max(1, elapsedDays) && typedDays <= 365;
+  const minDays = Math.max(1, elapsedDays);
+  const typed = Number.parseInt(days, 10);
+  const valid = Number.isFinite(typed) && typed >= minDays && typed <= MAX_DAYS;
+  const unchanged = valid && currentDurationDays != null && typed === currentDurationDays;
+  const endLabel = valid ? endDateLabel(startDate, typed) : null;
 
-  const send = async (body: Record<string, unknown>) => {
-    if (busy) return;
+  const step = (delta: number) => {
+    const base = Number.isFinite(typed) ? typed : (currentDurationDays ?? minDays);
+    setDays(String(Math.min(MAX_DAYS, Math.max(minDays, base + delta))));
+  };
+
+  const save = async () => {
+    if (busy || !valid) return;
     setBusy(true);
     setError(null);
     try {
@@ -56,7 +63,7 @@ export function FoodDurationAdjustSheet({
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         credentials: 'include',
-        body: JSON.stringify(body),
+        body: JSON.stringify({ action: 'set_duration', duration_days: typed }),
       });
       if (!res.ok) throw new Error(String(res.status));
       const data = await res.json();
@@ -65,7 +72,7 @@ export function FoodDurationAdjustSheet({
         durationDays: Number(data.duration_days),
       });
     } catch {
-      setError('Não deu pra ajustar agora. Tente de novo.');
+      setError('Não deu pra salvar agora. Tente de novo.');
     } finally {
       setBusy(false);
     }
@@ -73,72 +80,48 @@ export function FoodDurationAdjustSheet({
 
   return (
     <SheetShell open={open} onClose={onClose} variant="center" size="sm" z={SHEET_Z.top}>
-      <SheetHeader title="Ajustar duração" onClose={onClose} />
+      <SheetHeader title="Editar duração" onClose={onClose} />
       <SheetShell.Body className="space-y-4">
-        {canMeasure ? (
-          <div>
-            <p className="text-[15px] font-black text-gray-900">Quanto resta no pacote?</p>
-            <p className="mb-3 text-[13px] leading-snug text-gray-600">
-              Olhando agora, sem precisar pesar. O app refaz a previsão com o ritmo real {petLabel}.
-            </p>
-            <div className="space-y-2">
-              {OPTIONS.map((o) => (
-                <button
-                  key={o.key}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void send({ action: 'remaining', remaining: o.key })}
-                  className="flex w-full items-center gap-3 rounded-2xl border-[1.5px] border-gray-200 bg-white px-4 py-3 text-left active:scale-[0.98] disabled:opacity-60"
-                >
-                  <span aria-hidden className="relative h-[22px] w-11 flex-none overflow-hidden rounded-md border-2 border-slate-400">
-                    <span className="absolute inset-y-0 left-0 bg-green-500" style={{ width: `${o.fill}%` }} />
-                  </span>
-                  <span className="flex-1">
-                    <span className="block text-[15px] font-bold text-gray-900">{o.label}</span>
-                    <span className="block text-[12px] font-medium text-gray-500">{o.hint}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <p className="text-[13px] leading-snug text-gray-600">
-            O pacote é recente. Em alguns dias dá para ajustar pelo que resta. Por enquanto você pode informar a duração.
-          </p>
-        )}
-
-        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
-          <label htmlFor="food-duration-days" className="block text-[13px] font-bold text-gray-800">
-            {canMeasure ? 'Ou informe você mesmo: dura quantos dias?' : 'Dura quantos dias?'}
+        <div>
+          <label htmlFor="food-duration-days" className="block text-[15px] font-black text-gray-900">
+            Quantos dias este pacote dura {petLabel}?
           </label>
-          <p className="mb-2 text-[12px] text-gray-500">Contando do início deste pacote.</p>
-          <div className="flex gap-2">
-            <input
-              id="food-duration-days"
-              type="text"
-              inputMode="numeric"
-              value={days}
-              onChange={(e) => setDays(e.target.value.replace(/\D/g, '').slice(0, 3))}
-              className="min-h-[44px] w-24 rounded-xl border border-gray-300 bg-white px-3 text-[16px] font-bold text-gray-900"
-              aria-label="Duração em dias"
-            />
-            <button
-              type="button"
-              disabled={busy || !typedValid}
-              onClick={() => void send({ action: 'set_duration', duration_days: typedDays })}
-              className="min-h-[44px] flex-1 rounded-xl bg-emerald-500 text-[14px] font-black text-white active:scale-[0.98] disabled:opacity-40"
-            >
-              {busy ? 'Salvando…' : 'Salvar duração'}
-            </button>
-          </div>
-          {days !== '' && !typedValid && (
-            <p className="mt-2 text-[12px] text-amber-700">
-              Use de {Math.max(1, elapsedDays)} a 365 dias (já se passaram {elapsedDays}).
-            </p>
+          <p className="mt-1 text-[13px] leading-snug text-gray-600">
+            Você escolhe. O app usa esse número para calcular o dia em que acaba e quando avisar. Conta a partir do início do pacote.
+          </p>
+        </div>
+
+        <div className="flex items-center justify-center gap-3">
+          <button type="button" aria-label="Menos um dia" onClick={() => step(-1)}
+            className="h-12 w-12 rounded-2xl border border-gray-200 bg-white text-[22px] font-black text-gray-700 active:scale-[0.96]">−</button>
+          <input
+            id="food-duration-days"
+            type="text"
+            inputMode="numeric"
+            value={days}
+            onChange={(e) => setDays(e.target.value.replace(/\D/g, '').slice(0, 3))}
+            aria-label="Duração em dias"
+            className="h-12 w-24 rounded-2xl border border-gray-300 bg-white text-center text-[22px] font-black text-gray-900"
+          />
+          <button type="button" aria-label="Mais um dia" onClick={() => step(1)}
+            className="h-12 w-12 rounded-2xl border border-gray-200 bg-white text-[22px] font-black text-gray-700 active:scale-[0.96]">+</button>
+        </div>
+        <p className="text-center text-[13px] font-semibold text-gray-700">dias</p>
+
+        <div className="min-h-[40px] rounded-2xl bg-gray-50 px-4 py-2.5 text-center text-[13px] text-gray-700">
+          {valid ? (
+            endLabel ? <>Vai acabar em <b>{endLabel}</b> (já se passaram {elapsedDays} dias).</> : <>Duração: <b>{typed} dias</b>.</>
+          ) : (
+            <span className="text-amber-700">Use de {minDays} a {MAX_DAYS} dias (já se passaram {elapsedDays}).</span>
           )}
         </div>
 
         {error && <p role="alert" className="text-[13px] font-semibold text-red-600">{error}</p>}
+
+        <button type="button" disabled={busy || !valid || unchanged} onClick={() => { void save(); }}
+          className="min-h-[48px] w-full rounded-2xl bg-emerald-500 text-[15px] font-black text-white active:scale-[0.98] disabled:opacity-40">
+          {busy ? 'Salvando…' : 'Salvar duração'}
+        </button>
       </SheetShell.Body>
     </SheetShell>
   );

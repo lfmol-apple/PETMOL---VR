@@ -1,4 +1,4 @@
-"""Ajuste da duração da ração: "Quanto resta?", ainda tem, acabou antes e desfazer."""
+"""Ajuste da duração da ração: o tutor escolhe os dias; acabou antes, ainda tem e desfazer."""
 from datetime import date, timedelta
 
 from src.db import SessionLocal
@@ -23,13 +23,13 @@ def _adjust(client, pet_id, h, **body):
     return client.patch(f"/health/pets/{pet_id}/feeding/plan/adjust", json=body, headers=h)
 
 
-def test_remaining_almost_shortens_duration_and_undo_restores(client):
+def test_tutor_chooses_duration_and_undo_restores(client):
     pet_id, h = _setup(client, "cid-adj-1", "adj1@example.com")
-    r = _adjust(client, pet_id, h, action="remaining", remaining="almost")
+    r = _adjust(client, pet_id, h, action="set_duration", duration_days=14)
     assert r.status_code == 200, r.text
     b = r.json()
     assert b["previous_duration_days"] == 30
-    assert b["duration_days"] == 14            # 12 dias / 0,875 consumido
+    assert b["duration_days"] == 14            # exatamente o que o tutor escolheu
     assert b["duration_adjusted"] is True
     assert b["estimated_days_left"] == 2
     assert abs(b["daily_amount_g"] - 714.3) < 0.2   # 10 kg em 14 dias
@@ -42,7 +42,7 @@ def test_remaining_almost_shortens_duration_and_undo_restores(client):
     with SessionLocal() as db:
         rows = db.query(FeedingAdjustment).filter(FeedingAdjustment.pet_id == pet_id).order_by(FeedingAdjustment.created_at).all()
     assert [(x.action, x.from_duration_days, x.to_duration_days) for x in rows] == [
-        ("remaining", 30, 14), ("set_duration", 14, 30)]
+        ("set_duration", 30, 14), ("set_duration", 14, 30)]
 
 
 def test_finished_early_learns_real_duration(client):
@@ -70,16 +70,12 @@ def test_still_has_extends_duration_not_only_reminder(client):
     assert b["estimated_days_left"] == 21
 
 
-def test_remaining_on_fresh_cycle_is_refused(client):
-    pet_id, h = _setup(client, "cid-adj-5", "adj5@example.com", days_ago=1)
-    r = _adjust(client, pet_id, h, action="remaining", remaining="half")
-    assert r.status_code == 409
-
-
-def test_remaining_requires_choice_and_duration_is_bounded(client):
+def test_tutor_choice_is_respected_within_sane_bounds(client):
     pet_id, h = _setup(client, "cid-adj-6", "adj6@example.com")
-    assert _adjust(client, pet_id, h, action="remaining").status_code == 422
+    assert _adjust(client, pet_id, h, action="set_duration").status_code == 422
+    b = _adjust(client, pet_id, h, action="set_duration", duration_days=200).json()
+    assert b["duration_days"] == 200           # sem "corrigir" a escolha do tutor
     b = _adjust(client, pet_id, h, action="set_duration", duration_days=1000).json()
-    assert b["duration_days"] == 90            # no máximo 3x a duração anterior (30)
+    assert b["duration_days"] == 365           # teto de um ano
     b = _adjust(client, pet_id, h, action="set_duration", duration_days=2).json()
     assert b["duration_days"] == 12            # nunca abaixo do que já passou
