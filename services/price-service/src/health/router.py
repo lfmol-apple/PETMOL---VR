@@ -1327,33 +1327,23 @@ async def set_feeding_reminder_date(
 class AdjustFeedingCycleRequest(BaseModel):
     action: Literal[
         'finished_early', 'still_has', 'remind_earlier', 'remind_later', 'set_end_date',
-        'remaining', 'set_duration',
+        'set_duration',
     ]
     days: int = 3
     target_date: Optional[str] = None  # YYYY-MM-DD, obrigatório para set_end_date
-    # "Quanto resta no pacote?" (action=remaining): quase acabando | metade | bastante
-    remaining: Optional[Literal['almost', 'half', 'plenty']] = None
-    duration_days: Optional[int] = None  # action=set_duration (também usado para desfazer)
+    duration_days: Optional[int] = None  # action=set_duration: a duração que o TUTOR escolheu (e o desfazer)
 
 
-# Fração do pacote que ainda resta, por resposta do tutor ("Quanto resta?").
-_REMAINING_FRACTION = {'almost': 0.125, 'half': 0.5, 'plenty': 0.85}
 _MIN_ELAPSED_FOR_LEARNING = 3   # dias de ciclo mínimos para aprender com um toque
 _MAX_DURATION_DAYS = 365
 
 
 def _apply_adjusted_duration(plan: FeedingPlan, new_days: int, today: date) -> int:
     """Põe `new_days` como duração do ciclo atual e recalcula tudo que depende dela
-    (consumo diário, fim previsto, alerta, item principal). Limita o valor a algo
-    razoável para um toque errado não gerar previsão absurda. Retorna o valor aplicado."""
+    (consumo diário, fim previsto, alerta, item principal). A escolha do tutor é
+    respeitada: só não aceitamos menos do que já passou nem mais de um ano. Retorna o valor aplicado."""
     elapsed = (today - plan.last_refill_date).days if plan.last_refill_date else 0
-    previous = plan.duration_days
-    if not previous and plan.last_refill_date and plan.estimated_end_date:
-        previous = (plan.estimated_end_date - plan.last_refill_date).days or None
-    upper = _MAX_DURATION_DAYS
-    if previous and previous > 0:
-        upper = min(upper, max(previous * 3, previous + 14))
-    new_days = max(1, elapsed, min(int(new_days), upper))
+    new_days = max(1, elapsed, min(int(new_days), _MAX_DURATION_DAYS))
 
     plan.duration_days = new_days
     if plan.package_size_kg and plan.package_size_kg > 0:
@@ -1432,16 +1422,6 @@ async def adjust_feeding_cycle(
             reminder_keep = plan.next_reminder_date
             adjusted_duration = _apply_adjusted_duration(plan, (new_end - plan.last_refill_date).days, today)
             plan.next_reminder_date = reminder_keep
-
-    elif body.action == 'remaining':
-        if body.remaining is None:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail="remaining é obrigatório para a ação remaining")
-        if elapsed is None or elapsed < _MIN_ELAPSED_FOR_LEARNING:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                                detail="Ciclo muito recente para ajustar a duração")
-        consumed = 1 - _REMAINING_FRACTION[body.remaining]
-        adjusted_duration = _apply_adjusted_duration(plan, round(elapsed / consumed), today)
 
     elif body.action == 'set_duration':
         if not body.duration_days or body.duration_days <= 0:

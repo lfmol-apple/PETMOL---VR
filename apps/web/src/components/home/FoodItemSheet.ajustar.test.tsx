@@ -48,7 +48,7 @@ beforeEach(() => {
     calls.push({ url: String(url), method: init?.method ?? 'GET', body: init?.body as string | undefined });
     if (String(url).includes('/feeding/plan/adjust')) {
       const b = JSON.parse(String(init?.body));
-      const to = b.action === 'remaining' ? 14 : b.duration_days;
+      const to = b.duration_days;
       const previous = current.duration_days;
       current = mkPlan(to);
       return { ok: true, status: 200, json: async () => ({ status: 'ok', previous_duration_days: previous, duration_days: to }), text: async (): Promise<string> => '' };
@@ -58,21 +58,22 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
-describe('FoodItemSheet — Ajustar duração', () => {
-  it('link no card → "Quase acabando" → aviso com Desfazer que restaura a duração', async () => {
+describe('FoodItemSheet — Editar duração', () => {
+  it('link no card → tutor escolhe os dias → aviso com Desfazer que restaura a duração', async () => {
     render(<FoodItemSheet pet={pet} onClose={vi.fn()} initialPlan={current as never} />);
-    fireEvent.click(await screen.findByText(/Ajustar duração/));
-    fireEvent.click(await screen.findByText('Quase acabando'));
+    fireEvent.click(await screen.findByText('Editar duração'));
+    fireEvent.change(await screen.findByLabelText('Duração em dias'), { target: { value: '21' } });
+    fireEvent.click(screen.getByText('Salvar duração'));
 
-    expect(await screen.findByText(/Ajustei a duração de/)).toBeTruthy();
+    expect(await screen.findByText(/Duração alterada de/)).toBeTruthy();
     const adj = calls.find((c) => c.url.includes('/plan/adjust'))!;
-    expect(JSON.parse(adj.body!)).toEqual({ action: 'remaining', remaining: 'almost' });
+    expect(JSON.parse(adj.body!)).toEqual({ action: 'set_duration', duration_days: 21 });
 
     fireEvent.click(screen.getByText('Desfazer'));
     await waitFor(() => {
       const undo = calls.filter((c) => c.url.includes('/plan/adjust'))[1];
       expect(undo && JSON.parse(undo.body!)).toEqual({ action: 'set_duration', duration_days: 30 });
     });
-    await waitFor(() => expect(screen.queryByText(/Ajustei a duração de/)).toBeNull());
+    await waitFor(() => expect(screen.queryByText(/Duração alterada de/)).toBeNull());
   });
 });
