@@ -44,16 +44,16 @@ beforeEach(() => {
   calls.length = 0;
   current = mkPlan(30);
   (Element.prototype as unknown as { scrollTo: () => void }).scrollTo = () => undefined;
-  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit): Promise<unknown> => {
     calls.push({ url: String(url), method: init?.method ?? 'GET', body: init?.body as string | undefined });
     if (String(url).includes('/feeding/plan/adjust')) {
       const b = JSON.parse(String(init?.body));
       const to = b.action === 'remaining' ? 14 : b.duration_days;
       const previous = current.duration_days;
       current = mkPlan(to);
-      return { ok: true, status: 200, json: async () => ({ status: 'ok', previous_duration_days: previous, duration_days: to }), text: async () => '' };
+      return { ok: true, status: 200, json: async () => ({ status: 'ok', previous_duration_days: previous, duration_days: to }), text: async (): Promise<string> => '' };
     }
-    return { ok: true, status: 200, json: async () => ({ status: 'ok', pet_id: 'p1', plan: current, estimate: null }), text: async () => '' };
+    return { ok: true, status: 200, json: async () => ({ status: 'ok', pet_id: 'p1', plan: current, estimate: null }), text: async (): Promise<string> => '' };
   }));
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
