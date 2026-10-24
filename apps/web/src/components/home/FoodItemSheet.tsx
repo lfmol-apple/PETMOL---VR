@@ -9,6 +9,7 @@ import { SheetAvatar, SheetHeader, SheetIcon } from '@/components/ui/sheet';
 import { careAssetSrc } from '@/lib/careAssets';
 import { ModalPortal } from '@/components/ModalPortal';
 import { ActivationAskSheet } from './ActivationAskSheet';
+import { FoodDurationAdjustSheet, type FoodDurationAdjustResult } from './FoodDurationAdjustSheet';
 import { usePushOneTimeAsk } from '@/features/interactions/usePushOneTimeAsk';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
 import { trackV1Metric } from '@/lib/v1Metrics';
@@ -190,6 +191,9 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   const [showFreshChoice, setShowFreshChoice] = useState(false);
   // "Trocar ração": a antiga só é encerrada DEPOIS que a nova é escolhida — desistir não perde o controle.
   const [replacingFood, setReplacingFood] = useState(false);
+  // "Ajustar duração": sheet de ajuste + aviso do que mudou (com "Desfazer").
+  const [showAdjust, setShowAdjust] = useState(false);
+  const [adjustNotice, setAdjustNotice] = useState<{ from: number | null; to: number } | null>(null);
   const [nextReminderDate, setNextReminderDate]   = useState<string | null>(null);
   const [reminderTime, setReminderTime]           = useState<string | null>(null);
   // Produto recém-escaneado aguardando a escolha "ração principal" vs
@@ -559,6 +563,40 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
     };
   }, [pet.pet_id]);
 
+  const elapsedCycleDays = (() => {
+    if (!foodState.startDate) return 0;
+    const start = new Date(`${foodState.startDate}T00:00:00`).getTime();
+    const today = new Date(`${localTodayISO()}T00:00:00`).getTime();
+    return Number.isFinite(start) ? Math.max(0, Math.round((today - start) / 86_400_000)) : 0;
+  })();
+
+  const handleDurationAdjusted = async (result: FoodDurationAdjustResult) => {
+    setShowAdjust(false);
+    trackV1Metric('food_duration_adjusted', { pet_id: pet.pet_id, from: result.previousDurationDays, to: result.durationDays });
+    await refreshFoodPlan();
+    dispatchFoodPlanUpdated();
+    setAdjustNotice({ from: result.previousDurationDays, to: result.durationDays });
+  };
+
+  const handleUndoAdjust = async () => {
+    const previous = adjustNotice?.from;
+    if (!previous) return;
+    setAdjustNotice(null);
+    try {
+      const res = await fetch(`${API_BACKEND_BASE}/health/pets/${pet.pet_id}/feeding/plan/adjust`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authH() },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'set_duration', duration_days: previous }),
+      });
+      if (!res.ok) throw new Error('undo failed');
+      await refreshFoodPlan();
+      dispatchFoodPlanUpdated();
+    } catch {
+      setFeedback({ msg: 'Não deu pra desfazer agora. Tente de novo.', tone: 'red' });
+    }
+  };
+
   const handleRepurchaseYes = async () => {
     if (repurchaseBusy) return;
     setRepurchaseBusy(true);
@@ -917,6 +955,15 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
 
   return (
     <>
+    <FoodDurationAdjustSheet
+      open={showAdjust}
+      petId={pet.pet_id}
+      petLabel={`${petDo(pet)} ${pet.pet_name}`}
+      elapsedDays={elapsedCycleDays}
+      currentDurationDays={foodState.durationDays ?? (foodState.daysLeft != null ? elapsedCycleDays + Math.max(0, foodState.daysLeft) : null)}
+      onClose={() => setShowAdjust(false)}
+      onAdjusted={(r) => { void handleDurationAdjusted(r); }}
+    />
     <ActivationAskSheet
       open={pushAsk.open}
       icon={<Bell className="h-5 w-5" strokeWidth={2.2} />}
@@ -1276,6 +1323,27 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                                     ? 'Está na hora de repor a ração e registrar o novo ciclo.'
                                     : 'Acompanhe a previsão e compre com calma antes de acabar.'}
                                 </p>
+                                {adjustNotice ? (
+                                  <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-white/80 px-3 py-2.5 text-[13px] text-gray-800" role="status">
+                                    <span>
+                                      {adjustNotice.from && adjustNotice.from !== adjustNotice.to
+                                        ? <>Ajustei a duração de <b>{adjustNotice.from}</b> para <b>{adjustNotice.to} dias</b>. O próximo pacote já usa esse ritmo.</>
+                                        : <>Duração ajustada para <b>{adjustNotice.to} dias</b>.</>}
+                                    </span>
+                                    {adjustNotice.from && adjustNotice.from !== adjustNotice.to && (
+                                      <button type="button" onClick={() => { void handleUndoAdjust(); }}
+                                        className="flex-shrink-0 text-[13px] font-black text-emerald-700 underline underline-offset-2">
+                                        Desfazer
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : null}
+                                {foodState.startDate && (
+                                  <button type="button" onClick={() => setShowAdjust(true)}
+                                    className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white px-3.5 py-2 text-[13px] font-extrabold text-emerald-700 active:scale-[0.98] transition-all">
+                                    <span aria-hidden>⚖️</span> Não bate? Ajustar duração
+                                  </button>
+                                )}
                               </>
                             ) : (
                               <p className="text-[15px] text-gray-400 py-2">Complete o plano para ver a previsão.</p>
