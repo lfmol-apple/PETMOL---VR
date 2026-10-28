@@ -1,0 +1,57 @@
+name: Monitor — PETMOL no ar
+
+# Roda de 10 em 10 minutos, de FORA do servidor (o próprio VPS não enxerga problema de
+# DNS/CDN/certificado). Se algo falhar, o job fica vermelho e o GitHub avisa por e-mail.
+# Nasceu do incidente de 27/10/2026: a Hostinger trocou o DNS pela CDN dela (certificado
+# vencido) e o site ficou fora do ar sem ninguém perceber.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EXPECTED_IP: 147.93.33.24   # IP do VPS; se mudar de propósito, atualize aqui
+
+jobs:
+  uptime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Site e API respondem 200
+        run: |
+          set -u
+          fail=0
+          for url in https://www.petmol.com.br/ https://www.petmol.com.br/api/health https://www.petmol.com.br/login; do
+            ok=0
+            for try in 1 2 3; do
+              code=$(curl -s -o /dev/null -m 20 -w '%{http_code}' "$url" || echo 000)
+              [ "$code" = "200" ] && ok=1 && break
+              sleep 10
+            done
+            echo "$url -> $code"
+            [ "$ok" = "1" ] || fail=1
+          done
+          exit $fail
+
+      - name: DNS aponta para o VPS (pega troca por CDN/parking)
+        run: |
+          set -u
+          fail=0
+          for host in petmol.com.br www.petmol.com.br; do
+            ips=$(dig +short A "$host" @1.1.1.1 | grep -E '^[0-9.]+$' | sort | tr '\n' ' ')
+            echo "$host -> ${ips:-<vazio>}"
+            [ "$ips" = "$EXPECTED_IP " ] || { echo "::error::$host deveria apontar só para $EXPECTED_IP"; fail=1; }
+          done
+          exit $fail
+
+      - name: Certificado válido por mais de 14 dias
+        run: |
+          set -u
+          end=$(echo | openssl s_client -servername www.petmol.com.br -connect www.petmol.com.br:443 2>/dev/null | openssl x509 -noout -enddate | cut -d= -f2)
+          [ -n "$end" ] || { echo "::error::sem certificado"; exit 1; }
+          days=$(( ( $(date -d "$end" +%s) - $(date +%s) ) / 86400 ))
+          echo "certificado vence em $end ($days dias)"
+          [ "$days" -gt 14 ] || { echo "::error::certificado vence em $days dias"; exit 1; }
