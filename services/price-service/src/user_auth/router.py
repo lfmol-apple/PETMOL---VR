@@ -199,6 +199,13 @@ def _find_or_create_social_user(
     if email:
         existing_by_email = db.query(User).filter(User.email == email).first()
         if existing_by_email:
+            if not claims.get("email_verified"):
+                # Sem e-mail verificado pelo provedor, ligar à conta existente
+                # permitiria tomar a conta de outra pessoa.
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    "Já existe uma conta com este e-mail. Entre com e-mail e senha.",
+                )
             setattr(existing_by_email, sub_field, claims["sub"])
             if claims.get("email_verified") and not existing_by_email.email_verified:
                 existing_by_email.email_verified = True

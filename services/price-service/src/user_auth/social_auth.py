@@ -35,22 +35,36 @@ class SocialClaims(TypedDict):
     name: Optional[str]
 
 
+def _allowed_audiences(*values: Optional[str]) -> list[str]:
+    return [v for v in values if v]
+
+
+def _aud_matches(claim_aud, allowed: list[str]) -> bool:
+    """`aud` pode vir como string ou lista; basta UM dos nossos identificadores."""
+    auds = claim_aud if isinstance(claim_aud, (list, tuple)) else [claim_aud]
+    return any(a in allowed for a in auds)
+
+
 def verify_google_id_token(id_token_str: str) -> SocialClaims:
     settings = get_settings()
-    if not settings.google_oauth_client_id:
+    # Site (client_id web) e app nativo iOS (client_id iOS). O app Android usa o
+    # client_id web como serverClientId, então cai no primeiro.
+    allowed = _allowed_audiences(settings.google_oauth_client_id, settings.google_oauth_ios_client_id)
+    if not allowed:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Login com Google não está configurado.")
     try:
         from google.auth.transport import requests as google_requests
         from google.oauth2 import id_token as google_id_token
 
-        claims = google_id_token.verify_oauth2_token(
-            id_token_str, google_requests.Request(), audience=settings.google_oauth_client_id,
-        )
+        # Assinatura/expiração/emissor verificados pela biblioteca; o `aud` é
+        # conferido aqui contra a LISTA de client_ids aceitos.
+        claims = google_id_token.verify_oauth2_token(id_token_str, google_requests.Request())
     except Exception as exc:  # biblioteca do Google levanta vários tipos distintos
         logger.warning("Google id_token inválido: %s", exc)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token do Google inválido.") from exc
 
-    if claims.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
+    if claims.get("iss") not in ("accounts.google.com", "https://accounts.google.com") or not _aud_matches(claims.get("aud"), allowed):
+        logger.warning("Google id_token com iss/aud inesperado (aud=%s)", claims.get("aud"))
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token do Google inválido.")
 
     return SocialClaims(
@@ -75,7 +89,9 @@ def _fetch_apple_jwks(force_refresh: bool = False) -> list:
 
 def verify_apple_id_token(id_token_str: str) -> SocialClaims:
     settings = get_settings()
-    if not settings.apple_services_id:
+    # Site: Services ID. App nativo: bundle id.
+    allowed = _allowed_audiences(settings.apple_services_id, settings.apple_bundle_id)
+    if not allowed:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Login com Apple não está configurado.")
     try:
         header = jose_jwt.get_unverified_header(id_token_str)
@@ -91,8 +107,10 @@ def verify_apple_id_token(id_token_str: str) -> SocialClaims:
             raise JWTError("kid não encontrado nas chaves públicas da Apple")
         claims = jose_jwt.decode(
             id_token_str, key, algorithms=["RS256"],
-            audience=settings.apple_services_id, issuer="https://appleid.apple.com",
+            issuer="https://appleid.apple.com", options={"verify_aud": False},
         )
+        if not _aud_matches(claims.get("aud"), allowed):
+            raise JWTError(f"aud inesperado: {claims.get('aud')}")
     except (JWTError, requests.RequestException) as exc:
         logger.warning("Apple id_token inválido: %s", exc)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token da Apple inválido.") from exc

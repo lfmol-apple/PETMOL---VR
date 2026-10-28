@@ -167,6 +167,12 @@ class Settings(BaseSettings):
     # de retorno https://www.petmol.com.br/login.
     google_oauth_client_id: Optional[str] = None
     apple_services_id: Optional[str] = None
+    # Login NATIVO no app (Out/2026): o id_token do SDK nativo vem com `aud`
+    # diferente do site. Google iOS: o "ID de cliente OAuth" do tipo iOS (no
+    # Android, com serverClientId = o client_id web acima, o aud já é o web).
+    # Apple nativo: o `aud` é o bundle id do app, não o Services ID do site.
+    google_oauth_ios_client_id: Optional[str] = None
+    apple_bundle_id: str = "br.com.petmol.app"
 
     # ── Storage ──────────────────────────────────────────────────────────
     storage_backend: str = "local"     # "local" | "r2"
