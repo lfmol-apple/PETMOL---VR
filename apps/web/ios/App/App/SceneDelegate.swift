@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import GoogleSignIn
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
@@ -15,7 +16,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
-        SceneDelegateProxy.shared.scene(scene, openURLContexts: URLContexts)
+        // Retorno do login com Google (esquema com.googleusercontent.apps.…): o SDK do Google
+        // precisa receber a URL. O que ele não reconhecer segue para o Capacitor como sempre.
+        let remaining = URLContexts.filter { !GIDSignIn.sharedInstance.handle($0.url) }
+        if !remaining.isEmpty {
+            SceneDelegateProxy.shared.scene(scene, openURLContexts: Set(remaining))
+        }
     }
 
     func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {

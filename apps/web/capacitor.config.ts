@@ -35,6 +35,17 @@ const config: CapacitorConfig = {
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],
     },
+    // Login nativo com Google e Apple (@capgo/capacitor-social-login). Só os dois
+    // que usamos: o Facebook fica de fora (a Meta já entra no app pelo SDK de
+    // anúncios; aqui seria duplicar) e o Twitter não é usado.
+    SocialLogin: {
+      providers: {
+        google: true,
+        apple: true,
+        facebook: false,
+        twitter: false,
+      },
+    },
   },
 };
 
