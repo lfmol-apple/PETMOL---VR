@@ -18,8 +18,8 @@ android {
         applicationId "br.com.petmol.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 6
-        versionName "1.2"
+        versionCode 7
+        versionName "1.3"
         buildConfigField "String", "TIKTOK_APP_SECRET", "\"${tiktokAppSecret}\""
         buildConfigField "String", "TIKTOK_APP_ID", "\"7695103016026062900\""
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"

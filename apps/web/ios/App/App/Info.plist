@@ -82,6 +82,17 @@
 	<string>O PETMOL acessa suas fotos para você escolher a foto do seu pet ou enviar a imagem de uma carteirinha de vacinação para leitura automática.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>O PETMOL salva na sua galeria as imagens que você opta por exportar, como a carteirinha de identificação do seu pet.</string>
+	<!-- Login com Google (nativo): o Google devolve o resultado ao app por este esquema = ID do cliente
+	     OAuth iOS "PETMOL iOS" escrito ao contrário. Não é segredo. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.605810387105-ael6mimgsjhfoighqk7vuuh343vc4lrs</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
