@@ -7,6 +7,7 @@ import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Build;
 import android.util.Log;
+import com.facebook.FacebookSdk;
 import com.facebook.appevents.AppEventsLogger;
 import com.tiktok.TikTokBusinessSdk;
 
@@ -54,12 +55,18 @@ public class PetmolApplication extends Application {
 
         initTikTok();
 
-        // Meta SDK inicia sozinho (AutoInitEnabled); activateApp registra instalação/abertura
-        // com o Advertising ID e o install referrer já disponíveis.
+        // Meta SDK: inicializa AQUI, de forma explícita. Não dá para depender do auto-init: o
+        // manifesto do plugin de login social (@capgo/capacitor-social-login) remove o
+        // com.facebook.internal.FacebookInitProvider (tools:node="remove"), que é quem iniciava o
+        // SDK sozinho. Na v1.3 isso fez o activateApp falhar em silêncio e as instalações do Android
+        // deixaram de ser atribuídas aos anúncios (a partir de 29/10/2026).
+        // activateApp registra instalação/abertura com o Advertising ID e o install referrer.
         try {
+            FacebookSdk.sdkInitialize(getApplicationContext());
             AppEventsLogger.activateApp(this);
         } catch (Throwable t) {
-            Log.e(TAG, "Falha ao ativar o Meta SDK (ignorada)", t);
+            // Medir anúncio nunca pode quebrar o app, mas a falha precisa aparecer no log.
+            Log.e(TAG, "Falha ao iniciar/ativar o Meta SDK — instalações não serão atribuídas", t);
         }
 
         // google-services.json não é versionado (como o keystore) e builds locais/CI podem
