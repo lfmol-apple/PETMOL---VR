@@ -112,13 +112,13 @@ def build_email(
     title = f"{t}, {title_core}" if t else title_core[0].upper() + title_core[1:]
     if one:
         ref = f"a ração {_pron(p0)}" if _pron(p0) else f"a ração de {p0.get('name', 'seu pet')}"
-        body = (f"{_def(p0)} conta com você todos os dias. O PETMOL pode ajudar a prever quando {ref} "
-                "vai acabar e lembrar você antes que isso aconteça.")
+        body = (f"O PETMOL pode ajudar a prever quando {ref} vai acabar "
+                "e lembrar você antes que isso aconteça.")
         cta = f"Cadastrar a ração {_of(p0)}"
         callout = f"Cadastre a ração {_of(p0)} e configure o aviso para comprar com antecedência."
     else:
-        body = (f"{names} contam com você todos os dias. O PETMOL pode ajudar a prever quando a ração deles "
-                "vai acabar e lembrar você antes que isso aconteça.")
+        body = ("O PETMOL pode ajudar a prever quando a ração deles vai acabar "
+                "e lembrar você antes que isso aconteça.")
         cta = "Cadastrar a ração dos meus pets"
         callout = f"Cadastre a ração de {names} e configure o aviso para comprar com antecedência."
     header_right = f"Um cuidado especial com {names}"
@@ -155,9 +155,10 @@ def build_email(
         f'<p style="margin:0 0 12px;text-align:center;font-size:11px;font-weight:800;letter-spacing:.14em;color:{BLUE};text-transform:uppercase">'
         f'Um cuidado especial com {escape(names)}</p>'
         f'{photos}'
+        f'<div style="margin:16px 0 0;background:#EAF2FF;border-radius:12px;padding:16px 18px;text-align:center;font-size:19px;font-style:italic;'
+        f'font-weight:800;color:{BLUE};line-height:1.45">{escape(livro)}</div>'
         f'<p style="margin:18px 0 0;text-align:center;font-size:19px;font-weight:800;color:#0F172A;line-height:1.3">{escape(title)}</p>'
         f'<p style="margin:10px 2px 0;text-align:center;font-size:14px;color:#334155;line-height:1.6">{escape(body)}</p>'
-        f'<p style="margin:14px 2px 0;text-align:center;font-size:15px;font-style:italic;font-weight:700;color:{BLUE};line-height:1.5">{escape(livro)}</p>'
         '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px"><tr>'
         f'<td style="background:#E8F0FA;border-left:4px solid {BLUE};border-radius:10px;padding:12px 14px">'
         f'<div style="font-size:14px;font-weight:800;color:{BLUE}">🔔 Um lembrete na hora certa</div>'
@@ -173,6 +174,6 @@ def build_email(
         f'<span style="font-weight:800;color:{BLUE};font-size:13px">Petmol</span> • Gratuito e sem anúncios{unsub}</td></tr>'
         '</table></div>'
     )
-    text = (f"{title}\n\n{body}\n\n{livro}\n\n{callout}\n\n{cta}: {link_btn}\n(O PETMOL já está no seu celular: na página que abrir, toque em Abrir.)\n\nPetmol • Gratuito e sem anúncios\n"
+    text = (f"{livro}\n\n{title}\n\n{body}\n\n{callout}\n\n{cta}: {link_btn}\n(O PETMOL já está no seu celular: na página que abrir, toque em Abrir.)\n\nPetmol • Gratuito e sem anúncios\n"
             + (f"\nPara parar de receber estes lembretes: {unsubscribe_url}\n" if unsubscribe_url else ""))
     return subject, text, html
