@@ -166,3 +166,22 @@ def test_foto_do_pet_assinada_redimensionada_e_com_ilustracao_sem_foto(client):
     assert client.get(f"/v1/email/pet-photo/{com_id}/{'0' * 24}.jpg").status_code == 404         # assinatura errada
     r2 = client.get(f"/v1/email/pet-photo/{sem_id}/{photo_sig(sem_id)}.jpg?k=sq")                # sem foto -> ilustração
     assert r2.status_code == 200 and Image.open(io.BytesIO(r2.content)).size == (480, 480)
+
+
+def test_frase_livro_inteiro_concorda_com_genero_numero_e_tutor():
+    from src.admin.email_racao_pet import build_email, livro_inteiro
+
+    rex = {"id": "1", "name": "Rex", "sex": "male"}
+    mel = {"id": "2", "name": "Mel", "sex": "female"}
+    sem = {"id": "3", "name": "Bidu", "sex": None}
+    assert livro_inteiro("Leonardo Mol", [rex]) == "“O Rex é apenas um capítulo da sua vida, mas, para ele, você, Leonardo, é o livro inteiro.” ❤️🐾"
+    assert "A Mel é apenas um capítulo da sua vida, mas, para ela," in livro_inteiro("Bia", [mel])
+    assert "Bidu é apenas um capítulo da sua vida, mas, para o seu pet," in livro_inteiro("Bia", [sem])
+    assert "são apenas capítulos da sua vida, mas, para eles," in livro_inteiro("Bia", [rex, mel])
+    assert "mas, para elas," in livro_inteiro("Bia", [mel, {"id": "4", "name": "Lua", "sex": "female"}])
+    assert "para ele, você é o livro inteiro" in livro_inteiro(None, [rex])  # sem nome do tutor, sem vírgulas soltas
+    _, texto, html = build_email("Leonardo", [rex, mel], "u1")
+    assert "Rex e Mel são apenas capítulos" in texto and "você, Leonardo, é o livro inteiro" in texto
+    # no HTML a frase vem em linhas (abertura / ponte / clímax em destaque)
+    assert "Rex e Mel são apenas capítulos da sua vida," in html
+    assert "mas, para eles, você, Leonardo, é" in html and ">o livro inteiro.<" in html
