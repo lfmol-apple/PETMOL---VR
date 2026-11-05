@@ -181,4 +181,7 @@ def test_frase_livro_inteiro_concorda_com_genero_numero_e_tutor():
     assert "mas, para elas," in livro_inteiro("Bia", [mel, {"id": "4", "name": "Lua", "sex": "female"}])
     assert "para ele, você é o livro inteiro" in livro_inteiro(None, [rex])  # sem nome do tutor, sem vírgulas soltas
     _, texto, html = build_email("Leonardo", [rex, mel], "u1")
-    assert "Rex e Mel são apenas capítulos" in texto and "você, Leonardo, é o livro inteiro" in html
+    assert "Rex e Mel são apenas capítulos" in texto and "você, Leonardo, é o livro inteiro" in texto
+    # no HTML a frase vem em linhas (abertura / ponte / clímax em destaque)
+    assert "Rex e Mel são apenas capítulos da sua vida," in html
+    assert "mas, para eles, você, Leonardo, é" in html and ">o livro inteiro.<" in html
