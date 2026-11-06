@@ -5,6 +5,7 @@ import { shareAppUrl } from '@/lib/landingLinks';
 import { UserPlus, ChevronRight } from 'lucide-react';
 import { InviteChoiceSheet } from '@/components/home/InviteChoiceSheet';
 import { HowToSheet } from '@/components/home/HowToSheet';
+import { YouTubeMark } from '@/components/home/YouTubeMark';
 import { useBackHandler } from '@/lib/backStack';
 import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -2532,7 +2533,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                   {/* Linha de ações abaixo da foto (pedido do dono, 06/11/2026): "Convidar" + "Como usar o
                       PETMOL". "Convidar" só para o dono do pet e abre um sheet com as DUAS opções que antes
                       eram botões soltos (Convidar família = link pessoal do pet; Indicar o PETMOL = link geral
-                      do app) — os handlers são os mesmos de antes. "Como usar" aparece para todos (quem não é
+                      do app) — os handlers são os mesmos de antes. "Tutorial" aparece para todos (quem não é
                       dono vê só ele, em largura total) e abre os vídeos tutoriais do canal. */}
                   {currentPet && (
                     <div className="flex flex-row gap-2 px-2 pb-1 min-[390px]:px-3 sm:px-4 sm:pb-2">
@@ -2549,10 +2550,11 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
                       <button
                         onClick={() => setShowHowTo(true)}
-                        className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-[#0056D2] to-[#0261F9] px-2 py-1.5 text-[11px] font-extrabold text-white shadow-[0_6px_14px_-6px_rgba(0,86,210,0.6)] transition-opacity active:opacity-80 sm:py-2 sm:text-[12px] lg:py-2.5 lg:text-[13px]"
+                        aria-label="Tutorial PETMOL"
+                        className="flex flex-1 items-center justify-center gap-2.5 rounded-xl bg-gradient-to-br from-[#0056D2] to-[#0261F9] px-3 py-1.5 text-[12px] font-extrabold text-white shadow-[0_6px_14px_-6px_rgba(0,86,210,0.6)] transition-opacity active:opacity-80 sm:py-2 sm:text-[13px] lg:py-2.5 lg:text-[14px]"
                       >
-                        <span className="truncate">Como usar o PETMOL</span>
-                        <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 opacity-70" strokeWidth={2.4} />
+                        <YouTubeMark className="h-[18px] w-auto flex-shrink-0" />
+                        <span className="truncate">Tutorial</span>
                       </button>
                     </div>
                   )}

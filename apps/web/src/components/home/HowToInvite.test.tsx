@@ -32,10 +32,11 @@ describe('HowToSheet', () => {
   });
   it('"Ver todos no canal" abre o canal; fechado não renderiza nada', () => {
     const { rerender } = render(<HowToSheet open onClose={() => {}} />);
+    expect(screen.getByText('Tutorial PETMOL')).toBeTruthy();
     fireEvent.click(screen.getByText('Ver todos no canal do YouTube'));
     expect(openUrl).toHaveBeenCalledWith(HOWTO_CHANNEL_URL);
     rerender(<HowToSheet open={false} onClose={() => {}} />);
-    expect(screen.queryByText('Como usar o PETMOL')).toBeNull();
+    expect(screen.queryByText('Tutorial PETMOL')).toBeNull();
   });
 });
 

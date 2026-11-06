@@ -3,14 +3,15 @@
 import { ChevronRight } from 'lucide-react';
 import { SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { trackProductEvent } from '@/lib/analytics';
+import { YouTubeMark } from './YouTubeMark';
 import { HOWTO_CHANNEL_URL, HOWTO_VIDEOS, howToVideoUrl, openHowToUrl } from '@/features/howto/howToVideos';
 
-/** "Como usar o PETMOL": um botão por tema, cada um abre o vídeo certo do canal. */
+/** "Tutorial PETMOL": um botão por tema, cada um abre o vídeo certo do canal. */
 export function HowToSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   if (!open) return null;
   return (
     <SheetShell open={open} onClose={onClose} hideHandle z={SHEET_Z.base}>
-      <SheetHeader tone="petmol" withHandle title="Como usar o PETMOL" subtitle="Toque no assunto para assistir" onClose={onClose} />
+      <SheetHeader tone="petmol" withHandle title="Tutorial PETMOL" subtitle="Vídeos do nosso canal no YouTube · toque para assistir" onClose={onClose} />
       <SheetShell.Body pad={false} className="space-y-2 px-4 pt-4">
         {HOWTO_VIDEOS.map((v) => (
           <button
@@ -35,8 +36,9 @@ export function HowToSheet({ open, onClose }: { open: boolean; onClose: () => vo
             trackProductEvent('howto_video_opened', { video: 'canal' });
             void openHowToUrl(HOWTO_CHANNEL_URL);
           }}
-          className="mt-1 block w-full rounded-xl bg-[#0056D2] px-3 py-3.5 text-center text-[14px] font-extrabold text-white transition-transform active:scale-[0.98]"
+          className="mt-1 flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#0056D2] px-3 py-3.5 text-[14px] font-extrabold text-white transition-transform active:scale-[0.98]"
         >
+          <YouTubeMark className="h-[18px] w-auto" />
           Ver todos no canal do YouTube
         </button>
       </SheetShell.Body>
