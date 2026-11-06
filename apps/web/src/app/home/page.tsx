@@ -2,7 +2,9 @@
 
 import { takePendingDeepLink, withDeepLinkNonce } from '@/lib/deepLinkIntent';
 import { shareAppUrl } from '@/lib/landingLinks';
-import { UserPlus, Share2, ChevronRight } from 'lucide-react';
+import { UserPlus, ChevronRight } from 'lucide-react';
+import { InviteChoiceSheet } from '@/components/home/InviteChoiceSheet';
+import { HowToSheet } from '@/components/home/HowToSheet';
 import { useBackHandler } from '@/lib/backStack';
 import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -827,7 +829,9 @@ function HomePageInner() {
   }, [fetchNearbyAlerts]);
 
   // Compartilhar cuidado do pet + gerenciar cuidadores
-  const [shareLoading, setShareLoading] = useState(false);
+  const [, setShareLoading] = useState(false);
+  const [showInviteChoice, setShowInviteChoice] = useState(false);
+  const [showHowTo, setShowHowTo] = useState(false);
   type Caretaker = { user_id: string; name: string; joined_at: string };
   const [caretakers, setCaretakers] = useState<Caretaker[]>([]);
   const [removingCaretaker, setRemovingCaretaker] = useState<string | null>(null);
@@ -2525,44 +2529,42 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       groomingState={groomingButtonState}
                     />
 
-                  {/* Compartilhar cuidado — só para o dono do pet. Compacto,
-                      raio de controle (12px, careVisualTokens.CARE_RADIUS.
-                      control), Lucide em vez de emoji. Mesmo tamanho,
-                      alinhamento e peso de fonte dos dois (10/10/2026,
-                      pedido explícito — a hierarquia 60/40 anterior saiu,
-                      e o texto do Compartilhar estava fino/apagado
-                      perto do Convidar): os dois flex-1, font-bold, mesmo
-                      padding/altura; só a cor continua diferenciando ação
-                      principal (azul-gelo) de secundária (branco). Um
-                      teste anterior pôs 3 logos de rede social no botão
-                      (Instagram/WhatsApp/Facebook) — removido, não ficou
-                      bom visualmente; voltou ao ícone genérico Share2.
-                      handleShareApp() já abre o share sheet nativo do
-                      sistema com qualquer app instalado, sem precisar de
-                      indicação extra aqui. */}
-                  {currentPet && loggedUserId && (currentPet.owner_user_id ?? loggedUserId) === loggedUserId && (
+                  {/* Linha de ações abaixo da foto (pedido do dono, 06/11/2026): "Convidar" + "Como usar o
+                      PETMOL". "Convidar" só para o dono do pet e abre um sheet com as DUAS opções que antes
+                      eram botões soltos (Convidar família = link pessoal do pet; Indicar o PETMOL = link geral
+                      do app) — os handlers são os mesmos de antes. "Como usar" aparece para todos (quem não é
+                      dono vê só ele, em largura total) e abre os vídeos tutoriais do canal. */}
+                  {currentPet && (
                     <div className="flex flex-row gap-2 px-2 pb-1 min-[390px]:px-3 sm:px-4 sm:pb-2">
-                      <button
-                        onClick={handleSharePet}
-                        disabled={shareLoading}
-                        className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#BFD4F0] bg-[#F2F6FC] px-2 py-1.5 text-[11px] font-bold text-[#0056D2] transition-opacity active:opacity-70 disabled:opacity-40 sm:py-2 sm:text-[12px] lg:py-2.5 lg:text-[13px]"
-                      >
-                        <UserPlus className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2.4} />
-                        <span className="truncate">{shareLoading ? 'Gerando link...' : 'Convidar família'}</span>
-                        <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 opacity-60" strokeWidth={2.4} />
-                      </button>
+                      {loggedUserId && (currentPet.owner_user_id ?? loggedUserId) === loggedUserId && (
+                        <button
+                          onClick={() => setShowInviteChoice(true)}
+                          className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#BFD4F0] bg-[#F2F6FC] px-2 py-1.5 text-[11px] font-bold text-[#0056D2] transition-opacity active:opacity-70 sm:py-2 sm:text-[12px] lg:py-2.5 lg:text-[13px]"
+                        >
+                          <UserPlus className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2.4} />
+                          <span className="truncate">Convidar</span>
+                          <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 opacity-60" strokeWidth={2.4} />
+                        </button>
+                      )}
 
                       <button
-                        onClick={() => void handleShareApp()}
-                        className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#E5E9F0] bg-white px-2 py-1.5 text-[11px] font-bold text-[#8792A2] transition-opacity active:opacity-70 sm:py-2 sm:text-[12px] lg:py-2.5 lg:text-[13px]"
+                        onClick={() => setShowHowTo(true)}
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-[#0056D2] to-[#0261F9] px-2 py-1.5 text-[11px] font-extrabold text-white shadow-[0_6px_14px_-6px_rgba(0,86,210,0.6)] transition-opacity active:opacity-80 sm:py-2 sm:text-[12px] lg:py-2.5 lg:text-[13px]"
                       >
-                        <Share2 className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2} />
-                        <span className="truncate">Compartilhar</span>
-                        <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 opacity-60" strokeWidth={2} />
+                        <span className="truncate">Como usar o PETMOL</span>
+                        <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 opacity-70" strokeWidth={2.4} />
                       </button>
-
                     </div>
                   )}
+
+                  <InviteChoiceSheet
+                    open={showInviteChoice}
+                    petName={currentPet?.pet_name ?? ''}
+                    onClose={() => setShowInviteChoice(false)}
+                    onInviteFamily={handleSharePet}
+                    onShareApp={handleShareApp}
+                  />
+                  <HowToSheet open={showHowTo} onClose={() => setShowHowTo(false)} />
 
                   <HomePetDashboard
                     petEvents={petEvents}
