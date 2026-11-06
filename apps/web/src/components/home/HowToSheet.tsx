@@ -6,12 +6,12 @@ import { trackProductEvent } from '@/lib/analytics';
 import { YouTubeMark } from './YouTubeMark';
 import { HOWTO_CHANNEL_URL, HOWTO_VIDEOS, howToVideoUrl, openHowToUrl } from '@/features/howto/howToVideos';
 
-/** "Tutorial PETMOL": um botão por tema, cada um abre o vídeo certo do canal. */
+/** "Tutorial": um botão por tema, cada um abre o vídeo certo do canal. */
 export function HowToSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   if (!open) return null;
   return (
     <SheetShell open={open} onClose={onClose} hideHandle z={SHEET_Z.base}>
-      <SheetHeader tone="petmol" withHandle title="Tutorial PETMOL" subtitle="Vídeos do nosso canal no YouTube · toque para assistir" onClose={onClose} />
+      <SheetHeader tone="petmol" withHandle title="Tutorial" subtitle="Vídeos do nosso canal no YouTube · toque para assistir" onClose={onClose} />
       <SheetShell.Body pad={false} className="space-y-2 px-4 pt-4">
         {HOWTO_VIDEOS.map((v) => (
           <button
