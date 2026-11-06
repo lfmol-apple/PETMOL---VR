@@ -2550,8 +2550,8 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
                       <button
                         onClick={() => setShowHowTo(true)}
-                        aria-label="Tutorial PETMOL"
-                        className="flex flex-1 items-center justify-center gap-2.5 rounded-xl bg-gradient-to-br from-[#0056D2] to-[#0261F9] px-3 py-1.5 text-[12px] font-extrabold text-white shadow-[0_6px_14px_-6px_rgba(0,86,210,0.6)] transition-opacity active:opacity-80 sm:py-2 sm:text-[13px] lg:py-2.5 lg:text-[14px]"
+                        aria-label="Tutorial"
+                        className="flex flex-1 items-center justify-center gap-2.5 rounded-xl border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] px-3 py-1.5 text-[12px] font-extrabold text-[#0B1E36] shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] transition-opacity active:opacity-80 sm:py-2 sm:text-[13px] lg:py-2.5 lg:text-[14px]"
                       >
                         <YouTubeMark className="h-[18px] w-auto flex-shrink-0" />
                         <span className="truncate">Tutorial</span>
