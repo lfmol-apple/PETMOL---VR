@@ -1,0 +1,239 @@
+'use client';
+
+/**
+ * "Enviar notificação": o dono escolhe o que a mensagem vai incentivar o tutor a fazer, escreve a mensagem
+ * principal (o PETMOL acrescenta sozinho o nome do tutor e dos pets), escolhe quem recebe (todos / uma
+ * quantidade / só ele) e acompanha o êxito = o tutor FAZER ALGO NO APP depois do envio.
+ * Usado em /admin/hoje e /admin/dashboard2 (mesmo componente nas duas telas).
+ */
+import { useState } from 'react';
+import { getToken } from '@/lib/auth-token';
+import { useAsync, Loading, ErrorBox, numberFmt } from '@/components/admin/sections/sections';
+
+const API = '/api/v1/admin/broadcast';
+
+interface Goal { key: string; group: string; label: string; segment: string; message: string; why: string; success: string; eligible: number }
+interface SegmentInfo { label: string; eligible: number; skipped: { opt_out: number; weekly_cap: number; segment: number } }
+interface SegmentsResponse { segments: Record<string, SegmentInfo>; goals: Goal[]; weekly_cap_days: number }
+interface Preview { will_send: number; skipped: { opt_out: number; weekly_cap: number; segment: number }; sample: { title: string; body: string } | null }
+interface Metrics { delivered: number; tapped: number; opened: number; acted: number; goal_hit: number | null; goal_label: string | null; window_closed: boolean }
+interface HistoryItem {
+  id: string; created_at: string; message: string; segment: string; audience_kind: 'all' | 'count' | 'test';
+  audience_requested: number | null; goal: string | null; recipients_total: number; delivered_total: number;
+  phase: 'sending' | 'done' | 'error'; metrics: Metrics;
+}
+
+async function call<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${API}${path}`, {
+    method: body === undefined ? 'GET' : 'POST',
+    headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    cache: 'no-store',
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `Erro ${res.status}`);
+  return data as T;
+}
+
+const pctOf = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` : '–');
+const audienceLabel = (h: HistoryItem) =>
+  h.audience_kind === 'test' ? 'só eu (teste)' : h.audience_kind === 'count' ? `${numberFmt(h.audience_requested ?? 0)} sorteadas` : 'todos';
+
+export function BroadcastPanel() {
+  const segs = useAsync<SegmentsResponse>(() => call('/segments'), [], { live: false });
+  const [tick, setTick] = useState(0);
+  const history = useAsync<{ items: HistoryItem[] }>(() => call('/history'), [tick], { intervalMs: 20000 });
+
+  const [goalKey, setGoalKey] = useState('');
+  const [message, setMessage] = useState('');
+  const [segment, setSegment] = useState('todos');
+  const [kind, setKind] = useState<'all' | 'count' | 'test'>('test');
+  const [count, setCount] = useState('');
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [okMsg, setOkMsg] = useState<string | null>(null);
+
+  const goals = segs.data?.goals ?? [];
+  const goal = goals.find((g) => g.key === goalKey) ?? null;
+  const groups = Array.from(new Set(goals.map((g) => g.group)));
+
+  const body = () => ({
+    message, segment, goal: goalKey || null,
+    audience: { kind, count: kind === 'count' ? Number(count) || undefined : undefined },
+  });
+  const invalidate = () => { setPreview(null); setTyped(''); setOkMsg(null); setErr(null); };
+
+  const pickGoal = (key: string) => {
+    setGoalKey(key);
+    const g = goals.find((x) => x.key === key);
+    if (g) { setMessage(g.message); setSegment(g.segment); }
+    invalidate();
+  };
+
+  const doPreview = async () => {
+    setBusy(true); setErr(null); setOkMsg(null);
+    try { setPreview(await call<Preview>('/preview', body())); setTyped(''); }
+    catch (e) { setErr((e as Error).message); setPreview(null); }
+    finally { setBusy(false); }
+  };
+
+  const doSend = async () => {
+    if (!preview) return;
+    setBusy(true); setErr(null);
+    try {
+      const r = await call<{ will_send: number }>('/send', { ...body(), confirm_count: preview.will_send });
+      setOkMsg(`Enviando para ${numberFmt(r.will_send)} pessoa${r.will_send === 1 ? '' : 's'}. Acompanhe o resultado abaixo.`);
+      setPreview(null); setTyped('');
+      setTick((t) => t + 1);
+    } catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  };
+
+  const needsTyping = preview && kind !== 'test';
+  const canSend = !!preview && preview.will_send > 0 && (!needsTyping || typed.trim() === String(preview.will_send));
+  const input = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[14px] text-slate-900';
+  const label = 'mb-1 block text-[12px] font-bold text-slate-600';
+
+  return (
+    <div className="space-y-4">
+      {segs.loading && !segs.data ? <Loading /> : segs.error || !segs.data ? <ErrorBox msg={segs.error} /> : (
+        <>
+          <div>
+            <label className={label} htmlFor="bc-goal">Esta notificação vai incentivar o usuário a:</label>
+            <select id="bc-goal" className={input} value={goalKey} onChange={(e) => pickGoal(e.target.value)}>
+              <option value="">Escolher… (ou escreva livremente)</option>
+              {groups.map((grp) => (
+                <optgroup key={grp} label={grp}>
+                  {goals.filter((g) => g.group === grp).map((g) => (
+                    <option key={g.key} value={g.key}>{g.label}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+            {goal && (
+              <div className="mt-2 rounded-lg bg-slate-50 p-3 text-[12px] leading-relaxed text-slate-600">
+                <p><strong>Por que:</strong> {goal.why}</p>
+                <p className="mt-1"><strong>Como medimos o êxito:</strong> {goal.success}</p>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className={label} htmlFor="bc-msg">Mensagem principal</label>
+            <textarea id="bc-msg" rows={3} maxLength={240} className={input} value={message}
+              onChange={(e) => { setMessage(e.target.value); invalidate(); }}
+              placeholder="Ex.: aproveite 10% de desconto na Petz usando o cupom petmol." />
+            <p className="mt-1 text-[11px] text-slate-500">
+              O PETMOL escreve sozinho o nome do tutor e dos pets no título. Se quiser escolher o lugar, use <code>{'{tutor}'}</code> e <code>{'{pets}'}</code> na mensagem.
+              {' '}{message.length}/240
+            </p>
+          </div>
+
+          <div>
+            <label className={label} htmlFor="bc-seg">Para quem</label>
+            <select id="bc-seg" className={input} value={segment} onChange={(e) => { setSegment(e.target.value); invalidate(); }}>
+              {Object.entries(segs.data.segments).map(([k, s]) => (
+                <option key={k} value={k}>{s.label} — {numberFmt(s.eligible)} pessoas</option>
+              ))}
+            </select>
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-slate-700">
+              {([['test', 'Só eu (teste)'], ['count', 'Uma quantidade'], ['all', 'Todos']] as const).map(([k, t]) => (
+                <label key={k} className="flex items-center gap-1.5">
+                  <input type="radio" name="bc-kind" checked={kind === k} onChange={() => { setKind(k); invalidate(); }} /> {t}
+                </label>
+              ))}
+              {kind === 'count' && (
+                <input inputMode="numeric" className="w-24 rounded-lg border border-slate-300 px-2 py-1 text-[13px]" placeholder="quantas"
+                  value={count} onChange={(e) => { setCount(e.target.value.replace(/\D/g, '')); invalidate(); }} />
+              )}
+            </div>
+            <p className="mt-1 text-[11px] text-slate-500">
+              Só recebe quem tem notificação ativa, ninguém que pediu para parar e no máximo 1 mensagem por pessoa a cada {segs.data.weekly_cap_days} dias (o envio só para você não conta).
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="button" onClick={doPreview} disabled={busy || message.trim().length < 3 || (kind === 'count' && !Number(count))}
+              className="rounded-lg border border-[#0056D2] px-4 py-2 text-[13px] font-bold text-[#0056D2] disabled:opacity-40">
+              Ver prévia e quantas pessoas
+            </button>
+          </div>
+
+          {err && <p className="rounded-lg bg-rose-50 p-3 text-[13px] text-rose-700">{err}</p>}
+          {okMsg && <p className="rounded-lg bg-emerald-50 p-3 text-[13px] text-emerald-700">{okMsg}</p>}
+
+          {preview && (
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              {preview.sample ? (
+                <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-black/5">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Como chega (exemplo com nomes reais)</p>
+                  <p className="mt-1 text-[14px] font-extrabold text-slate-900">{preview.sample.title}</p>
+                  <p className="text-[13px] text-slate-700">{preview.sample.body}</p>
+                </div>
+              ) : <p className="text-[13px] text-slate-500">Ninguém receberia esta mensagem agora.</p>}
+              <p className="text-[14px] text-slate-800">
+                Vão receber: <strong>{numberFmt(preview.will_send)}</strong> pessoa{preview.will_send === 1 ? '' : 's'}.
+                {kind !== 'test' && (
+                  <span className="text-[12px] text-slate-500">
+                    {' '}Ficam de fora: {numberFmt(preview.skipped.weekly_cap)} já receberam esta semana, {numberFmt(preview.skipped.opt_out)} pediram para parar{preview.skipped.segment ? `, ${numberFmt(preview.skipped.segment)} fora do público escolhido` : ''}.
+                  </span>
+                )}
+              </p>
+              {needsTyping && (
+                <div>
+                  <label className={label} htmlFor="bc-confirm">Para confirmar, digite {preview.will_send}</label>
+                  <input id="bc-confirm" inputMode="numeric" className="w-32 rounded-lg border border-slate-300 px-3 py-2 text-[14px]"
+                    value={typed} onChange={(e) => setTyped(e.target.value.replace(/\D/g, ''))} />
+                </div>
+              )}
+              <button type="button" onClick={doSend} disabled={busy || !canSend}
+                className="rounded-lg bg-[#0056D2] px-4 py-2 text-[13px] font-bold text-white disabled:opacity-40">
+                {kind === 'test' ? 'Enviar só para mim' : `Enviar para ${numberFmt(preview.will_send)} pessoa${preview.will_send === 1 ? '' : 's'}`}
+              </button>
+              <p className="text-[11px] text-slate-500">Depois de enviada, uma notificação não pode ser desfeita.</p>
+            </div>
+          )}
+        </>
+      )}
+
+      <div>
+        <p className="mb-2 text-[12px] font-bold uppercase tracking-wide text-slate-500">Envios e resultado (24h depois de cada envio)</p>
+        {history.loading && !history.data ? <Loading /> : history.error || !history.data ? <ErrorBox msg={history.error} /> : (
+          history.data.items.length === 0 ? <p className="text-[13px] text-slate-500">Nenhum envio ainda.</p> : (
+            <ul className="space-y-3">
+              {history.data.items.map((h) => {
+                const m = h.metrics;
+                const rows: [string, number][] = [['Receberam', m.delivered], ['Tocaram na notificação', m.tapped], ['Abriram o app', m.opened], ['Fizeram algo no app', m.acted]];
+                return (
+                  <li key={h.id} className="rounded-xl border border-slate-200 p-3">
+                    <p className="text-[13px] font-bold text-slate-900">{h.message}</p>
+                    <p className="text-[11px] text-slate-500">
+                      {new Date(h.created_at).toLocaleString('pt-BR')} · {audienceLabel(h)} · {h.phase === 'sending' ? 'enviando…' : h.phase === 'error' ? 'erro no envio' : `${numberFmt(h.delivered_total)} de ${numberFmt(h.recipients_total)} entregues`}
+                      {m.goal_label ? ` · meta: ${m.goal_label}` : ''}{!m.window_closed ? ' · ainda contando' : ''}
+                    </p>
+                    <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                      {rows.map(([t, n]) => (
+                        <div key={t} className="rounded-lg bg-slate-50 p-2 text-center">
+                          <p className="text-[18px] font-extrabold text-slate-900">{numberFmt(n)}</p>
+                          <p className="text-[10px] text-slate-500">{t}{t !== 'Receberam' ? ` · ${pctOf(n, m.delivered)}` : ''}</p>
+                        </div>
+                      ))}
+                      {m.goal_label && m.goal_hit !== null && (
+                        <div className="rounded-lg bg-emerald-50 p-2 text-center">
+                          <p className="text-[18px] font-extrabold text-emerald-700">{numberFmt(m.goal_hit)}</p>
+                          <p className="text-[10px] text-emerald-700">Meta atingida · {pctOf(m.goal_hit, m.delivered)}</p>
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )
+        )}
+      </div>
+    </div>
+  );
+}

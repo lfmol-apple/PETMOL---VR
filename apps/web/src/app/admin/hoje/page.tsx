@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { PremiumScreenShell } from '@/components/premium';
+import { BroadcastPanel } from '@/components/admin/BroadcastPanel';
 import { useAdmin } from '@/hooks/useAdmin';
 import { adminGet } from '@/lib/admin/analyticsApi';
 import { getToken } from '@/lib/auth-token';
@@ -147,6 +148,15 @@ export default function HojePage() {
               </Link>
             </>
           )}
+        </section>
+
+        {/* 5 — Enviar notificação personalizada */}
+        <section className={card} id="enviar-notificacao">
+          <p className="text-[12px] font-bold uppercase tracking-wide text-[#0056D2]">5 · Enviar notificação</p>
+          <p className="mt-1 mb-3 text-[13px] text-slate-600">
+            Escolha o que a mensagem vai incentivar, escreva o texto principal e o PETMOL se dirige ao tutor e aos pets sozinho.
+          </p>
+          <BroadcastPanel />
         </section>
 
         <p className="px-1 text-center text-[11px] text-slate-400">

@@ -2,6 +2,7 @@
 
 import { takePendingDeepLink, withDeepLinkNonce } from '@/lib/deepLinkIntent';
 import { shareAppUrl } from '@/lib/landingLinks';
+import { trackProductEvent } from '@/lib/analytics';
 import { UserPlus, ChevronRight } from 'lucide-react';
 import { InviteChoiceSheet } from '@/components/home/InviteChoiceSheet';
 import { HowToSheet } from '@/components/home/HowToSheet';
@@ -469,6 +470,16 @@ function HomePageInner() {
   // PWA Web Share Target: o PETMOL não armazena mais documentos/anexos, então
   // arquivos compartilhados são apenas descartados do cache (o SW ainda pode
   // gravá-los no redirect). Mantido só para limpar o cache e a URL.
+  // Notificação personalizada do admin (/admin/hoje): o toque abre a Home com ?b=<id do envio>. Avisa o
+  // servidor UMA vez ("tocou na notificação") para medirmos o êxito do envio. Nada de dado pessoal.
+  const broadcastTapSent = useRef(false);
+  useEffect(() => {
+    const bid = searchParams.get('b');
+    if (!bid || broadcastTapSent.current) return;
+    broadcastTapSent.current = true;
+    trackProductEvent('broadcast_opened', { broadcast: bid });
+  }, [searchParams]);
+
   useEffect(() => {
     if (!searchParams.get('petmol_share')) return;
     (async () => {

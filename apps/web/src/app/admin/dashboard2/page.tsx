@@ -5,6 +5,7 @@
  * ver o PETMOL, baixar, cadastrar-se, cadastrar o pet e configurar a ração?
  * O Mission Control (/admin/dashboard) continua intacto ao lado.
  */
+import { BroadcastPanel } from '@/components/admin/BroadcastPanel';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -199,6 +200,7 @@ function GrowthBody({ filter, onFocusTutors }: { filter: GlobalFilter; onFocusTu
       <ActivationCard data={data} onFocusTutors={onFocusTutors} />
       <TodayBlock onFocusTutors={onFocusTutors} />
       <CampaignsPanel />
+      <div id="enviar-notificacao"><Card title="Enviar notificação" subtitle="Você escolhe o que a mensagem incentiva, escreve a mensagem principal e o PETMOL se dirige ao tutor e aos pets. O êxito é o tutor fazer algo no app."><BroadcastPanel /></Card></div>
       <EmailRacaoPanel />
       <EmailRacaoPanel template="foto" />
       <LeakBanner data={data} />
