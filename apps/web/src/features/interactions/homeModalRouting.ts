@@ -65,6 +65,10 @@ export type HomeSurfaceResolution =
   | {
       kind: 'pet-sumido';
       tab: 'nearby' | 'report';
+    }
+  | {
+      // Loja do Pet (as lojas parceiras): destino das notificações de oferta/cupom enviadas pelo admin.
+      kind: 'shopping';
     };
 
 export function resolveHomeDeepLinkDestination(
@@ -74,6 +78,10 @@ export function resolveHomeDeepLinkDestination(
 ): HomeSurfaceResolution | null {
   if (!modal) return null;
   const subtype = String(subtypeParam || '').trim().toLowerCase();
+
+  if (modal === 'loja' || modal === 'lojas' || modal === 'shopping' || modal === 'store') {
+    return { kind: 'shopping' };
+  }
 
   if (modal === 'food-setup') {
     return { kind: 'edit-pet', initialSection: 'food' };

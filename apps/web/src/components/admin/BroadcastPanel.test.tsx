@@ -6,13 +6,15 @@ vi.mock('@/lib/auth-token', () => ({ getToken: () => 'tok' }));
 
 const segments = {
   weekly_cap_days: 7,
+  destinations: { home: 'Tela inicial', loja: 'Lojas (Loja do Pet)', food: 'Ração' },
   segments: {
     todos: { label: 'Todos com notificação ativa', eligible: 10, skipped: { opt_out: 0, weekly_cap: 0, segment: 0 } },
     sem_racao: { label: 'Tem pet e ainda não cadastrou a ração', eligible: 4, skipped: { opt_out: 0, weekly_cap: 0, segment: 6 } },
   },
   goals: [
-    { key: 'racao', group: 'Alimentação', label: 'Cadastrar a ração', segment: 'sem_racao', message: 'Cadastre a ração de {pets}.', why: 'Ração gera uso recorrente.', success: 'Cadastrou a ração em 24h.', eligible: 4 },
-    { key: 'abrir', group: 'Engajamento', label: 'Só abrir o app', segment: 'todos', message: 'Tem novidade para {pets}.', why: 'Reativação.', success: 'Abriu o app em 24h.', eligible: 10 },
+    { key: 'racao', group: 'Alimentação', label: 'Cadastrar a ração', segment: 'sem_racao', title: '{tutor}, a ração de {pets} vai acabar?', open: 'food', message: 'Cadastre a ração de {pets}.', why: 'Ração gera uso recorrente.', success: 'Cadastrou a ração em 24h.', eligible: 4 },
+    { key: 'cupom', group: 'Compras', label: 'Usar o cupom da Petz', segment: 'todos', title: '{tutor}, 10% OFF na Petz para {pets}', open: 'loja', message: 'Use o cupom PETMOL nas lojas Petz.', why: 'Monetização.', success: 'Tocou em uma oferta.', eligible: 10 },
+    { key: 'abrir', group: 'Engajamento', label: 'Só abrir o app', segment: 'todos', title: '{tutor}, novidade para {pets}', open: 'home', message: 'Tem novidade para {pets}.', why: 'Reativação.', success: 'Abriu o app em 24h.', eligible: 10 },
   ],
 };
 const history = { items: [{
@@ -38,12 +40,25 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('BroadcastPanel', () => {
+  it('a meta do cupom leva o toque para as lojas e envia o destino', async () => {
+    render(<BroadcastPanel />);
+    fireEvent.change(await screen.findByLabelText(/vai incentivar o usuário a/i), { target: { value: 'cupom' } });
+    expect((screen.getByLabelText('Ao tocar na notificação, abrir') as HTMLSelectElement).value).toBe('loja');
+    expect((screen.getByLabelText(/^Título/) as HTMLInputElement).value).toBe('{tutor}, 10% OFF na Petz para {pets}');
+    fireEvent.click(screen.getByText('Ver prévia e quantas pessoas'));
+    await screen.findByText('Enviar só para mim');
+    fireEvent.click(screen.getByText('Enviar só para mim'));
+    await waitFor(() => expect(calls.some((c) => c.url.endsWith('/send'))).toBe(true));
+    expect((calls.find((c) => c.url.endsWith('/send'))!.body as { destination: string }).destination).toBe('loja');
+  });
+
   it('escolher a ação preenche mensagem e público e mostra como o êxito é medido', async () => {
     render(<BroadcastPanel />);
     const select = await screen.findByLabelText(/vai incentivar o usuário a/i);
     fireEvent.change(select, { target: { value: 'racao' } });
     expect((screen.getByLabelText('Mensagem principal') as HTMLTextAreaElement).value).toBe('Cadastre a ração de {pets}.');
     expect((screen.getByLabelText('Para quem') as HTMLSelectElement).value).toBe('sem_racao');
+    expect((screen.getByLabelText(/^Título/) as HTMLInputElement).value).toBe('{tutor}, a ração de {pets} vai acabar?');
     expect(screen.getByText(/Cadastrou a ração em 24h/)).toBeTruthy();
   });
 
@@ -60,7 +75,8 @@ describe('BroadcastPanel', () => {
     expect(send.disabled).toBe(false);
     fireEvent.click(send);
     await waitFor(() => expect(calls.some((c) => c.url.endsWith('/send'))).toBe(true));
-    const sent = calls.find((c) => c.url.endsWith('/send'))!.body as { confirm_count: number; goal: string; audience: { kind: string } };
+    const sent = calls.find((c) => c.url.endsWith('/send'))!.body as { confirm_count: number; goal: string; title: string; audience: { kind: string } };
+    expect(sent.title).toBe('{tutor}, a ração de {pets} vai acabar?');
     expect(sent.confirm_count).toBe(4);
     expect(sent.goal).toBe('racao');
     expect(sent.audience.kind).toBe('all');

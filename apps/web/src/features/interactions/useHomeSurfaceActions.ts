@@ -20,9 +20,12 @@ interface UseHomeSurfaceActionsInput {
   setHealthActiveTab: (value: 'vaccines' | 'parasites' | 'medication' | 'eventos') => void;
   setShowPetSumidoSheet: (value: boolean) => void;
   setPetSumidoInitialTab: (value: 'nearby' | 'report') => void;
+  /** abre a Loja do Pet (deep link `modal=loja`) */
+  openShopping?: () => void;
 }
 
 export function useHomeSurfaceActions({
+  openShopping,
   setShowVaccineSheet,
   setShowQuickAddVaccine,
   setShowVermifugoSheet,
@@ -117,8 +120,14 @@ export function useHomeSurfaceActions({
     if (resolution.kind === 'pet-sumido') {
       setPetSumidoInitialTab(resolution.tab);
       setShowPetSumidoSheet(true);
+      return;
+    }
+
+    if (resolution.kind === 'shopping') {
+      openShopping?.();
     }
   }, [
+    openShopping,
     setEditPetInitialSection,
     setHealthActiveTab,
     setHealthModalMode,

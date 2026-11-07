@@ -43,11 +43,35 @@ def test_personalizacao_tutor_e_pets():
     assert t == "Ana, uma novidade para o seu pet"
 
 
+def test_titulo_com_gancho_leva_tutor_e_pets_e_a_info_principal_primeiro():
+    tpl = "{tutor}, 10% OFF na Petz para {pets}"
+    t, b = br.personalize("Use o cupom PETMOL nas lojas Petz.", "Leonardo Mol", ["Baby", "Mel"], tpl)
+    assert t == "Leonardo, 10% OFF na Petz para Baby e Mel" and b == "Use o cupom PETMOL nas lojas Petz."
+    # sem nome do tutor o título continua fazendo sentido
+    t, _ = br.personalize("x y z", None, ["Baby"], "{tutor}, 10% OFF na Petz para {pets}")
+    assert t == "10% OFF na Petz para Baby"
+    # modelo vazio volta ao título padrão; títulos longos são cortados
+    assert br.personalize("oi oi", "Ana", ["Baby"], "  ")[0] == "Ana, uma novidade para Baby"
+    longo, _ = br.personalize("oi oi", "Ana", ["Baby", "Mel", "Rex", "Bob", "Zeca"], "{tutor}, 10% OFF na Petz hoje para {pets} aproveitarem")
+    assert len(longo) <= 65 and longo.endswith("…")
+
+
+def test_toque_na_notificacao_leva_a_tela_certa_lojas_para_oferta_e_cupom():
+    assert br._push_payload("B1", "t", "b")["data"]["url"] == "/home?b=B1"
+    assert br._push_payload("B1", "t", "b", "loja")["data"]["url"] == "/home?modal=loja&b=B1"
+    assert br._push_payload("B1", "t", "b", "food")["data"]["url"] == "/home?modal=food&b=B1"
+    open_by_goal = {g["key"]: g["open"] for g in br.GOAL_CATALOG}
+    assert open_by_goal["cupom"] == "loja" and open_by_goal["compra_racao"] == "loja"
+    assert open_by_goal["racao"] == "food" and open_by_goal["abrir"] == "home"
+    assert all(g["open"] in br.DESTINATIONS for g in br.GOAL_CATALOG)
+
+
 def test_catalogo_de_metas_completo_e_coerente():
     keys = [g["key"] for g in br.GOAL_CATALOG]
     assert len(keys) == len(set(keys))
     for g in br.GOAL_CATALOG:
         assert g["segment"] in br.SEGMENTS and g["message"] and g["why"] and g["success"] and g["label"]
+        assert "{tutor}" in g["title"] and len(g["title"]) <= 60   # gancho com o nome do tutor, curto o bastante
     assert {"pet", "foto", "racao", "vacina", "parasitas", "medicacao", "banho", "tutorial", "gps", "cupom",
             "compra_racao", "abrir"} <= set(keys)
 
@@ -137,7 +161,19 @@ def test_todos_e_quantidade_com_confirmacao_obrigatoria(adm):
     # cada payload leva tutor + pet no título e abre a Home com o id do envio
     uid0, payload = adm.sent[0]
     assert payload["title"].endswith(("Pet0", "Pet1", "Pet2", "Pet3", "Pet4", "seu pet")) or "uma novidade para" in payload["title"]
-    assert payload["data"]["url"].startswith("/home?b=")
+    assert payload["data"]["url"].startswith("/home?b=")     # sem meta/destino: abre a Home
+
+    # meta "cupom" abre as lojas; o dono também pode escolher o destino na mão
+    adm.sent.clear()
+    cupom = _body(goal="cupom", audience={"kind": "test"})
+    assert adm.client.post("/v1/admin/broadcast/preview", json=cupom).json()["destination"] == "loja"
+    adm.client.post("/v1/admin/broadcast/send", json={**cupom, "confirm_count": 1})
+    assert adm.sent[-1][1]["data"]["url"].startswith("/home?modal=loja&b=")
+    # um envio por vez: o anterior (teste) já terminou, então um novo com destino manual passa
+    adm.sent.clear()
+    manual = _body(audience={"kind": "test"}, destination="vaccines")
+    adm.client.post("/v1/admin/broadcast/send", json={**manual, "confirm_count": 1})
+    assert adm.sent[-1][1]["data"]["url"].startswith("/home?modal=vaccines&b=")
 
 
 def test_quantidade_maior_que_o_publico_envia_para_todos_os_elegiveis(adm):

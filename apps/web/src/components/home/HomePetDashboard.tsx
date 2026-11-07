@@ -91,6 +91,8 @@ function formatReminderHeadline(reminder: PetCareReminder): string {
 
 
 interface HomePetDashboardProps {
+  /** Incrementa para abrir a Loja do Pet (deep link `?modal=loja`, usado pelas notificações de oferta). */
+  openShoppingNonce?: number;
   petEvents: PetEventRecord[];
   vaccines: VaccineRecord[];
   parasiteControls: ParasiteControl[];
@@ -153,6 +155,7 @@ interface HomePetDashboardProps {
 }
 
 export function HomePetDashboard({
+  openShoppingNonce = 0,
   petEvents,
   vaccines,
   parasiteControls,
@@ -296,6 +299,9 @@ export function HomePetDashboard({
   );
 
   const [showShoppingSheet, setShowShoppingSheet] = useState(false);
+  useEffect(() => {
+    if (openShoppingNonce > 0) setShowShoppingSheet(true);
+  }, [openShoppingNonce]);
 
   useEffect(() => {
     onUpcomingCountChange?.(allUpcomingReminders.length, allUpcomingReminders);
