@@ -461,6 +461,15 @@ def start_push_scheduler():
         except Exception as exc:
             push_logger.warning("[PETMOL] boletim diário não agendado: %s", exc)
         try:
+            # Resumo diário (9h de Brasília) dos avisos de remédio que não chegaram — substitui o e-mail
+            # imediato por lembrete perdido (enchia a caixa do dono). Sem pendências, não envia nada.
+            from .notifications.medication_lost_digest import send_medication_lost_digest
+            scheduler.add_job(send_medication_lost_digest, "cron", hour=9, minute=0,
+                              timezone="America/Sao_Paulo", id="medication_lost_digest",
+                              max_instances=1, coalesce=True)
+        except Exception as exc:
+            push_logger.warning("[PETMOL] resumo de remédio não entregue não agendado: %s", exc)
+        try:
             from .missing_pets import expire_stale_missing_pet_alerts
             scheduler.add_job(expire_stale_missing_pet_alerts, "cron", hour=3, minute=30,
                               timezone="America/Sao_Paulo", id="expire_stale_missing_pet_alerts")

@@ -179,20 +179,88 @@ def test_reminder_without_destination_after_2h_notifies_tutor(ctx, monkeypatch):
     notif.send_due_reminders()
 
     assert all(r.sent for r in _reminders(c))
-    # 1 e-mail pro admin (_alert_admin_medication_lost) + 1 pro tutor (_notify_tutor_medication_lost)
-    assert len(sent_mails) == 2, sent_mails
-    admin_mail = next(m for m in sent_mails if "não entregue" in m["subject"])
-    tutor_mail = next(m for m in sent_mails if m is not admin_mail)
+    # Só o tutor recebe e-mail na hora; o aviso ao admin virou resumo diário (não enche mais a caixa).
+    assert len(sent_mails) == 1, sent_mails
+    tutor_mail = sent_mails[0]
     assert tutor_mail["to"] == c.client.get("/auth/me", headers=c.h).json()["email"]
     assert "Baby" in tutor_mail["subject"]
     assert "Apoquel" in tutor_mail["subject"]
     assert "Ativar notificações" in tutor_mail["body_text"]
+    # o próprio lembrete vai no e-mail, não só o pedido pra ativar notificações
+    assert "Lembrete que não chegou por notificação" in tutor_mail["body_text"]
     assert tutor_mail.get("body_html") and "Apoquel" in tutor_mail["body_html"]
     # Cada aviso fica gravado (o histórico do mailer vive só na memória).
     with SessionLocal() as db:
         notices = db.query(MedicationLostNotice).filter(MedicationLostNotice.user_id == c.uid).all()
     assert sorted(n.audience for n in notices) == ["admin", "tutor"]
-    assert all(n.email_ok and "Apoquel" in (n.medications or "") and n.pet_id == c.pid for n in notices)
+    assert all("Apoquel" in (n.medications or "") and n.pet_id == c.pid for n in notices)
+    by = {n.audience: n for n in notices}
+    assert by["tutor"].email_ok is True        # e-mail do tutor aceito pelo servidor
+    assert by["admin"].email_ok is False       # pendente: entra no resumo das 9h
+
+    # Resumo diário: UM e-mail ao dono com tudo que está pendente; depois disso, nada pendente.
+    from src.notifications.medication_lost_digest import send_medication_lost_digest
+    sent_mails.clear()
+    assert send_medication_lost_digest() is True
+    assert len(sent_mails) == 1
+    digest = sent_mails[0]
+    assert "resumo diário" in digest["subject"] and "1 aviso" in digest["subject"]
+    assert "Baby" in digest["body_text"] and "Apoquel" in digest["body_text"]
+    assert "e-mail ao tutor: enviado" in digest["body_text"]
+    sent_mails.clear()
+    assert send_medication_lost_digest() is True
+    assert sent_mails == []                    # sem pendências → nenhum e-mail
+
+
+def test_digest_keeps_pending_when_mail_fails_and_flags_tutor_failure(ctx, monkeypatch):
+    c = ctx
+    with SessionLocal() as db:
+        db.query(PushSubscription).filter(PushSubscription.user_id == c.uid).delete()
+        db.commit()
+    monkeypatch.setattr(notif, "apns_configured", lambda: True)
+    monkeypatch.setattr("src.mailer.send_mail", lambda **kw: False)  # nada é aceito pelo servidor de e-mail
+    t = _now_hhmm_plus(30)
+    _create(c, "Apoquel 16mg", {"frequency_mode": "vezes_dia", "times_per_day": 1, "first_dose_time": t, "reminder_times": [t], "treatment_days": 5})
+    reconcile_medication_reminders()
+    with SessionLocal() as db:
+        for r in db.query(Reminder).filter(Reminder.pet_id == c.pid, Reminder.sent == False):  # noqa: E712
+            r.remind_at = datetime.now(timezone.utc) - timedelta(hours=2, minutes=1)
+        db.commit()
+    notif.send_due_reminders()
+
+    from src.notifications.medication_lost_digest import send_medication_lost_digest
+    assert send_medication_lost_digest() is False        # envio falhou → continua pendente
+    mails = []
+    monkeypatch.setattr("src.mailer.send_mail", lambda **kw: (mails.append(kw) or True))
+    assert send_medication_lost_digest() is True         # dia seguinte: entra no resumo
+    assert len(mails) == 1 and "FALHOU" in mails[0]["body_text"]   # avisa que o tutor NÃO recebeu
+
+
+def test_delivery_failure_also_emails_tutor_the_reminder(ctx, monkeypatch):
+    """Push com falha de entrega (o tutor TEM aparelho): ele recebe o próprio lembrete por e-mail,
+    sem o pedido de 'ativar notificações'. Antes só o admin era avisado."""
+    c = ctx
+    monkeypatch.setattr(notif, "_send_push", lambda sub, payload: (False, False))  # falha técnica, assinatura válida
+    mails = []
+    monkeypatch.setattr("src.mailer.send_mail", lambda **kw: (mails.append(kw) or True))
+    t = _now_hhmm_plus(30)
+    _create(c, "Pimobendana 5mg", {"frequency_mode": "vezes_dia", "times_per_day": 1, "first_dose_time": t, "reminder_times": [t], "treatment_days": 5})
+    reconcile_medication_reminders()
+    with SessionLocal() as db:
+        for r in db.query(Reminder).filter(Reminder.pet_id == c.pid, Reminder.sent == False):  # noqa: E712
+            r.remind_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+            r.retry_count = notif._MAX_RETRY - 1
+        db.commit()
+    notif.send_due_reminders()
+
+    assert len(mails) == 1, mails
+    m = mails[0]
+    assert m["to"] == c.client.get("/auth/me", headers=c.h).json()["email"]
+    assert "Pimobendana" in m["subject"] and "Baby" in m["subject"]
+    assert "Ativar notificações" not in m["body_text"]
+    with SessionLocal() as db:
+        audiences = sorted(n.audience for n in db.query(MedicationLostNotice).filter(MedicationLostNotice.user_id == c.uid))
+    assert audiences == ["admin", "tutor"]
 
 
 def test_lost_notice_records_failed_email(ctx, monkeypatch):
