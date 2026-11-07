@@ -9,6 +9,7 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       'petz',
       'mercadolivre',
       'shopee',
+      'amazon',
     ]);
   });
 
@@ -24,12 +25,14 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       'active',    // petz — Loja Parceira + cupom PETMOL
       'disabled',  // mercadolivre — fora do lançamento, entra depois
       'active',    // shopee
+      'active',    // amazon — cartão parceiro (tag pelmol-20)
     ]);
     // Área geral "Lojas" (grade de parceiros): Petz aparece.
     expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea).map((partner) => partner.id)).toEqual([
       'cobasi',
       'petz',
       'shopee',
+      'amazon',
     ]);
     // isPartnerVisibleForSearch (gate por affiliateStatus/affiliate-only)
     // continua deixando Cobasi/Petz/Shopee passarem — mas quem restringe
@@ -41,38 +44,20 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       'cobasi',
       'petz',
       'shopee',
+      'amazon',
     ]);
   });
 
-  it('NEXT_PUBLIC_AFFILIATE_AMAZON configurada não recoloca Amazon na lista nem nos links', async () => {
-    const previous = process.env.NEXT_PUBLIC_AFFILIATE_AMAZON;
-    process.env.NEXT_PUBLIC_AFFILIATE_AMAZON = 'petmol-20';
-    vi.resetModules();
+  it('Amazon é cartão fixo com a tag de afiliado e não oferece deep link por produto', async () => {
+    const { HOME_SHOPPING_PARTNERS, resolvePartnerUrl, partnerGenericLinkType } = await import('./homeShoppingPartners');
 
-    try {
-      const {
-        HOME_SHOPPING_PARTNERS,
-        resolvePartnerUrl,
-      } = await import('./homeShoppingPartners');
-
-      const partnerIds = HOME_SHOPPING_PARTNERS.map((partner) => String(partner.id));
-      expect(partnerIds).not.toContain('amazon');
-      expect(partnerIds).not.toContain('zeenow');
-      expect(partnerIds).not.toContain('zeedog');
-
-      for (const partner of HOME_SHOPPING_PARTNERS) {
-        const url = resolvePartnerUrl(partner, 'ração pet', '');
-        expect(url ?? '').not.toContain('amazon.com.br');
-        expect(url ?? '').not.toContain('petmol-20');
-      }
-    } finally {
-      if (previous === undefined) {
-        delete process.env.NEXT_PUBLIC_AFFILIATE_AMAZON;
-      } else {
-        process.env.NEXT_PUBLIC_AFFILIATE_AMAZON = previous;
-      }
-      vi.resetModules();
-    }
+    const amazon = HOME_SHOPPING_PARTNERS.find((partner) => partner.id === 'amazon');
+    expect(amazon?.supportsProductDeepLink).toBe(false);
+    const url = amazon ? resolvePartnerUrl(amazon, 'ração pet', '') : null;
+    expect(url).toContain('amazon.com.br');
+    expect(url).toContain('tag=pelmol-20');
+    expect(partnerGenericLinkType('amazon')).toBe('affiliate_store');
+    expect(HOME_SHOPPING_PARTNERS.map((partner) => String(partner.id))).not.toContain('zeenow');
   });
 
   it('só a Petz passa pela ponte /go/petz; Cobasi/Shopee/ML abrem a URL afiliada direto', async () => {
@@ -145,11 +130,13 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
         'cobasi',
         'petz',
         'shopee',
+        'amazon',
       ]);
       expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea).map((partner) => partner.id)).toEqual([
         'cobasi',
         'petz',
         'shopee',
+        'amazon',
       ]);
     } finally {
       if (previous === undefined) {
@@ -183,6 +170,7 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
         'cobasi',
         'petz',
         'shopee',
+        'amazon',
       ]);
     } finally {
       if (previousOnly === undefined) {
@@ -220,6 +208,7 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
         'cobasi',
         'petz',
         'shopee',
+        'amazon',
       ]);
     } finally {
       if (previousOnly === undefined) {

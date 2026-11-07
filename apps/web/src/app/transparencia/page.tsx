@@ -81,10 +81,11 @@ export default function TransparenciaPage() {
           )}
         </p>
         <p>
-          Essa participação vale <strong>apenas na versão web</strong> dos Guias. No{' '}
-          <strong>app nativo (iOS/Android)</strong> a seção de produtos Amazon não é exibida, por
-          política da própria Amazon para aplicativos. A conclusão de cada guia não depende desses
-          links: o conteúdo é escrito para ser útil mesmo se todos fossem removidos.
+          Além dos Guias, a <strong>Loja do Pet</strong> (no site e no app) tem um cartão &ldquo;Amazon&rdquo; entre as
+          lojas parceiras: ele abre a Amazon.com.br no navegador e pode gerar comissão sobre compras qualificadas,
+          sem custo adicional para você. Não há preço nem comparação de produtos da Amazon dentro do PETMOL. A
+          conclusão de cada guia não depende desses links: o conteúdo é escrito para ser útil mesmo se todos
+          fossem removidos.
         </p>
 
         <h2>Programa de Associados da Amazon (Amazon Associates US)</h2>
@@ -98,7 +99,8 @@ export default function TransparenciaPage() {
         </p>
         <p>
           Fora dessas áreas, <strong>a Amazon não está ativa no PETMOL</strong>: não há links da
-          Amazon na comparação de preços, na tela de compras do tutor nem no app nativo (iOS/Android).
+          Amazon na comparação de preços nem nos lembretes. O único outro ponto com a Amazon é o cartão da
+          Loja do Pet, descrito acima.
         </p>
 
         <h2>Dúvidas</h2>

@@ -27,6 +27,10 @@ import { AffiliateCatalogSearch } from './AffiliateCatalogSearch';
 import { fetchPetzDirectLink, formatBRLPrice, hasReliablePrice, merchantLabel, offerOriginLabel, offerPriceLabel, preferCobasiOffer, type CommerceOffer, type PetzDirectLink } from './productPricing';
 import { useCommerceOffers } from './useCommerceOffers';
 import { FoodBridgeCard, dismissFoodBridge, isFoodBridgeDismissed } from './FoodBridgeCard';
+import { isNativeAppClient } from '@/lib/nativeApp';
+import { amazonDisclosure } from './affiliateDisclosure';
+
+const AMAZON_HIDDEN_IN_APP = process.env.NEXT_PUBLIC_AMAZON_IN_APP === 'off';
 import {
   buildReorderCards,
   buildPetStoreTitle,
@@ -151,7 +155,16 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, currentPet.pet_id]);
 
-  const visibleStorePartners = useMemo(() => HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea), []);
+  // Amazon (decisão do dono, 07/11/2026): o cartão aparece na web E no app. Interruptor de segurança:
+  // NEXT_PUBLIC_AMAZON_IN_APP=off esconde só no app nativo (a política da Amazon só dá comissão por link em
+  // app que ela aprovou por escrito — ver docs/AFFILIATES.md). Ao tocar, o link abre na aba do sistema
+  // (Browser.open), nunca em WebView — proibido pela política.
+  const visibleStorePartners = useMemo(
+    () => HOME_SHOPPING_PARTNERS
+      .filter(isPartnerVisibleInStoreArea)
+      .filter((partner) => !(partner.id === 'amazon' && AMAZON_HIDDEN_IN_APP && isNativeAppClient())),
+    [],
+  );
 
   const visibleQuickBuyPartners = useMemo(
     () =>
@@ -520,6 +533,9 @@ function PartnerStoreGrid({
           </button>
         ))}
       </div>
+      {partners.some((partner) => partner.id === 'amazon') && (
+        <p className="mt-2.5 text-center text-[11px] text-white/70">{amazonDisclosure.requiredStatement}</p>
+      )}
     </div>
   );
 }
