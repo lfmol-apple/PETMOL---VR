@@ -548,28 +548,28 @@ def _record_lost_notice(db, group, audience: str, reason: str, ok: bool) -> None
 
 
 def _alert_admin_medication_lost(db, group, reason: str) -> None:
-    """Aviso de remédio que NÃO pôde ser entregue: e-mail ao admin (o push do
-    próprio tutor é justamente o que falhou), para o problema nunca ficar mudo."""
+    """Aviso de remédio que NÃO pôde ser entregue ao tutor: NÃO manda mais e-mail na hora
+    (enchia a caixa do dono, um e-mail por lembrete). Só grava o registro como PENDENTE
+    (audience "admin", email_ok=False) e o resumo diário das 9h
+    (medication_lost_digest.send_medication_lost_digest) junta tudo num e-mail só. Para o
+    admin, email_ok=True passa a significar "já entrou num resumo enviado"."""
     try:
-        from ..mailer import send_mail
-
-        first = group[0]
-        pet = db.query(Pet).filter(Pet.id == first.pet_id).first() if first.pet_id else None
-        nomes = ", ".join(dict.fromkeys(_medication_name(r) for r in group))
-        when = first.remind_at.astimezone(timezone.utc).strftime("%d/%m %H:%M UTC") if first.remind_at else "?"
-        body = (
-            f"⚠️ Aviso de remédio NÃO entregue\n\nPet: {getattr(pet, 'name', '?')}\n"
-            f"Remédio(s): {nomes}\nHorário previsto: {when}\nMotivo: {reason}\n\n"
-            "Verifique o push do aparelho (token nativo/assinatura) do tutor."
-        )
-        ok = send_mail(to=get_settings().admin_master_email, subject="⚠️ PETMOL — aviso de remédio não entregue",
-                       body_text=body)
-        _record_lost_notice(db, group, "admin", reason, ok)
-    except Exception as exc:  # nunca deixa o alerta derrubar o envio
-        logger.warning(f"alerta de remédio perdido falhou: {exc}")
+        _record_lost_notice(db, group, "admin", reason, False)
+    except Exception as exc:  # nunca deixa o registro derrubar o envio
+        logger.warning(f"registro do alerta de remédio perdido falhou: {exc}")
 
 
-def _tutor_medication_lost_copy(tutor_first: str, pet: str, meds: list) -> tuple:
+_BRT_TZ = timezone(timedelta(hours=-3))
+
+
+def _med_when_brt(first) -> str:
+    """Horário previsto do aviso, em Brasília ('21/11 às 18:30'); '' se desconhecido."""
+    if not getattr(first, "remind_at", None):
+        return ""
+    return first.remind_at.astimezone(_BRT_TZ).strftime("%d/%m às %H:%M")
+
+
+def _tutor_medication_lost_copy(tutor_first: str, pet: str, meds: list, when: str = "") -> tuple:
     """Mesmo tom/estrutura da campanha de ativação push+localização (texto
     original escrito pelo dono, 03/10/2026, em admin/activation_campaign_router.py)
     — só trocando o motivo genérico pelo remédio específico que ficou sem avisar."""
@@ -587,8 +587,11 @@ def _tutor_medication_lost_copy(tutor_first: str, pet: str, meds: list) -> tuple
     saudacao = f"Oi, {tutor_first}!" if tutor_first else "Oi!"
 
     subject = f"⚠️ {pet} está sem receber o lembrete de {med}"
+    quando = f" ({when}, horário de Brasília)" if when else ""
+    aviso = f"Lembrete que não chegou por notificação: hora de dar {med} a {pet}{quando}."
     body_text = (
         f"{saudacao}\n\n"
+        f"{aviso}\n\n"
         f"{pet} toma {med} em horário certo — e o PETMOL tentou avisar isso nos "
         "últimos dias, mas o aviso não chegou porque as notificações do app estão "
         "desativadas no seu aparelho.\n\n"
@@ -609,6 +612,8 @@ def _tutor_medication_lost_copy(tutor_first: str, pet: str, meds: list) -> tuple
     body_html = (
         '<div style="font-family:Arial,sans-serif;font-size:15px;color:#1f2937;line-height:1.6;max-width:480px">'
         f"<p>{escape(saudacao)}</p>"
+        f'<p style="background:#FFF7E6;border-left:4px solid #F59E0B;padding:10px 12px;border-radius:6px">'
+        f"<strong>{escape(aviso)}</strong></p>"
         f"<p>{pet_html} toma <strong>{med_html}</strong> em horário certo — e o PETMOL "
         "tentou avisar isso nos últimos dias, mas o aviso não chegou porque as "
         "notificações do app estão desativadas no seu aparelho.</p>"
@@ -629,7 +634,35 @@ def _tutor_medication_lost_copy(tutor_first: str, pet: str, meds: list) -> tuple
     return subject, body_text, body_html
 
 
-def _notify_tutor_medication_lost(db, group) -> None:
+def _tutor_medication_missed_copy(tutor_first: str, pet: str, meds: list, when: str = "") -> tuple:
+    """Aviso ao tutor quando o push FALHOU na entrega (ele tem aparelho cadastrado, então NÃO
+    adianta pedir pra "ativar notificações"): entrega o próprio lembrete por e-mail."""
+    from html import escape
+
+    med = ", ".join(meds[:-1]) + " e " + meds[-1] if len(meds) > 1 else (meds[0] if meds else "medicação")
+    saudacao = f"Oi, {tutor_first}!" if tutor_first else "Oi!"
+    quando = f" ({when}, horário de Brasília)" if when else ""
+    subject = f"💊 Hora de dar {med} a {pet}"
+    body_text = (
+        f"{saudacao}\n\n"
+        f"Lembrete: hora de dar {med} a {pet}{quando}.\n\n"
+        "A notificação do app não conseguiu chegar até você agora, então mandamos por aqui "
+        "para ninguém ficar sem o aviso. Se já deu, é só registrar no PETMOL.\n\n"
+        "Equipe PETMOL"
+    )
+    body_html = (
+        '<div style="font-family:Arial,sans-serif;font-size:15px;color:#1f2937;line-height:1.6;max-width:480px">'
+        f"<p>{escape(saudacao)}</p>"
+        f'<p style="background:#FFF7E6;border-left:4px solid #F59E0B;padding:10px 12px;border-radius:6px">'
+        f"<strong>Hora de dar {escape(med)} a {escape(pet)}</strong>{escape(quando)}.</p>"
+        "<p>A notificação do app não conseguiu chegar até você agora, então mandamos por aqui "
+        "para ninguém ficar sem o aviso. Se já deu, é só registrar no PETMOL.</p>"
+        "<p>Equipe PETMOL</p></div>"
+    )
+    return subject, body_text, body_html
+
+
+def _notify_tutor_medication_lost(db, group, no_destination: bool = True, reason: str = "sem destino ativo por mais de 2h") -> None:
     """Quando o tutor não tem NENHUM destino de push ativo (reason == "sem
     destino ativo por mais de 2h"), o aviso ao admin sozinho não resolve nada
     — ninguém mexe no aparelho do tutor por ele. Manda um e-mail direto pro
@@ -657,9 +690,17 @@ def _notify_tutor_medication_lost(db, group) -> None:
         meds = list(dict.fromkeys(_medication_name(r) for r in group))
         tutor_first = (tutor.name or "").split(" ")[0] if tutor.name else ""
 
-        subject, body_text, body_html = _tutor_medication_lost_copy(tutor_first, pet_name, meds)
-        ok = send_mail(to=tutor.email, subject=subject, body_text=body_text, body_html=body_html)
-        _record_lost_notice(db, group, "tutor", "sem destino ativo por mais de 2h", ok)
+        when = _med_when_brt(first)
+        copy_fn = _tutor_medication_lost_copy if no_destination else _tutor_medication_missed_copy
+        subject, body_text, body_html = copy_fn(tutor_first, pet_name, meds, when)
+        # Garantia do aviso: tenta 2x antes de desistir; se as duas falharem, fica gravado
+        # email_ok=False e o resumo diário das 9h mostra ao dono que o tutor NÃO foi avisado.
+        ok = False
+        for _ in range(2):
+            ok = send_mail(to=tutor.email, subject=subject, body_text=body_text, body_html=body_html)
+            if ok:
+                break
+        _record_lost_notice(db, group, "tutor", reason, ok)
     except Exception as exc:  # nunca deixa o aviso ao tutor derrubar o scheduler
         logger.warning(f"aviso de remédio ao tutor falhou: {exc}")
 
@@ -913,7 +954,10 @@ def send_due_reminders() -> None:
                     logger.warning(f"Reminder {reminder.id}: desistindo após {_MAX_RETRY} tentativas")
                     reminder.sent = True
                     if reminder.type in _MED_TYPES:
-                        _alert_admin_medication_lost(db, med_groups.get(dedup_key, [reminder]), f"falha de envio após {_MAX_RETRY} tentativas")
+                        _lost_group = med_groups.get(dedup_key, [reminder])
+                        _lost_reason = f"falha de envio após {_MAX_RETRY} tentativas"
+                        _alert_admin_medication_lost(db, _lost_group, _lost_reason)
+                        _notify_tutor_medication_lost(db, _lost_group, no_destination=False, reason=_lost_reason)
 
         for leader, follower in med_followers:
             follower.sent = bool(leader.sent)

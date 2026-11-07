@@ -290,8 +290,9 @@ def test_grouped_medication_push_deep_link_carries_event_ids(_iso):
     assert set(url.split("eventId=")[1].split(",")) == set(ev_ids)
 
 
-def test_lost_medication_reminder_alerts_admin_by_email(_iso, monkeypatch):
-    """Remédio sem destino por mais de 2h: consome E avisa o admin por e-mail."""
+def test_lost_medication_reminder_alerts_admin_in_daily_digest(_iso, monkeypatch):
+    """Remédio sem destino por mais de 2h: consome e o aviso ao admin vira PENDENTE do resumo
+    diário das 9h (nada de e-mail imediato por lembrete — enchia a caixa do dono)."""
     monkeypatch.setattr(notif, "apns_configured", lambda: True)
     mails = []
     monkeypatch.setattr("src.mailer.send_mail", lambda **kw: mails.append(kw) or True)
@@ -300,8 +301,11 @@ def test_lost_medication_reminder_alerts_admin_by_email(_iso, monkeypatch):
     with SessionLocal() as db:
         _med(db, uid, pid, "Zelotril 50mg", velho, datetime.now(timezone.utc))
     notif.send_due_reminders()
+    assert mails == []                     # nenhum e-mail imediato ao admin
+    from src.notifications.medication_lost_digest import send_medication_lost_digest
+    assert send_medication_lost_digest() is True
     assert len(mails) == 1
-    assert "não entregue" in mails[0]["subject"] and "Zelotril 50mg" in mails[0]["body_text"]
+    assert "resumo diário" in mails[0]["subject"] and "Zelotril 50mg" in mails[0]["body_text"]
 
 
 def test_orphaned_medication_reminder_is_consumed_without_sending(_iso):
