@@ -12,10 +12,10 @@ import { useAsync, Loading, ErrorBox, numberFmt } from '@/components/admin/secti
 
 const API = '/api/v1/admin/broadcast';
 
-interface Goal { key: string; group: string; label: string; segment: string; message: string; why: string; success: string; eligible: number }
+interface Goal { key: string; group: string; label: string; segment: string; title: string; open: string; message: string; why: string; success: string; eligible: number }
 interface SegmentInfo { label: string; eligible: number; skipped: { opt_out: number; weekly_cap: number; segment: number } }
-interface SegmentsResponse { segments: Record<string, SegmentInfo>; goals: Goal[]; weekly_cap_days: number }
-interface Preview { will_send: number; skipped: { opt_out: number; weekly_cap: number; segment: number }; sample: { title: string; body: string } | null }
+interface SegmentsResponse { segments: Record<string, SegmentInfo>; goals: Goal[]; destinations: Record<string, string>; weekly_cap_days: number }
+interface Preview { destination_label?: string; will_send: number; skipped: { opt_out: number; weekly_cap: number; segment: number }; sample: { title: string; body: string } | null }
 interface Metrics { delivered: number; tapped: number; opened: number; acted: number; goal_hit: number | null; goal_label: string | null; window_closed: boolean }
 interface HistoryItem {
   id: string; created_at: string; message: string; segment: string; audience_kind: 'all' | 'count' | 'test';
@@ -45,6 +45,8 @@ export function BroadcastPanel() {
   const history = useAsync<{ items: HistoryItem[] }>(() => call('/history'), [tick], { intervalMs: 20000 });
 
   const [goalKey, setGoalKey] = useState('');
+  const [title, setTitle] = useState('');
+  const [destination, setDestination] = useState('home');
   const [message, setMessage] = useState('');
   const [segment, setSegment] = useState('todos');
   const [kind, setKind] = useState<'all' | 'count' | 'test'>('test');
@@ -60,7 +62,7 @@ export function BroadcastPanel() {
   const groups = Array.from(new Set(goals.map((g) => g.group)));
 
   const body = () => ({
-    message, segment, goal: goalKey || null,
+    message, title: title.trim() || null, destination, segment, goal: goalKey || null,
     audience: { kind, count: kind === 'count' ? Number(count) || undefined : undefined },
   });
   const invalidate = () => { setPreview(null); setTyped(''); setOkMsg(null); setErr(null); };
@@ -68,7 +70,7 @@ export function BroadcastPanel() {
   const pickGoal = (key: string) => {
     setGoalKey(key);
     const g = goals.find((x) => x.key === key);
-    if (g) { setMessage(g.message); setSegment(g.segment); }
+    if (g) { setTitle(g.title); setMessage(g.message); setSegment(g.segment); setDestination(g.open || 'home'); }
     invalidate();
   };
 
@@ -121,14 +123,31 @@ export function BroadcastPanel() {
           </div>
 
           <div>
+            <label className={label} htmlFor="bc-title">Título (o que aparece primeiro na tela do celular)</label>
+            <input id="bc-title" maxLength={80} className={input} value={title}
+              onChange={(e) => { setTitle(e.target.value); invalidate(); }}
+              placeholder="{tutor}, uma novidade para {pets}" />
+            <p className="mt-1 text-[11px] text-slate-500">
+              Coloque aqui a informação mais importante. <code>{'{tutor}'}</code> vira o nome do tutor e <code>{'{pets}'}</code> o(s) nome(s) do(s) pet(s). Vazio = “{'{tutor}'}, uma novidade para {'{pets}'}”.
+            </p>
+          </div>
+
+          <div>
             <label className={label} htmlFor="bc-msg">Mensagem principal</label>
             <textarea id="bc-msg" rows={3} maxLength={240} className={input} value={message}
               onChange={(e) => { setMessage(e.target.value); invalidate(); }}
               placeholder="Ex.: aproveite 10% de desconto na Petz usando o cupom petmol." />
             <p className="mt-1 text-[11px] text-slate-500">
-              O PETMOL escreve sozinho o nome do tutor e dos pets no título. Se quiser escolher o lugar, use <code>{'{tutor}'}</code> e <code>{'{pets}'}</code> na mensagem.
+              O texto vem logo abaixo do título. Para pôr nomes aqui também, use <code>{'{tutor}'}</code> e <code>{'{pets}'}</code> na mensagem.
               {' '}{message.length}/240
             </p>
+          </div>
+
+          <div>
+            <label className={label} htmlFor="bc-dest">Ao tocar na notificação, abrir</label>
+            <select id="bc-dest" className={input} value={destination} onChange={(e) => { setDestination(e.target.value); invalidate(); }}>
+              {Object.entries(segs.data.destinations).map(([k, t]) => (<option key={k} value={k}>{t}</option>))}
+            </select>
           </div>
 
           <div>
@@ -171,6 +190,7 @@ export function BroadcastPanel() {
                   <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Como chega (exemplo com nomes reais)</p>
                   <p className="mt-1 text-[14px] font-extrabold text-slate-900">{preview.sample.title}</p>
                   <p className="text-[13px] text-slate-700">{preview.sample.body}</p>
+                  {preview.destination_label && <p className="mt-1 text-[11px] text-slate-400">Ao tocar abre: {preview.destination_label}</p>}
                 </div>
               ) : <p className="text-[13px] text-slate-500">Ninguém receberia esta mensagem agora.</p>}
               <p className="text-[14px] text-slate-800">

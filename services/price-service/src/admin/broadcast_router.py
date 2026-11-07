@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 import random
+import re
 import threading
 import time
 import uuid
@@ -72,69 +73,83 @@ _SHOP_EVENTS = {"partner_clicked", "shop_partner_store_click", "shop_reorder_cli
 # Catálogo "Esta notificação vai incentivar o usuário a…": cada meta traz o público certo, uma mensagem
 # sugerida, o motivo e COMO o êxito é medido (events = eventos do app; state = item criado no banco).
 GOAL_CATALOG: list[dict] = [
-    {"key": "pet", "group": "Cadastro", "label": "Cadastrar o pet", "segment": "sem_pet", "state": "pet",
+    {"key": "pet", "title": '{tutor}, cadastre seu pet em 1 minuto', "group": "Cadastro", "label": "Cadastrar o pet", "segment": "sem_pet", "state": "pet",
      "events": {"pet_created", "first_pet_created"},
-     "message": "Cadastre seu pet no PETMOL: vacina, ração e remédio, tudo num lugar só. Leva 1 minuto.",
+     "message": "Vacina, ração e remédio num lugar só. Toque para começar.",
      "why": "Sem pet cadastrado a pessoa não usa nada do app. É o primeiro degrau do funil.",
      "success": "Cadastrou um pet em 24h."},
-    {"key": "foto", "group": "Cadastro", "label": "Cadastrar a foto do pet", "segment": "sem_foto", "state": "foto",
+    {"key": "foto", "title": '{tutor}, falta a foto de {pets}', "group": "Cadastro", "label": "Cadastrar a foto do pet", "segment": "sem_foto", "state": "foto",
      "events": set(),
-     "message": "Coloque a foto de {pets} no PETMOL. Fica mais bonito e, se um dia sumir, a foto ajuda a achar.",
+     "message": "Coloque a foto no PETMOL: fica mais bonito e, se um dia sumir, ajuda a achar.",
      "why": "A foto torna o app pessoal e é essencial para o alerta de Pet Sumido.",
      "success": "Adicionou/atualizou a foto do pet em 24h."},
-    {"key": "racao", "group": "Alimentação", "label": "Cadastrar a ração", "segment": "sem_racao", "state": "racao",
+    {"key": "racao", "title": '{tutor}, a ração de {pets} vai acabar?', "group": "Alimentação", "label": "Cadastrar a ração", "segment": "sem_racao", "state": "racao",
      "events": {"food_cycle_created", "onboarding_food_completed"},
-     "message": "Cadastre a ração de {pets} e o PETMOL avisa antes de acabar. Leva 1 minuto.",
+     "message": "Cadastre a ração e o PETMOL avisa antes de acabar. Leva 1 minuto.",
      "why": "Ração é o degrau que mais gera uso recorrente e compra. Vai só para quem tem pet e ainda não cadastrou.",
      "success": "Cadastrou a ração em 24h."},
-    {"key": "compra_racao", "group": "Alimentação", "label": "Comprar a ração (ir à loja parceira)", "segment": "todos",
+    {"key": "compra_racao", "title": '{tutor}, ração de {pets} com oferta', "group": "Alimentação", "label": "Comprar a ração (ir à loja parceira)", "segment": "todos",
      "state": None, "events": _SHOP_EVENTS,
-     "message": "A ração de {pets} está na conta? Veja as ofertas da Loja do Pet antes que acabe.",
+     "message": "Veja as ofertas da Loja do PETMOL antes que a ração acabe.",
      "why": "Leva o tutor à compra no momento em que ele precisa. Mede o clique na loja (a venda em si a loja informa).",
      "success": "Tocou em uma oferta/loja parceira em 24h."},
-    {"key": "vacina", "group": "Saúde", "label": "Cadastrar a vacina / carteirinha", "segment": "todos", "state": "vacina",
+    {"key": "vacina", "title": '{tutor}, a vacina de {pets} está em dia?', "group": "Saúde", "label": "Cadastrar a vacina / carteirinha", "segment": "todos", "state": "vacina",
      "events": {"vaccine_record_created", "onboarding_vaccine_completed"},
-     "message": "Tire uma foto da carteirinha de vacinas de {pets}: o PETMOL lê e avisa a próxima dose.",
+     "message": "Tire uma foto da carteirinha: o PETMOL lê e avisa a próxima dose.",
      "why": "A leitura da carteirinha é o recurso mais diferenciado e cria lembretes que trazem a pessoa de volta.",
      "success": "Cadastrou uma vacina em 24h."},
-    {"key": "parasitas", "group": "Saúde", "label": "Registrar vermífugo ou antipulgas", "segment": "todos",
+    {"key": "parasitas", "title": '{tutor}, vermífugo de {pets} em dia?', "group": "Saúde", "label": "Registrar vermífugo ou antipulgas", "segment": "todos",
      "state": "parasita",
      "events": {"worm_control_created", "flea_control_created", "collar_created", "onboarding_parasite_completed",
                 "onboarding_dewormer_completed"},
-     "message": "Quando foi o último vermífugo e antipulgas de {pets}? Registre no PETMOL e a gente lembra a próxima.",
+     "message": "Registre no PETMOL e a gente lembra a próxima dose.",
      "why": "Vermífugo e antipulgas se repetem todo mês: lembrete certo e compra recorrente.",
      "success": "Registrou vermífugo/antipulgas/coleira em 24h."},
-    {"key": "medicacao", "group": "Saúde", "label": "Cadastrar uma medicação", "segment": "todos", "state": "medicacao",
+    {"key": "medicacao", "title": '{tutor}, não esqueça o remédio de {pets}', "group": "Saúde", "label": "Cadastrar uma medicação", "segment": "todos", "state": "medicacao",
      "events": {"medication_created"},
-     "message": "Dá remédio para {pets}? Cadastre no PETMOL e receba o aviso na hora certa de cada dose.",
+     "message": "Cadastre no PETMOL e receba o aviso na hora certa de cada dose.",
      "why": "Medicação é o lembrete de maior valor (o tutor não quer esquecer uma dose).",
      "success": "Cadastrou uma medicação em 24h."},
-    {"key": "banho", "group": "Saúde", "label": "Registrar banho e tosa", "segment": "todos", "state": "banho",
+    {"key": "banho", "title": '{tutor}, banho e tosa de {pets}', "group": "Saúde", "label": "Registrar banho e tosa", "segment": "todos", "state": "banho",
      "events": set(),
-     "message": "Marque o banho e a tosa de {pets} no PETMOL e a gente avisa quando estiver na hora do próximo.",
+     "message": "Marque no PETMOL e a gente avisa quando estiver na hora do próximo.",
      "why": "Banho e tosa é um hábito frequente e simples de registrar.",
      "success": "Registrou banho/tosa em 24h."},
-    {"key": "tutorial", "group": "Engajamento", "label": "Assistir ao Tutorial", "segment": "todos", "state": None,
+    {"key": "tutorial", "title": '{tutor}, aprenda a usar o PETMOL em 1 minuto', "group": "Engajamento", "label": "Assistir ao Tutorial", "segment": "todos", "state": None,
      "events": {"howto_video_opened"},
-     "message": "Aprenda a usar o PETMOL em 1 minuto: toque em Tutorial na tela inicial e veja os vídeos.",
+     "message": "Toque em Tutorial na tela inicial e veja os vídeos.",
      "why": "O botão Tutorial ensina ração, vacinas, cuidados e Pet Sumido. Quem entende o app usa mais.",
      "success": "Abriu um vídeo do Tutorial em 24h."},
-    {"key": "gps", "group": "Segurança", "label": "Ativar a localização", "segment": "sem_gps", "state": "gps",
+    {"key": "gps", "title": '{tutor}, ative a localização', "group": "Segurança", "label": "Ativar a localização", "segment": "sem_gps", "state": "gps",
      "events": set(),
-     "message": "Ative a localização no PETMOL: se um pet sumir perto de você, você é avisado na hora.",
+     "message": "Se um pet sumir perto de você, você é avisado na hora.",
      "why": "Sem localização o alerta de Pet Sumido não alcança a pessoa.",
      "success": "Passou a compartilhar a localização em 24h."},
-    {"key": "cupom", "group": "Compras", "label": "Usar o cupom da Petz", "segment": "todos", "state": None,
+    {"key": "cupom", "title": '{tutor}, 10% OFF na Petz para {pets}', "group": "Compras", "label": "Usar o cupom da Petz", "segment": "todos", "state": None,
      "events": _SHOP_EVENTS,
-     "message": "Aproveite 10% de desconto na Petz usando o cupom petmol.",
+     "message": "Use o cupom PETMOL nas lojas Petz e veja as ofertas da Loja do PETMOL antes que a ração acabe.",
      "why": "Monetização direta pela parceria. É promoção: use com moderação (a Apple pede que o tutor possa recusar ofertas).",
      "success": "Tocou em uma oferta/loja parceira em 24h."},
-    {"key": "abrir", "group": "Engajamento", "label": "Só abrir o app (lembrar que o PETMOL existe)", "segment": "todos",
+    {"key": "abrir", "title": '{tutor}, novidade para {pets}', "group": "Engajamento", "label": "Só abrir o app (lembrar que o PETMOL existe)", "segment": "todos",
      "state": None, "events": set(),
-     "message": "Tem novidade no PETMOL para {pets}. Toque para ver.",
+     "message": "Toque para ver o que há de novo no PETMOL.",
      "why": "Reativação simples de quem sumiu. Mede quem abriu o app.",
      "success": "Abriu o app em 24h."},
 ]
+# Para onde o toque na notificação leva (deep link da Home, `?modal=`). "loja" = Loja do Pet (as lojas parceiras).
+DESTINATIONS = {
+    "home": "Tela inicial",
+    "loja": "Lojas (Loja do Pet)",
+    "food": "Ração",
+    "vaccines": "Vacinas",
+    "parasites": "Vermífugo e antipulgas",
+    "medication": "Medicação",
+    "grooming": "Banho e tosa",
+}
+_GOAL_OPEN = {"compra_racao": "loja", "cupom": "loja", "racao": "food", "vacina": "vaccines",
+              "parasitas": "parasites", "medicacao": "medication", "banho": "grooming"}
+for _g in GOAL_CATALOG:
+    _g["open"] = _GOAL_OPEN.get(_g["key"], "home")
 GOALS = tuple(g["key"] for g in GOAL_CATALOG)
 _GOAL = {g["key"]: g for g in GOAL_CATALOG}
 
@@ -193,15 +208,32 @@ def _cap_first(text: str) -> str:
     return text[:1].upper() + text[1:] if text else text
 
 
-def personalize(message: str, tutor_name: Optional[str], pet_names: list[str]) -> tuple[str, str]:
-    """(título, corpo). Título SEMPRE leva tutor + pets; {tutor}/{pets} na mensagem também são trocados."""
+DEFAULT_TITLE = "{tutor}, uma novidade para {pets}"
+
+
+def _render_title(template: str, tutor: str, pets: str) -> str:
+    t = template.replace("{pets}", pets)
+    if tutor:
+        t = t.replace("{tutor}", tutor)
+    else:   # sem nome do tutor: some o "{tutor}," / "{tutor}:" e o resto continua fazendo sentido
+        t = re.sub(r"\{tutor\}[,:]?\s*", "", t)
+    t = t.strip()
+    t = t[:1].upper() + t[1:]
+    return t[:63].rstrip(", ") + "…" if len(t) > 65 else t
+
+
+def personalize(message: str, tutor_name: Optional[str], pet_names: list[str],
+                title_template: Optional[str] = None) -> tuple[str, str]:
+    """(título, corpo). O título leva tutor + pets (padrão "{tutor}, uma novidade para {pets}"; o dono pode trocar
+    por uma frase de gancho com {tutor}/{pets}). {tutor}/{pets} na mensagem também são trocados."""
     tutor = first_name(tutor_name)
     pets = pets_phrase(pet_names)
     body = message.strip().replace("{tutor}", tutor or "você").replace("{pets}", pets)
-    title_pets = pets if any((n or "").strip() for n in pet_names) else "o seu pet"
-    title = f"{tutor}, uma novidade para {title_pets}" if tutor else f"Uma novidade para {title_pets}"
-    if len(title) > 70:
-        title = title[:69].rstrip(", ") + "…"
+    if title_template and title_template.strip():
+        title = _render_title(title_template.strip(), tutor, pets)
+    else:
+        title_pets = pets if any((n or "").strip() for n in pet_names) else "o seu pet"
+        title = _render_title(DEFAULT_TITLE, tutor, title_pets)
     return title, _cap_first(body)
 
 
@@ -292,24 +324,27 @@ def _spawn(fn, *args) -> None:
     threading.Thread(target=fn, args=args, daemon=True).start()
 
 
-def _push_payload(broadcast_id: str, title: str, body: str) -> dict:
+def _push_payload(broadcast_id: str, title: str, body: str, destination: str = "home") -> dict:
+    # O toque abre a tela escolhida (Lojas, Ração...) e o app avisa "tocou na notificação" (b=<id>)
+    # para medirmos o êxito.
+    modal = f"modal={destination}&" if destination and destination != "home" else ""
     return {
         "title": title,
         "body": body,
         "tag": f"broadcast-{broadcast_id}",
-        # O toque abre a Home e o app avisa "tocou na notificação" (b=<id>) para medirmos o êxito.
-        "data": {"url": f"/home?b={broadcast_id}"},
+        "data": {"url": f"/home?{modal}b={broadcast_id}"},
     }
 
 
-def _run_send(broadcast_id: str, message: str, targets: list[dict]) -> None:
+def _run_send(broadcast_id: str, message: str, targets: list[dict], title_template: Optional[str] = None,
+              destination: str = "home") -> None:
     db = SessionLocal()
     delivered = 0
     try:
         for i, t in enumerate(targets):
             try:
-                title, body = personalize(message, t.get("name"), t.get("pet_names") or [])
-                ok = push_to_user(t["user_id"], _push_payload(broadcast_id, title, body)) > 0
+                title, body = personalize(message, t.get("name"), t.get("pet_names") or [], title_template)
+                ok = push_to_user(t["user_id"], _push_payload(broadcast_id, title, body, destination)) > 0
             except Exception as exc:  # um tutor com problema nunca derruba o envio dos outros
                 logger.warning("broadcast %s: falha para %s: %s", broadcast_id, t.get("user_id"), exc)
                 title, body, ok = None, None, False
@@ -469,6 +504,8 @@ class BroadcastIn(BaseModel):
     message: str = Field(min_length=3, max_length=240)
     segment: Literal["todos", "sem_racao", "sem_gps", "sem_foto", "sem_pet"] = "todos"
     audience: AudienceIn = AudienceIn()
+    title: Optional[str] = Field(default=None, max_length=80)   # gancho do título; vazio = padrão
+    destination: Optional[Literal["home", "loja", "food", "vaccines", "parasites", "medication", "grooming"]] = None
     goal: Optional[str] = None   # chave do GOAL_CATALOG ("Esta notificação vai incentivar o usuário a…")
 
     @model_validator(mode="after")
@@ -497,12 +534,12 @@ def segments(current=Depends(get_current_admin)):
             targets, skipped = eligible_users(db, seg)
             counts[seg] = {"label": SEGMENT_LABELS[seg], "eligible": len(targets), "skipped": skipped}
         goals = [
-            {"key": g["key"], "group": g["group"], "label": g["label"], "segment": g["segment"],
+            {"key": g["key"], "group": g["group"], "label": g["label"], "segment": g["segment"], "title": g["title"], "open": g["open"],
              "message": g["message"], "why": g["why"], "success": g["success"],
              "eligible": counts[g["segment"]]["eligible"]}
             for g in GOAL_CATALOG
         ]
-        return {"segments": counts, "goals": goals, "weekly_cap_days": WEEKLY_CAP_DAYS}
+        return {"segments": counts, "goals": goals, "destinations": DESTINATIONS, "weekly_cap_days": WEEKLY_CAP_DAYS}
     finally:
         db.close()
 
@@ -517,9 +554,11 @@ def preview(payload: BroadcastIn, current=Depends(get_current_admin)):
         sample = None
         if targets:
             ex = next((t for t in targets if t.get("pet_names")), targets[0])
-            title, body = personalize(payload.message, ex.get("name"), ex.get("pet_names") or [])
+            title, body = personalize(payload.message, ex.get("name"), ex.get("pet_names") or [], payload.title)
             sample = {"title": title, "body": body}
-        return {"will_send": will_send, "skipped": skipped, "sample": sample}
+        dest = payload.destination or (_GOAL.get(payload.goal or "") or {}).get("open") or "home"
+        return {"will_send": will_send, "skipped": skipped, "sample": sample, "destination": dest,
+                "destination_label": DESTINATIONS.get(dest, dest)}
     finally:
         db.close()
 
@@ -546,9 +585,10 @@ def send(payload: SendIn, current=Depends(get_current_admin)):
         db.add(b)
         db.commit()
         broadcast_id = b.id
+        destination = payload.destination or (_GOAL.get(payload.goal or "") or {}).get("open") or "home"
     finally:
         db.close()
-    _spawn(_run_send, broadcast_id, payload.message.strip(), targets)
+    _spawn(_run_send, broadcast_id, payload.message.strip(), targets, payload.title, destination)
     return {"id": broadcast_id, "will_send": will_send, "phase": "sending"}
 
 

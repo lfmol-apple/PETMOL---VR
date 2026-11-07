@@ -472,6 +472,7 @@ function HomePageInner() {
   // gravá-los no redirect). Mantido só para limpar o cache e a URL.
   // Notificação personalizada do admin (/admin/hoje): o toque abre a Home com ?b=<id do envio>. Avisa o
   // servidor UMA vez ("tocou na notificação") para medirmos o êxito do envio. Nada de dado pessoal.
+  const [shoppingDeepLinkNonce, setShoppingDeepLinkNonce] = useState(0);
   const broadcastTapSent = useRef(false);
   useEffect(() => {
     const bid = searchParams.get('b');
@@ -1498,6 +1499,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     openEvents: handleOpenEvents,
     openHealth: handleOpenHealth,
   } = useHomeSurfaceActions({
+    openShopping: () => setShoppingDeepLinkNonce((n) => n + 1),
     setShowVaccineSheet,
     setShowQuickAddVaccine,
     setShowVermifugoSheet,
@@ -2580,6 +2582,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                   <HowToSheet open={showHowTo} onClose={() => setShowHowTo(false)} />
 
                   <HomePetDashboard
+                    openShoppingNonce={shoppingDeepLinkNonce}
                     petEvents={petEvents}
                     vaccines={vaccines}
                     parasiteControls={parasiteControls}
