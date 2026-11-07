@@ -1290,3 +1290,15 @@ exata — `/produto/*` está na AASA e não pode ser usado.
   casadas, então setar a flag).
 - **Amazon** — integração desativada em 22/08/2026 após encerramento da
   conta/tag `petmol-20`; não reativar sem nova aprovação e nova tag.
+
+## Amazon — cartão na Loja do Pet (07/11/2026, decisão do dono)
+
+- Cartão "Amazon" no rodapé da Loja (site **e** app), como o da Shopee: link de busca `amazon.com.br/s?k=pet&tag=pelmol-20`
+  (sobrescreve com `NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG`). Sem preço/oferta por produto (a Creators API exige 10 vendas/30 dias).
+- Frase obrigatória do Contrato Operacional BR junto do cartão: "Como participante do Programa de Associados da Amazon, sou
+  remunerado pelas compras qualificadas efetuadas."
+- **Risco conhecido:** a Política de Aplicativos Móveis só dá comissão por link em app "Aplicativo Móvel Aprovado" (aprovação por
+  escrito; o portal não mostra status e a resposta do atendimento de 07/11 não confirmou). O dono decidiu implementar mesmo assim.
+  **Interruptor:** `NEXT_PUBLIC_AMAZON_IN_APP=off` (e rebuild do web) esconde o cartão só no app nativo.
+- No app o link abre por `Browser.open` (aba do sistema), nunca em WebView (proibido pela política).
+- Nunca colocar link de afiliado da Amazon em notificação push/mensagem privada (política da Amazon).

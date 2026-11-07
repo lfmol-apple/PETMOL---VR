@@ -32,7 +32,8 @@ export interface ProgramDisclosure {
  */
 export const amazonDisclosure: ProgramDisclosure = {
   programName: 'Programa de Associados da Amazon',
-  requiredStatement: 'Como associado da Amazon, eu recebo por compras qualificadas.',
+  // Frase LITERAL do Contrato Operacional da Amazon Brasil (cláusula 5, Identificando-se como um Associado).
+  requiredStatement: 'Como participante do Programa de Associados da Amazon, sou remunerado pelas compras qualificadas efetuadas.',
 };
 
 export function hasActiveProgramDisclosure(p: ProgramDisclosure): boolean {

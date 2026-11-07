@@ -3,7 +3,7 @@ import { trackClick } from '@/lib/analytics/click';
 import { showAppToast } from '@/features/interactions/userPromptChannel';
 import { copyText } from '@/lib/clipboard';
 
-export type HomeShoppingPartnerId = 'cobasi' | 'petz' | 'mercadolivre' | 'shopee';
+export type HomeShoppingPartnerId = 'cobasi' | 'petz' | 'mercadolivre' | 'shopee' | 'amazon';
 
 /**
  * Estado real da integração de afiliado do merchant — não confundir com
@@ -94,6 +94,11 @@ export const AFFILIATE_ONLY_COMMERCE: boolean =
 //   NEXT_PUBLIC_AFFILIATE_SHOPEE=https://s.shopee.com.br/SUA_URL_AFILIADA
 //   NEXT_PUBLIC_AFFILIATE_MERCADOLIVRE=https://www.mercadolivre.com.br/social/SUA_TAG?...
 const DEFAULT_SHOPEE_AFFILIATE_URL = 'https://s.shopee.com.br/4AzW1leQcW';
+// Amazon Associates (loja PETMOL). Link de busca com a tag de afiliado: a
+// comissão vale para compras feitas após o clique (janela padrão da Amazon),
+// sem API. Sobrescreva a tag com NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG.
+const AMAZON_ASSOCIATE_TAG = process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG || 'pelmol-20';
+const AMAZON_STOREFRONT_URL = `https://www.amazon.com.br/s?k=pet&tag=${encodeURIComponent(AMAZON_ASSOCIATE_TAG)}`;
 const DEFAULT_MERCADOLIVRE_PROFILE_URL = 'https://meli.la/2ftAKx5';
 
 const AFF: Record<HomeShoppingPartnerId, string | undefined> = {
@@ -101,6 +106,7 @@ const AFF: Record<HomeShoppingPartnerId, string | undefined> = {
   petz:         undefined, // storefront fixa (storefrontAffiliateUrl abaixo), não usa este mecanismo
   mercadolivre: process.env.NEXT_PUBLIC_AFFILIATE_MERCADOLIVRE,
   shopee:       process.env.NEXT_PUBLIC_AFFILIATE_SHOPEE ?? DEFAULT_SHOPEE_AFFILIATE_URL,
+  amazon:       undefined, // storefront fixa (storefrontAffiliateUrl), como a Petz
 };
 
 export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
@@ -213,6 +219,21 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     buildAffiliateUrl: (query, base) =>
       base.includes('{query}') ? base.replaceAll('{query}', encodeURIComponent(query)) : base,
   },
+  {
+    id: 'amazon',
+    name: 'Amazon',
+    description: 'Ração, acessórios e muito mais para o seu pet',
+    logoSrc: '/partner-logos/amazon.svg',
+    logoAlt: 'Amazon',
+    directUrl: 'https://www.amazon.com.br/s?k=pet',
+    // Só vitrine (cartão no rodapé da Loja), sem oferta/preço por produto.
+    affiliateStatus: 'active',
+    merchantType: 'marketplace',
+    affiliateMode: 'fixed_store',
+    supportsProductDeepLink: false,
+    supportsStorefrontAffiliate: true,
+    storefrontAffiliateUrl: AMAZON_STOREFRONT_URL,
+  },
 ];
 
 // URLs diretas só podem ser usadas em desenvolvimento. Em produção
@@ -225,6 +246,7 @@ const DIRECT_SEARCH_URLS: Record<HomeShoppingPartnerId, (q: string) => string> =
   petz:         () => 'https://www.petz.com.br/parceiro/PETMOL',
   mercadolivre: (q) => `https://lista.mercadolivre.com.br/${encodeURIComponent(q)}`,
   shopee:       (q) => `https://shopee.com.br/search?keyword=${encodeURIComponent(q)}`,
+  amazon:       (q) => `https://www.amazon.com.br/s?k=${encodeURIComponent(q)}`,
 };
 
 // Cobasi's "Minha Loja"/"Mais" storefront (minhaloja.cobasi.com.br/paco)
