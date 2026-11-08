@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Camera, PawPrint } from 'lucide-react';
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { PetPhotoPicker } from './PetPhotoPicker';
+import { OtherSpeciesPicker } from './OtherSpeciesPicker';
 import { classifyPhotoUpload, notAPetPhotoMessage, type PhotoUploadOutcome } from '@/lib/photoModerationMessages';
 import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { DateField } from '@/components/ui/DateField';
@@ -325,7 +326,7 @@ function BreedPicker({ species, value, onChange }: { species: string; value: str
   // só sobe quando o tutor toca no campo "Buscar raça…".
   const openSheet = () => setOpen(true);
 
-  if (!species || species === 'other') return null;
+  if (species !== 'dog' && species !== 'cat') return null;
 
   return (
     <div className="space-y-1.5">
@@ -644,10 +645,11 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
                 <label className={label}>Espécie</label>
                 <div className="flex gap-2">
                   {([{ v: 'dog', l: '🐶  Cão' }, { v: 'cat', l: '🐱  Gato' }, { v: 'other', l: 'Outro' }]).map(o => (
-                    <button key={o.v} type="button" onClick={() => setSpecies(o.v)}
+                    <button key={o.v} type="button" onClick={() => { if (o.v !== 'other' || speciesSeg !== 'other') setSpecies(o.v); }}
                       className={segBtn(speciesSeg === o.v)}>{o.l}</button>
                   ))}
                 </div>
+                {speciesSeg === 'other' && <OtherSpeciesPicker value={species} onChange={setSpecies} />}
               </div>
 
               {/* Raça */}

@@ -111,6 +111,7 @@ import {
   type VaccineType
 } from '@/lib/petHealth';
 import type { ScannedProduct } from '@/lib/productScanner';
+import { petSpeciesEmoji } from '@/lib/petTaxonomy';
 
 // Helper para converter caminho de foto em URL com cache busting
 const PHOTOS_BASE_URL = process.env.NEXT_PUBLIC_PHOTOS_BASE_URL || '';
@@ -1985,7 +1986,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                 <img src={featuredPhotoUrl} alt={featured.pet_name} className="h-full w-full object-cover" />
               ) : (
                 <span className="flex h-full w-full items-center justify-center text-lg">
-                  {featured.species === 'cat' ? '🐱' : '🐶'}
+                  {petSpeciesEmoji(featured.species)}
                 </span>
               )}
             </span>

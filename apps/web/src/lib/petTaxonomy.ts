@@ -204,3 +204,40 @@ export const PET_SIGNALS: Record<string, string[]> = {
   'fr': ['nourriture', 'friandise', 'chien', 'chat', 'animal', 'collier', 'litière'],
   'it': ['cibo', 'snack', 'cane', 'gatto', 'animale', 'collare', 'lettiera'],
 };
+
+/** Nomes comuns digitados no campo livre de "Outro" → emoji (sem acento, minúsculo). */
+const COMMON_ANIMAL_EMOJI: Array<[RegExp, string]> = [
+  [/\b(cavalo|egua|potro|pônei|ponei|pony)\b/, '🐴'],
+  [/\b(porco|porquinho|leitao|suino)\b/, '🐷'],
+  [/\b(jacare|crocodilo)\b/, '🐊'],
+  [/\b(tartaruga|jabuti|cagado)\b/, '🐢'],
+  [/\b(cobra|serpente|piton|jiboia)\b/, '🐍'],
+  [/\b(lagarto|iguana|camaleao|lagartixa|gecko)\b/, '🦎'],
+  [/\b(ovelha|carneiro|cordeiro)\b/, '🐑'],
+  [/\b(cabra|bode)\b/, '🐐'],
+  [/\b(vaca|boi|bezerro|touro)\b/, '🐮'],
+  [/\b(galinha|galo|frango|pinto)\b/, '🐔'],
+  [/\b(pato|marreco|ganso)\b/, '🦆'],
+  [/\b(papagaio|periquito|calopsita|canario|arara|passaro|ave)\b/, '🦜'],
+  [/\b(cobaia|porquinho da india|hamster|gerbil)\b/, '🐹'],
+  [/\b(rato|camundongo|ratinho|chinchila|esquilo)\b/, '🐭'],
+  [/\b(sapo|ra|perereca)\b/, '🐸'],
+  [/\b(aranha|tarantula)\b/, '🕷️'],
+  [/\b(cachorro|cao|cachorra)\b/, '🐶'],
+  [/\b(gato|gata|gatinho)\b/, '🐱'],
+  [/\b(coelho|coelha)\b/, '🐇'],
+  [/\b(peixe|betta|goldfish)\b/, '🐠'],
+];
+
+/** Emoji de reserva do pet (quando não há foto). Espécie ausente = cão (comportamento legado);
+ *  espécies conhecidas usam o ícone da taxonomia; texto livre reconhece nomes comuns (cavalo, porco,
+ *  jacaré…) e, sem reconhecer, vira 🐾 — nunca um cachorro por engano. */
+export function petSpeciesEmoji(species?: string | null): string {
+  if (!species || species === 'dog') return '🐶';
+  if (species === 'cat') return '🐱';
+  const known = PET_SPECIES.find((s) => s.id === species)?.icon;
+  if (known) return known;
+  const norm = species.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  for (const [re, emoji] of COMMON_ANIMAL_EMOJI) if (re.test(norm)) return emoji;
+  return '🐾';
+}
