@@ -358,7 +358,26 @@ export function cobasiBridgeUrl(target: string): string {
   return storeBridgeUrl(target);
 }
 
-export function navigateToPartnerUrl(url: string, opts?: { title?: string }): void {
+/**
+ * Garante a etiqueta de afiliado em QUALQUER link de página da Amazon aberto pelo app (regra do dono: o link do PETMOL tem
+ * que chegar inteiro, também quando cair no app nativo da Amazon). Só acrescenta quando o link da amazon.com.br NÃO tem
+ * `tag`; link que já traz etiqueta (inclusive de outro programa/produto), encurtadores (amzn.to) e outras lojas passam
+ * intactos.
+ */
+export function withAmazonTag(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'https:' || (u.hostname !== 'www.amazon.com.br' && u.hostname !== 'amazon.com.br')) return url;
+    if (u.searchParams.get('tag')) return url;
+    u.searchParams.set('tag', AMAZON_ASSOCIATE_TAG);
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+export function navigateToPartnerUrl(rawUrl: string, opts?: { title?: string }): void {
+  const url = withAmazonTag(rawUrl);
   if (Capacitor.isNativePlatform()) {
     const platform = Capacitor.getPlatform?.();
     // Android: Cobasi, Mercado Livre, Shopee e Amazon têm app que reivindica o link; a ponte mantém o tutor no

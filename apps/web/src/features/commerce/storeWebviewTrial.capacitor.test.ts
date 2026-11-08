@@ -81,4 +81,12 @@ describe('loja dentro do PETMOL (teste só do dono, iPhone)', () => {
     expect(new URL(browserOpen.mock.calls[0][0].url as string).searchParams.get('to')).toBe(ML);
     expect(openWebView).not.toHaveBeenCalled();
   });
+
+  it('Amazon: o link sem etiqueta sai COM a etiqueta e intacto até o navegador (iPhone)', async () => {
+    const { navigateToPartnerUrl } = await load('ios');
+    navigateToPartnerUrl('https://www.amazon.com.br/s?k=ração', { title: 'Amazon' });
+    await vi.waitFor(() => expect(browserOpen).toHaveBeenCalled());
+    expect(new URL(browserOpen.mock.calls[0][0].url as string).searchParams.get('tag')).toBe('pelmol-20');
+    expect(openWebView).not.toHaveBeenCalled();
+  });
 });

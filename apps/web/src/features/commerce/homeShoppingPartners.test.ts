@@ -236,3 +236,19 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
     }
   });
 });
+
+describe('withAmazonTag — o link da Amazon sempre leva a etiqueta do PETMOL', () => {
+  it('acrescenta a etiqueta só quando falta, em link de página da amazon.com.br', async () => {
+    const { withAmazonTag } = await import('./homeShoppingPartners');
+    expect(withAmazonTag('https://www.amazon.com.br/s?k=pet')).toBe('https://www.amazon.com.br/s?k=pet&tag=pelmol-20');
+    expect(withAmazonTag('https://www.amazon.com.br/dp/B0ABC')).toBe('https://www.amazon.com.br/dp/B0ABC?tag=pelmol-20');
+  });
+  it('não mexe em link que já tem etiqueta, em encurtador, em outra loja ou em lixo', async () => {
+    const { withAmazonTag } = await import('./homeShoppingPartners');
+    for (const u of [
+      'https://www.amazon.com.br/s?k=pet&tag=pelmol-20',
+      'https://www.amazon.com.br/dp/B0ABC?tag=amazonpetmol-20',
+      'https://amzn.to/xyz', 'https://www.cobasi.com.br/x', 'http://www.amazon.com.br/s?k=pet', 'lixo',
+    ]) expect(withAmazonTag(u)).toBe(u);
+  });
+});

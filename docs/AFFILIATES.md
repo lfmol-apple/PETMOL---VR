@@ -1339,3 +1339,16 @@ da loja de chamar o app dela. A faixa "voltar" é do iOS: o app não controla qu
 2. Em poucos minutos o **clique** deve aparecer no painel de afiliados de cada loja (ML "Cliques", Shopee, MAIS/Cobasi).
 3. Faça **uma compra pequena** dentro da janela interna e confira se o **pedido/comissão** aparece no painel (pode levar horas/dias).
 4. Só com 2 e 3 confirmados em cada loja, troque a regra de `isStoreWebviewTrialUser` por uma mais ampla (ex.: todos os tutores no iPhone).
+
+## Amazon no app — decisão do dono (08/11/2026): manter, e o link tem que chegar inteiro
+
+O dono decidiu **manter** o cartão da Amazon no app nativo, mesmo ciente dos riscos (a Política de Aplicativos Móveis só paga comissão por
+link em app aprovado por escrito; o PETMOL pode ser deixado se a página da Amazon chamar o app dela). Regra do dono: **se cair no app
+da Amazon, o link do PETMOL (com a etiqueta) tem que ir inteiro**.
+
+- `withAmazonTag` (homeShoppingPartners.ts): todo link de página da `amazon.com.br` aberto pelo app sai com `tag=` (a do PETMOL, `pelmol-20`,
+  se faltar). Link que já tem etiqueta, `amzn.to` e outras lojas passam intactos.
+- Amazon **nunca** abre em janela interna/WebView (política). No iPhone abre no navegador do sistema; no Android, pela ponte (o Custom
+  Tab não salta para o app).
+- **O que o código não garante:** que a Amazon credite a venda feita a partir do app (depende da aprovação do app). Para validar: toque no
+  cartão e confira em Associados Amazon → Relatórios se o **clique** aparece (a Amazon leva algumas horas).
