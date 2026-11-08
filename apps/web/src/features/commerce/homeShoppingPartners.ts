@@ -369,7 +369,14 @@ export function navigateToPartnerUrl(url: string, opts?: { title?: string }): vo
     // sequestrar. Para os tutores nada muda (ver storeWebviewTrial.ts). Falhou em qualquer ponto → fluxo de hoje.
     if (platform === 'ios' && isStoreWebviewTrialUrl(url)) {
       void (async () => {
-        if ((await isStoreWebviewTrialUser()) && (await openStoreInPetmol(url, opts?.title ?? 'Loja'))) return;
+        const host = (() => { try { return new URL(url).hostname; } catch { return ''; } })();
+        if (!(await isStoreWebviewTrialUser())) { openSystem(); return; }
+        const r = await openStoreInPetmol(url, opts?.title ?? 'Loja');
+        // Registra o que aconteceu (para ver depois no painel) e, na conta do dono, avisa na hora se a janela falhou.
+        void trackClick({ source: 'home', cta_type: 'shop_store_open_mode', target: host,
+          metadata: { mode: r.ok ? 'in_app_webview' : 'fallback_system', attempts: r.attempts, error: r.error ?? null } });
+        if (r.ok) return;
+        showAppToast(`Janela interna indisponível (${r.error ?? 'erro'}). Abrindo pelo navegador.`, { tone: 'warning' });
         openSystem();
       })();
       return;

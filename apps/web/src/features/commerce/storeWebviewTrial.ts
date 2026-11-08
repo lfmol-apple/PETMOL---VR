@@ -58,22 +58,42 @@ export function resetStoreWebviewTrialCache(): void {
   cached = null;
 }
 
-/** Abre a loja na janela interna do PETMOL. Devolve false se o plugin não estiver no binário ou der erro (aí vale o fluxo de hoje). */
-export async function openStoreInPetmol(url: string, title: string): Promise<boolean> {
+export interface OpenInPetmolResult { ok: boolean; error?: string; attempts: number }
+
+const msgOf = (e: unknown): string => (e instanceof Error ? e.message : String(e ?? 'erro desconhecido')).slice(0, 160);
+
+/**
+ * Abre a loja na janela interna do PETMOL. Antes de abrir, fecha qualquer janela anterior que tenha ficado viva (relato do
+ * dono: "na terceira vez o PETMOL some"); se falhar, espera um instante e tenta UMA vez de novo. Só depois devolve `ok:false`
+ * com o motivo (aí vale o fluxo de hoje e a conta do dono recebe um aviso com o erro).
+ */
+export async function openStoreInPetmol(url: string, title: string): Promise<OpenInPetmolResult> {
+  let InAppBrowser: typeof import('@capgo/inappbrowser').InAppBrowser;
+  let ToolBarType: typeof import('@capgo/inappbrowser').ToolBarType;
   try {
-    const { InAppBrowser, ToolBarType } = await import('@capgo/inappbrowser');
-    await InAppBrowser.openWebView({
-      url,
-      title,
-      toolbarType: ToolBarType.NAVIGATION,
-      showReloadButton: true,
-      preventDeeplink: true, // o app da loja nunca sequestra a navegação
-      isInspectable: false,
-    });
-    return true;
-  } catch {
-    return false;
+    ({ InAppBrowser, ToolBarType } = await import('@capgo/inappbrowser'));
+  } catch (e) {
+    return { ok: false, error: `plugin ausente: ${msgOf(e)}`, attempts: 0 };
   }
+  let lastError = '';
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      await InAppBrowser.close().catch(() => {}); // sem janela aberta isto só falha em silêncio
+      await InAppBrowser.openWebView({
+        url,
+        title,
+        toolbarType: ToolBarType.NAVIGATION,
+        showReloadButton: true,
+        preventDeeplink: true, // o app da loja nunca sequestra a navegação
+        isInspectable: false,
+      });
+      return { ok: true, attempts: attempt };
+    } catch (e) {
+      lastError = msgOf(e);
+      if (attempt === 1) await new Promise((r) => setTimeout(r, 350));
+    }
+  }
+  return { ok: false, error: lastError, attempts: 2 };
 }
 
 /** Aquece o resultado ao abrir a Loja (só no iPhone nativo), para o toque na loja não esperar rede. */
