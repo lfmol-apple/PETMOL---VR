@@ -162,7 +162,8 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders,
   const visibleStorePartners = useMemo(
     () => HOME_SHOPPING_PARTNERS
       .filter(isPartnerVisibleInStoreArea)
-      .filter((partner) => !(partner.id === 'amazon' && AMAZON_HIDDEN_IN_APP && isNativeAppClient())),
+      .filter((partner) => !(partner.id === 'amazon' && AMAZON_HIDDEN_IN_APP && isNativeAppClient()))
+      .sort((a, b) => storeGridRank(a.id) - storeGridRank(b.id)),
     [],
   );
 
@@ -500,6 +501,13 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders,
   );
 }
 
+// Ordem da grade (2 colunas, esquerda→direita): Petz, Mercado Livre / Cobasi, Amazon / Shopee.
+const STORE_GRID_ORDER: HomeShoppingPartnerId[] = ['petz', 'mercadolivre', 'cobasi', 'amazon', 'shopee'];
+function storeGridRank(id: HomeShoppingPartnerId): number {
+  const i = STORE_GRID_ORDER.indexOf(id);
+  return i === -1 ? STORE_GRID_ORDER.length : i;
+}
+
 function PartnerStoreGrid({
   partners,
   onOpen,
@@ -512,7 +520,7 @@ function PartnerStoreGrid({
   return (
     <div>
       <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-white/70">Ou visite uma loja parceira</p>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3">
         {partners.map((partner) => (
           <button
             key={partner.id}
@@ -530,6 +538,9 @@ function PartnerStoreGrid({
               />
             </span>
             <span className="text-[12px] font-extrabold text-slate-800">{partner.name}</span>
+            {partner.id === 'petz' && (
+              <span className="-mt-1 text-[11px] font-bold text-emerald-600">10% de Desconto</span>
+            )}
           </button>
         ))}
       </div>
