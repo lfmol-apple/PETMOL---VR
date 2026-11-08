@@ -1,4 +1,5 @@
 import { isAppClaimedStoreUrl, storeBridgeUrl } from './storeBridge';
+import { isStoreWebviewTrialUrl, isStoreWebviewTrialUser, openStoreInPetmol } from './storeWebviewTrial';
 import { Capacitor } from '@capacitor/core';
 import { trackClick } from '@/lib/analytics/click';
 import { showAppToast } from '@/features/interactions/userPromptChannel';
@@ -357,13 +358,23 @@ export function cobasiBridgeUrl(target: string): string {
   return storeBridgeUrl(target);
 }
 
-export function navigateToPartnerUrl(url: string): void {
+export function navigateToPartnerUrl(url: string, opts?: { title?: string }): void {
   if (Capacitor.isNativePlatform()) {
+    const platform = Capacitor.getPlatform?.();
     // Android: Cobasi, Mercado Livre, Shopee e Amazon têm app que reivindica o link; a ponte mantém o tutor no
     // navegador do PETMOL (ver features/commerce/storeBridge.ts).
-    const finalUrl =
-      Capacitor.getPlatform?.() === 'android' && isAppClaimedStoreUrl(url) ? storeBridgeUrl(url) : url;
-    void import('@capacitor/browser').then(({ Browser }) => Browser.open({ url: finalUrl }));
+    const finalUrl = platform === 'android' && isAppClaimedStoreUrl(url) ? storeBridgeUrl(url) : url;
+    const openSystem = () => { void import('@capacitor/browser').then(({ Browser }) => Browser.open({ url: finalUrl })); };
+    // iPhone, TESTE CONTROLADO (só a conta do dono): a loja abre na janela interna do PETMOL, sem o app da loja
+    // sequestrar. Para os tutores nada muda (ver storeWebviewTrial.ts). Falhou em qualquer ponto → fluxo de hoje.
+    if (platform === 'ios' && isStoreWebviewTrialUrl(url)) {
+      void (async () => {
+        if ((await isStoreWebviewTrialUser()) && (await openStoreInPetmol(url, opts?.title ?? 'Loja'))) return;
+        openSystem();
+      })();
+      return;
+    }
+    openSystem();
     return;
   }
   if (isStandaloneInstalledApp()) {
