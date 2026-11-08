@@ -518,14 +518,15 @@ function storeGridRank(id: HomeShoppingPartnerId): number {
 //  - Shopee: o "S" do logo é um recorte transparente da sacola laranja — precisa de fundo claro (em fundo escuro
 //    o S ficaria escuro e a marca se deforma); vai em pêssego-claro, tom da própria marca.
 //  - Amazon: texto preto exige fundo claro (regra da marca) — pérola com degradê, não branco chapado.
-const STORE_TILE_STYLE: Partial<Record<HomeShoppingPartnerId, { tile: string; img: string }>> = {
-  petz:         { tile: 'bg-[#FAE6B3]', img: 'h-full w-full object-cover' },
-  cobasi:       { tile: 'bg-[#0194A4]', img: 'h-full w-auto object-contain' },
-  mercadolivre: { tile: 'bg-[#FFE600]', img: 'w-[82%] object-contain' },
-  shopee:       { tile: 'bg-gradient-to-br from-[#fffaf8] to-[#ffdcd1]', img: 'h-12 w-12 object-contain' },
-  amazon:       { tile: 'bg-gradient-to-b from-[#fcfcfe] to-[#e6eaf1]', img: 'w-[70%] object-contain' },
+const STORE_TILE_STYLE: Partial<Record<HomeShoppingPartnerId, { tile: string; img: string; key: string }>> = {
+  // `key` = relevo de tecla vitrificada: brilho interno + beirada na cor escura da marca + sombra; afunda ao tocar.
+  petz:         { tile: 'bg-[#FAE6B3]', img: 'h-full w-full object-cover', key: 'shadow-[inset_0_1px_0_rgba(255,255,255,0.85),inset_0_-12px_18px_-12px_rgba(0,0,0,0.28),0_6px_0_0_#B8984F,0_16px_24px_-10px_rgba(0,0,0,0.65)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.6),inset_0_-12px_18px_-12px_rgba(0,0,0,0.28),0_2px_0_0_#B8984F,0_6px_12px_-6px_rgba(0,0,0,0.6)]' },
+  cobasi:       { tile: 'bg-[#0194A4]', img: 'h-full w-auto object-contain', key: 'shadow-[inset_0_1px_0_rgba(255,255,255,0.85),inset_0_-12px_18px_-12px_rgba(0,0,0,0.28),0_6px_0_0_#006472,0_16px_24px_-10px_rgba(0,0,0,0.65)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.6),inset_0_-12px_18px_-12px_rgba(0,0,0,0.28),0_2px_0_0_#006472,0_6px_12px_-6px_rgba(0,0,0,0.6)]' },
+  mercadolivre: { tile: 'bg-[#FFE600]', img: 'w-[80%] object-contain', key: 'shadow-[inset_0_1px_0_rgba(255,255,255,0.85),inset_0_-12px_18px_-12px_rgba(0,0,0,0.28),0_6px_0_0_#BFA900,0_16px_24px_-10px_rgba(0,0,0,0.65)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.6),inset_0_-12px_18px_-12px_rgba(0,0,0,0.28),0_2px_0_0_#BFA900,0_6px_12px_-6px_rgba(0,0,0,0.6)]' },
+  shopee:       { tile: 'bg-gradient-to-br from-[#fffaf8] to-[#ffdcd1]', img: 'h-11 w-11 object-contain', key: 'shadow-[inset_0_1px_0_rgba(255,255,255,0.85),inset_0_-12px_18px_-12px_rgba(0,0,0,0.28),0_6px_0_0_#D2A596,0_16px_24px_-10px_rgba(0,0,0,0.65)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.6),inset_0_-12px_18px_-12px_rgba(0,0,0,0.28),0_2px_0_0_#D2A596,0_6px_12px_-6px_rgba(0,0,0,0.6)]' },
+  amazon:       { tile: 'bg-gradient-to-b from-[#fcfcfe] to-[#e6eaf1]', img: 'w-[68%] object-contain', key: 'shadow-[inset_0_1px_0_rgba(255,255,255,0.85),inset_0_-12px_18px_-12px_rgba(0,0,0,0.28),0_6px_0_0_#A3ACBC,0_16px_24px_-10px_rgba(0,0,0,0.65)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.6),inset_0_-12px_18px_-12px_rgba(0,0,0,0.28),0_2px_0_0_#A3ACBC,0_6px_12px_-6px_rgba(0,0,0,0.6)]' },
 };
-const STORE_TILE_FALLBACK = { tile: 'bg-slate-800', img: 'h-14 w-14 object-contain' };
+const STORE_TILE_FALLBACK = { tile: 'bg-slate-800', img: 'h-12 w-12 object-contain', key: 'shadow-[inset_0_1px_0_rgba(255,255,255,0.85),inset_0_-12px_18px_-12px_rgba(0,0,0,0.28),0_6px_0_0_#0b1220,0_16px_24px_-10px_rgba(0,0,0,0.65)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.6),inset_0_-12px_18px_-12px_rgba(0,0,0,0.28),0_2px_0_0_#0b1220,0_6px_12px_-6px_rgba(0,0,0,0.6)]' };
 
 function PartnerStoreGrid({
   partners,
@@ -539,7 +540,7 @@ function PartnerStoreGrid({
   return (
     <div className="rounded-[26px] bg-gradient-to-br from-[#0a1d45] via-[#0c2a63] to-[#08142e] p-4 shadow-[0_18px_40px_-18px_rgba(8,20,46,0.75)] ring-1 ring-white/10">
       <p className="mb-3.5 text-center text-[11px] font-bold uppercase tracking-[0.16em] text-white/80">Ou visite uma loja parceira</p>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-x-3.5 gap-y-4 pb-1">
         {partners.map((partner, index) => {
           const style = STORE_TILE_STYLE[partner.id] ?? STORE_TILE_FALLBACK;
           // Número ímpar de lojas: a última ocupa a linha toda (sem buraco ao lado).
@@ -550,7 +551,7 @@ function PartnerStoreGrid({
               type="button"
               onClick={() => onOpen(partner)}
               aria-label={partner.id === 'petz' ? `${partner.name}, 10% de desconto` : partner.name}
-              className={`group relative flex w-full items-center justify-center overflow-hidden rounded-[22px] ${lastAlone ? 'col-span-2 h-[96px]' : 'h-[120px]'} ring-1 ring-white/20 shadow-[0_12px_26px_-12px_rgba(0,0,0,0.7)] transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.97] motion-reduce:transform-none motion-reduce:transition-none ${style.tile}`}
+              className={`group relative flex w-full touch-manipulation select-none items-center justify-center overflow-hidden rounded-[22px] ${lastAlone ? 'col-span-2 h-[80px]' : 'h-[102px]'} ring-1 ring-white/30 transition-[transform,box-shadow] duration-100 ease-out active:translate-y-[4px] motion-reduce:transition-none motion-reduce:active:translate-y-0 ${style.tile} ${style.key}`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -562,8 +563,9 @@ function PartnerStoreGrid({
                 className={`select-none ${style.img}`}
                 loading="lazy"
               />
-              {/* brilho sutil de vidro, por cima de qualquer superfície */}
-              <span aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/25 via-transparent to-black/10" />
+              {/* vidro: reflexo na metade de cima (curvo, como lente) + leve sombra embaixo, por cima de qualquer superfície */}
+              <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-1/2 rounded-t-[22px] bg-gradient-to-b from-white/55 via-white/15 to-transparent" />
+              <span aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-black/10" />
               {partner.id === 'petz' && (
                 <span className="absolute bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-emerald-600 px-2.5 py-0.5 text-[10px] font-extrabold text-white shadow-sm">
                   10% de Desconto
