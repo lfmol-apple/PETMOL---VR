@@ -29,7 +29,7 @@ import { useCommerceOffers } from './useCommerceOffers';
 import { FoodBridgeCard, dismissFoodBridge, isFoodBridgeDismissed } from './FoodBridgeCard';
 import { isNativeAppClient } from '@/lib/nativeApp';
 import { amazonDisclosure } from './affiliateDisclosure';
-import { promoChip } from './storePromos';
+import { promoChip, useStorePromos } from './storePromos';
 import { localTodayISO } from '@/lib/localDate';
 import { petSpeciesEmoji } from '@/lib/petTaxonomy';
 
@@ -554,6 +554,7 @@ function PartnerStoreGrid({
   partners: HomeShoppingPartner[];
   onOpen: (partner: HomeShoppingPartner) => void;
 }) {
+  const promos = useStorePromos();
   if (partners.length === 0) return null;
   const today = localTodayISO();
 
@@ -567,7 +568,7 @@ function PartnerStoreGrid({
           const spec = STORE_TILE_SPEC[partner.id];
           // Número ímpar de lojas: a última ocupa a linha toda (sem buraco ao lado).
           const lastAlone = partners.length % 2 === 1 && index === partners.length - 1;
-          const chip = promoChip(today, partner.id);
+          const chip = promoChip(today, partner.id, promos);
           const label = [partner.name, spec?.badge, chip?.label].filter(Boolean).join(', ');
           return (
             <button
