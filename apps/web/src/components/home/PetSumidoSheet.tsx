@@ -1,5 +1,6 @@
 'use client';
 
+import { speciesLabel, speciesPosterEmoji } from '@/lib/speciesCare';
 import { useState, useRef, useCallback, useEffect, type ReactNode } from 'react';
 import { MapPin, Siren } from 'lucide-react';
 import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
@@ -522,14 +523,14 @@ export function PetSumidoSheet({
         g.addColorStop(0, '#3A1A10'); g.addColorStop(1, '#180A05');
         ctx.fillStyle = g; ctx.fillRect(0, photoY, W, photoH);
         ctx.font = '140px serif'; ctx.textAlign = 'center';
-        ctx.fillText(pet.species === 'cat' ? '🐈' : '🐕', W / 2, photoY + 370);
+        ctx.fillText(speciesPosterEmoji(pet.species), W / 2, photoY + 370);
       }
     } else {
       const g = ctx.createLinearGradient(0, photoY, 0, photoY + photoH);
       g.addColorStop(0, '#2A1208'); g.addColorStop(1, '#0E0604');
       ctx.fillStyle = g; ctx.fillRect(0, photoY, W, photoH);
       ctx.font = '120px serif'; ctx.textAlign = 'center';
-      ctx.fillText(pet.species === 'cat' ? '🐈' : '🐕', W / 2, photoY + 340);
+      ctx.fillText(speciesPosterEmoji(pet.species), W / 2, photoY + 340);
       ctx.font = '400 30px Arial, sans-serif';
       ctx.fillStyle = 'rgba(255,255,255,0.25)';
       ctx.fillText('Sem foto — adicione uma foto do pet', W / 2, photoY + 470);
@@ -779,7 +780,7 @@ export function PetSumidoSheet({
                     <div className="min-w-0 text-left">
                       <p className="truncate text-[17px] font-black leading-tight text-white drop-shadow-sm">{pet.pet_name}</p>
                       <p className="truncate text-[12px] text-white/80">
-                        {pet.species === 'cat' ? 'Gato' : 'Cão'}
+                        {speciesLabel(pet.species, 'Cão')}
                         {(pet as unknown as { breed?: string }).breed ? ` · ${(pet as unknown as { breed?: string }).breed}` : ''}
                       </p>
                     </div>

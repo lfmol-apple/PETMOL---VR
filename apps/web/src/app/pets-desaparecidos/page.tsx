@@ -1,5 +1,6 @@
 'use client';
 
+import { petSpeciesEmoji } from '@/lib/petTaxonomy';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { API_BASE_URL } from '@/lib/api';
@@ -33,7 +34,7 @@ type RegionAlert = {
 };
 
 function speciesEmoji(species: string | null): string {
-  return species === 'cat' ? '🐱' : '🐶';
+  return petSpeciesEmoji(species);
 }
 
 function missingLine(a: RegionAlert): string {

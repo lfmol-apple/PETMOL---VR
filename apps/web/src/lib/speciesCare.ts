@@ -10,14 +10,24 @@ export interface SpeciesCare {
   dewormer: boolean;
   fleaTick: boolean;
   collar: boolean;
+  /** Lembrete de passeio: só cão e gato (os demais não passeiam, ou não dá para presumir). */
+  walk: boolean;
+  /** Banho e Tosa (banheirinha na foto e card em Cuidados): não faz sentido para peixe, pássaro e hamster. */
+  grooming: boolean;
 }
 
-const NONE: SpeciesCare = { vaccines: false, dewormer: false, fleaTick: false, collar: false };
+import { petSpeciesEmoji } from '@/lib/petTaxonomy';
+
+const NO_BATH = new Set(['fish', 'bird', 'hamster']);
 
 export function speciesCare(species?: string | null): SpeciesCare {
-  if (!species || species === 'dog') return { vaccines: true, dewormer: true, fleaTick: true, collar: true };
-  if (species === 'cat') return { vaccines: true, dewormer: true, fleaTick: true, collar: false };
-  return NONE;
+  if (!species || species === 'dog') {
+    return { vaccines: true, dewormer: true, fleaTick: true, collar: true, walk: true, grooming: true };
+  }
+  if (species === 'cat') {
+    return { vaccines: true, dewormer: true, fleaTick: true, collar: false, walk: true, grooming: true };
+  }
+  return { vaccines: false, dewormer: false, fleaTick: false, collar: false, walk: false, grooming: !NO_BATH.has(species) };
 }
 
 /** Só cão e gato têm o protocolo completo de vacina/parasita. */
@@ -37,8 +47,16 @@ export function speciesNoun(species?: string | null): string {
   return species.trim() || 'pet';
 }
 
-/** Rótulo com inicial maiúscula para telas ("Cachorro", "Coelho", "Furão"). */
-export function speciesLabel(species?: string | null): string {
+/** Rótulo com inicial maiúscula para telas ("Cachorro", "Coelho", "Furão"). `dogWord` troca só a palavra do cão ("Cão"). */
+export function speciesLabel(species?: string | null, dogWord = 'Cachorro'): string {
+  if (!species || species === 'dog') return dogWord;
   const n = speciesNoun(species);
   return n.charAt(0).toUpperCase() + n.slice(1);
+}
+
+/** Emoji do cartaz de pet perdido: cão 🐕 e gato 🐈 como sempre; outros bichos usam o ícone da espécie (🐾 se desconhecido). */
+export function speciesPosterEmoji(species?: string | null): string {
+  if (!species || species === 'dog') return '🐕';
+  if (species === 'cat') return '🐈';
+  return petSpeciesEmoji(species);
 }

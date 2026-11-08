@@ -1,5 +1,6 @@
 'use client';
 
+import { petSpeciesEmoji } from '@/lib/petTaxonomy';
 import { medicationTreatmentState, EXPIRED_UNCONFIRMED_LABEL } from '@/lib/medicationTreatment';
 import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '@/lib/api';
@@ -810,7 +811,7 @@ export function MedicationItemSheet({
           title="Medicação"
           subtitle={mode === 'view' ? (petName || undefined) : mode === 'add' ? 'Novo registro' : 'Editar medicação'}
           status={mode === 'view' ? { label: statusLabel, tone: active.length > 0 ? 'good' : 'neutral' } : undefined}
-          media={<SheetAvatar src={petPhotoSrc} alt={petName || 'Pet'} fallback={petSpecies === 'cat' ? '🐱' : '🐶'} />}
+          media={<SheetAvatar src={petPhotoSrc} alt={petName || 'Pet'} fallback={petSpeciesEmoji(petSpecies)} />}
           onClose={onClose}
           onBack={mode !== 'view' ? () => setMode('view') : undefined}
           action={mode === 'edit' && editingId ? (

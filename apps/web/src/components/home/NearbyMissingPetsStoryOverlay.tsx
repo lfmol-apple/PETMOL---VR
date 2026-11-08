@@ -1,5 +1,7 @@
 'use client';
 
+import { speciesLabel } from '@/lib/speciesCare';
+import { petSpeciesEmoji } from '@/lib/petTaxonomy';
 import { useBackHandler } from '@/lib/backStack';
 import { useEffect, useRef, useState } from 'react';
 import type { NearbyAlert } from './MissingPetAlertCard';
@@ -71,7 +73,7 @@ export function NearbyMissingPetsStoryOverlay({
 
   if (!alert) return null;
 
-  const speciesLabel = alert.species === 'cat' ? 'Gato' : alert.species === 'dog' ? 'Cachorro' : 'Pet';
+  const speciesName = alert.species ? speciesLabel(alert.species) : 'Pet';
   const photoUrl = getPhotoUrl(alert.photo_url);
 
   return (
@@ -102,7 +104,7 @@ export function NearbyMissingPetsStoryOverlay({
         </>
       ) : (
         <div className="absolute inset-0 flex items-center justify-center bg-slate-900 text-8xl">
-          {alert.species === 'cat' ? '🐱' : '🐶'}
+          {petSpeciesEmoji(alert.species)}
         </div>
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/40" />
@@ -145,7 +147,7 @@ export function NearbyMissingPetsStoryOverlay({
         <div className="mt-3 space-y-1 text-[14px] font-medium">
           <p><span className="font-black">NOME:</span> {alert.pet_name}</p>
           {alert.breed && <p><span className="font-black">RAÇA:</span> {alert.breed}</p>}
-          {!alert.breed && <p><span className="font-black">ESPÉCIE:</span> {speciesLabel}</p>}
+          {!alert.breed && <p><span className="font-black">ESPÉCIE:</span> {speciesName}</p>}
           {alert.last_seen_location && (
             <p><span className="font-black">ÚLTIMO LOCAL VISTO:</span> {alert.last_seen_location}</p>
           )}

@@ -72,3 +72,11 @@ describe('Cuidados — espécies sem vacina/parasita (coelho, cavalo…)', () =>
     expect(screen.getByText('PetShops')).toBeTruthy();
   });
 });
+
+describe('Cuidados — Banho e Tosa por espécie', () => {
+  it.each(['fish', 'bird', 'hamster'])('%s: sem Banho e Tosa (só PetShops)', (sp) => {
+    open(sp);
+    expect(screen.queryByText('Banho e Tosa')).toBeNull();
+    expect(screen.getByText('PetShops')).toBeTruthy();
+  });
+});

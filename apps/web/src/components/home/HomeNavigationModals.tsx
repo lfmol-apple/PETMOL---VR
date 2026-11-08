@@ -1,5 +1,6 @@
 'use client';
 
+import { petSpeciesEmoji } from '@/lib/petTaxonomy';
 import { useBackHandler } from '@/lib/backStack';
 import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
@@ -111,7 +112,7 @@ export function HomeNavigationModals({
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={petPhotoSrc} alt={currentPet?.pet_name || 'Pet'} className="w-full h-full object-cover" loading="lazy" />
                   ) : (
-                    <span className="text-xl">{currentPet?.species === 'cat' ? '🐱' : '🐶'}</span>
+                    <span className="text-xl">{petSpeciesEmoji(currentPet?.species)}</span>
                   )}
                 </div>
                 <div className="min-w-0">
@@ -147,7 +148,7 @@ export function HomeNavigationModals({
                     : []),
                   // Banho e Tosa de volta em Cuidados (08/11/2026, pedido do dono): além da banheirinha na foto do pet,
                   // o card abre o mesmo sheet.
-                  { label: 'Banho e Tosa', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
+                  ...(care.grooming ? [{ label: 'Banho e Tosa', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue }] : []),
                   // Medicamentos desativados no PETMOL 1.0 (ver
                   // docs/MEDICAMENTOS_DESATIVADOS.md) — mesmo padrão do
                   // filtro de espécie da Coleira acima, condicional na

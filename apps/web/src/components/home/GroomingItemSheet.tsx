@@ -1,5 +1,6 @@
 'use client';
 
+import { petSpeciesEmoji } from '@/lib/petTaxonomy';
 import { useEffect, useRef, useState } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
@@ -706,7 +707,7 @@ export function GroomingItemSheet({
             label: paused ? 'Lembretes desativados' : nextDate ? status.label.charAt(0).toUpperCase() + status.label.slice(1) : 'Sem agendamento',
             tone: paused ? "neutral" : status.overdue ? "warn" : status.key === "critical" ? "danger" : status.key === "attention" ? "warn" : status.key === "ok" ? "good" : "neutral",
           }}
-          media={<SheetAvatar src={petPhotoSrc} alt={petName || 'Pet'} fallback={petSpecies === 'cat' ? '🐱' : '🐶'} />}
+          media={<SheetAvatar src={petPhotoSrc} alt={petName || 'Pet'} fallback={petSpeciesEmoji(petSpecies)} />}
           onClose={onClose}
           onBack={mode !== 'view' ? () => { setMode('view'); setEditRecord(null); } : panel === 'full' ? () => setPanel('quick') : undefined}
           action={mode === 'edit' && editRecord ? (

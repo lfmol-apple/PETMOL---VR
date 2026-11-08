@@ -3268,7 +3268,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img src={cardPhoto} alt={alertCard.pet_name} className="mx-auto max-h-[52dvh] w-full object-contain" />
                 ) : (
-                  <div className="flex h-48 items-center justify-center text-6xl">{alertCard.species === 'cat' ? '🐱' : '🐶'}</div>
+                  <div className="flex h-48 items-center justify-center text-6xl">{petSpeciesEmoji(alertCard.species)}</div>
                 )}
               </div>
               <div className="px-5 pt-4">
