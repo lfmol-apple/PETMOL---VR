@@ -51,6 +51,7 @@ export function BroadcastPanel() {
   const [segment, setSegment] = useState('todos');
   const [kind, setKind] = useState<'all' | 'count' | 'test'>('test');
   const [count, setCount] = useState('');
+  const [ignoreCap, setIgnoreCap] = useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
@@ -62,7 +63,7 @@ export function BroadcastPanel() {
   const groups = Array.from(new Set(goals.map((g) => g.group)));
 
   const body = () => ({
-    message, title: title.trim() || null, destination, segment, goal: goalKey || null,
+    message, title: title.trim() || null, destination, segment, goal: goalKey || null, ignore_weekly_cap: ignoreCap,
     audience: { kind, count: kind === 'count' ? Number(count) || undefined : undefined },
   });
   const invalidate = () => { setPreview(null); setTyped(''); setOkMsg(null); setErr(null); };
@@ -169,8 +170,18 @@ export function BroadcastPanel() {
               )}
             </div>
             <p className="mt-1 text-[11px] text-slate-500">
-              Só recebe quem tem notificação ativa, ninguém que pediu para parar e no máximo 1 mensagem por pessoa a cada {segs.data.weekly_cap_days} dias (o envio só para você não conta).
+              Só recebe quem tem notificação ativa e ninguém que pediu para parar. Por padrão, no máximo 1 mensagem por pessoa a cada {segs.data.weekly_cap_days} dias (o envio só para você não conta).
             </p>
+            {kind !== 'test' && (
+              <label className="mt-2 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-[12px] leading-snug text-amber-900">
+                <input type="checkbox" className="mt-0.5" checked={ignoreCap}
+                  onChange={(e) => { setIgnoreCap(e.target.checked); invalidate(); }} />
+                <span>
+                  <strong>Enviar agora, ignorando o limite semanal.</strong> Também alcança quem já recebeu mensagem nos últimos {segs.data.weekly_cap_days} dias.
+                  Use com cuidado: muitas mensagens seguidas levam as pessoas a desligar as notificações. Quem pediu para parar continua de fora.
+                </span>
+              </label>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -197,7 +208,7 @@ export function BroadcastPanel() {
                 Vão receber: <strong>{numberFmt(preview.will_send)}</strong> pessoa{preview.will_send === 1 ? '' : 's'}.
                 {kind !== 'test' && (
                   <span className="text-[12px] text-slate-500">
-                    {' '}Ficam de fora: {numberFmt(preview.skipped.weekly_cap)} já receberam esta semana, {numberFmt(preview.skipped.opt_out)} pediram para parar{preview.skipped.segment ? `, ${numberFmt(preview.skipped.segment)} fora do público escolhido` : ''}.
+                    {' '}Ficam de fora: {ignoreCap ? 'ninguém por limite semanal (ignorado)' : `${numberFmt(preview.skipped.weekly_cap)} já receberam esta semana`}, {numberFmt(preview.skipped.opt_out)} pediram para parar{preview.skipped.segment ? `, ${numberFmt(preview.skipped.segment)} fora do público escolhido` : ''}.
                   </span>
                 )}
               </p>

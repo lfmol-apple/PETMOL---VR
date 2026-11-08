@@ -260,14 +260,17 @@ def _pets_by_user(db, user_ids: Optional[set[str]] = None) -> dict[str, list[tup
     return out
 
 
-def eligible_users(db, segment: str) -> tuple[list[dict], dict]:
-    """Quem receberia agora. Devolve (lista, contagens do que ficou de fora)."""
+def eligible_users(db, segment: str, ignore_weekly_cap: bool = False) -> tuple[list[dict], dict]:
+    """Quem receberia agora. Devolve (lista, contagens do que ficou de fora).
+
+    `ignore_weekly_cap` (decisão do dono, 08/11/2026): deixa enviar a qualquer momento, também a quem já
+    recebeu mensagem nos últimos 7 dias. Quem pediu para parar (opt-out) NUNCA é incluído."""
     rows = db.query(User.id, User.name).filter(has_any_push(User.id)).all()
     users = {str(uid): name for uid, name in rows}
     skipped = {"opt_out": 0, "weekly_cap": 0, "segment": 0}
 
     blocked = opted_out_ids(db)
-    capped = _recent_contacted(db)
+    capped = set() if ignore_weekly_cap else _recent_contacted(db)
     pets = _pets_by_user(db, set(users))
     feeding_pets = _feeding_configured_pet_ids(db) if segment == "sem_racao" else set()
     gps_users = {str(u) for (u,) in db.query(User.id).filter(shares_location()).all()} if segment == "sem_gps" else set()
@@ -308,10 +311,11 @@ def _admin_target(db, admin_user_id: str) -> list[dict]:
     return [{"user_id": str(u.id), "name": u.name, "pet_names": [n for _, n in pets if n]}]
 
 
-def _select_targets(db, segment: str, kind: str, count: Optional[int], admin_user_id: str) -> tuple[list[dict], dict]:
+def _select_targets(db, segment: str, kind: str, count: Optional[int], admin_user_id: str,
+                    ignore_weekly_cap: bool = False) -> tuple[list[dict], dict]:
     if kind == "test":
         return _admin_target(db, admin_user_id), {"opt_out": 0, "weekly_cap": 0, "segment": 0}
-    targets, skipped = eligible_users(db, segment)
+    targets, skipped = eligible_users(db, segment, ignore_weekly_cap)
     if kind == "count" and count is not None and count < len(targets):
         targets = random.sample(targets, count)
     return targets, skipped
@@ -507,6 +511,7 @@ class BroadcastIn(BaseModel):
     title: Optional[str] = Field(default=None, max_length=80)   # gancho do título; vazio = padrão
     destination: Optional[Literal["home", "loja", "food", "vaccines", "parasites", "medication", "grooming"]] = None
     goal: Optional[str] = None   # chave do GOAL_CATALOG ("Esta notificação vai incentivar o usuário a…")
+    ignore_weekly_cap: bool = False   # enviar a qualquer momento: ignora o limite de 1 mensagem/semana (opt-out continua valendo)
 
     @model_validator(mode="after")
     def _goal_known(self):
@@ -520,7 +525,8 @@ class SendIn(BroadcastIn):
 
 
 def _plan(db, payload: BroadcastIn, admin_user_id: str) -> tuple[list[dict], dict, int]:
-    targets, skipped = _select_targets(db, payload.segment, payload.audience.kind, payload.audience.count, admin_user_id)
+    targets, skipped = _select_targets(db, payload.segment, payload.audience.kind, payload.audience.count,
+                                       admin_user_id, payload.ignore_weekly_cap)
     return targets, skipped, len(targets)
 
 

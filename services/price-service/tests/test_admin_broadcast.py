@@ -205,6 +205,28 @@ def test_ninguem_sem_push_nem_quem_pediu_para_parar_nem_quem_ja_recebeu_na_seman
     assert r.status_code == 422
 
 
+def test_ignorar_limite_semanal_alcanca_quem_ja_recebeu_mas_nunca_quem_pediu_para_parar(adm):
+    with SessionLocal() as db:
+        parou = _mk_user(db, "Parou")
+        db.add(ActivationOptOut(user_id=parou))
+        recente = _mk_user(db, "Recebeu")
+        db.add(ActivationCampaignContact(campaign="food", user_id=recente,
+                                         sent_at=datetime.now(timezone.utc) - timedelta(days=2)))
+        db.commit()
+    normal = adm.client.post("/v1/admin/broadcast/preview", json=_body()).json()
+    assert normal["will_send"] == 1 and normal["skipped"]["weekly_cap"] == 1     # só o admin
+
+    livre = adm.client.post("/v1/admin/broadcast/preview", json=_body(ignore_weekly_cap=True)).json()
+    assert livre["will_send"] == 2                                              # admin + "Recebeu"
+    assert livre["skipped"]["weekly_cap"] == 0 and livre["skipped"]["opt_out"] == 1  # quem parou segue de fora
+
+    r = adm.client.post("/v1/admin/broadcast/send", json={**_body(ignore_weekly_cap=True), "confirm_count": 2})
+    assert r.status_code == 200 and r.json()["will_send"] == 2
+    # e dá para mandar de novo na hora, também ignorando o limite
+    r2 = adm.client.post("/v1/admin/broadcast/send", json={**_body(ignore_weekly_cap=True), "confirm_count": 2})
+    assert r2.status_code == 200
+
+
 def test_um_envio_por_vez(adm, monkeypatch):
     monkeypatch.setattr(br, "_spawn", lambda fn, *a: None)   # fica "enviando" (não termina)
     with SessionLocal() as db:
