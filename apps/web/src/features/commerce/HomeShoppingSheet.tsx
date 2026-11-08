@@ -30,7 +30,7 @@ import { FoodBridgeCard, dismissFoodBridge, isFoodBridgeDismissed } from './Food
 import { isNativeAppClient } from '@/lib/nativeApp';
 import { amazonDisclosure } from './affiliateDisclosure';
 import { promoChip, useStorePromos } from './storePromos';
-import { warmStoreWebviewTrial } from './storeWebviewTrial';
+import { warmStoreNativeOpen } from './storeNativeOpen';
 import { localTodayISO } from '@/lib/localDate';
 import { petSpeciesEmoji } from '@/lib/petTaxonomy';
 
@@ -179,7 +179,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders,
     [],
   );
 
-  useEffect(() => { if (open) warmStoreWebviewTrial(); }, [open]);
+  useEffect(() => { if (open) warmStoreNativeOpen(); }, [open]);
 
   if (!open) return null;
 

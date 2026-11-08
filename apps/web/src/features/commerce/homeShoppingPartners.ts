@@ -1,5 +1,5 @@
 import { isAppClaimedStoreUrl, storeBridgeUrl } from './storeBridge';
-import { isStoreWebviewTrialUrl, isStoreWebviewTrialUser, openStoreInPetmol } from './storeWebviewTrial';
+import { isStoreNativeOpenUrl, isStoreNativeOpenUser, openStoreInNativeApp } from './storeNativeOpen';
 import { Capacitor } from '@capacitor/core';
 import { trackClick } from '@/lib/analytics/click';
 import { showAppToast } from '@/features/interactions/userPromptChannel';
@@ -380,22 +380,19 @@ export function navigateToPartnerUrl(rawUrl: string, opts?: { title?: string }):
   const url = withAmazonTag(rawUrl);
   if (Capacitor.isNativePlatform()) {
     const platform = Capacitor.getPlatform?.();
-    // Android: Cobasi, Mercado Livre, Shopee e Amazon têm app que reivindica o link; a ponte mantém o tutor no
-    // navegador do PETMOL (ver features/commerce/storeBridge.ts).
+    // Android: a Cobasi depende de cookie e o app dela o perderia; a ponte mantém o tutor no navegador (ver storeBridge.ts).
+    // Mercado Livre, Shopee e Amazon levam a comissão NO LINK: podem abrir no app nativo (é o que o dono quer).
     const finalUrl = platform === 'android' && isAppClaimedStoreUrl(url) ? storeBridgeUrl(url) : url;
     const openSystem = () => { void import('@capacitor/browser').then(({ Browser }) => Browser.open({ url: finalUrl })); };
-    // iPhone, TESTE CONTROLADO (só a conta do dono): a loja abre na janela interna do PETMOL, sem o app da loja
-    // sequestrar. Para os tutores nada muda (ver storeWebviewTrial.ts). Falhou em qualquer ponto → fluxo de hoje.
-    if (platform === 'ios' && isStoreWebviewTrialUrl(url)) {
+    // iPhone, só a conta do dono por enquanto: Mercado Livre, Shopee e Amazon abrem DIRETO no app nativo da loja, com o
+    // link intacto, e o iOS mostra o "◀ PETMOL" no topo (ver storeNativeOpen.ts). Tutores: nada muda.
+    if (platform === 'ios' && isStoreNativeOpenUrl(url)) {
       void (async () => {
         const host = (() => { try { return new URL(url).hostname; } catch { return ''; } })();
-        if (!(await isStoreWebviewTrialUser())) { openSystem(); return; }
-        const r = await openStoreInPetmol(url, opts?.title ?? 'Loja');
-        // Registra o que aconteceu (para ver depois no painel) e, na conta do dono, avisa na hora se a janela falhou.
+        const direct = await isStoreNativeOpenUser();
         void trackClick({ source: 'home', cta_type: 'shop_store_open_mode', target: host,
-          metadata: { mode: r.ok ? 'in_app_webview' : 'fallback_system', attempts: r.attempts, error: r.error ?? null } });
-        if (r.ok) return;
-        showAppToast(`Janela interna indisponível (${r.error ?? 'erro'}). Abrindo pelo navegador.`, { tone: 'warning' });
+          metadata: { mode: direct ? 'native_app_direct' : 'system_browser' } });
+        if (direct) { openStoreInNativeApp(url); return; }
         openSystem();
       })();
       return;

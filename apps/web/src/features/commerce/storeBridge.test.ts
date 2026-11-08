@@ -4,10 +4,13 @@ import { isAppClaimedStoreUrl, STORE_BRIDGE_HOSTS, storeBridgeUrl } from './stor
 describe('storeBridge', () => {
   it('reconhece só https de hosts de loja cujo app reivindica o link', () => {
     for (const u of [
-      'https://www.cobasi.com.br/x/p', 'https://mais.app/abc', 'https://meli.la/2ftAKx5',
-      'https://www.mercadolivre.com.br/social/x', 'https://s.shopee.com.br/abc', 'https://www.amazon.com.br/s?k=pet&tag=t', 'https://amzn.to/xyz',
+      'https://www.cobasi.com.br/x/p', 'https://mais.app/abc', 'https://minhaloja.cobasi.com.br/x',
     ]) expect(isAppClaimedStoreUrl(u)).toBe(true);
-    for (const u of ['http://www.amazon.com.br/x', 'https://www.petz.com.br/parceiro/PETMOL', 'https://evil.com/?u=amazon.com.br', 'lixo', '']) {
+    // Mercado Livre, Shopee e Amazon levam a comissão no link e o dono quer o app nativo delas aberto: ficam FORA da ponte
+    for (const u of ['https://meli.la/2ftAKx5', 'https://www.mercadolivre.com.br/social/x', 'https://s.shopee.com.br/abc', 'https://www.amazon.com.br/s?k=pet&tag=t', 'https://amzn.to/xyz']) {
+      expect(isAppClaimedStoreUrl(u)).toBe(false);
+    }
+    for (const u of ['http://www.cobasi.com.br/x', 'https://www.petz.com.br/parceiro/PETMOL', 'https://evil.com/?u=amazon.com.br', 'lixo', '']) {
       expect(isAppClaimedStoreUrl(u)).toBe(false);
     }
   });

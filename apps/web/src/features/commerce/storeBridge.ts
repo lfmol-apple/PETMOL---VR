@@ -12,14 +12,9 @@
  * abre Universal Link. Web/PWA não têm app para saltar.
  */
 export const STORE_BRIDGE_HOSTS = [
-  // Cobasi / MAIS
+  // Cobasi / MAIS: a comissão depende do cookie da UTM, que o app da Cobasi não carrega → a ponte segura o tutor no navegador.
   'www.cobasi.com.br', 'cobasi.com.br', 'minhaloja.cobasi.com.br', 'mais.app',
-  // Mercado Livre
-  'www.mercadolivre.com.br', 'mercadolivre.com.br', 'lista.mercadolivre.com.br', 'produto.mercadolivre.com.br', 'meli.la',
-  // Shopee
-  'shopee.com.br', 'www.shopee.com.br', 's.shopee.com.br',
-  // Amazon
-  'www.amazon.com.br', 'amazon.com.br', 'amzn.to',
+  // Mercado Livre, Shopee e Amazon NÃO entram: a comissão vai no próprio link e o dono QUER o app nativo delas aberto.
 ] as const;
 
 /** true só para uma URL https de um host de loja cujo app costuma saltar no Android. */
