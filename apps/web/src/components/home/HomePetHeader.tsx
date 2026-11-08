@@ -17,6 +17,8 @@ import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import type { PetInteractionItem } from '@/features/interactions/types';
 import type { PetHealthProfile } from '@/lib/petHealth';
+import { HeatCycleButton } from '@/components/home/HeatCycle';
+import { heatTrackingApplies } from '@/lib/heatCycles';
 
 function PetSilhouette({ className = '' }: { className?: string }) {
   return (
@@ -522,6 +524,9 @@ export function HomePetHeader({
             (esta só desenha se o servidor ligar routine_walk_enabled). */}
         <div className="absolute bottom-2.5 left-2.5 z-20 flex flex-col gap-2 sm:bottom-3 sm:left-3">
           {onOpenGrooming && <GroomingRoutineButton state={groomingState} onClick={onOpenGrooming} />}
+          {heatTrackingApplies(currentPet) && (
+            <HeatCycleButton petId={currentPet.pet_id} petName={currentPet.pet_name} species={currentPet.species} photoSrc={currentPetPhotoUrl} />
+          )}
           <RoutineWalkButton petId={currentPet.pet_id} petName={currentPet.pet_name} />
         </div>
 

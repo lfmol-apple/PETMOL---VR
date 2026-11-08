@@ -43,6 +43,7 @@ from .pets import models as _pets_models
 from .pets.vaccine_models import VaccineRecord as _  # Import to register with Base
 from .pets.parasite_models import ParasiteControlRecord as _pcr  # register with Base
 from .pets.grooming_models import GroomingRecord as _gr  # register with Base
+from .pets.heat_models import HeatCycle as _hc  # register with Base
 from .health import models as _health_models  # Import health models to register with Base
 from .admin import admin_router
 from .admin import affiliate_links_admin_router
@@ -565,9 +566,11 @@ app.include_router(vaccine_router)
 # Include parasite + grooming CRUD routers
 from .pets.parasite_router import router as parasite_router
 from .pets.grooming_router import router as grooming_router
+from .pets.heat_router import router as heat_router
 from .pets.grooming_routine import router as grooming_routine_router
 app.include_router(parasite_router)
 app.include_router(grooming_router)
+app.include_router(heat_router)
 app.include_router(grooming_routine_router)
 
 # Include vaccine suggestions router (global vaccine database)
