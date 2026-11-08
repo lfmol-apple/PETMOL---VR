@@ -12,6 +12,8 @@ import { HEALTH_PLAN_CARD_ENABLED } from '@/lib/featureFlags';
 interface AppleControlButtonsProps {
   onHealthClick: () => void;
   onVaccinesClick: () => void;
+  /** Espécie sem protocolo de vacina no app (coelho, cavalo…): o card Vacina some e a Loja ocupa a linha toda. */
+  hideVaccines?: boolean;
   petName?: string;
   petSex?: 'male' | 'female' | null;
   onAlimentacaoClick?: () => void;
@@ -94,6 +96,7 @@ function isDenseCardCopy(...parts: Array<string | undefined | null>) {
 export function AppleControlButtons({
   onHealthClick,
   onVaccinesClick,
+  hideVaccines = false,
   petName,
   petSex,
   onAlimentacaoClick,
@@ -207,22 +210,24 @@ export function AppleControlButtons({
               Mesma posição/cor/peso visual; conteúdo agora é lembrete de
               ciclo, não cofre. Ver docs/RUNBOOK.md ou memória do projeto
               "caderneta redesign" pro raciocínio completo por trás disso. */}
-          <button
-            type="button"
-            onClick={onVaccinesClick}
-            className="group relative min-h-[76px] overflow-hidden rounded-xl border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] p-2.5 shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] active:scale-95 min-[390px]:min-h-[86px] min-[390px]:rounded-2xl min-[390px]:p-3"
-          >
-            {shouldShowAlert(colorVaccines, alertVaccines) && <AlertDot tone={colorVaccines} />}
-            <div className="relative z-10 flex h-full items-start gap-1 text-left">
-              <div className="min-w-0 flex-1">
-                <h3 className="line-clamp-1 break-words text-[13px] font-bold leading-tight tracking-tight text-[#0B1E36] min-[390px]:text-[14px] sm:text-sm">
-                  Vacina
-                </h3>
-                <p className="mt-1 line-clamp-2 break-words text-[10px] leading-snug text-[#5B6B82] min-[390px]:text-[11px] sm:text-xs">{vaccineHeadlineText}</p>
+          {!hideVaccines && (
+            <button
+              type="button"
+              onClick={onVaccinesClick}
+              className="group relative min-h-[76px] overflow-hidden rounded-xl border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] p-2.5 shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] active:scale-95 min-[390px]:min-h-[86px] min-[390px]:rounded-2xl min-[390px]:p-3"
+            >
+              {shouldShowAlert(colorVaccines, alertVaccines) && <AlertDot tone={colorVaccines} />}
+              <div className="relative z-10 flex h-full items-start gap-1 text-left">
+                <div className="min-w-0 flex-1">
+                  <h3 className="line-clamp-1 break-words text-[13px] font-bold leading-tight tracking-tight text-[#0B1E36] min-[390px]:text-[14px] sm:text-sm">
+                    Vacina
+                  </h3>
+                  <p className="mt-1 line-clamp-2 break-words text-[10px] leading-snug text-[#5B6B82] min-[390px]:text-[11px] sm:text-xs">{vaccineHeadlineText}</p>
+                </div>
+                <ChevronRight className="h-4 w-4 flex-shrink-0 self-center text-[#8EA9C9] transition-transform group-hover:translate-x-0.5" strokeWidth={2.5} />
               </div>
-              <ChevronRight className="h-4 w-4 flex-shrink-0 self-center text-[#8EA9C9] transition-transform group-hover:translate-x-0.5" strokeWidth={2.5} />
-            </div>
-          </button>
+            </button>
+          )}
 
           {/* 4. SHOPPING (Loja do/da {pet}) — até 07/10/2026 tinha destaque
               deliberado (borda grossa, gradiente azul saturado próprio,
@@ -235,7 +240,7 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onShoppingClick}
-            className="group relative min-h-[76px] overflow-hidden rounded-xl border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] p-2.5 shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] active:scale-95 min-[390px]:min-h-[86px] min-[390px]:rounded-2xl min-[390px]:p-3"
+            className={`${hideVaccines ? 'col-span-2 ' : ''}group relative min-h-[76px] overflow-hidden rounded-xl border border-[#BFD4F0] bg-gradient-to-br from-white to-[#E6EEF9] p-2.5 shadow-[0_2px_10px_-2px_rgba(0,86,210,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-6px_rgba(0,86,210,0.16)] active:scale-95 min-[390px]:min-h-[86px] min-[390px]:rounded-2xl min-[390px]:p-3`}
           >
             <div className="relative z-10 flex h-full items-start gap-1 text-left">
               <div className="min-w-0 flex-1">

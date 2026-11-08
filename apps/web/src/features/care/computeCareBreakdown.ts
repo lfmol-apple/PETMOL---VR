@@ -1,4 +1,5 @@
 import { dateToLocalISO } from '@/lib/localDate';
+import { speciesCare } from '@/lib/speciesCare';
 import { getPetCareCollections } from '@/features/pets/healthCollections';
 import type { PetHealthProfile, VaccineRecord } from '@/lib/petHealth';
 import type { GroomingRecord, ParasiteControl } from '@/lib/types/home';
@@ -66,9 +67,17 @@ export function computeCareBreakdown(
     return !Number.isNaN(dueDate.getTime()) && dueDate.getTime() < todayRef.getTime();
   });
 
-  items.push({ key: 'vaccine', compliant: currentVaccineRecords.length > 0 && !hasVaccineOverdue, label: 'Vacina' });
+  // Só entra na régua o que se aplica à espécie (coelho/cavalo etc. não têm vacina/antiparasitário no app; gato não usa coleira).
+  const care = speciesCare(currentPet?.species);
+  if (care.vaccines) {
+    items.push({ key: 'vaccine', compliant: currentVaccineRecords.length > 0 && !hasVaccineOverdue, label: 'Vacina' });
+  }
 
-  const parasiteTypes: Array<'dewormer' | 'flea_tick' | 'collar'> = ['dewormer', 'flea_tick', 'collar'];
+  const parasiteTypes: Array<'dewormer' | 'flea_tick' | 'collar'> = [
+    ...(care.dewormer ? (['dewormer'] as const) : []),
+    ...(care.fleaTick ? (['flea_tick'] as const) : []),
+    ...(care.collar ? (['collar'] as const) : []),
+  ];
   parasiteTypes.forEach((type) => {
     const controlsForType = parasiteData.filter((c) => c.type === type);
     const latest = controlsForType

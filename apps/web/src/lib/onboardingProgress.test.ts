@@ -112,3 +112,15 @@ describe('deriveOnboardingProgress — declarações e retomada', () => {
     expect(readOnboardingStore(PET)).toEqual({ food: 'later', startedAt: '2026-08-30T00:00:00Z' });
   });
 });
+
+describe('espécie sem protocolo de vacina/parasita (coelho, cavalo…)', () => {
+  it('só perfil e alimentação: não pede vacina nem antiparasitário', () => {
+    const p = deriveOnboardingProgress(baseInput({ species: 'rabbit', hasPet: true }));
+    expect(p.steps.map((x) => x.key)).toEqual(['profile', 'food']);
+    expect(p.total).toBe(2);
+  });
+  it('cão e espécie ausente mantêm os 5 passos', () => {
+    expect(deriveOnboardingProgress(baseInput({ species: 'dog' })).total).toBe(5);
+    expect(deriveOnboardingProgress(baseInput({})).total).toBe(5);
+  });
+});
