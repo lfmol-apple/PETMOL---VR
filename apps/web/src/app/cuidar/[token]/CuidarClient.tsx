@@ -1,5 +1,6 @@
 'use client';
 
+import { petSpeciesEmoji } from '@/lib/petTaxonomy';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -177,7 +178,7 @@ export default function CuidarClient({ token, initial }: { token: string; initia
     finally { setPushLoading(false); }
   }
 
-  const emoji = info?.species === 'cat' ? '🐱' : '🐶';
+  const emoji = petSpeciesEmoji(info?.species);
 
   // ── Loading / auto-joining ────────────────────────────────────────────────
   if (loading || (autoJoining && !error && !joined)) {

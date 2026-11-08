@@ -1,5 +1,7 @@
 'use client';
 
+import { speciesLabel, speciesPosterEmoji } from '@/lib/speciesCare';
+import { petSpeciesEmoji } from '@/lib/petTaxonomy';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -635,7 +637,7 @@ function AcheiUmPetInner() {
             </>
           ) : (
             <div className="w-full h-full bg-rose-50 flex items-center justify-center">
-              <span className="text-8xl opacity-30">{pet?.species === 'cat' ? '🐱' : '🐶'}</span>
+              <span className="text-8xl opacity-30">{petSpeciesEmoji(pet?.species)}</span>
             </div>
           )}
 
@@ -662,7 +664,7 @@ function AcheiUmPetInner() {
           {!loading && pet && (
             <div className="absolute bottom-0 inset-x-0 z-[3] px-5 pb-4">
               <p className="text-[11px] font-bold uppercase tracking-widest text-white/70 mb-0.5">
-                {pet.species === 'cat' ? 'Gato' : 'Cachorro'}{pet.breed ? ` · ${pet.breed}` : ''}
+                {speciesLabel(pet.species)}{pet.breed ? ` · ${pet.breed}` : ''}
               </p>
               <h1 className="text-[32px] font-black text-white leading-none" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
                 {pet.pet_name}
@@ -1149,7 +1151,7 @@ function AcheiUmPetInner() {
                         <img src={resolvePetPhotoUrl(pet.photo_url) ?? ''} alt={pet.pet_name} className="relative h-full w-full object-contain" />
                       </>
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center text-4xl opacity-40">{pet.species === 'cat' ? '🐱' : '🐶'}</div>
+                      <div className="flex h-full w-full items-center justify-center text-4xl opacity-40">{petSpeciesEmoji(pet.species)}</div>
                     )}
                   </div>
                   <div className="min-w-0 flex-1 py-1">
@@ -1163,7 +1165,7 @@ function AcheiUmPetInner() {
                     </div>
                     <p className="mt-2 truncate text-[20px] font-black leading-tight text-white">{pet.pet_name}</p>
                     <p className="truncate text-[12px] text-white/45">
-                      {[pet.species === 'cat' ? 'Gato' : 'Cão', pet.breed].filter(Boolean).join(' · ')}
+                      {[speciesLabel(pet.species, 'Cão'), pet.breed].filter(Boolean).join(' · ')}
                     </p>
                     {pet.analysis && <p className="mt-1.5 line-clamp-2 text-[12px] leading-snug text-white/60">{pet.analysis}</p>}
                     {pet.visual_distance != null && (
@@ -1387,7 +1389,7 @@ function PetCard({
   onFlagAbuse: () => void;
 }) {
   const isFound = pet.status === 'found';
-  const speciesEmoji = pet.species === 'cat' ? '🐈' : '🐕';
+  const speciesEmoji = speciesPosterEmoji(pet.species);
   const [cardGpsLoading, setCardGpsLoading] = useState(false);
   const [cardGpsError, setCardGpsError] = useState('');
 
@@ -1460,7 +1462,7 @@ function PetCard({
           )}
           <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-4">
             <p className="text-[12px] font-bold uppercase tracking-widest text-white/65">
-              {[pet.species === 'cat' ? 'Gato' : 'Cão', pet.breed].filter(Boolean).join(' · ')}
+              {[speciesLabel(pet.species, 'Cão'), pet.breed].filter(Boolean).join(' · ')}
             </p>
             <h2 className={`mt-1 text-[34px] font-black leading-none ${isFound ? 'text-white/65 line-through' : 'text-white'}`} style={{ textShadow: '0 2px 16px rgba(0,0,0,0.55)' }}>
               {pet.pet_name}

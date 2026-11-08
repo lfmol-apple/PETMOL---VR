@@ -1,5 +1,7 @@
 'use client';
 
+import { speciesLabel } from '@/lib/speciesCare';
+import { petSpeciesEmoji } from '@/lib/petTaxonomy';
 import { formatLocalDateOnly } from '@/lib/localDate';
 
 // Único formato de alerta "pet sumido perto de você" usado em toda a Home —
@@ -34,7 +36,7 @@ export function MissingPetAlertCard({
   alert, photoUrl, collapsed, onToggleCollapsed, onViewCard, onSeeThis, onDismiss, onReport,
   showCollapse = true,
 }: MissingPetAlertCardProps) {
-  const speciesLabel = alert.species === 'cat' ? 'Gato' : alert.species === 'dog' ? 'Cachorro' : 'Pet';
+  const speciesName = alert.species ? speciesLabel(alert.species) : 'Pet';
   const missingInfo = alert.missing_date
     ? `Desaparecido em ${formatLocalDateOnly(alert.missing_date, 'pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}${alert.missing_time ? ' às ' + alert.missing_time : ''}`
     : 'Desaparecido recentemente';
@@ -86,13 +88,13 @@ export function MissingPetAlertCard({
           {photoUrl ? (
             <img src={photoUrl} alt={alert.pet_name} className="absolute inset-0 h-full w-full object-cover" />
           ) : (
-            <span>{alert.species === 'cat' ? '🐱' : '🐶'}</span>
+            <span>{petSpeciesEmoji(alert.species)}</span>
           )}
           <span className="absolute bottom-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/45 text-[12px] leading-none text-white">⤢</span>
         </button>
         <div className="min-w-0 flex-1 p-4">
           <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-rose-600">
-            🚨 {speciesLabel} desaparecido
+            🚨 {speciesName} desaparecido
           </span>
           <h3 className="mt-2 text-[16px] font-black leading-tight text-slate-900">
             {alert.pet_name} pode estar na sua região!

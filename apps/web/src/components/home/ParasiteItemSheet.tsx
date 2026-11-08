@@ -1,5 +1,6 @@
 'use client';
 
+import { petSpeciesEmoji } from '@/lib/petTaxonomy';
 import { useState, useEffect } from 'react';
 import { Bell, Check, Home, Info, Trash2, X } from 'lucide-react';
 import { ActivationAskSheet } from './ActivationAskSheet';
@@ -558,7 +559,7 @@ export function ParasiteItemSheet({
           label: status.label,
           tone: status.key === 'critical' ? 'danger' : status.key === 'attention' ? 'warn' : status.key === 'ok' ? 'good' : 'neutral',
         }}
-        media={<SheetAvatar src={petPhotoSrc} alt={petName || 'Pet'} fallback={petSpecies === 'cat' ? '🐱' : '🐶'} />}
+        media={<SheetAvatar src={petPhotoSrc} alt={petName || 'Pet'} fallback={petSpeciesEmoji(petSpecies)} />}
         onClose={onClose}
         onBack={mode !== 'view' ? () => { setMode('view'); setEditRecord(null); } : undefined}
         action={mode === 'edit' && editRecord ? (

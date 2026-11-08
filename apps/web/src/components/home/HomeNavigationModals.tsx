@@ -1,5 +1,6 @@
 'use client';
 
+import { petSpeciesEmoji } from '@/lib/petTaxonomy';
 import { useBackHandler } from '@/lib/backStack';
 import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
@@ -111,7 +112,7 @@ export function HomeNavigationModals({
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={petPhotoSrc} alt={currentPet?.pet_name || 'Pet'} className="w-full h-full object-cover" loading="lazy" />
                   ) : (
-                    <span className="text-xl">{currentPet?.species === 'cat' ? '🐱' : '🐶'}</span>
+                    <span className="text-xl">{petSpeciesEmoji(currentPet?.species)}</span>
                   )}
                 </div>
                 <div className="min-w-0">

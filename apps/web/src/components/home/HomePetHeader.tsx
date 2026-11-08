@@ -1,4 +1,5 @@
 'use client';
+import { speciesLabel } from '@/lib/speciesCare';
 import { useBackHandler } from '@/lib/backStack';
 import { useRef, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -371,7 +372,7 @@ export function HomePetHeader({
   // fica de fora (não citado no formato aprovado); continua
   // editável/visível em outras telas do pet, só não entra aqui.
   const identityLine = [
-    currentPet.breed || (currentPet.species === 'cat' ? 'Gato' : currentPet.species === 'dog' ? 'Cão' : null),
+    currentPet.breed || (currentPet.species && currentPet.species !== 'other' ? speciesLabel(currentPet.species, 'Cão') : null),
     currentPet.sex === 'male' ? 'Macho' : currentPet.sex === 'female' ? 'Fêmea' : null,
     petAge ?? null,
     weightChip,

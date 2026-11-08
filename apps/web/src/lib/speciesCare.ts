@@ -12,6 +12,8 @@ export interface SpeciesCare {
   collar: boolean;
 }
 
+import { petSpeciesEmoji } from '@/lib/petTaxonomy';
+
 const NONE: SpeciesCare = { vaccines: false, dewormer: false, fleaTick: false, collar: false };
 
 export function speciesCare(species?: string | null): SpeciesCare {
@@ -37,8 +39,16 @@ export function speciesNoun(species?: string | null): string {
   return species.trim() || 'pet';
 }
 
-/** Rótulo com inicial maiúscula para telas ("Cachorro", "Coelho", "Furão"). */
-export function speciesLabel(species?: string | null): string {
+/** Rótulo com inicial maiúscula para telas ("Cachorro", "Coelho", "Furão"). `dogWord` troca só a palavra do cão ("Cão"). */
+export function speciesLabel(species?: string | null, dogWord = 'Cachorro'): string {
+  if (!species || species === 'dog') return dogWord;
   const n = speciesNoun(species);
   return n.charAt(0).toUpperCase() + n.slice(1);
+}
+
+/** Emoji do cartaz de pet perdido: cão 🐕 e gato 🐈 como sempre; outros bichos usam o ícone da espécie (🐾 se desconhecido). */
+export function speciesPosterEmoji(species?: string | null): string {
+  if (!species || species === 'dog') return '🐕';
+  if (species === 'cat') return '🐈';
+  return petSpeciesEmoji(species);
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import { petSpeciesEmoji } from '@/lib/petTaxonomy';
 import { useBackHandler } from '@/lib/backStack';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Bell, ShoppingCart, X } from 'lucide-react';
@@ -1030,7 +1031,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                 tone="petmol"
                 title="Editar plano"
                 subtitle={pet.pet_name}
-                media={<SheetAvatar src={petPhotoSrc} alt={pet.pet_name} fallback={pet.species === 'cat' ? '🐱' : '🐶'} />}
+                media={<SheetAvatar src={petPhotoSrc} alt={pet.pet_name} fallback={petSpeciesEmoji(pet.species)} />}
                 onBack={handleEditBackToView}
               />
               <div className="px-4 pt-3 flex-shrink-0">
@@ -1115,7 +1116,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
               <SheetHeader
                 tone="petmol"
                 title={`Alimentação ${petDo(pet)} ${pet.pet_name}`}
-                media={<SheetAvatar src={petPhotoSrc} alt={pet.pet_name} fallback={pet.species === 'cat' ? '🐱' : '🐶'} />}
+                media={<SheetAvatar src={petPhotoSrc} alt={pet.pet_name} fallback={petSpeciesEmoji(pet.species)} />}
                 onClose={subMode === 'main' ? handleClose : undefined}
                 onBack={subMode !== 'main' ? handleSubModeBackToMain : undefined}
               />

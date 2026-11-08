@@ -1,3 +1,4 @@
+import { speciesLabel } from '@/lib/speciesCare';
 import { SITE_URL } from '@/lib/siteUrl';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -111,7 +112,7 @@ export default async function PetPerdidoPage({ params }: PetPerdidoPageProps) {
             <p className="text-sm font-bold uppercase tracking-[0.18em] text-red-600">Pet perdido</p>
             <h1 className="mt-2 text-4xl font-black leading-tight sm:text-5xl">{pet.pet_name}</h1>
             <div className="mt-4 flex flex-wrap gap-2">
-              {pet.species && <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-bold text-slate-700">{pet.species === 'dog' ? 'Cachorro' : pet.species === 'cat' ? 'Gato' : pet.species}</span>}
+              {pet.species && <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-bold text-slate-700">{speciesLabel(pet.species)}</span>}
               {pet.breed && <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-bold text-slate-700">{pet.breed}</span>}
               {pet.region && <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-bold text-amber-900">{pet.region}</span>}
             </div>
