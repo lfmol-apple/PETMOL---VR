@@ -215,13 +215,17 @@ class GroupResult:
     skipped_reason: Optional[str] = None
 
 
-_bucket_cache: dict[int, dict[str, list[str]]] = {}
+_BUCKET_INFO_KEY = "sku_grouping_brand_bucket"
 
 
 def _brand_bucket(db: Session, *, refresh: bool = False) -> dict[str, list[str]]:
-    """Mapa brand_slug -> [gtins]. Cache por sessão pra evitar O(n²) no batch."""
-    key = id(db)
-    if refresh or key not in _bucket_cache:
+    """Mapa brand_slug -> [gtins]. Cache por sessão pra evitar O(n²) no batch.
+
+    O cache mora em `db.info` (dict da PRÓPRIA sessão): morre junto com ela. Antes era um dict global chaveado
+    por `id(db)` — o Python reaproveita o endereço de memória depois que uma sessão fecha, então uma sessão nova
+    podia herdar o mapa velho de outra (sem os produtos recém-cadastrados) e não achar pares que existem
+    (e o dict nunca era esvaziado, vazando memória)."""
+    if refresh or _BUCKET_INFO_KEY not in db.info:
         buckets: dict[str, list[str]] = {}
         for g, cb, br, cn, nm in db.execute(
             select(ProductCatalog.barcode_normalized, ProductCatalog.canonical_brand,
@@ -232,8 +236,8 @@ def _brand_bucket(db: Session, *, refresh: bool = False) -> dict[str, list[str]]
             slug = _brand_slug(cb or br, name_hint=cn or nm)
             if slug:
                 buckets.setdefault(slug, []).append(g)
-        _bucket_cache[key] = buckets
-    return _bucket_cache[key]
+        db.info[_BUCKET_INFO_KEY] = buckets
+    return db.info[_BUCKET_INFO_KEY]
 
 
 def _candidate_gtins(db: Session, product: ProductCatalog, slug: str) -> list[str]:
@@ -505,5 +509,5 @@ def rebuild_groups_batch(db: Session, *, max_products: int = 500, gtins: Optiona
             summary.errors += 1
             logger.warning("[sku_grouping] gtin=%s falhou: %s", g, exc)
     summary.remaining = max(total - max_products, 0)
-    _bucket_cache.pop(id(db), None)
+    db.info.pop(_BUCKET_INFO_KEY, None)
     return summary
