@@ -14,7 +14,7 @@ const COBASI_URL =
 const MAIS_URL = 'https://mais.app/IvUCAG';
 const SHOPEE_URL = 'https://s.shopee.com.br/abc123';
 
-describe('navigateToPartnerUrl — ponte Cobasi no Android', () => {
+describe('navigateToPartnerUrl — ponte das lojas no Android', () => {
   beforeEach(() => browserOpen.mockClear());
   afterEach(() => {
     vi.resetModules();
@@ -46,11 +46,36 @@ describe('navigateToPartnerUrl — ponte Cobasi no Android', () => {
     expect(new URL(browserOpen.mock.calls[0][0].url as string).searchParams.get('to')).toBe(MAIS_URL);
   });
 
-  it('Android: link Shopee NÃO passa pela ponte (fora de escopo)', async () => {
+  it.each([
+    ['Shopee (encurtador)', 'https://s.shopee.com.br/abc123'],
+    ['Mercado Livre (meli.la)', 'https://meli.la/2ftAKx5'],
+    ['Mercado Livre (perfil)', 'https://www.mercadolivre.com.br/social/mohe4109227?matt_word=mohe4109227&matt_tool=85497435'],
+    ['Amazon (busca com tag)', 'https://www.amazon.com.br/s?k=pet&tag=pelmol-20'],
+  ])('Android: %s também vai pela ponte, com o link intacto', async (_nome, link) => {
     const { navigateToPartnerUrl } = await load('android');
-    navigateToPartnerUrl(SHOPEE_URL);
+    navigateToPartnerUrl(link);
     await vi.waitFor(() => expect(browserOpen).toHaveBeenCalled());
-    expect(browserOpen.mock.calls[0][0].url).toBe(SHOPEE_URL);
+    const opened = new URL(browserOpen.mock.calls[0][0].url as string);
+    expect(opened.pathname).toBe('/go/loja');
+    expect(opened.searchParams.get('to')).toBe(link);
+  });
+
+  it('Android: loja fora da lista (Petz tem a própria ponte) abre direto', async () => {
+    const { navigateToPartnerUrl } = await load('android');
+    navigateToPartnerUrl('https://exemplo.com.br/x');
+    await vi.waitFor(() => expect(browserOpen).toHaveBeenCalled());
+    expect(browserOpen.mock.calls[0][0].url).toBe('https://exemplo.com.br/x');
+  });
+
+  it.each([
+    ['Shopee', 'https://s.shopee.com.br/abc123'],
+    ['Mercado Livre', 'https://meli.la/2ftAKx5'],
+    ['Amazon', 'https://www.amazon.com.br/s?k=pet&tag=pelmol-20'],
+  ])('iOS: %s abre direto (SFSafariViewController não faz Universal Link)', async (_n, link) => {
+    const { navigateToPartnerUrl } = await load('ios');
+    navigateToPartnerUrl(link);
+    await vi.waitFor(() => expect(browserOpen).toHaveBeenCalled());
+    expect(browserOpen.mock.calls[0][0].url).toBe(link);
   });
 
   it('iOS: link Cobasi abre direto (SFSafariViewController não faz Universal Link)', async () => {

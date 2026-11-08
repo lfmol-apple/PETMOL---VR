@@ -1,3 +1,4 @@
+import { isAppClaimedStoreUrl, storeBridgeUrl } from './storeBridge';
 import { Capacitor } from '@capacitor/core';
 import { trackClick } from '@/lib/analytics/click';
 import { showAppToast } from '@/features/interactions/userPromptChannel';
@@ -353,17 +354,15 @@ export function isCobasiAffiliateUrl(url: string): boolean {
  * pra saltar. Ver docs/AFFILIATES.md.
  */
 export function cobasiBridgeUrl(target: string): string {
-  const origin =
-    typeof window !== 'undefined' && window.location?.origin
-      ? window.location.origin
-      : 'https://www.petmol.com.br';
-  return `${origin}/go/loja?to=${encodeURIComponent(target)}`;
+  return storeBridgeUrl(target);
 }
 
 export function navigateToPartnerUrl(url: string): void {
   if (Capacitor.isNativePlatform()) {
+    // Android: Cobasi, Mercado Livre, Shopee e Amazon têm app que reivindica o link; a ponte mantém o tutor no
+    // navegador do PETMOL (ver features/commerce/storeBridge.ts).
     const finalUrl =
-      Capacitor.getPlatform?.() === 'android' && isCobasiAffiliateUrl(url) ? cobasiBridgeUrl(url) : url;
+      Capacitor.getPlatform?.() === 'android' && isAppClaimedStoreUrl(url) ? storeBridgeUrl(url) : url;
     void import('@capacitor/browser').then(({ Browser }) => Browser.open({ url: finalUrl }));
     return;
   }
