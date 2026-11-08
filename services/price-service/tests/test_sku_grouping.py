@@ -167,6 +167,30 @@ def test_admin_reject_blocks_a_pair_the_ladder_would_group():
     assert _members("7895000000031") == []
 
 
+def test_cache_de_marcas_nao_vaza_entre_sessoes():
+    """Regressão do teste instável: o cache de marcas era um dict global chaveado por `id(db)`. Depois que uma
+    sessão fecha, o Python reaproveita o endereço de memória, e uma sessão NOVA herdava o cache velho (sem os
+    produtos recém-cadastrados) → a 1ª reconstrução não achava o par (group_key=None) e a 2ª achava."""
+    _feed("7897000000011", "Coleira Antiparasitária Scalibor M", merchant="zeenow", brand="MSD")
+    _enrich("7897000000011")
+    warm = SessionLocal()
+    try:
+        slug = next(iter(sg._brand_bucket(warm, refresh=True)))   # aquece o cache numa sessão que vai fechar
+    finally:
+        warm.close()
+    del warm
+    _feed("7897000000012", "Coleira Antiparasitária Scalibor Cães Pequenos e Médios - 48 cm", brand="Scalibor")
+    _enrich("7897000000012")
+    for _ in range(300):   # abre/fecha sessões em sequência: força o reaproveitamento de endereços
+        db = SessionLocal()
+        try:
+            bucket = sg._brand_bucket(db)
+            assert "7897000000012" in {g for gs in bucket.values() for g in gs}, "cache velho de outra sessão"
+        finally:
+            db.close()
+    assert slug  # o teste só vale se a 1ª sessão realmente montou um mapa
+
+
 def test_rebuild_is_idempotent():
     _feed("7896000000041", "Coleira Antiparasitária Scalibor M", merchant="zeenow", brand="MSD")
     _feed("7896000000042", "Coleira Antiparasitária Scalibor Cães Pequenos e Médios - 48 cm", brand="Scalibor")
