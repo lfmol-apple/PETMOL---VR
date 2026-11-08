@@ -118,4 +118,12 @@ describe('loja dentro do PETMOL (teste só do dono, iPhone)', () => {
     expect(String(toast.mock.calls[0][0])).toContain('plugin quebrou');
     expect(track.mock.calls[0][0].metadata).toMatchObject({ mode: 'fallback_system', attempts: 2, error: 'plugin quebrou' });
   });
+
+  it('Amazon: o link sem etiqueta sai COM a etiqueta e intacto até o navegador (iPhone)', async () => {
+    const { navigateToPartnerUrl } = await load('ios');
+    navigateToPartnerUrl('https://www.amazon.com.br/s?k=ração', { title: 'Amazon' });
+    await vi.waitFor(() => expect(browserOpen).toHaveBeenCalled());
+    expect(new URL(browserOpen.mock.calls[0][0].url as string).searchParams.get('tag')).toBe('pelmol-20');
+    expect(openWebView).not.toHaveBeenCalled();
+  });
 });
