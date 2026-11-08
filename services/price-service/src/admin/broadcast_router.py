@@ -93,13 +93,13 @@ GOAL_CATALOG: list[dict] = [
      "message": "Veja as ofertas da Loja do PETMOL antes que a ração acabe.",
      "why": "Leva o tutor à compra no momento em que ele precisa. Mede o clique na loja (a venda em si a loja informa).",
      "success": "Tocou em uma oferta/loja parceira em 24h."},
-    {"key": "vacina", "title": '{tutor}, a vacina de {pets} está em dia?', "group": "Saúde", "label": "Cadastrar a vacina / carteirinha", "segment": "todos", "state": "vacina",
+    {"key": "vacina", "title": '{tutor}, a vacina de {pets} está em dia?', "group": "Saúde", "label": "Cadastrar a vacina / carteirinha", "segment": "todos", "state": "vacina", "care": "vaccines",
      "events": {"vaccine_record_created", "onboarding_vaccine_completed"},
      "message": "Tire uma foto da carteirinha: o PETMOL lê e avisa a próxima dose.",
      "why": "A leitura da carteirinha é o recurso mais diferenciado e cria lembretes que trazem a pessoa de volta.",
      "success": "Cadastrou uma vacina em 24h."},
     {"key": "parasitas", "title": '{tutor}, vermífugo de {pets} em dia?', "group": "Saúde", "label": "Registrar vermífugo ou antipulgas", "segment": "todos",
-     "state": "parasita",
+     "state": "parasita", "care": "vaccines",
      "events": {"worm_control_created", "flea_control_created", "collar_created", "onboarding_parasite_completed",
                 "onboarding_dewormer_completed"},
      "message": "Registre no PETMOL e a gente lembra a próxima dose.",
@@ -110,7 +110,7 @@ GOAL_CATALOG: list[dict] = [
      "message": "Cadastre no PETMOL e receba o aviso na hora certa de cada dose.",
      "why": "Medicação é o lembrete de maior valor (o tutor não quer esquecer uma dose).",
      "success": "Cadastrou uma medicação em 24h."},
-    {"key": "banho", "title": '{tutor}, banho e tosa de {pets}', "group": "Saúde", "label": "Registrar banho e tosa", "segment": "todos", "state": "banho",
+    {"key": "banho", "title": '{tutor}, banho e tosa de {pets}', "group": "Saúde", "label": "Registrar banho e tosa", "segment": "todos", "state": "banho", "care": "grooming",
      "events": set(),
      "message": "Marque no PETMOL e a gente avisa quando estiver na hora do próximo.",
      "why": "Banho e tosa é um hábito frequente e simples de registrar.",
@@ -237,6 +237,24 @@ def personalize(message: str, tutor_name: Optional[str], pet_names: list[str],
     return title, _cap_first(body)
 
 
+# ── Espécie ──────────────────────────────────────────────────────────────────
+# Espelho de apps/web/src/lib/speciesCare.ts (ver docs/ESPECIES.md): vacina e antiparasitário são protocolos de
+# CÃO e GATO (espécie ausente = cão, pets antigos); Banho e Tosa não se aplica a peixe, pássaro e hamster.
+# Uma notificação de um cuidado que NÃO se aplica ao bicho tira a credibilidade do app — por isso é filtrada.
+_NO_BATH_SPECIES = {"fish", "bird", "hamster"}
+
+
+def species_applies(species: Optional[str], care: Optional[str]) -> bool:
+    if care is None:
+        return True
+    sp = (species or "dog").strip().lower()
+    if care == "vaccines":
+        return sp in ("dog", "cat")
+    if care == "grooming":
+        return sp not in _NO_BATH_SPECIES
+    return True
+
+
 # ── Público ──────────────────────────────────────────────────────────────────
 
 def _recent_contacted(db, days: int = WEEKLY_CAP_DAYS) -> set[str]:
@@ -260,7 +278,7 @@ def _pets_by_user(db, user_ids: Optional[set[str]] = None) -> dict[str, list[tup
     return out
 
 
-def eligible_users(db, segment: str, ignore_weekly_cap: bool = False) -> tuple[list[dict], dict]:
+def eligible_users(db, segment: str, ignore_weekly_cap: bool = False, care: Optional[str] = None) -> tuple[list[dict], dict]:
     """Quem receberia agora. Devolve (lista, contagens do que ficou de fora).
 
     `ignore_weekly_cap` (decisão do dono, 08/11/2026): deixa enviar a qualquer momento, também a quem já
@@ -272,6 +290,11 @@ def eligible_users(db, segment: str, ignore_weekly_cap: bool = False) -> tuple[l
     blocked = opted_out_ids(db)
     capped = set() if ignore_weekly_cap else _recent_contacted(db)
     pets = _pets_by_user(db, set(users))
+    if care:
+        # Só os pets a quem o cuidado se aplica (ex.: vacina não vale para coelho). Quem não tem nenhum fica de fora
+        # e a mensagem cita só os pets certos.
+        species_of = {str(pid): sp for pid, sp in db.query(Pet.id, Pet.species).filter(Pet.user_id.in_(set(users) or {"__none__"})).all()}
+        pets = {uid: [(pid, nm) for pid, nm in plist if species_applies(species_of.get(pid), care)] for uid, plist in pets.items()}
     feeding_pets = _feeding_configured_pet_ids(db) if segment == "sem_racao" else set()
     gps_users = {str(u) for (u,) in db.query(User.id).filter(shares_location()).all()} if segment == "sem_gps" else set()
     no_photo_users = {str(u) for (u,) in db.query(Pet.user_id).filter(or_(Pet.photo.is_(None), Pet.photo == "")).distinct().all()} \
@@ -286,6 +309,9 @@ def eligible_users(db, segment: str, ignore_weekly_cap: bool = False) -> tuple[l
             skipped["weekly_cap"] += 1
             continue
         user_pets = pets.get(uid, [])
+        if care and not user_pets:
+            skipped["segment"] += 1
+            continue
         if segment == "sem_racao" and (not user_pets or any(pid in feeding_pets for pid, _ in user_pets)):
             skipped["segment"] += 1
             continue
@@ -312,10 +338,10 @@ def _admin_target(db, admin_user_id: str) -> list[dict]:
 
 
 def _select_targets(db, segment: str, kind: str, count: Optional[int], admin_user_id: str,
-                    ignore_weekly_cap: bool = False) -> tuple[list[dict], dict]:
+                    ignore_weekly_cap: bool = False, care: Optional[str] = None) -> tuple[list[dict], dict]:
     if kind == "test":
         return _admin_target(db, admin_user_id), {"opt_out": 0, "weekly_cap": 0, "segment": 0}
-    targets, skipped = eligible_users(db, segment, ignore_weekly_cap)
+    targets, skipped = eligible_users(db, segment, ignore_weekly_cap, care)
     if kind == "count" and count is not None and count < len(targets):
         targets = random.sample(targets, count)
     return targets, skipped
@@ -525,8 +551,9 @@ class SendIn(BroadcastIn):
 
 
 def _plan(db, payload: BroadcastIn, admin_user_id: str) -> tuple[list[dict], dict, int]:
+    care = (_GOAL.get(payload.goal or "") or {}).get("care")
     targets, skipped = _select_targets(db, payload.segment, payload.audience.kind, payload.audience.count,
-                                       admin_user_id, payload.ignore_weekly_cap)
+                                       admin_user_id, payload.ignore_weekly_cap, care)
     return targets, skipped, len(targets)
 
 
@@ -539,10 +566,15 @@ def segments(current=Depends(get_current_admin)):
         for seg in SEGMENTS:
             targets, skipped = eligible_users(db, seg)
             counts[seg] = {"label": SEGMENT_LABELS[seg], "eligible": len(targets), "skipped": skipped}
+        # Metas de um cuidado que não vale para toda espécie (vacina, parasita, banho) contam só quem tem pet a quem se aplica.
+        care_eligible: dict[tuple[str, str], int] = {}
+        for g in GOAL_CATALOG:
+            if g.get("care") and (g["segment"], g["care"]) not in care_eligible:
+                care_eligible[(g["segment"], g["care"])] = len(eligible_users(db, g["segment"], care=g["care"])[0])
         goals = [
             {"key": g["key"], "group": g["group"], "label": g["label"], "segment": g["segment"], "title": g["title"], "open": g["open"],
              "message": g["message"], "why": g["why"], "success": g["success"],
-             "eligible": counts[g["segment"]]["eligible"]}
+             "eligible": care_eligible[(g["segment"], g["care"])] if g.get("care") else counts[g["segment"]]["eligible"]}
             for g in GOAL_CATALOG
         ]
         return {"segments": counts, "goals": goals, "destinations": DESTINATIONS, "weekly_cap_days": WEEKLY_CAP_DAYS}

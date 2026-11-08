@@ -227,6 +227,39 @@ def test_ignorar_limite_semanal_alcanca_quem_ja_recebeu_mas_nunca_quem_pediu_par
     assert r2.status_code == 200
 
 
+def test_meta_de_vacina_nao_chega_a_quem_so_tem_coelho_e_cita_so_o_pet_certo(adm):
+    with SessionLocal() as db:
+        so_coelho = _mk_user(db, "Tutor Coelho")
+        db.add(Pet(id=str(uuid.uuid4()), user_id=so_coelho, name="Bolinha", species="rabbit"))
+        cao_e_coelho = _mk_user(db, "Tutor Misto")
+        db.add(Pet(id=str(uuid.uuid4()), user_id=cao_e_coelho, name="Rex", species="dog"))
+        db.add(Pet(id=str(uuid.uuid4()), user_id=cao_e_coelho, name="Nuvem", species="rabbit"))
+        db.commit()
+    body = _body(goal="vacina", message="tire uma foto da carteirinha de {pets}.")
+    prev = adm.client.post("/v1/admin/broadcast/preview", json=body).json()
+    # o admin (sem pet) sai da meta de vacina: sem pet a quem se aplica; ficam os "fora do público"
+    assert prev["will_send"] == 1
+    assert prev["sample"]["title"].count("Rex") == 1 and "Nuvem" not in prev["sample"]["title"] + prev["sample"]["body"]
+
+    # texto livre (sem meta) segue sem filtro de espécie
+    livre = adm.client.post("/v1/admin/broadcast/preview", json=_body()).json()
+    assert livre["will_send"] == 3
+
+
+def test_meta_de_banho_exclui_quem_so_tem_peixe(adm):
+    with SessionLocal() as db:
+        peixe = _mk_user(db, "Tutor Peixe")
+        db.add(Pet(id=str(uuid.uuid4()), user_id=peixe, name="Nemo", species="fish"))
+        cavalo = _mk_user(db, "Tutor Cavalo")
+        db.add(Pet(id=str(uuid.uuid4()), user_id=cavalo, name="Trovão", species="cavalo"))
+        db.commit()
+    prev = adm.client.post("/v1/admin/broadcast/preview", json=_body(goal="banho", message="marque o banho de {pets}.")).json()
+    assert prev["will_send"] == 1          # só o tutor do cavalo; o do peixe e o admin (sem pet) ficam de fora
+    segs = adm.client.get("/v1/admin/broadcast/segments").json()
+    goal = {g["key"]: g for g in segs["goals"]}
+    assert goal["banho"]["eligible"] == 1 and goal["vacina"]["eligible"] == 0
+
+
 def test_um_envio_por_vez(adm, monkeypatch):
     monkeypatch.setattr(br, "_spawn", lambda fn, *a: None)   # fica "enviando" (não termina)
     with SessionLocal() as db:
