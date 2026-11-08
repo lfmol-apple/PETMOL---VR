@@ -490,7 +490,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders,
 
               <PartnerStoreGrid partners={visibleStorePartners} onOpen={handleStorePartnerOpen} />
 
-              <p className="pt-1 text-center text-[10px] leading-relaxed text-white/60">
+              <p className="pt-1 text-center text-[10px] leading-relaxed text-slate-500">
                 Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.
                 A disponibilidade, preço, pagamento e entrega são de responsabilidade da loja escolhida.
               </p>
@@ -509,6 +509,24 @@ function storeGridRank(id: HomeShoppingPartnerId): number {
   return i === -1 ? STORE_GRID_ORDER.length : i;
 }
 
+// Vitrine das lojas parceiras (redesenho 08/11/2026, pedido do dono): o nome já vai DENTRO de cada logo, então
+// não se repete em texto; ícones grandes, sem caixa branca. Cada tile usa a superfície que a MARCA pede, sem
+// recolorir/distorcer/cortar logo:
+//  - Petz e Cobasi: o arquivo oficial já é um tile quadrado (fundo creme / azul-petróleo) — o tile tem a mesma cor
+//    do fundo do arquivo, então não há emenda; só se corta o respiro vazio do quadrado (nunca o logo).
+//  - Mercado Livre: amarelo oficial #FFE600 (o logo azul+amarelo nasce para esse fundo).
+//  - Shopee: o "S" do logo é um recorte transparente da sacola laranja — precisa de fundo claro (em fundo escuro
+//    o S ficaria escuro e a marca se deforma); vai em pêssego-claro, tom da própria marca.
+//  - Amazon: texto preto exige fundo claro (regra da marca) — pérola com degradê, não branco chapado.
+const STORE_TILE_STYLE: Partial<Record<HomeShoppingPartnerId, { tile: string; img: string }>> = {
+  petz:         { tile: 'bg-[#FAE6B3]', img: 'h-full w-full object-cover' },
+  cobasi:       { tile: 'bg-[#0194A4]', img: 'h-full w-auto object-contain' },
+  mercadolivre: { tile: 'bg-[#FFE600]', img: 'w-[82%] object-contain' },
+  shopee:       { tile: 'bg-gradient-to-br from-[#fffaf8] to-[#ffdcd1]', img: 'h-12 w-12 object-contain' },
+  amazon:       { tile: 'bg-gradient-to-b from-[#fcfcfe] to-[#e6eaf1]', img: 'w-[70%] object-contain' },
+};
+const STORE_TILE_FALLBACK = { tile: 'bg-slate-800', img: 'h-14 w-14 object-contain' };
+
 function PartnerStoreGrid({
   partners,
   onOpen,
@@ -519,43 +537,47 @@ function PartnerStoreGrid({
   if (partners.length === 0) return null;
 
   return (
-    <div>
-      <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-white/70">Ou visite uma loja parceira</p>
+    <div className="rounded-[26px] bg-gradient-to-br from-[#0a1d45] via-[#0c2a63] to-[#08142e] p-4 shadow-[0_18px_40px_-18px_rgba(8,20,46,0.75)] ring-1 ring-white/10">
+      <p className="mb-3.5 text-center text-[11px] font-bold uppercase tracking-[0.16em] text-white/80">Ou visite uma loja parceira</p>
       <div className="grid grid-cols-2 gap-3">
-        {partners.map((partner) => (
-          <button
-            key={partner.id}
-            type="button"
-            onClick={() => onOpen(partner)}
-            className="flex min-h-[96px] flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-center shadow-[0_6px_22px_-8px_rgba(15,23,42,0.16)] transition-all duration-200 hover:border-emerald-200 hover:shadow-[0_10px_28px_-8px_rgba(15,23,42,0.22)] active:scale-[0.98] motion-reduce:transition-none motion-reduce:transform-none"
-          >
-            <span className="flex h-[54px] w-[74px] items-center justify-center rounded-xl border border-slate-100 bg-slate-50/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_4px_12px_rgba(15,23,42,0.05)]">
+        {partners.map((partner, index) => {
+          const style = STORE_TILE_STYLE[partner.id] ?? STORE_TILE_FALLBACK;
+          // Número ímpar de lojas: a última ocupa a linha toda (sem buraco ao lado).
+          const lastAlone = partners.length % 2 === 1 && index === partners.length - 1;
+          return (
+            <button
+              key={partner.id}
+              type="button"
+              onClick={() => onOpen(partner)}
+              aria-label={partner.id === 'petz' ? `${partner.name}, 10% de desconto` : partner.name}
+              className={`group relative flex w-full items-center justify-center overflow-hidden rounded-[22px] ${lastAlone ? 'col-span-2 h-[96px]' : 'h-[120px]'} ring-1 ring-white/20 shadow-[0_12px_26px_-12px_rgba(0,0,0,0.7)] transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.97] motion-reduce:transform-none motion-reduce:transition-none ${style.tile}`}
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={partner.logoSrc}
-                alt=""
-                className={`object-contain ${partnerLogoClassName(partner.id)}`}
+                alt={partner.logoAlt}
+                width={160}
+                height={120}
+                draggable={false}
+                className={`select-none ${style.img}`}
                 loading="lazy"
               />
-            </span>
-            <span className="text-[12px] font-extrabold text-slate-800">{partner.name}</span>
-            {partner.id === 'petz' && (
-              <span className="-mt-1 text-[11px] font-bold text-emerald-600">10% de Desconto</span>
-            )}
-          </button>
-        ))}
+              {/* brilho sutil de vidro, por cima de qualquer superfície */}
+              <span aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/25 via-transparent to-black/10" />
+              {partner.id === 'petz' && (
+                <span className="absolute bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-emerald-600 px-2.5 py-0.5 text-[10px] font-extrabold text-white shadow-sm">
+                  10% de Desconto
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
       {partners.some((partner) => partner.id === 'amazon') && (
-        <p className="mt-2.5 text-center text-[11px] text-white/70">{amazonDisclosure.requiredStatement}</p>
+        <p className="mt-3 text-center text-[11px] leading-snug text-white/70">{amazonDisclosure.requiredStatement}</p>
       )}
     </div>
   );
-}
-
-function partnerLogoClassName(partnerId: HomeShoppingPartnerId): string {
-  if (partnerId === 'mercadolivre') return 'max-h-8 w-[60px]';
-  if (partnerId === 'shopee') return 'h-11 w-11';
-  return 'h-11 w-11 rounded-[0.55rem]';
 }
 
 interface ReorderCardItemProps {
