@@ -1352,3 +1352,18 @@ da Amazon, o link do PETMOL (com a etiqueta) tem que ir inteiro**.
   Tab não salta para o app).
 - **O que o código não garante:** que a Amazon credite a venda feita a partir do app (depende da aprovação do app). Para validar: toque no
   cartão e confira em Associados Amazon → Relatórios se o **clique** aparece (a Amazon leva algumas horas).
+
+## Escopo atual do bloqueio do app nativo — SÓ Mercado Livre (decisão do dono, 08/11/2026)
+
+Os dois mecanismos acima (janela interna no iPhone, só conta do dono; ponte no Android) valem, **por enquanto, só para o Mercado Livre**:
+
+| Loja | iPhone | Android |
+|---|---|---|
+| Mercado Livre | janela interna (só a conta do dono) | ponte `/go/loja` |
+| Cobasi | como antes | ponte (já existia antes de 08/11) |
+| Shopee | como antes (pode abrir o app) | como antes (pode abrir o app) |
+| Amazon | como antes (navegador do sistema; pode abrir o app) | como antes |
+| Petz | fluxo próprio | fluxo próprio |
+
+Para ampliar a outra loja: acrescente os hosts dela em `STORE_WEBVIEW_TRIAL_HOSTS` (iPhone) e/ou `STORE_BRIDGE_HOSTS` (Android) e um caso
+nos testes — e só depois de validar a comissão dela no painel de afiliados.

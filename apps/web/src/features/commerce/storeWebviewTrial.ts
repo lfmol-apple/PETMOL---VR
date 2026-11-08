@@ -5,6 +5,8 @@
  * PETMOL some. A janela interna (`@capgo/inappbrowser`, WKWebView) com `preventDeeplink` impede o app da loja de
  * sequestrar a navegação — o mesmo recurso que a Petz já usa.
  *
+ * ESCOPO ATUAL: só o MERCADO LIVRE (decisão do dono). Shopee, Cobasi e Amazon seguem como antes.
+ *
  * REGRA NÚMERO UM: NÃO PERDER COMISSÃO. Ninguém sabe ainda se o painel de afiliados de cada loja credita a venda feita
  * dentro dessa janela, então o recurso está LIGADO SÓ PARA A CONTA DO DONO (admin) até haver prova. Para os tutores
  * nada muda. O link de afiliado vai INTACTO (nenhum parâmetro alterado). Amazon NUNCA entra: a Política de Aplicativos
@@ -17,16 +19,12 @@ import { Capacitor } from '@capacitor/core';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 
+/** Decisão do dono (08/11/2026): por enquanto o bloqueio do app nativo vale SÓ para o Mercado Livre. */
 export const STORE_WEBVIEW_TRIAL_HOSTS = [
-  // Mercado Livre
   'www.mercadolivre.com.br', 'mercadolivre.com.br', 'lista.mercadolivre.com.br', 'meli.la',
-  // Shopee
-  'shopee.com.br', 'www.shopee.com.br', 's.shopee.com.br',
-  // Cobasi / MAIS
-  'www.cobasi.com.br', 'cobasi.com.br', 'minhaloja.cobasi.com.br', 'mais.app',
 ] as const;
 
-/** Só https de um host da lista. Amazon e Petz ficam de fora de propósito. */
+/** Só https de um host do Mercado Livre. Todas as outras lojas ficam de fora (por ora). */
 export function isStoreWebviewTrialUrl(url: string): boolean {
   try {
     const u = new URL(url);

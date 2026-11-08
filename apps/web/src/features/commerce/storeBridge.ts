@@ -12,15 +12,14 @@
  * abre Universal Link. Web/PWA não têm app para saltar.
  */
 export const STORE_BRIDGE_HOSTS = [
-  // Cobasi / MAIS
+  // Cobasi / MAIS (a ponte já existia antes de 08/11/2026)
   'www.cobasi.com.br', 'cobasi.com.br', 'minhaloja.cobasi.com.br', 'mais.app',
   // Mercado Livre
   'www.mercadolivre.com.br', 'mercadolivre.com.br', 'lista.mercadolivre.com.br', 'produto.mercadolivre.com.br', 'meli.la',
-  // Shopee
-  'shopee.com.br', 'www.shopee.com.br', 's.shopee.com.br',
-  // Amazon
-  'www.amazon.com.br', 'amazon.com.br', 'amzn.to',
 ] as const;
+// Decisão do dono (08/11/2026): por enquanto o bloqueio do app nativo vale só para o Mercado Livre (e a Cobasi, que já tinha).
+// Shopee (com.shopee.br) e Amazon (com.amazon.mShop.android.shopping) também reivindicam os links no Android, mas
+// NÃO entram na ponte por ora; para incluir, basta acrescentar o host aqui (e um caso no teste).
 
 /** true só para uma URL https de um host de loja cujo app costuma saltar no Android. */
 export function isAppClaimedStoreUrl(url: string): boolean {

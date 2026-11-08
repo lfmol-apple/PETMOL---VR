@@ -37,7 +37,7 @@ describe('loja dentro do PETMOL (teste só do dono, iPhone)', () => {
   beforeEach(() => { browserOpen.mockClear(); openWebView.mockReset().mockResolvedValue(undefined); closeWeb.mockClear(); toast.mockClear(); track.mockClear(); });
   afterEach(() => { vi.resetModules(); vi.unstubAllGlobals(); vi.doUnmock('@capacitor/core'); vi.doUnmock('@/lib/auth-token'); });
 
-  it.each([['Mercado Livre', ML], ['Shopee', SHOPEE], ['Cobasi', COBASI]])('dono no iPhone: %s abre na janela interna com o link intacto e sem deeplink', async (nome, link) => {
+  it.each([['Mercado Livre', ML]])('dono no iPhone: %s abre na janela interna com o link intacto e sem deeplink', async (nome, link) => {
     const { navigateToPartnerUrl } = await load('ios');
     navigateToPartnerUrl(link, { title: nome });
     await vi.waitFor(() => expect(openWebView).toHaveBeenCalled());
@@ -111,9 +111,9 @@ describe('loja dentro do PETMOL (teste só do dono, iPhone)', () => {
   it('as 2 tentativas falham: o dono recebe aviso com o motivo, é registrado e abre como hoje', async () => {
     openWebView.mockRejectedValue(new Error('plugin quebrou'));
     const { navigateToPartnerUrl } = await load('ios');
-    navigateToPartnerUrl(SHOPEE, { title: 'Shopee' });
+    navigateToPartnerUrl(ML, { title: 'Mercado Livre' });
     await vi.waitFor(() => expect(browserOpen).toHaveBeenCalled());
-    expect(browserOpen.mock.calls[0][0].url).toBe(SHOPEE);
+    expect(browserOpen.mock.calls[0][0].url).toBe(ML);
     expect(toast).toHaveBeenCalledTimes(1);
     expect(String(toast.mock.calls[0][0])).toContain('plugin quebrou');
     expect(track.mock.calls[0][0].metadata).toMatchObject({ mode: 'fallback_system', attempts: 2, error: 'plugin quebrou' });
@@ -124,6 +124,14 @@ describe('loja dentro do PETMOL (teste só do dono, iPhone)', () => {
     navigateToPartnerUrl('https://www.amazon.com.br/s?k=ração', { title: 'Amazon' });
     await vi.waitFor(() => expect(browserOpen).toHaveBeenCalled());
     expect(new URL(browserOpen.mock.calls[0][0].url as string).searchParams.get('tag')).toBe('pelmol-20');
+    expect(openWebView).not.toHaveBeenCalled();
+  });
+
+  it.each([['Shopee', SHOPEE], ['Cobasi', COBASI]])('dono no iPhone: %s NÃO usa a janela interna por ora (só o Mercado Livre)', async (_n, link) => {
+    const { navigateToPartnerUrl } = await load('ios');
+    navigateToPartnerUrl(link, { title: _n });
+    await vi.waitFor(() => expect(browserOpen).toHaveBeenCalled());
+    expect(browserOpen.mock.calls[0][0].url).toBe(link);
     expect(openWebView).not.toHaveBeenCalled();
   });
 });

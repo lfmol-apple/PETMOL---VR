@@ -5,8 +5,12 @@ describe('storeBridge', () => {
   it('reconhece só https de hosts de loja cujo app reivindica o link', () => {
     for (const u of [
       'https://www.cobasi.com.br/x/p', 'https://mais.app/abc', 'https://meli.la/2ftAKx5',
-      'https://www.mercadolivre.com.br/social/x', 'https://s.shopee.com.br/abc', 'https://www.amazon.com.br/s?k=pet&tag=t', 'https://amzn.to/xyz',
+      'https://www.mercadolivre.com.br/social/x',
     ]) expect(isAppClaimedStoreUrl(u)).toBe(true);
+    // por ora o bloqueio é só do Mercado Livre (e da Cobasi, que já tinha): Shopee e Amazon ficam de fora
+    for (const u of ['https://s.shopee.com.br/abc', 'https://www.amazon.com.br/s?k=pet&tag=t', 'https://amzn.to/xyz']) {
+      expect(isAppClaimedStoreUrl(u)).toBe(false);
+    }
     for (const u of ['http://www.amazon.com.br/x', 'https://www.petz.com.br/parceiro/PETMOL', 'https://evil.com/?u=amazon.com.br', 'lixo', '']) {
       expect(isAppClaimedStoreUrl(u)).toBe(false);
     }
