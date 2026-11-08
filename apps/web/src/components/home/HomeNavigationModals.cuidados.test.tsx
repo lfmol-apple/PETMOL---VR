@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 vi.mock('@/lib/backStack', () => ({ useBackHandler: () => undefined }));
 vi.mock('@/lib/I18nContext', () => ({ useI18n: () => ({ t: (k: string) => k }) }));
@@ -27,19 +27,39 @@ function open(species: 'dog' | 'cat') {
   );
 }
 
-describe('Cuidados — sem o card de Banho e Tosa (a banheirinha assumiu)', () => {
-  it('cão: Vermífugo, Antipulgas, Coleira e PetShops; sem Banho e Tosa', () => {
+describe('Cuidados — com o card de Banho e Tosa (de volta, além da banheirinha)', () => {
+  it('cão: Vermífugo, Antipulgas, Coleira, Banho e Tosa e PetShops (5 cards: o último ocupa a linha toda)', () => {
     open('dog');
-    ['Vermífugo', 'Antipulgas', 'Coleira', 'PetShops'].forEach((l) => expect(screen.getByText(l)).toBeTruthy());
-    expect(screen.queryByText('Banho e Tosa')).toBeNull();
-  });
-  it('gato: número ímpar de cards — o último (PetShops) ocupa a linha toda', () => {
-    open('cat');
-    expect(screen.queryByText('Banho e Tosa')).toBeNull();
-    expect(screen.queryByText('Coleira')).toBeNull();
+    ['Vermífugo', 'Antipulgas', 'Coleira', 'Banho e Tosa', 'PetShops'].forEach((l) => expect(screen.getByText(l)).toBeTruthy());
     const petshops = screen.getByText('PetShops').closest('button')!;
     expect(petshops.className).toContain('col-span-2');
-    const vermifugo = screen.getByText('Vermífugo').closest('button')!;
-    expect(vermifugo.className).not.toContain('col-span-2');
+    expect(screen.getByText('Banho e Tosa').closest('button')!.className).not.toContain('col-span-2');
+  });
+  it('gato: sem Coleira; Banho e Tosa presente (4 cards, grade par, ninguém ocupa a linha toda)', () => {
+    open('cat');
+    expect(screen.queryByText('Coleira')).toBeNull();
+    expect(screen.getByText('Banho e Tosa')).toBeTruthy();
+    expect(screen.getByText('PetShops').closest('button')!.className).not.toContain('col-span-2');
+  });
+  it('tocar em Banho e Tosa fecha o Cuidados e abre o sheet de banho e tosa', () => {
+    const onClose = vi.fn();
+    const onOpenGrooming = vi.fn();
+    render(
+      <HomeNavigationModals
+        currentPet={{ pet_id: 'p1', pet_name: 'Baby', species: 'dog' } as never}
+        showHealthOptionsModal
+        onCloseHealthOptionsModal={onClose}
+        onOpenHealthOptionsModal={vi.fn()}
+        alertVaccinesValue={false}
+        alertParasitesValue={false}
+        alertMedicationValue={false}
+        onOpenHealthTab={vi.fn()}
+        onStartEventRegistration={vi.fn()}
+        onOpenGrooming={onOpenGrooming}
+      />,
+    );
+    fireEvent.click(screen.getByText('Banho e Tosa'));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onOpenGrooming).toHaveBeenCalledTimes(1);
   });
 });

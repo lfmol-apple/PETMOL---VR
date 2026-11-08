@@ -81,6 +81,9 @@ export function HomeNavigationModals({
   onOpenAntipulgas,
   onOpenColeira,
   onOpenMedication,
+  onOpenGrooming,
+  alertGroomingValue,
+  colorGroomingValue,
   onOpenEmergency,
 }: HomeNavigationModalsProps) {
   const { t } = useI18n();
@@ -139,7 +142,9 @@ export function HomeNavigationModals({
                   ...(currentPet?.species === 'dog'
                     ? [{ label: 'Coleira', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
                     : []),
-                  // Banho e Tosa saiu daqui (18/10/2026): agora é a banheirinha na foto do pet (abre o mesmo sheet).
+                  // Banho e Tosa de volta em Cuidados (08/11/2026, pedido do dono): além da banheirinha na foto do pet,
+                  // o card abre o mesmo sheet.
+                  { label: 'Banho e Tosa', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
                   // Medicamentos desativados no PETMOL 1.0 (ver
                   // docs/MEDICAMENTOS_DESATIVADOS.md) — mesmo padrão do
                   // filtro de espécie da Coleira acima, condicional na
@@ -171,6 +176,11 @@ export function HomeNavigationModals({
                       if (tab === 'collar' && onOpenColeira) {
                         onCloseHealthOptionsModal();
                         onOpenColeira();
+                        return;
+                      }
+                      if (tab === 'grooming' && onOpenGrooming) {
+                        onCloseHealthOptionsModal();
+                        onOpenGrooming();
                         return;
                       }
                       if (tab === 'medication' && onOpenMedication) {
