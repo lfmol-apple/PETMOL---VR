@@ -47,17 +47,14 @@ describe('navigateToPartnerUrl — ponte das lojas no Android', () => {
   });
 
   it.each([
-    ['Shopee (encurtador)', 'https://s.shopee.com.br/abc123'],
-    ['Mercado Livre (meli.la)', 'https://meli.la/2ftAKx5'],
-    ['Mercado Livre (perfil)', 'https://www.mercadolivre.com.br/social/mohe4109227?matt_word=mohe4109227&matt_tool=85497435'],
-    ['Amazon (busca com tag)', 'https://www.amazon.com.br/s?k=pet&tag=pelmol-20'],
-  ])('Android: %s também vai pela ponte, com o link intacto', async (_nome, link) => {
+    ['Mercado Livre', 'https://meli.la/2ftAKx5'],
+    ['Shopee', 'https://s.shopee.com.br/abc123'],
+    ['Amazon', 'https://www.amazon.com.br/s?k=pet&tag=pelmol-20'],
+  ])('Android: %s NÃO usa a ponte (comissão no link; o dono quer o app nativo aberto)', async (_n, link) => {
     const { navigateToPartnerUrl } = await load('android');
     navigateToPartnerUrl(link);
     await vi.waitFor(() => expect(browserOpen).toHaveBeenCalled());
-    const opened = new URL(browserOpen.mock.calls[0][0].url as string);
-    expect(opened.pathname).toBe('/go/loja');
-    expect(opened.searchParams.get('to')).toBe(link);
+    expect(browserOpen.mock.calls[0][0].url).toBe(link);
   });
 
   it('Android: loja fora da lista (Petz tem a própria ponte) abre direto', async () => {

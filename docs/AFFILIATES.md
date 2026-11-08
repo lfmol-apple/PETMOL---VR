@@ -1303,42 +1303,28 @@ exata — `/produto/*` está na AASA e não pode ser usado.
 - No app o link abre por `Browser.open` (aba do sistema), nunca em WebView (proibido pela política).
 - Nunca colocar link de afiliado da Amazon em notificação push/mensagem privada (política da Amazon).
 
-## Ponte de loja no Android — Cobasi, Mercado Livre, Shopee e Amazon (08/11/2026)
+## Abrir a loja no app nativo, com o "◀ PETMOL" no topo — iPhone (08/11/2026)
 
-Verificado nos `assetlinks.json` públicos: os apps de **Cobasi**, **Mercado Livre** (`com.mercadolibre`, também em `meli.la`),
-**Shopee** (`com.shopee.br`) e **Amazon** (`com.amazon.mShop.android.shopping`, também `amzn.to`) reivindicam `handle_all_urls`.
-No Android, o Chrome Custom Tab do `Browser.open` pode saltar direto pro app da loja: o PETMOL some do topo e a atribuição da
-comissão pode se perder. Por isso `navigateToPartnerUrl` manda esses hosts pela ponte `/go/loja?to=<url>`
-(`features/commerce/storeBridge.ts`, lista única `STORE_BRIDGE_HOSTS`, também usada pela página). O link de afiliado vai **intacto**
-no `to=` (nenhum parâmetro é alterado). iOS e web abrem direto (SFSafariViewController não faz Universal Link).
+**O que o dono quer ver** ao tocar numa loja: o app nativo dela (Mercado Livre, Shopee, Amazon) aberto, com o "◀ PETMOL" pretinho no topo
+(o iOS mostra essa faixa quando um app abre outro) — a prova de que veio pelo link de afiliado do PETMOL. **Não** é bloquear o app da loja.
 
-- A Petz tem a própria ponte (`/go/petz`) e não está nesta lista.
-- Para incluir outra loja: acrescente o host em `STORE_BRIDGE_HOSTS` (só após conferir o assetlinks da loja) e um caso no teste.
-- **Ponto em aberto (iOS, Mercado Livre):** o encurtador `meli.la/2ftAKx5` redireciona para `/social/mohe4109227?...&forceInApp=true`;
-  o parâmetro `forceInApp` pede à página do ML para tentar abrir o app dele. Não alteramos o link (parâmetros de afiliado), então
-  falta testar num iPhone com o app do ML instalado.
-- **Amazon:** a Política de Aplicativos Móveis segue sendo o risco já registrado acima; a ponte não muda isso.
+**Por que aparecia "às vezes":** o `Browser.open` usa o SFSafariViewController e quem chama o app da loja é o JavaScript da página dela; o iOS
+mostra a faixa quando quer. **Agora** (`features/commerce/storeNativeOpen.ts`) o PETMOL assume: `window.location.href = <link>`; o Capacitor iOS
+(`WebViewDelegationHandler.swift`) cancela a navegação e chama `UIApplication.open(<link>)` — o iOS entrega o link ao app da loja (Universal Link)
+e mostra o "◀ PETMOL" **toda vez**. Sem o app instalado, abre no Safari (a comissão vale pela web). Nenhum plugin nativo novo; link intacto
+(Amazon: `withAmazonTag`).
 
-## Loja dentro do PETMOL no iPhone — TESTE CONTROLADO, só a conta do dono (08/11/2026)
+**Quais lojas:** só as que levam a comissão **no próprio link** — Mercado Livre, Shopee e Amazon. **Cobasi** (cookie de UTM) e **Petz** (cookie
+`petzPartner`) NÃO: o app delas não carrega o cookie, então seguem pelos fluxos próprios (Cobasi: ponte `/go/loja` no Android; Petz: `/go/petz`).
 
-**Problema (relato do dono, iPhone):** ao tocar numa loja, o app nativo dela (Mercado Livre, Amazon, Shopee…) abre sozinho e o PETMOL some
-do topo; a faixa "◀ PETMOL" do iOS aparece na 1ª vez e não na 2ª. O `@capacitor/browser` (SFSafariViewController) não impede a página
-da loja de chamar o app dela. A faixa "voltar" é do iOS: o app não controla quando ela aparece.
+**Regra nº 1 (não perder comissão):** por enquanto só a conta **admin (dono)** usa o caminho direto (`GET /v1/admin/me`, 1,5 s de limite, aquecido ao
+abrir a Loja); tutores seguem como antes. Cada toque registra `shop_store_open_mode` (`native_app_direct` | `system_browser`).
 
-**Mudança:** no iPhone nativo, os hosts de Mercado Livre, Shopee e Cobasi abrem em `@capgo/inappbrowser` (WKWebView) com
-`preventDeeplink: true` (o app da loja não sequestra) e barra de navegação com o nome da loja — o mesmo recurso do fluxo da Petz.
-`features/commerce/storeWebviewTrial.ts`.
+**Validar antes de ampliar:** (1) iPhone: tocar em Mercado Livre, Shopee e Amazon → o app da loja abre com o "◀ PETMOL" a cada toque; (2) o clique aparece
+no painel de afiliados de cada loja; (3) uma compra de teste gera pedido/comissão. Só então ampliar `isStoreNativeOpenUser`.
 
-**Regra nº 1: não perder comissão.** Por isso:
-- Só a conta **admin (dono)** usa o novo caminho (`GET /v1/admin/me`, 1,5 s de limite, aquecido ao abrir a Loja). **Tutores: nada muda.**
-- O link de afiliado vai **intacto** (nenhum parâmetro alterado). Erro, sem login, rede fora ou plugin ausente → fluxo de hoje.
-- **Amazon nunca** (a Política de Aplicativos Móveis proíbe link de afiliado em WebView). **Petz** tem fluxo próprio.
-
-**Como validar antes de ampliar (checklist do dono):**
-1. No iPhone, toque em Mercado Livre, Shopee e Cobasi: a loja deve abrir numa janela do PETMOL, sem pular para o app.
-2. Em poucos minutos o **clique** deve aparecer no painel de afiliados de cada loja (ML "Cliques", Shopee, MAIS/Cobasi).
-3. Faça **uma compra pequena** dentro da janela interna e confira se o **pedido/comissão** aparece no painel (pode levar horas/dias).
-4. Só com 2 e 3 confirmados em cada loja, troque a regra de `isStoreWebviewTrialUser` por uma mais ampla (ex.: todos os tutores no iPhone).
+**Pontos de atenção:** `meli.la` é reivindicado pelo app do Mercado Pago **e** pelo do Mercado Livre — se abrir o app errado, trocar por a URL longa
+(`www.mercadolivre.com.br/social/…`, que o ML app reivindica). Android: a ponte vale só para a Cobasi; os demais abrem como o app permitir.
 
 ## Amazon no app — decisão do dono (08/11/2026): manter, e o link tem que chegar inteiro
 
