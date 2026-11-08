@@ -7,7 +7,7 @@
  *  - Previsão do próximo cio só para cadelas; gatas só registram (o ciclo delas varia muito).
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Heart } from 'lucide-react';
+import { Droplet } from 'lucide-react';
 
 import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { DateField } from '@/components/ui/DateField';
@@ -55,9 +55,11 @@ export function HeatCycleButton({ petId, petName, species, photoSrc }: Props) {
         onClick={() => setOpen(true)}
         aria-label={label}
         title={label}
-        className={`relative flex h-8 w-8 items-center justify-center rounded-full border text-white shadow-lg backdrop-blur-md transition-all active:scale-90 sm:h-9 sm:w-9 ${tone}`}
+        className={`relative flex h-8 items-center justify-center gap-1 rounded-full border px-2.5 text-white shadow-lg backdrop-blur-md transition-all active:scale-90 sm:h-9 sm:px-3 ${tone}`}
       >
-        <Heart className="h-4 w-4" strokeWidth={2.3} fill={state === 'in_heat' ? 'currentColor' : 'none'} />
+        {/* Gota + a palavra "Cio": o coração não dizia nada de imediato (feedback do dono, 08/11/2026). */}
+        <Droplet className="h-3.5 w-3.5" strokeWidth={2.4} fill={state === 'in_heat' ? 'currentColor' : 'none'} aria-hidden="true" />
+        <span className="text-[12px] font-extrabold leading-none sm:text-[13px]">Cio</span>
       </button>
       {open && (
         <HeatSheet
