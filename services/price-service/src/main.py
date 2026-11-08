@@ -44,6 +44,7 @@ from .pets.vaccine_models import VaccineRecord as _  # Import to register with B
 from .pets.parasite_models import ParasiteControlRecord as _pcr  # register with Base
 from .pets.grooming_models import GroomingRecord as _gr  # register with Base
 from .pets.heat_models import HeatCycle as _hc  # register with Base
+from .store_promos import StorePromoRow as _sp, public_router as store_promos_public_router, admin_router as store_promos_admin_router  # register with Base
 from .health import models as _health_models  # Import health models to register with Base
 from .admin import admin_router
 from .admin import affiliate_links_admin_router
@@ -289,6 +290,8 @@ app.include_router(activation_campaign_admin_router)
 app.include_router(activation_optout_public_router)
 app.include_router(activation_panel_admin_router)
 app.include_router(broadcast_admin_router)
+app.include_router(store_promos_admin_router)
+app.include_router(store_promos_public_router)
 app.include_router(moderation_admin_router)
 app.include_router(vaccine_date_notice_router)
 # Some deployments forward /api/* without stripping the prefix.
@@ -306,6 +309,7 @@ app.include_router(activation_campaign_admin_router, prefix="/api")
 app.include_router(activation_optout_public_router, prefix="/api")
 app.include_router(activation_panel_admin_router, prefix="/api")
 app.include_router(broadcast_admin_router, prefix="/api")
+app.include_router(store_promos_admin_router, prefix="/api")
 app.include_router(moderation_admin_router, prefix="/api")
 app.include_router(vaccine_date_notice_router, prefix="/api")
 
@@ -464,6 +468,14 @@ def start_push_scheduler():
                               timezone="America/Sao_Paulo", id="daily_brief")
         except Exception as exc:
             push_logger.warning("[PETMOL] boletim diário não agendado: %s", exc)
+        try:
+            # Radar de promoções: 9h de Brasília, avisa o DONO na véspera e no dia de cada campanha (ele decide o envio).
+            from .store_promos import notify_owner_about_promos
+            scheduler.add_job(notify_owner_about_promos, "cron", hour=9, minute=5,
+                              timezone="America/Sao_Paulo", id="store_promos_owner_alert",
+                              max_instances=1, coalesce=True)
+        except Exception as exc:
+            push_logger.warning("[PETMOL] radar de promoções não agendado: %s", exc)
         try:
             # Resumo diário (9h de Brasília) dos avisos de remédio que não chegaram — substitui o e-mail
             # imediato por lembrete perdido (enchia a caixa do dono). Sem pendências, não envia nada.
