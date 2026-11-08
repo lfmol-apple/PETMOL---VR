@@ -540,7 +540,7 @@ interface StoreTileSpec {
 }
 const STORE_TILE_SPEC: Partial<Record<HomeShoppingPartnerId, StoreTileSpec>> = {
   petz:         { logo: '/partner-logos/petz-wordmark.png', w: 406, h: 107, imgClass: 'w-[96px]', tile: 'bg-[#FAE6B3]', key: 'shadow-[inset_0_1px_0_rgba(255,255,255,0.7),inset_0_-12px_18px_-12px_rgba(0,0,0,0.25),0_6px_0_0_#B8984F,0_16px_24px_-10px_rgba(0,20,70,0.6)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.5),inset_0_-12px_18px_-12px_rgba(0,0,0,0.25),0_2px_0_0_#B8984F,0_6px_12px_-6px_rgba(0,20,70,0.55)]', badge: '10% de Desconto' },
-  mercadolivre: { logo: '/partner-logos/mercadolivre.png', w: 268, h: 68, imgClass: 'w-[80px]', tile: 'bg-gradient-to-b from-[#FFEB1F] to-[#FFE600]', key: 'shadow-[inset_0_1px_0_rgba(255,255,255,0.7),inset_0_-12px_18px_-12px_rgba(0,0,0,0.25),0_6px_0_0_#BFA900,0_16px_24px_-10px_rgba(0,20,70,0.6)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.5),inset_0_-12px_18px_-12px_rgba(0,0,0,0.25),0_2px_0_0_#BFA900,0_6px_12px_-6px_rgba(0,20,70,0.55)]' },
+  mercadolivre: { logo: '/partner-logos/mercadolivre.png', w: 268, h: 68, imgClass: 'w-[112px]', tile: 'bg-gradient-to-b from-[#FFEB1F] to-[#FFE600]', key: 'shadow-[inset_0_1px_0_rgba(255,255,255,0.7),inset_0_-12px_18px_-12px_rgba(0,0,0,0.25),0_6px_0_0_#BFA900,0_16px_24px_-10px_rgba(0,20,70,0.6)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.5),inset_0_-12px_18px_-12px_rgba(0,0,0,0.25),0_2px_0_0_#BFA900,0_6px_12px_-6px_rgba(0,20,70,0.55)]' },
   cobasi:       { logo: '/partner-logos/cobasi-wordmark.png', w: 153, h: 95, imgClass: 'h-[46px] w-auto', tile: 'bg-gradient-to-b from-[#fcfcfe] to-[#e6eaf1]', key: 'shadow-[inset_0_1px_0_rgba(255,255,255,0.7),inset_0_-12px_18px_-12px_rgba(0,0,0,0.25),0_6px_0_0_#A3ACBC,0_16px_24px_-10px_rgba(0,20,70,0.6)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.5),inset_0_-12px_18px_-12px_rgba(0,0,0,0.25),0_2px_0_0_#A3ACBC,0_6px_12px_-6px_rgba(0,20,70,0.55)]', badge: '10% na 1ª compra' },
   amazon:       { logo: '/partner-logos/amazon-white.png', w: 196, h: 62, imgClass: 'w-[84px]', tile: 'bg-gradient-to-b from-[#2c3b4f] to-[#131921]', key: 'shadow-[inset_0_1px_0_rgba(255,255,255,0.7),inset_0_-12px_18px_-12px_rgba(0,0,0,0.25),0_6px_0_0_#06090d,0_16px_24px_-10px_rgba(0,20,70,0.6)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.5),inset_0_-12px_18px_-12px_rgba(0,0,0,0.25),0_2px_0_0_#06090d,0_6px_12px_-6px_rgba(0,20,70,0.55)]' },
   shopee:       { logo: '/partner-logos/shopee-white.svg', w: 192, h: 65, imgClass: 'w-[104px]', tile: 'bg-gradient-to-b from-[#f45f3f] to-[#ee4d2d]', key: 'shadow-[inset_0_1px_0_rgba(255,255,255,0.7),inset_0_-12px_18px_-12px_rgba(0,0,0,0.25),0_6px_0_0_#a82c12,0_16px_24px_-10px_rgba(0,20,70,0.6)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.5),inset_0_-12px_18px_-12px_rgba(0,0,0,0.25),0_2px_0_0_#a82c12,0_6px_12px_-6px_rgba(0,20,70,0.55)]' },
@@ -559,9 +559,13 @@ function PartnerStoreGrid({
 
   return (
     <div className={`rounded-[26px] ${PANEL_BLUE} p-4 shadow-[0_18px_40px_-18px_rgba(0,60,160,0.7)] ring-1 ring-white/20`}>
-      <h3 className="mb-4 mt-1 text-balance px-2 text-center text-[22px] font-black leading-[1.15] tracking-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.35)]">
-        Receba no conforto da sua casa
-      </h3>
+      <div className="mb-4 mt-1 px-2 text-center">
+        <h3 className="text-balance text-[19px] font-extrabold leading-tight tracking-tight text-white">
+          Receba no conforto da sua casa
+        </h3>
+        {/* detalhe discreto: um filete claro dá destaque sem chamar demais a atenção */}
+        <span aria-hidden className="mx-auto mt-2 block h-[3px] w-10 rounded-full bg-white/45" />
+      </div>
       <div className="grid grid-cols-2 gap-x-3.5 gap-y-4 pb-1">
         {partners.map((partner, index) => {
           const spec = STORE_TILE_SPEC[partner.id];
