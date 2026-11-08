@@ -565,9 +565,9 @@ export function PetSumidoSheet({
     ctx.font = '400 32px Arial, sans-serif';
     ctx.fillStyle = '#786050';
     ctx.letterSpacing = '3px';
-    const speciesLabel = pet.species === 'cat' ? 'GATO' : 'CÃO';
+    const speciesTitle = speciesLabel(pet.species, 'Cão').toUpperCase();
     const breedVal = (pet as unknown as { breed?: string }).breed || '';
-    ctx.fillText(`${speciesLabel}${breedVal ? ` · ${breedVal.toUpperCase()}` : ''}`, 56, infoY + 136);
+    ctx.fillText(`${speciesTitle}${breedVal ? ` · ${breedVal.toUpperCase()}` : ''}`, 56, infoY + 136);
 
     if (characteristics.trim()) {
       ctx.letterSpacing = '1px';
