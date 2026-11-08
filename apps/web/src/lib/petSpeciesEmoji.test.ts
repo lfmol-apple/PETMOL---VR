@@ -14,8 +14,17 @@ describe('petSpeciesEmoji', () => {
     expect(petSpeciesEmoji('hamster')).toBe('🐹');
     expect(petSpeciesEmoji('fish')).toBe('🐠');
   });
-  it('texto livre e "other" viram 🐾 (nunca um cachorro)', () => {
+  it('nomes comuns digitados no campo livre ganham o emoji certo', () => {
+    expect(petSpeciesEmoji('cavalo')).toBe('🐴');
+    expect(petSpeciesEmoji('Porco')).toBe('🐷');
+    expect(petSpeciesEmoji('jacaré')).toBe('🐊');
+    expect(petSpeciesEmoji('Égua')).toBe('🐴');
+    expect(petSpeciesEmoji('periquito')).toBe('🦜');
+    expect(petSpeciesEmoji('tartaruga')).toBe('🐢');
+  });
+  it('texto livre desconhecido e "other" viram 🐾 (nunca um cachorro)', () => {
     expect(petSpeciesEmoji('furão')).toBe('🐾');
+    expect(petSpeciesEmoji('xyzbicho')).toBe('🐾');
     expect(petSpeciesEmoji('other')).toBe('🐾');
   });
 });
