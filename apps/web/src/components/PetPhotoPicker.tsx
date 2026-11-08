@@ -372,6 +372,35 @@ export function PetPhotoPicker({ initialSrc, onConfirm, onCancel }: PetPhotoPick
         </div>
       </div>
 
+      {/* Sem foto ainda: o primeiro toque já oferece câmera ou galeria (sem tela vazia no meio) */}
+      {!imgSrc && (
+        <div className="absolute inset-0 z-10 bg-black/70 flex items-end" onClick={() => { if (!processing) onCancel(); }}>
+          <div
+            className="w-full px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] space-y-2"
+            onClick={e => e.stopPropagation()}
+          >
+            {error && <p className="text-rose-300 text-xs text-center pb-1">{error}</p>}
+            {processing && <p className="text-white/70 text-xs text-center pb-1">Preparando foto…</p>}
+            <div className="rounded-2xl bg-[#1c1c1e] overflow-hidden divide-y divide-white/10">
+              <label className={`relative flex items-center justify-center gap-3 py-4 text-white text-base font-medium ${processing ? 'opacity-50 pointer-events-none' : 'cursor-pointer active:bg-white/10'}`}>
+                <Camera className="w-5 h-5" />
+                Tirar foto
+                <input type="file" accept="image/*" capture="environment" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" disabled={processing} onChange={handleFileChange} />
+              </label>
+              <label className={`relative flex items-center justify-center gap-3 py-4 text-white text-base font-medium ${processing ? 'opacity-50 pointer-events-none' : 'cursor-pointer active:bg-white/10'}`}>
+                <ImageIcon className="w-5 h-5" />
+                Escolher da galeria
+                <input type="file" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" disabled={processing} onChange={handleFileChange} />
+              </label>
+            </div>
+            <button type="button" onClick={onCancel} disabled={processing}
+              className="w-full rounded-2xl bg-[#1c1c1e] py-4 text-white text-base font-semibold active:bg-white/10 disabled:opacity-50">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
       <canvas ref={canvasRef} className="hidden" />
     </div>
   );
