@@ -3,10 +3,11 @@ import { getToken } from '@/lib/auth-token';
 import { API_BASE_URL } from '@/lib/api';
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { Camera, Pencil, Plus, Save } from 'lucide-react';
-import { PetSpecies } from '@/lib/petTaxonomy';
+import { PetSpecies, petSpeciesEmoji } from '@/lib/petTaxonomy';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import { isPetProfileCompleted, trackV1Metric } from '@/lib/v1Metrics';
 import { PetPhotoPicker } from './PetPhotoPicker';
+import { OtherSpeciesPicker } from './OtherSpeciesPicker';
 import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { DateField } from '@/components/ui/DateField';
 import { resolveBackendPetPhoto } from '@/lib/backendPetProfile';
@@ -328,7 +329,7 @@ function BreedPicker({ species, value, onChange }: { species: string; value: str
   // só sobe quando o tutor toca no campo "Buscar raça…".
   const openSheet = () => setOpen(true);
 
-  if (!species || species === 'other') return null;
+  if (species !== 'dog' && species !== 'cat') return null;
 
   return (
     <div className="space-y-1.5">
@@ -639,7 +640,7 @@ export function EditPetModal({ pet, photoVersion, careSummary, onClose, onSave, 
               <SheetAvatar
                 src={petPhotoUrl}
                 alt={formData.name || 'Pet'}
-                fallback={pet.species === 'cat' ? '🐱' : '🐶'}
+                fallback={petSpeciesEmoji(pet.species)}
               />
             }
           />
@@ -688,10 +689,11 @@ export function EditPetModal({ pet, photoVersion, careSummary, onClose, onSave, 
                 <label className={lbl}>Espécie</label>
                 <div className="flex gap-2">
                   {([{ v: 'dog', l: '🐶  Cão' }, { v: 'cat', l: '🐱  Gato' }, { v: 'other', l: 'Outro' }]).map(o => (
-                    <button key={o.v} type="button" onClick={() => set('species', o.v as PetSpecies)}
+                    <button key={o.v} type="button" onClick={() => { if (o.v !== 'other' || speciesSeg !== 'other') set('species', o.v as PetSpecies); }}
                       className={segBtn(speciesSeg === o.v)}>{o.l}</button>
                   ))}
                 </div>
+                {speciesSeg === 'other' && <OtherSpeciesPicker value={formData.species} onChange={(v) => set('species', v as PetSpecies)} />}
               </div>
 
               {/* Raça */}

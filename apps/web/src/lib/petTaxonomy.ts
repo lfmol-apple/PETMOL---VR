@@ -204,3 +204,11 @@ export const PET_SIGNALS: Record<string, string[]> = {
   'fr': ['nourriture', 'friandise', 'chien', 'chat', 'animal', 'collier', 'litière'],
   'it': ['cibo', 'snack', 'cane', 'gatto', 'animale', 'collare', 'lettiera'],
 };
+
+/** Emoji de reserva do pet (quando não há foto). Espécie ausente = cão (comportamento legado);
+ *  espécies conhecidas usam o ícone da taxonomia; qualquer outra (texto livre) vira 🐾. */
+export function petSpeciesEmoji(species?: string | null): string {
+  if (!species || species === 'dog') return '🐶';
+  if (species === 'cat') return '🐱';
+  return PET_SPECIES.find((s) => s.id === species)?.icon ?? '🐾';
+}

@@ -17,6 +17,7 @@ import { fetchAiPhotoConsent, revokeAiPhotoConsent } from '@/features/ai/aiPhoto
 
 // ── Design tokens ─────────────────────────────────────────────
 import { BrandBackground } from '@/components/ui/BrandBackground';
+import { petSpeciesEmoji } from '@/lib/petTaxonomy';
 
 // bg-slate-50 (não bg-white) — os grupos flutuavam invisíveis dentro do
 // cartão externo, que também é branco ("praticamente sem cor de fundo",
@@ -1058,7 +1059,7 @@ export default function ProfilePage() {
                       <div key={pet.id} className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <span className="text-lg">{pet.species === 'cat' ? '🐱' : '🐶'}</span>
+                            <span className="text-lg">{petSpeciesEmoji(pet.species)}</span>
                             <span className="text-sm font-bold text-slate-800">{pet.name}</span>
                           </div>
                           <button

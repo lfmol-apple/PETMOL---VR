@@ -29,6 +29,7 @@ import { useCommerceOffers } from './useCommerceOffers';
 import { FoodBridgeCard, dismissFoodBridge, isFoodBridgeDismissed } from './FoodBridgeCard';
 import { isNativeAppClient } from '@/lib/nativeApp';
 import { amazonDisclosure } from './affiliateDisclosure';
+import { petSpeciesEmoji } from '@/lib/petTaxonomy';
 
 const AMAZON_HIDDEN_IN_APP = process.env.NEXT_PUBLIC_AMAZON_IN_APP === 'off';
 import {
@@ -407,7 +408,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders,
               <SheetAvatar
                 src={petPhotoSrc}
                 alt={petName || 'Pet'}
-                fallback={currentPet.species === 'cat' ? '🐱' : '🐶'}
+                fallback={petSpeciesEmoji(currentPet.species)}
               />
             }
             onClose={onClose}
