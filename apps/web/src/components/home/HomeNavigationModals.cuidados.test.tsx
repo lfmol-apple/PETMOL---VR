@@ -11,7 +11,7 @@ import { HomeNavigationModals } from './HomeNavigationModals';
 
 afterEach(cleanup);
 
-function open(species: 'dog' | 'cat') {
+function open(species: string) {
   render(
     <HomeNavigationModals
       currentPet={{ pet_id: 'p1', pet_name: 'Baby', species } as never}
@@ -61,5 +61,14 @@ describe('Cuidados — com o card de Banho e Tosa (de volta, além da banheirinh
     fireEvent.click(screen.getByText('Banho e Tosa'));
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onOpenGrooming).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Cuidados — espécies sem vacina/parasita (coelho, cavalo…)', () => {
+  it.each(['rabbit', 'cavalo'])('%s: sem Vermífugo/Antipulgas/Coleira; ficam Banho e Tosa e PetShops', (sp) => {
+    open(sp);
+    ['Vermífugo', 'Antipulgas', 'Coleira'].forEach((l) => expect(screen.queryByText(l)).toBeNull());
+    expect(screen.getByText('Banho e Tosa')).toBeTruthy();
+    expect(screen.getByText('PetShops')).toBeTruthy();
   });
 });

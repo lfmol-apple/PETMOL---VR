@@ -10,6 +10,7 @@
  */
 
 import type { FeedingPlanEntry } from '@/lib/types/homeForms';
+import { speciesCare } from '@/lib/speciesCare';
 
 export type OnboardingStepKey = 'profile' | 'food' | 'vaccine' | 'flea' | 'dewormer';
 
@@ -53,6 +54,8 @@ export interface DeriveOnboardingInput {
   vaccinesCount: number;
   parasiteTypes: string[];
   feedingPlan: FeedingPlanEntry | null | undefined;
+  /** Espécie do pet: coelho/cavalo etc. não têm os passos de vacina e antiparasitário. Ausente = cão. */
+  species?: string | null;
 }
 
 // Ordem por risco pra saúde do pet, não por ordem alfabética/arbitrária
@@ -151,7 +154,11 @@ export function deriveOnboardingProgress(input: DeriveOnboardingInput): Onboardi
     dewormer: { key: 'dewormer', done: dataDewormer || store.dewormer != null, fromData: dataDewormer },
   };
 
-  const steps = STEP_ORDER.map((k) => stepMap[k]);
+  const care = speciesCare(input.species);
+  const applies: Record<OnboardingStepKey, boolean> = {
+    profile: true, food: true, vaccine: care.vaccines, flea: care.fleaTick, dewormer: care.dewormer,
+  };
+  const steps = STEP_ORDER.filter((k) => applies[k]).map((k) => stepMap[k]);
   const doneCount = steps.filter((s) => s.done).length;
 
   return {

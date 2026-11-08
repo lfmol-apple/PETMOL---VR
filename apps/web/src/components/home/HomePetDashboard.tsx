@@ -1,5 +1,6 @@
 'use client';
 
+import { speciesCare } from '@/lib/speciesCare';
 import { useMemo, useRef, useState, useEffect } from 'react';
 import { AppleControlButtons } from '@/components/AppleControlButtons';
 import { HomeShoppingSheet } from '@/features/commerce/HomeShoppingSheet';
@@ -396,6 +397,7 @@ export function HomePetDashboard({
       <AppleControlButtons
         onHealthClick={onOpenHealth}
         onVaccinesClick={onOpenVaccines}
+        hideVaccines={!speciesCare(currentPet.species).vaccines}
         petName={currentPet.pet_name}
         petSex={currentPet.sex}
         onAlimentacaoClick={onOpenFood}

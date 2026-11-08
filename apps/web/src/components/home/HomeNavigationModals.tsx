@@ -7,6 +7,7 @@ import { useI18n } from '@/lib/I18nContext';
 import { ModalPortal } from '@/components/ModalPortal';
 import { PETMOL_HEADER_BG } from '@/components/ui/sheet';
 import { PetShopsNearbySheet } from '@/components/home/PetShopsNearbySheet';
+import { speciesCare } from '@/lib/speciesCare';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { MEDICATIONS_ENABLED } from '@/lib/featureFlags';
 import type { PetHealthProfile } from '@/lib/petHealth';
@@ -87,6 +88,7 @@ export function HomeNavigationModals({
   onOpenEmergency,
 }: HomeNavigationModalsProps) {
   const { t } = useI18n();
+  const care = speciesCare(currentPet?.species);
   const petPhotoSrc = resolvePetPhotoUrl(currentPet?.photo);
   // "PetShops perto de você" saiu da Home e agora vive aqui dentro de Cuidados.
   const [showPetShopsNearby, setShowPetShopsNearby] = useState(false);
@@ -136,10 +138,11 @@ export function HomeNavigationModals({
                   // Reviravolta 11/10/2026 (pedido do dono): sem emoji/arte
                   // nenhuma nos 6 cards — o título carrega o card sozinho,
                   // com mais destaque tipográfico no lugar do ícone.
-                  { label: 'Vermífugo', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
-                  { label: 'Antipulgas', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
-                  // Coleira antiparasitária é uso específico de cães — outras espécies não usam
-                  ...(currentPet?.species === 'dog'
+                  // Vermífugo/Antipulgas são protocolos de cão e gato; coleira só de cães (ver lib/speciesCare.ts).
+                  // Para coelho, cavalo etc. esses cards não aparecem.
+                  ...(care.dewormer ? [{ label: 'Vermífugo', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue }] : []),
+                  ...(care.fleaTick ? [{ label: 'Antipulgas', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue }] : []),
+                  ...(care.collar
                     ? [{ label: 'Coleira', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
                     : []),
                   // Banho e Tosa de volta em Cuidados (08/11/2026, pedido do dono): além da banheirinha na foto do pet,

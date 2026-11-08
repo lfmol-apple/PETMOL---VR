@@ -1,3 +1,4 @@
+import { speciesNoun } from '@/lib/speciesCare';
 import type { PetCareReminder, CareReminderDomain } from '@/lib/petCareDomain';
 import type { PetSpecies } from '@/lib/petHealth';
 import { HOME_SHOPPING_PARTNERS, type HomeShoppingPartnerId } from './homeShoppingPartners';
@@ -163,9 +164,7 @@ export function groupReorderCardsByUrgency(cards: ReorderCard[]): GroupedReorder
 }
 
 function speciesQueryLabel(species: PetSpecies): string {
-  if (species === 'dog') return 'cachorro';
-  if (species === 'cat') return 'gato';
-  return 'pet';
+  return speciesNoun(species);
 }
 
 // ── "🏪 Lojas" → drill-down de categoria por loja ──────────────────────────
