@@ -490,7 +490,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders,
 
               <PartnerStoreGrid partners={visibleStorePartners} onOpen={handleStorePartnerOpen} />
 
-              <p className="pt-1 text-center text-[10px] leading-relaxed text-white/60">
+              <p className="pt-1 text-center text-[10px] leading-relaxed text-slate-500">
                 Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.
                 A disponibilidade, preço, pagamento e entrega são de responsabilidade da loja escolhida.
               </p>
