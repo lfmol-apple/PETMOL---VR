@@ -5,9 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const browserOpen = vi.fn().mockResolvedValue(undefined);
 const openWebView = vi.fn().mockResolvedValue(undefined);
+const closeWeb = vi.fn().mockResolvedValue(undefined);
+const toast = vi.fn();
+const track = vi.fn().mockResolvedValue(undefined);
 vi.mock('@capacitor/browser', () => ({ Browser: { open: browserOpen } }));
+vi.mock('@/features/interactions/userPromptChannel', () => ({ showAppToast: toast }));
+vi.mock('@/lib/analytics/click', () => ({ trackClick: track }));
 vi.mock('@capgo/inappbrowser', () => ({
-  InAppBrowser: { openWebView },
+  InAppBrowser: { openWebView, close: closeWeb },
   ToolBarType: { NAVIGATION: 'navigation' },
 }));
 
@@ -29,7 +34,7 @@ async function load(platform: string, opts: { token?: string | null; adminStatus
 }
 
 describe('loja dentro do PETMOL (teste só do dono, iPhone)', () => {
-  beforeEach(() => { browserOpen.mockClear(); openWebView.mockClear(); });
+  beforeEach(() => { browserOpen.mockClear(); openWebView.mockReset().mockResolvedValue(undefined); closeWeb.mockClear(); toast.mockClear(); track.mockClear(); });
   afterEach(() => { vi.resetModules(); vi.unstubAllGlobals(); vi.doUnmock('@capacitor/core'); vi.doUnmock('@/lib/auth-token'); });
 
   it.each([['Mercado Livre', ML], ['Shopee', SHOPEE], ['Cobasi', COBASI]])('dono no iPhone: %s abre na janela interna com o link intacto e sem deeplink', async (nome, link) => {
@@ -67,7 +72,7 @@ describe('loja dentro do PETMOL (teste só do dono, iPhone)', () => {
   });
 
   it('plugin ausente/erro na janela interna: cai no navegador (o toque nunca fica sem resposta)', async () => {
-    openWebView.mockRejectedValueOnce(new Error('plugin ausente'));
+    openWebView.mockRejectedValue(new Error('plugin ausente'));
     const { navigateToPartnerUrl } = await load('ios');
     navigateToPartnerUrl(ML, { title: 'Mercado Livre' });
     await vi.waitFor(() => expect(browserOpen).toHaveBeenCalled());
@@ -80,6 +85,38 @@ describe('loja dentro do PETMOL (teste só do dono, iPhone)', () => {
     await vi.waitFor(() => expect(browserOpen).toHaveBeenCalled());
     expect(new URL(browserOpen.mock.calls[0][0].url as string).searchParams.get('to')).toBe(ML);
     expect(openWebView).not.toHaveBeenCalled();
+  });
+
+  it('fecha qualquer janela anterior antes de abrir (a "terceira vez" não pode herdar janela viva)', async () => {
+    const { navigateToPartnerUrl } = await load('ios');
+    for (let i = 1; i <= 3; i++) {
+      navigateToPartnerUrl(ML, { title: 'Mercado Livre' });
+      await vi.waitFor(() => expect(openWebView).toHaveBeenCalledTimes(i));
+      expect(closeWeb).toHaveBeenCalledTimes(i); // fechou o que pudesse estar vivo ANTES de cada abertura
+    }
+    expect(browserOpen).not.toHaveBeenCalled();
+  });
+
+  it('1ª tentativa falha e a 2ª funciona: continua dentro do PETMOL (sem cair no app da loja)', async () => {
+    openWebView.mockRejectedValueOnce(new Error('apresentação ocupada'));
+    const { navigateToPartnerUrl } = await load('ios');
+    navigateToPartnerUrl(ML, { title: 'Mercado Livre' });
+    await vi.waitFor(() => expect(openWebView).toHaveBeenCalledTimes(2));
+    expect(browserOpen).not.toHaveBeenCalled();
+    expect(toast).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(track).toHaveBeenCalled());
+    expect(track.mock.calls[0][0].metadata).toMatchObject({ mode: 'in_app_webview', attempts: 2 });
+  });
+
+  it('as 2 tentativas falham: o dono recebe aviso com o motivo, é registrado e abre como hoje', async () => {
+    openWebView.mockRejectedValue(new Error('plugin quebrou'));
+    const { navigateToPartnerUrl } = await load('ios');
+    navigateToPartnerUrl(SHOPEE, { title: 'Shopee' });
+    await vi.waitFor(() => expect(browserOpen).toHaveBeenCalled());
+    expect(browserOpen.mock.calls[0][0].url).toBe(SHOPEE);
+    expect(toast).toHaveBeenCalledTimes(1);
+    expect(String(toast.mock.calls[0][0])).toContain('plugin quebrou');
+    expect(track.mock.calls[0][0].metadata).toMatchObject({ mode: 'fallback_system', attempts: 2, error: 'plugin quebrou' });
   });
 
   it('Amazon: o link sem etiqueta sai COM a etiqueta e intacto até o navegador (iPhone)', async () => {
