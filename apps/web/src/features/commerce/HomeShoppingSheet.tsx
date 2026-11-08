@@ -512,21 +512,19 @@ function storeGridRank(id: HomeShoppingPartnerId): number {
 }
 
 // Vitrine das lojas parceiras (v2, 08/11/2026, pedido do dono): o nome já vai DENTRO de cada logo (não se repete em
-// texto); todos os tiles seguem o AZUL INSTITUCIONAL DO PETMOL (o mesmo do cabeçalho dos sheets, #0056D2) com o efeito
-// de tecla vitrificada. Logos OFICIAIS, sem recolorir/esticar/cortar — por isso cada marca usa a versão que o próprio
-// site dela usa sobre fundo escuro/colorido:
-//  - Petz: logotipo branco (static-file.petz.com.br …/logotypes/petz.svg).
-//  - Shopee: logo branco com bolsa + "Shopee" (o do cabeçalho de shopee.com.br, extraído do SVG inline do site).
-//  - Amazon: logo branco com o sorriso laranja (sprite do cabeçalho de amazon.com.br).
-//  - Cobasi: logo oficial com o nome (v2-header-logo.png, o declarado no JSON-LD de cobasi.com.br): laranja + slogan.
-//  - Mercado Livre: não publica versão branca; o logo azul-marinho fica numa cápsula amarela oficial (#FFE600), a
-//    superfície para a qual ele foi desenhado, dentro do tile azul.
+// texto). O AZUL INSTITUCIONAL DO PETMOL (#0056D2, o do cabeçalho dos sheets) é o FUNDO do painel; cada card usa a
+// superfície da PRÓPRIA MARCA, com o efeito de tecla vitrificada. Logos OFICIAIS, sem recolorir/esticar/cortar:
+//  - Petz: o arquivo oficial é um quadrado creme com o nome em azul → card creme; só se apara a margem vazia
+//    (petz-wordmark.png), o logo em si não muda.
+//  - Mercado Livre: amarelo oficial #FFE600, fundo para o qual o logo foi desenhado.
+//  - Cobasi: logo oficial com o nome (laranja + slogan), declarado no JSON-LD do site → card claro (perolado).
+//  - Amazon: versão branca com o sorriso laranja → azul-escuro da Amazon (#232F3E → #131921).
+//  - Shopee: versão branca (bolsa + "Shopee") → laranja Shopee (#EE4D2D).
 // Logos ~20% menores que na versão anterior. `partner.logoSrc` (ícones pequenos em listas) NÃO muda.
-const TILE_BLUE =
+const PANEL_BLUE =
   'bg-[#0056D2] bg-[radial-gradient(120%_140%_at_12%_-10%,#2f6fe0_0%,#0056D2_46%,#00427e_100%)]';
-// Relevo de tecla: brilho interno (vidro) + "beirada" azul-escura + sombra; afunda ao tocar.
-const TILE_KEY =
-  'shadow-[inset_0_1px_0_rgba(255,255,255,0.45),inset_0_-12px_18px_-12px_rgba(0,20,70,0.55),0_6px_0_0_#00306b,0_16px_24px_-10px_rgba(0,0,0,0.65)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.3),inset_0_-12px_18px_-12px_rgba(0,20,70,0.55),0_2px_0_0_#00306b,0_6px_12px_-6px_rgba(0,0,0,0.6)]';
+// Relevo de tecla (brilho de vidro + beirada na cor escura da marca; afunda ao tocar): escrito por extenso em cada
+// card porque o Tailwind só gera o CSS de classes completas no código.
 
 interface StoreTileSpec {
   logo: string;
@@ -534,17 +532,18 @@ interface StoreTileSpec {
   w: number;
   h: number;
   imgClass: string;
-  /** Cápsula atrás do logo (só onde a marca exige fundo próprio). */
-  capsule?: string;
+  /** Superfície do card (a cor da marca) e a beirada da tecla. */
+  tile: string;
+  key: string;
   /** Selo de oferta embaixo do logo. */
   badge?: string;
 }
 const STORE_TILE_SPEC: Partial<Record<HomeShoppingPartnerId, StoreTileSpec>> = {
-  petz:         { logo: '/partner-logos/petz-white.svg', w: 109, h: 24, imgClass: 'w-[76px]', badge: '10% de Desconto' },
-  mercadolivre: { logo: '/partner-logos/mercadolivre.png', w: 268, h: 68, imgClass: 'w-[86px]', capsule: 'rounded-xl bg-[#FFE600] px-3 py-2 shadow-[inset_0_-2px_4px_rgba(0,0,0,0.12)]' },
-  cobasi:       { logo: '/partner-logos/cobasi-wordmark.png', w: 153, h: 95, imgClass: 'h-[48px] w-auto', badge: '10% na 1ª compra' },
-  amazon:       { logo: '/partner-logos/amazon-white.png', w: 196, h: 62, imgClass: 'w-[84px]' },
-  shopee:       { logo: '/partner-logos/shopee-white.svg', w: 192, h: 65, imgClass: 'w-[104px]' },
+  petz:         { logo: '/partner-logos/petz-wordmark.png', w: 406, h: 107, imgClass: 'w-[96px]', tile: 'bg-[#FAE6B3]', key: 'shadow-[inset_0_1px_0_rgba(255,255,255,0.7),inset_0_-12px_18px_-12px_rgba(0,0,0,0.25),0_6px_0_0_#B8984F,0_16px_24px_-10px_rgba(0,20,70,0.6)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.5),inset_0_-12px_18px_-12px_rgba(0,0,0,0.25),0_2px_0_0_#B8984F,0_6px_12px_-6px_rgba(0,20,70,0.55)]', badge: '10% de Desconto' },
+  mercadolivre: { logo: '/partner-logos/mercadolivre.png', w: 268, h: 68, imgClass: 'w-[112px]', tile: 'bg-gradient-to-b from-[#FFEB1F] to-[#FFE600]', key: 'shadow-[inset_0_1px_0_rgba(255,255,255,0.7),inset_0_-12px_18px_-12px_rgba(0,0,0,0.25),0_6px_0_0_#BFA900,0_16px_24px_-10px_rgba(0,20,70,0.6)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.5),inset_0_-12px_18px_-12px_rgba(0,0,0,0.25),0_2px_0_0_#BFA900,0_6px_12px_-6px_rgba(0,20,70,0.55)]' },
+  cobasi:       { logo: '/partner-logos/cobasi-wordmark.png', w: 153, h: 95, imgClass: 'h-[46px] w-auto', tile: 'bg-gradient-to-b from-[#fcfcfe] to-[#e6eaf1]', key: 'shadow-[inset_0_1px_0_rgba(255,255,255,0.7),inset_0_-12px_18px_-12px_rgba(0,0,0,0.25),0_6px_0_0_#A3ACBC,0_16px_24px_-10px_rgba(0,20,70,0.6)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.5),inset_0_-12px_18px_-12px_rgba(0,0,0,0.25),0_2px_0_0_#A3ACBC,0_6px_12px_-6px_rgba(0,20,70,0.55)]', badge: '10% na 1ª compra' },
+  amazon:       { logo: '/partner-logos/amazon-white.png', w: 196, h: 62, imgClass: 'w-[84px]', tile: 'bg-gradient-to-b from-[#2c3b4f] to-[#131921]', key: 'shadow-[inset_0_1px_0_rgba(255,255,255,0.7),inset_0_-12px_18px_-12px_rgba(0,0,0,0.25),0_6px_0_0_#06090d,0_16px_24px_-10px_rgba(0,20,70,0.6)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.5),inset_0_-12px_18px_-12px_rgba(0,0,0,0.25),0_2px_0_0_#06090d,0_6px_12px_-6px_rgba(0,20,70,0.55)]' },
+  shopee:       { logo: '/partner-logos/shopee-white.svg', w: 192, h: 65, imgClass: 'w-[104px]', tile: 'bg-gradient-to-b from-[#f45f3f] to-[#ee4d2d]', key: 'shadow-[inset_0_1px_0_rgba(255,255,255,0.7),inset_0_-12px_18px_-12px_rgba(0,0,0,0.25),0_6px_0_0_#a82c12,0_16px_24px_-10px_rgba(0,20,70,0.6)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.5),inset_0_-12px_18px_-12px_rgba(0,0,0,0.25),0_2px_0_0_#a82c12,0_6px_12px_-6px_rgba(0,20,70,0.55)]' },
 };
 
 function PartnerStoreGrid({
@@ -559,10 +558,14 @@ function PartnerStoreGrid({
   const today = localTodayISO();
 
   return (
-    <div className="rounded-[26px] bg-gradient-to-br from-[#0a1d45] via-[#0c2a63] to-[#08142e] p-4 shadow-[0_18px_40px_-18px_rgba(8,20,46,0.75)] ring-1 ring-white/10">
-      <h3 className="mb-4 mt-1 text-balance px-2 text-center text-[22px] font-black leading-[1.15] tracking-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.35)]">
-        Receba no conforto da sua casa
-      </h3>
+    <div className={`rounded-[26px] ${PANEL_BLUE} p-4 shadow-[0_18px_40px_-18px_rgba(0,60,160,0.7)] ring-1 ring-white/20`}>
+      <div className="mb-4 mt-1 px-2 text-center">
+        <h3 className="text-balance text-[19px] font-extrabold leading-tight tracking-tight text-white">
+          Receba no conforto da sua casa
+        </h3>
+        {/* detalhe discreto: um filete claro dá destaque sem chamar demais a atenção */}
+        <span aria-hidden className="mx-auto mt-2 block h-[3px] w-10 rounded-full bg-white/45" />
+      </div>
       <div className="grid grid-cols-2 gap-x-3.5 gap-y-4 pb-1">
         {partners.map((partner, index) => {
           const spec = STORE_TILE_SPEC[partner.id];
@@ -576,10 +579,10 @@ function PartnerStoreGrid({
               type="button"
               onClick={() => onOpen(partner)}
               aria-label={label}
-              className={`group relative flex w-full touch-manipulation select-none flex-col items-center justify-center overflow-hidden rounded-[22px] ${lastAlone ? 'col-span-2 h-[76px]' : 'h-[96px]'} ring-1 ring-white/25 transition-[transform,box-shadow] duration-100 ease-out active:translate-y-[4px] motion-reduce:transition-none motion-reduce:active:translate-y-0 ${TILE_BLUE} ${TILE_KEY}`}
+              className={`group relative flex w-full touch-manipulation select-none flex-col items-center justify-center overflow-hidden rounded-[22px] ${lastAlone ? 'col-span-2 h-[76px]' : 'h-[96px]'} ring-1 ring-white/40 transition-[transform,box-shadow] duration-100 ease-out active:translate-y-[4px] motion-reduce:transition-none motion-reduce:active:translate-y-0 ${spec?.tile ?? 'bg-slate-800'} ${spec?.key ?? ''}`}
             >
               <span className={`flex flex-1 items-center justify-center ${spec?.badge ? 'pt-1.5' : ''}`}>
-                <span className={spec?.capsule ?? 'contents'}>
+                <span className="contents">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={spec?.logo ?? partner.logoSrc}
@@ -598,13 +601,13 @@ function PartnerStoreGrid({
                 </span>
               )}
               {/* vidro: reflexo na metade de cima (curvo, como lente), mais suave sobre o azul */}
-              <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-1/2 rounded-t-[22px] bg-gradient-to-b from-white/25 via-white/8 to-transparent" />
+              <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-1/2 rounded-t-[22px] bg-gradient-to-b from-white/45 via-white/12 to-transparent" />
               {chip && (
                 <span
                   className={`absolute right-2 top-2 z-10 rounded-full px-2 py-0.5 text-[9.5px] font-extrabold leading-none ${
                     chip.phase === 'live'
                       ? 'bg-amber-400 text-slate-900 shadow-[0_2px_8px_rgba(251,191,36,0.55)]'
-                      : 'border border-white/35 bg-white/15 text-white/95 backdrop-blur-sm'
+                      : 'bg-slate-900/75 text-white shadow-[0_2px_6px_rgba(0,0,0,0.25)] backdrop-blur-sm'
                   }`}
                 >
                   {chip.label}
