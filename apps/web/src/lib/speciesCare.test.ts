@@ -3,18 +3,28 @@ import { hasDogCatCare, speciesCare, speciesLabel, speciesNoun, speciesPosterEmo
 
 describe('speciesCare', () => {
   it('cão: tudo; ausente também (pets antigos)', () => {
-    expect(speciesCare('dog')).toEqual({ vaccines: true, dewormer: true, fleaTick: true, collar: true });
+    expect(speciesCare('dog')).toEqual({ vaccines: true, dewormer: true, fleaTick: true, collar: true, walk: true, grooming: true });
     expect(speciesCare(undefined)).toEqual(speciesCare('dog'));
     expect(speciesCare('')).toEqual(speciesCare('dog'));
   });
   it('gato: vacina e antiparasitários, sem coleira', () => {
-    expect(speciesCare('cat')).toEqual({ vaccines: true, dewormer: true, fleaTick: true, collar: false });
+    expect(speciesCare('cat')).toEqual({ vaccines: true, dewormer: true, fleaTick: true, collar: false, walk: true, grooming: true });
   });
   it('coelho, pássaro, cavalo, texto livre e "other": nada de vacina/parasita', () => {
     for (const s of ['rabbit', 'bird', 'hamster', 'fish', 'other', 'cavalo', 'jacaré']) {
-      expect(speciesCare(s)).toEqual({ vaccines: false, dewormer: false, fleaTick: false, collar: false });
+      const c = speciesCare(s);
+      expect([c.vaccines, c.dewormer, c.fleaTick, c.collar, c.walk]).toEqual([false, false, false, false, false]);
       expect(hasDogCatCare(s)).toBe(false);
     }
+  });
+  it('Banho e Tosa: some para peixe, pássaro e hamster; fica para coelho, cavalo e demais', () => {
+    for (const s of ['fish', 'bird', 'hamster']) expect(speciesCare(s).grooming).toBe(false);
+    for (const s of ['rabbit', 'cavalo', 'other', 'dog', 'cat']) expect(speciesCare(s).grooming).toBe(true);
+  });
+  it('passeio: só cão e gato', () => {
+    expect(speciesCare('dog').walk).toBe(true);
+    expect(speciesCare('cat').walk).toBe(true);
+    for (const s of ['rabbit', 'bird', 'fish', 'hamster', 'cavalo', 'other']) expect(speciesCare(s).walk).toBe(false);
   });
 });
 

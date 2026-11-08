@@ -1,5 +1,5 @@
 'use client';
-import { speciesLabel } from '@/lib/speciesCare';
+import { speciesCare, speciesLabel } from '@/lib/speciesCare';
 import { useBackHandler } from '@/lib/backStack';
 import { useRef, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -379,6 +379,7 @@ export function HomePetHeader({
   ].filter(Boolean).join(' · ');
 
   const currentPetPhotoUrl = getPhotoUrl(currentPet.photo, currentPet.pet_id, photoTimestamps);
+  const care = speciesCare(currentPet.species);
 
   return (
     <>    <div className="px-2 pt-1.5 space-y-1.5 sm:pt-4 sm:space-y-2">
@@ -524,11 +525,11 @@ export function HomePetHeader({
         {/* Canto inferior esquerdo: banho e tosa (banheirinha, abre o sheet) em cima e a rotina do passeio embaixo
             (esta só desenha se o servidor ligar routine_walk_enabled). */}
         <div className="absolute bottom-2.5 left-2.5 z-20 flex flex-col gap-2 sm:bottom-3 sm:left-3">
-          {onOpenGrooming && <GroomingRoutineButton state={groomingState} onClick={onOpenGrooming} />}
+          {onOpenGrooming && care.grooming && <GroomingRoutineButton state={groomingState} onClick={onOpenGrooming} />}
           {heatTrackingApplies(currentPet) && (
             <HeatCycleButton petId={currentPet.pet_id} petName={currentPet.pet_name} species={currentPet.species} photoSrc={currentPetPhotoUrl} />
           )}
-          <RoutineWalkButton petId={currentPet.pet_id} petName={currentPet.pet_name} />
+          {care.walk && <RoutineWalkButton petId={currentPet.pet_id} petName={currentPet.pet_name} />}
         </div>
 
         {/* Botão de ação no canto inferior direito — só "editar este pet"
