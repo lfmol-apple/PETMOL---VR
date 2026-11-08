@@ -114,7 +114,7 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
   {
     id: 'cobasi',
     name: 'Cobasi',
-    description: 'Compare preço e entrega para ração e cuidados',
+    description: 'Ração e cuidados — 10% de desconto na primeira compra',
     logoSrc: '/partner-logos/cobasi.png',
     logoAlt: 'Cobasi',
     fallbackUrl: 'https://www.cobasi.com.br',
