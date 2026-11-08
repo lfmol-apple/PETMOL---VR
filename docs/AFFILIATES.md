@@ -1302,3 +1302,19 @@ exata — `/produto/*` está na AASA e não pode ser usado.
   **Interruptor:** `NEXT_PUBLIC_AMAZON_IN_APP=off` (e rebuild do web) esconde o cartão só no app nativo.
 - No app o link abre por `Browser.open` (aba do sistema), nunca em WebView (proibido pela política).
 - Nunca colocar link de afiliado da Amazon em notificação push/mensagem privada (política da Amazon).
+
+## Ponte de loja no Android — Cobasi, Mercado Livre, Shopee e Amazon (08/11/2026)
+
+Verificado nos `assetlinks.json` públicos: os apps de **Cobasi**, **Mercado Livre** (`com.mercadolibre`, também em `meli.la`),
+**Shopee** (`com.shopee.br`) e **Amazon** (`com.amazon.mShop.android.shopping`, também `amzn.to`) reivindicam `handle_all_urls`.
+No Android, o Chrome Custom Tab do `Browser.open` pode saltar direto pro app da loja: o PETMOL some do topo e a atribuição da
+comissão pode se perder. Por isso `navigateToPartnerUrl` manda esses hosts pela ponte `/go/loja?to=<url>`
+(`features/commerce/storeBridge.ts`, lista única `STORE_BRIDGE_HOSTS`, também usada pela página). O link de afiliado vai **intacto**
+no `to=` (nenhum parâmetro é alterado). iOS e web abrem direto (SFSafariViewController não faz Universal Link).
+
+- A Petz tem a própria ponte (`/go/petz`) e não está nesta lista.
+- Para incluir outra loja: acrescente o host em `STORE_BRIDGE_HOSTS` (só após conferir o assetlinks da loja) e um caso no teste.
+- **Ponto em aberto (iOS, Mercado Livre):** o encurtador `meli.la/2ftAKx5` redireciona para `/social/mohe4109227?...&forceInApp=true`;
+  o parâmetro `forceInApp` pede à página do ML para tentar abrir o app dele. Não alteramos o link (parâmetros de afiliado), então
+  falta testar num iPhone com o app do ML instalado.
+- **Amazon:** a Política de Aplicativos Móveis segue sendo o risco já registrado acima; a ponte não muda isso.

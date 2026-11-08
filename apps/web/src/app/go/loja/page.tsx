@@ -2,9 +2,10 @@
 
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { STORE_BRIDGE_HOSTS } from '@/features/commerce/storeBridge';
 
-// Ponte genérica de loja afiliada — hoje só a Cobasi/MAIS (ver
-// homeShoppingPartners.cobasiBridgeUrl). Usada só no Android nativo.
+// Ponte genérica de loja afiliada (Cobasi/MAIS, Mercado Livre, Shopee e Amazon — ver
+// features/commerce/storeBridge.ts). Usada só no Android nativo.
 //
 // Objetivo: o Chrome Custom Tab que o @capacitor/browser abre PODE saltar
 // pro app da Cobasi (assetlinks.json reivindica /*), e a compra lá dentro
@@ -14,7 +15,7 @@ import { useSearchParams } from 'next/navigation';
 // Link no Chrome, então o Custom Tab NÃO salta — o tutor termina a compra
 // no navegador, onde a atribuição vale.
 
-const ALLOWED_HOSTS = ['www.cobasi.com.br', 'cobasi.com.br', 'minhaloja.cobasi.com.br', 'mais.app'];
+const ALLOWED_HOSTS: readonly string[] = STORE_BRIDGE_HOSTS;
 const AUTO_REDIRECT_MS = 350;
 
 function safeTarget(raw: string): string | null {
