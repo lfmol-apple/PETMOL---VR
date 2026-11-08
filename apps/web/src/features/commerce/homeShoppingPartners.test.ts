@@ -13,7 +13,7 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
     ]);
   });
 
-  it('Petz reativada (04/09/2026) como Loja Parceira; só Mercado Livre segue fora do lançamento', async () => {
+  it('Petz reativada (04/09/2026) como Loja Parceira; Mercado Livre reativado (08/11/2026) como vitrine fixa', async () => {
     const {
       HOME_SHOPPING_PARTNERS,
       isPartnerVisibleForSearch,
@@ -23,7 +23,7 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
     expect(HOME_SHOPPING_PARTNERS.map((partner) => partner.affiliateStatus)).toEqual([
       'active',    // cobasi
       'active',    // petz — Loja Parceira + cupom PETMOL
-      'disabled',  // mercadolivre — fora do lançamento, entra depois
+      'active',    // mercadolivre — vitrine fixa da conta mohe4109227 (08/11/2026)
       'active',    // shopee
       'active',    // amazon — cartão parceiro (tag pelmol-20)
     ]);
@@ -31,6 +31,7 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
     expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea).map((partner) => partner.id)).toEqual([
       'cobasi',
       'petz',
+      'mercadolivre',
       'shopee',
       'amazon',
     ]);
@@ -43,6 +44,7 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
     expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual([
       'cobasi',
       'petz',
+      'mercadolivre',
       'shopee',
       'amazon',
     ]);
@@ -129,12 +131,14 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual([
         'cobasi',
         'petz',
+        'mercadolivre',
         'shopee',
         'amazon',
       ]);
       expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea).map((partner) => partner.id)).toEqual([
         'cobasi',
         'petz',
+        'mercadolivre',
         'shopee',
         'amazon',
       ]);
@@ -169,6 +173,7 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual([
         'cobasi',
         'petz',
+        'mercadolivre',
         'shopee',
         'amazon',
       ]);
@@ -207,6 +212,7 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea).map((partner) => partner.id)).toEqual([
         'cobasi',
         'petz',
+        'mercadolivre',
         'shopee',
         'amazon',
       ]);

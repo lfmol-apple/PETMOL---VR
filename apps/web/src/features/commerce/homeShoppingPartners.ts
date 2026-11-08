@@ -173,25 +173,25 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
   {
     id: 'mercadolivre',
     name: 'Mercado Livre',
-    description: 'Ofertas marketplace cadastradas com link oficial',
+    description: 'Produtos pet de vários vendedores',
     logoSrc: '/partner-logos/mercadolivre.png',
     logoAlt: 'Mercado Livre',
     directUrl: 'https://lista.mercadolivre.com.br/pet',
-    // FORA DO LANÇAMENTO (2026-08-30, decisão de produto): o app lança só
-    // com Cobasi e Shopee; Mercado Livre e Amazon entram depois. O
-    // afiliado ML já está desligado no backend (mercadolivre_affiliate_enabled
-    // /mercadolivre_public_offers_enabled = False). Aqui: 'disabled' tira
-    // o ML da grade de lojas, da busca e do "comprar novamente". Pra
-    // REATIVAR: 'disabled' → 'active' aqui E ligar os flags no backend.
+    // REATIVADO (08/11/2026, decisão do dono): entra na grade "Ou visite uma
+    // loja parceira" como vitrine fixa da conta de afiliado mohe4109227
+    // (storefrontAffiliateUrl abaixo; o shortlink meli.la redireciona para
+    // /social/mohe4109227 com matt_word/matt_tool dessa conta). Só vitrine:
+    // NÃO liga busca/oferta por produto nem "comprar novamente" — os flags
+    // do backend (mercadolivre_affiliate_enabled /
+    // mercadolivre_public_offers_enabled) seguem como estão, e
+    // QUICK_BUY_PARTNERS continua só com a Cobasi.
     //
-    // Marketplace: ofertas por produto vivem no backend via
-    // MarketplaceOfferProvider("mercadolivre") e só aparecem com link
-    // oficial cadastrado no Gerador de produtos recomendados. A vitrine
-    // genérica abre o perfil/lista de recomendações informado no painel.
-    affiliateStatus: 'disabled',
+    // Marketplace: ofertas por produto viveriam no backend via
+    // MarketplaceOfferProvider("mercadolivre") com link oficial cadastrado.
+    affiliateStatus: 'active',
     merchantType: 'marketplace',
-    affiliateMode: 'product_deeplink',
-    supportsProductDeepLink: true,
+    affiliateMode: 'fixed_store',
+    supportsProductDeepLink: false,
     supportsStorefrontAffiliate: true,
     storefrontAffiliateUrl: DEFAULT_MERCADOLIVRE_PROFILE_URL,
     buildAffiliateUrl: (query, base) =>
