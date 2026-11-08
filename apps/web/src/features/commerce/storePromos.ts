@@ -8,6 +8,8 @@
  * Para atualizar: acrescente/ajuste uma entrada em STORE_PROMOS (com `source`). O chip é calculado pela data de hoje,
  * sem mais nada a fazer. (Próximo passo possível: painel de admin para editar sem deploy.)
  */
+import { useEffect, useState } from 'react';
+import { API_BASE_URL } from '@/lib/api';
 import type { HomeShoppingPartnerId } from './homeShoppingPartners';
 
 export interface StorePromo {
@@ -117,4 +119,30 @@ export function promoChip(todayIso: string, merchant: HomeShoppingPartnerId, pro
       ? (promo.startsOn === promo.endsOn ? `${promo.name} hoje` : `${promo.name} no ar`)
       : daysToStart === 1 ? `${promo.name} amanhã` : `${promo.name} em ${daysToStart} dias`;
   return { label, phase, promoId: promo.id, detail: promo.detail };
+}
+
+/**
+ * Lista do servidor (`GET /commerce/promos`, mantida pelo dono no painel — sem deploy). Se a rede falhar, devolve
+ * null e o app usa a lista embutida acima (STORE_PROMOS) como reserva.
+ */
+export async function fetchStorePromos(): Promise<StorePromo[] | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/commerce/promos`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { promos?: StorePromo[] };
+    return Array.isArray(body.promos) ? body.promos : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Promoções para os chips dos cards: começa com a lista embutida e troca pela do servidor assim que ela chega. */
+export function useStorePromos(): StorePromo[] {
+  const [promos, setPromos] = useState<StorePromo[]>(STORE_PROMOS);
+  useEffect(() => {
+    let alive = true;
+    void fetchStorePromos().then((list) => { if (alive && list) setPromos(list); });
+    return () => { alive = false; };
+  }, []);
+  return promos;
 }

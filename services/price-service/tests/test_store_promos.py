@@ -53,6 +53,10 @@ def test_cadastrar_listar_e_apagar(adm):
     got = adm.get(f"/v1/admin/store-promos/{pid}").json()
     assert got["merchantsLabel"] == "Cobasi e Petz"
     assert "{tutor}" in got["message"]["title"] and "Semana do Pet" in got["message"]["title"]
+    # a meta existe no catálogo do envio (para medir o êxito = ir à Loja) e abre a Loja
+    from src.admin import broadcast_router as br
+    assert got["message"]["goal"] in br.GOALS
+    assert br._GOAL[got["message"]["goal"]]["open"] == "loja"
     assert adm.delete(f"/v1/admin/store-promos/{pid}").status_code == 204
     assert adm.get(f"/v1/admin/store-promos/{pid}").status_code == 404
 

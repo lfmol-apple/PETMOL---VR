@@ -181,6 +181,7 @@ def suggested_message(row: StorePromoRow) -> dict:
     lojas = merchant_names(row)
     onde = "nas lojas parceiras" if lojas == "todas as lojas" else f"em {lojas}"
     return {
+        "goal": "promocao_loja",
         "title": f"{{tutor}}, {row.name} {onde}",
         "message": f"{row.name} chegou {onde}. Veja na Loja do PETMOL o que {{pets}} pode precisar.",
     }

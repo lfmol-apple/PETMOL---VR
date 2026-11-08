@@ -130,6 +130,11 @@ GOAL_CATALOG: list[dict] = [
      "message": "Use o cupom PETMOL nas lojas Petz e veja as ofertas da Loja do PETMOL antes que a ração acabe.",
      "why": "Monetização direta pela parceria. É promoção: use com moderação (a Apple pede que o tutor possa recusar ofertas).",
      "success": "Tocou em uma oferta/loja parceira em 24h."},
+    {"key": "promocao_loja", "title": '{tutor}, promoção nas lojas', "group": "Compras", "label": "Ver a promoção das lojas (ir à Loja)", "segment": "todos", "state": None,
+     "events": _SHOP_EVENTS,
+     "message": "Tem promoção nas lojas parceiras. Veja na Loja do PETMOL o que {pets} pode precisar.",
+     "why": "Avisa o tutor de uma campanha real das lojas (11.11, Black Friday…), a partir do Radar de promoções. É promoção: use com moderação.",
+     "success": "Tocou em uma oferta/loja parceira em 24h."},
     {"key": "abrir", "title": '{tutor}, novidade para {pets}', "group": "Engajamento", "label": "Só abrir o app (lembrar que o PETMOL existe)", "segment": "todos",
      "state": None, "events": set(),
      "message": "Toque para ver o que há de novo no PETMOL.",
@@ -146,7 +151,7 @@ DESTINATIONS = {
     "medication": "Medicação",
     "grooming": "Banho e tosa",
 }
-_GOAL_OPEN = {"compra_racao": "loja", "cupom": "loja", "racao": "food", "vacina": "vaccines",
+_GOAL_OPEN = {"compra_racao": "loja", "cupom": "loja", "promocao_loja": "loja", "racao": "food", "vacina": "vaccines",
               "parasitas": "parasites", "medicacao": "medication", "banho": "grooming"}
 for _g in GOAL_CATALOG:
     _g["open"] = _GOAL_OPEN.get(_g["key"], "home")

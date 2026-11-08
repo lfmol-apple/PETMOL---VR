@@ -6,7 +6,7 @@
  * quantidade / só ele) e acompanha o êxito = o tutor FAZER ALGO NO APP depois do envio.
  * Usado em /admin/hoje e /admin/dashboard2 (mesmo componente nas duas telas).
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth-token';
 import { useAsync, Loading, ErrorBox, numberFmt } from '@/components/admin/sections/sections';
 
@@ -39,7 +39,10 @@ const pctOf = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%`
 const audienceLabel = (h: HistoryItem) =>
   h.audience_kind === 'test' ? 'só eu (teste)' : h.audience_kind === 'count' ? `${numberFmt(h.audience_requested ?? 0)} sorteadas` : 'todos';
 
-export function BroadcastPanel() {
+/** Preenchimento vindo do Radar de promoções: o dono revisa e envia (começa em "Só eu" para testar). */
+export interface BroadcastPrefill { key: string; goal: string; title: string; message: string; destination: string; note: string }
+
+export function BroadcastPanel({ prefill }: { prefill?: BroadcastPrefill | null }) {
   const segs = useAsync<SegmentsResponse>(() => call('/segments'), [], { live: false });
   const [tick, setTick] = useState(0);
   const history = useAsync<{ items: HistoryItem[] }>(() => call('/history'), [tick], { intervalMs: 20000 });
@@ -57,6 +60,15 @@ export function BroadcastPanel() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
+
+  const [prefillNote, setPrefillNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (!prefill) return;
+    setGoalKey(prefill.goal); setTitle(prefill.title); setMessage(prefill.message);
+    setDestination(prefill.destination); setSegment('todos'); setKind('test');
+    setPreview(null); setTyped(''); setOkMsg(null); setErr(null);
+    setPrefillNote(prefill.note);
+  }, [prefill?.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const goals = segs.data?.goals ?? [];
   const goal = goals.find((g) => g.key === goalKey) ?? null;
@@ -103,6 +115,11 @@ export function BroadcastPanel() {
     <div className="space-y-4">
       {segs.loading && !segs.data ? <Loading /> : segs.error || !segs.data ? <ErrorBox msg={segs.error} /> : (
         <>
+          {prefillNote && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-[12.5px] leading-snug text-amber-900">
+              {prefillNote} Revise o texto, teste em <strong>“Só eu”</strong> e só então escolha quem recebe.
+            </p>
+          )}
           <div>
             <label className={label} htmlFor="bc-goal">Esta notificação vai incentivar o usuário a:</label>
             <select id="bc-goal" className={input} value={goalKey} onChange={(e) => pickGoal(e.target.value)}>

@@ -5,11 +5,12 @@
  *   1. Como estamos na meta?   2. O que aconteceu hoje?   3. O que eu faço agora?
  * Tudo em linguagem comum, sem filtros. Os painéis completos continuam um toque abaixo.
  */
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { PremiumScreenShell } from '@/components/premium';
-import { BroadcastPanel } from '@/components/admin/BroadcastPanel';
+import { BroadcastPanel, type BroadcastPrefill } from '@/components/admin/BroadcastPanel';
+import { PromoRadarPanel } from '@/components/admin/PromoRadarPanel';
 import { useAdmin } from '@/hooks/useAdmin';
 import { adminGet } from '@/lib/admin/analyticsApi';
 import { getToken } from '@/lib/auth-token';
@@ -25,8 +26,35 @@ interface Insights {
 
 const card = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm';
 
+/** Busca o texto sugerido de uma promoção e devolve o preenchimento do envio (null se não achar). */
+async function loadPromoPrefill(id: string): Promise<BroadcastPrefill | null> {
+  try {
+    const res = await fetch(`/api/v1/admin/store-promos/${encodeURIComponent(id)}`, {
+      headers: { Authorization: `Bearer ${getToken()}` }, cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    const p = await res.json() as { name: string; merchantsLabel: string; message: { goal: string; title: string; message: string } };
+    return {
+      key: `${id}:${Date.now()}`, goal: p.message.goal, title: p.message.title, message: p.message.message,
+      destination: 'loja', note: `Preenchido com a promoção “${p.name}” (${p.merchantsLabel}).`,
+    };
+  } catch { return null; }
+}
+
 export default function HojePage() {
   const router = useRouter();
+  const [prefill, setPrefill] = useState<BroadcastPrefill | null>(null);
+  const prepare = useCallback(async (id: string) => {
+    const pf = await loadPromoPrefill(id);
+    if (!pf) return;
+    setPrefill(pf);
+    setTimeout(() => document.getElementById('enviar-notificacao')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  }, []);
+  // O aviso push do dono abre /admin/hoje?promo=<id>#enviar-notificacao: já chega com o envio preenchido.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('promo');
+    if (id) void prepare(id);
+  }, [prepare]);
   const { isAdmin, adminData, isLoading } = useAdmin();
   useEffect(() => { if (!isLoading && !isAdmin) router.push('/home'); }, [isLoading, isAdmin, router]);
 
@@ -156,7 +184,17 @@ export default function HojePage() {
           <p className="mt-1 mb-3 text-[13px] text-slate-600">
             Escolha o que a mensagem vai incentivar, escreva o texto principal e o PETMOL se dirige ao tutor e aos pets sozinho.
           </p>
-          <BroadcastPanel />
+          <BroadcastPanel prefill={prefill} />
+        </section>
+
+        {/* 6 — Radar de promoções */}
+        <section className={card} id="radar-promocoes">
+          <p className="text-[12px] font-bold uppercase tracking-wide text-[#0056D2]">6 · Radar de promoções</p>
+          <p className="mt-1 mb-3 text-[13px] text-slate-600">
+            O PETMOL avisa você na véspera e no dia de cada campanha das lojas. Toque em “Preparar aviso” e o envio vem preenchido; você revisa e decide.
+            Os cards da Loja mostram a promoção sozinhos.
+          </p>
+          <PromoRadarPanel onPrepare={prepare} />
         </section>
 
         <p className="px-1 text-center text-[11px] text-slate-400">
