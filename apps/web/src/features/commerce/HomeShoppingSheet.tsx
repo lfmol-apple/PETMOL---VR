@@ -30,6 +30,7 @@ import { FoodBridgeCard, dismissFoodBridge, isFoodBridgeDismissed } from './Food
 import { isNativeAppClient } from '@/lib/nativeApp';
 import { amazonDisclosure } from './affiliateDisclosure';
 import { promoChip, useStorePromos } from './storePromos';
+import { warmStoreWebviewTrial } from './storeWebviewTrial';
 import { localTodayISO } from '@/lib/localDate';
 import { petSpeciesEmoji } from '@/lib/petTaxonomy';
 
@@ -178,6 +179,8 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders,
     [],
   );
 
+  useEffect(() => { if (open) warmStoreWebviewTrial(); }, [open]);
+
   if (!open) return null;
 
   const petName = currentPet.pet_name;
@@ -259,7 +262,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders,
       },
     });
     if (!url) return;
-    navigateToPartnerUrl(url);
+    navigateToPartnerUrl(url, { title: partner.name });
   }
 
   function handleSearchEntry() {

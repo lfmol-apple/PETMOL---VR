@@ -1318,3 +1318,24 @@ no `to=` (nenhum parâmetro é alterado). iOS e web abrem direto (SFSafariViewCo
   o parâmetro `forceInApp` pede à página do ML para tentar abrir o app dele. Não alteramos o link (parâmetros de afiliado), então
   falta testar num iPhone com o app do ML instalado.
 - **Amazon:** a Política de Aplicativos Móveis segue sendo o risco já registrado acima; a ponte não muda isso.
+
+## Loja dentro do PETMOL no iPhone — TESTE CONTROLADO, só a conta do dono (08/11/2026)
+
+**Problema (relato do dono, iPhone):** ao tocar numa loja, o app nativo dela (Mercado Livre, Amazon, Shopee…) abre sozinho e o PETMOL some
+do topo; a faixa "◀ PETMOL" do iOS aparece na 1ª vez e não na 2ª. O `@capacitor/browser` (SFSafariViewController) não impede a página
+da loja de chamar o app dela. A faixa "voltar" é do iOS: o app não controla quando ela aparece.
+
+**Mudança:** no iPhone nativo, os hosts de Mercado Livre, Shopee e Cobasi abrem em `@capgo/inappbrowser` (WKWebView) com
+`preventDeeplink: true` (o app da loja não sequestra) e barra de navegação com o nome da loja — o mesmo recurso do fluxo da Petz.
+`features/commerce/storeWebviewTrial.ts`.
+
+**Regra nº 1: não perder comissão.** Por isso:
+- Só a conta **admin (dono)** usa o novo caminho (`GET /v1/admin/me`, 1,5 s de limite, aquecido ao abrir a Loja). **Tutores: nada muda.**
+- O link de afiliado vai **intacto** (nenhum parâmetro alterado). Erro, sem login, rede fora ou plugin ausente → fluxo de hoje.
+- **Amazon nunca** (a Política de Aplicativos Móveis proíbe link de afiliado em WebView). **Petz** tem fluxo próprio.
+
+**Como validar antes de ampliar (checklist do dono):**
+1. No iPhone, toque em Mercado Livre, Shopee e Cobasi: a loja deve abrir numa janela do PETMOL, sem pular para o app.
+2. Em poucos minutos o **clique** deve aparecer no painel de afiliados de cada loja (ML "Cliques", Shopee, MAIS/Cobasi).
+3. Faça **uma compra pequena** dentro da janela interna e confira se o **pedido/comissão** aparece no painel (pode levar horas/dias).
+4. Só com 2 e 3 confirmados em cada loja, troque a regra de `isStoreWebviewTrialUser` por uma mais ampla (ex.: todos os tutores no iPhone).
