@@ -54,6 +54,7 @@ const ReportAlertSheet = dynamic(() => import('@/components/home/ReportAlertShee
 const NearbyMissingPetsStoryOverlay = dynamic(() => import('@/components/home/NearbyMissingPetsStoryOverlay').then(m => ({ default: m.NearbyMissingPetsStoryOverlay })), { ssr: false });
 const NoNearbyMissingPetsOverlay = dynamic(() => import('@/components/home/NoNearbyMissingPetsOverlay').then(m => ({ default: m.NoNearbyMissingPetsOverlay })), { ssr: false });
 import { MissingPetAlertCard, type NearbyAlert } from '@/components/home/MissingPetAlertCard';
+import { isNearbySilenced } from '@/lib/nearbyMute';
 import type { PetCareReminder } from '@/lib/petCareDomain';
 import { groomingRoutineState, type GroomingRoutineState } from '@/lib/petCareDomain';
 import { effectiveGroomingRecords } from '@/lib/groomingRoutine';
@@ -784,6 +785,22 @@ function HomePageInner() {
     setCollapsedAlertIds((prev) => {
       const next = collapsed ? [...new Set([...prev, id])] : prev.filter((x) => x !== id);
       try { localStorage.setItem('petmol_alert_collapsed_ids', JSON.stringify(next)); } catch { /* best effort */ }
+      return next;
+    });
+  }
+
+  // Alertas SILENCIADOS pelo tutor ("não vi o pet, parem de piscar"): o botão "Perto de você" fica neutro (sem
+  // piscar), mas o número continua e dá para reativar. Diferente de "dispensar": nada some da contagem. Um alerta
+  // NOVO (id que não estava silenciado) quebra o silêncio sozinho — segurança de quem pode ter visto o pet.
+  const [mutedNearbyIds, setMutedNearbyIds] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try { return JSON.parse(localStorage.getItem('petmol_nearby_muted_ids') ?? '[]') as string[]; }
+    catch { return []; }
+  });
+  function setNearbyMuted(ids: string[], muted: boolean): void {
+    setMutedNearbyIds((prev) => {
+      const next = muted ? [...new Set([...prev, ...ids])] : prev.filter((x) => !ids.includes(x));
+      try { localStorage.setItem('petmol_nearby_muted_ids', JSON.stringify(next.slice(-200))); } catch { /* best effort */ }
       return next;
     });
   }
@@ -2046,6 +2063,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
   // visibleNearbyAlerts já foi calculado mais acima (antes do early-return
   // de boot) — aqui só o subtítulo do badge do botão "Pet Sumido".
   const nearbyMissingCount = visibleNearbyAlerts.length;
+  const nearbyMissingSilenced = isNearbySilenced(visibleNearbyAlerts.map((a) => a.id), mutedNearbyIds);
 
   return (
     <div
@@ -2090,6 +2108,18 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         <NearbyMissingPetsStoryOverlay
           alerts={visibleNearbyAlerts}
           getPhotoUrl={getPhotoUrl}
+          silenced={nearbyMissingSilenced}
+          onToggleSilence={() => {
+            const ids = visibleNearbyAlerts.map((a) => a.id);
+            if (nearbyMissingSilenced) {
+              setNearbyMuted(ids, false);
+              showAppToast('Alerta reativado. O botão volta a avisar.');
+            } else {
+              setNearbyMuted(ids, true);
+              setShowNearbyStoryOverlay(false);
+              showAppToast('Silenciado. O botão fica discreto, e você reativa quando quiser.');
+            }
+          }}
           onClose={() => setShowNearbyStoryOverlay(false)}
           onViewCard={(alert) => {
             setShowNearbyStoryOverlay(false);
@@ -2632,6 +2662,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     onUpcomingCountChange={(_count, reminders) => setAllUpcomingReminders(reminders)}
                     onHealthItemClick={setHealthQuickAction}
                     nearbyMissingCount={nearbyMissingCount}
+                    nearbyMissingSilenced={nearbyMissingSilenced}
                     onOpenNearbyMissing={() => {
                       // Com alerta, o visualizador estilo Stories; sem
                       // nenhum por perto, o aviso verde de conscientização

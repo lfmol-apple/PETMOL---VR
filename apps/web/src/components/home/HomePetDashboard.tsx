@@ -151,6 +151,7 @@ interface HomePetDashboardProps {
   // Repassado direto pro botão "Perto de você" ao lado de "Pet Sumido" em
   // AppleControlButtons — estado/lógica fica em home/page.tsx.
   nearbyMissingCount?: number;
+  nearbyMissingSilenced?: boolean;
   onOpenNearbyMissing?: () => void;
 }
 
@@ -191,6 +192,7 @@ export function HomePetDashboard({
   onUpcomingCountChange,
   onHealthItemClick,
   nearbyMissingCount,
+  nearbyMissingSilenced,
   onOpenNearbyMissing,
 }: HomePetDashboardProps) {
 
@@ -419,6 +421,7 @@ export function HomePetDashboard({
         colorMedicacao={colorMedicacao}
         colorVaccines={colorVacinas}
         nearbyMissingCount={nearbyMissingCount}
+        nearbyMissingSilenced={nearbyMissingSilenced}
         onOpenNearbyMissing={onOpenNearbyMissing}
       />
       <HomeShoppingSheet

@@ -18,12 +18,15 @@ interface NearbyMissingPetsStoryOverlayProps {
   initialIndex?: number;
   getPhotoUrl: (photoPath: string | undefined | null) => string | null;
   onClose: () => void;
+  /** Alertas atuais silenciados? (muda o rótulo do botão) */
+  silenced?: boolean;
+  onToggleSilence?: () => void;
   onViewCard: (alert: NearbyAlert) => void;
   onSeeThis: (alert: NearbyAlert) => void;
 }
 
 export function NearbyMissingPetsStoryOverlay({
-  alerts, initialIndex = 0, getPhotoUrl, onClose, onViewCard, onSeeThis,
+  alerts, initialIndex = 0, getPhotoUrl, onClose, onViewCard, onSeeThis, silenced = false, onToggleSilence,
 }: NearbyMissingPetsStoryOverlayProps) {
   useBackHandler(true, onClose);
   const [index, setIndex] = useState(initialIndex);
@@ -165,6 +168,15 @@ export function NearbyMissingPetsStoryOverlay({
           >
             Ver Cartaz Completo
           </button>
+          {onToggleSilence && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onToggleSilence(); }}
+              className="w-full rounded-full border border-white/40 bg-black/25 py-2.5 text-center text-[13px] font-semibold text-white/90 active:scale-[0.98] transition-transform"
+            >
+              {silenced ? '🔔 Reativar alerta' : '🔕 Não vi este pet — silenciar o alerta'}
+            </button>
+          )}
         </div>
       </div>
     </div>

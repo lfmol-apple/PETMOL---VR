@@ -60,6 +60,8 @@ interface AppleControlButtonsProps {
   // dono, 18/09) — abre o mesmo visualizador em tela cheia estilo Stories
   // que o pisco ao lado do nome do pet já abre (onOpenNearbyMissing).
   nearbyMissingCount?: number;
+  /** Tutor silenciou os alertas atuais: botão neutro (sem piscar), número mantido. */
+  nearbyMissingSilenced?: boolean;
   onOpenNearbyMissing?: () => void;
 }
 
@@ -110,6 +112,7 @@ export function AppleControlButtons({
   colorFood,
   colorVaccines,
   nearbyMissingCount = 0,
+  nearbyMissingSilenced = false,
   onOpenNearbyMissing,
 }: AppleControlButtonsProps) {
   const { t } = useI18n();
@@ -288,14 +291,16 @@ export function AppleControlButtons({
               type="button"
               onClick={onOpenNearbyMissing}
               className={`group relative flex min-h-[44px] items-center gap-1.5 overflow-hidden rounded-xl border p-2.5 shadow-sm transition-all duration-300 hover:shadow-md active:scale-[0.98] min-[390px]:min-h-[52px] min-[390px]:rounded-2xl min-[390px]:p-3 ${
-                nearbyMissingCount > 0
+                nearbyMissingCount > 0 && nearbyMissingSilenced
+                  ? 'border-slate-200 bg-white shadow-slate-900/5'
+                  : nearbyMissingCount > 0
                   ? 'animate-blink-slow border-rose-400 bg-gradient-to-r from-rose-600 to-rose-500 shadow-rose-900/20'
                   : 'border-emerald-200 bg-gradient-to-r from-emerald-50 to-emerald-50/70 shadow-emerald-900/5'
               }`}
             >
               <span
                 className={`flex-shrink-0 text-xl font-black leading-none tabular-nums min-[390px]:text-2xl ${
-                  nearbyMissingCount > 0 ? 'text-white' : 'text-emerald-600'
+                  nearbyMissingCount > 0 && nearbyMissingSilenced ? 'text-slate-500' : nearbyMissingCount > 0 ? 'text-white' : 'text-emerald-600'
                 }`}
               >
                 {nearbyMissingCount}
@@ -304,16 +309,20 @@ export function AppleControlButtons({
                   título + legenda separados de antes — pedido do dono
                   (22/09): o número já fica na bolinha, a frase completa o
                   resto. Sempre mostra a contagem, 0 incluso (nada de ✓
-                  escondendo o número). */}
+                  escondendo o número). Silenciado (08/11): neutro, sem
+                  piscar, com 🔕 — o número continua. */}
               <div className="min-w-0 flex-1 text-left">
                 <h3 className={`line-clamp-2 text-[12px] font-black leading-tight min-[390px]:text-[13px] ${
-                  nearbyMissingCount > 0 ? 'text-white' : 'text-emerald-700'
+                  nearbyMissingCount > 0 && nearbyMissingSilenced ? 'text-slate-600' : nearbyMissingCount > 0 ? 'text-white' : 'text-emerald-700'
                 }`}>
                   {nearbyMissingCount === 1 ? 'Pet Sumido' : 'Pets Sumidos'} Perto de você
                 </h3>
+                {nearbyMissingCount > 0 && nearbyMissingSilenced && (
+                  <p className="mt-0.5 text-[9px] font-semibold leading-[1.1] text-slate-400">🔕 Silenciado</p>
+                )}
               </div>
               <span className={`flex-shrink-0 text-lg transition-transform group-hover:translate-x-1 ${
-                nearbyMissingCount > 0 ? 'text-rose-200' : 'text-emerald-300'
+                nearbyMissingCount > 0 && nearbyMissingSilenced ? 'text-slate-300' : nearbyMissingCount > 0 ? 'text-rose-200' : 'text-emerald-300'
               }`}>›</span>
             </button>
           </div>
