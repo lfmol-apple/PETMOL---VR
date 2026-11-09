@@ -169,3 +169,24 @@ def test_desempenho_conta_cada_coisa_na_data_em_que_aconteceu(client, admin):
     assert hoje["cadastros"] == 1                               # só a conta do admin criada agora; "Nova" é de anteontem, guest nunca conta
     tudo = client.get("/v1/admin/performance").json()
     assert tudo["totals"]["cadastros"] == 2 and tudo["series"]
+
+
+def test_desempenho_separa_iphone_e_android(client, admin):
+    from datetime import timedelta
+    from src.analytics.install_models import AppInstall
+    now = datetime.now(timezone.utc)
+    db = SessionLocal()
+    try:
+        db.add(AppInstall(platform="ios", created_at=now))
+        db.add(AppInstall(platform="android", created_at=now))
+        db.add(AppInstall(platform="android", created_at=now))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+    d = client.get("/v1/admin/performance", params={"since": (now - timedelta(hours=6)).isoformat()}).json()
+    assert set(d["platforms"]) == {"ios", "android"}
+    assert d["platforms"]["android"]["totals"]["downloads"] == 2 and d["platforms"]["ios"]["totals"]["downloads"] == 1
+    assert d["totals"]["downloads"] == 3

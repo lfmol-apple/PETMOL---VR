@@ -12,7 +12,20 @@ import { Card, adminApi } from '@/components/admin/AdminUi';
 import { ErrorBox, Loading, numberFmt, useAsync } from '@/components/admin/sections/sections';
 
 type Key = 'downloads' | 'cadastros' | 'pets' | 'alimentacao';
-interface Perf { totals: Record<Key, number>; series: ({ date: string } & Record<Key, number>)[] }
+interface Block { totals: Record<Key, number>; series: ({ date: string } & Record<Key, number>)[] }
+interface Perf extends Block { platforms?: { ios: Block; android: Block } }
+type View = 'all' | 'ios' | 'android';
+const VIEWS: { key: View; label: string }[] = [{ key: 'all', label: 'Todos' }, { key: 'ios', label: 'iPhone' }, { key: 'android', label: 'Android' }];
+
+/** "iPhone 3 · Android 5" — a mesma contagem separada por aparelho. */
+function Split({ perf, k }: { perf: Perf | null | undefined; k: Key }) {
+  if (!perf?.platforms) return null;
+  return (
+    <p className="mt-1 text-[12px] text-slate-500">
+      iPhone <strong className="text-slate-700">{numberFmt(perf.platforms.ios.totals[k])}</strong> · Android <strong className="text-slate-700">{numberFmt(perf.platforms.android.totals[k])}</strong>
+    </p>
+  );
+}
 
 const METRICS: { key: Key; label: string; hint: string }[] = [
   { key: 'downloads', label: 'Downloads', hint: 'Primeira abertura do app' },
@@ -58,6 +71,8 @@ export function DesempenhoTab() {
                 <p className="text-[12px] font-bold uppercase tracking-wide text-slate-400">{m.label}</p>
                 <p className="mt-1 text-[32px] font-black leading-none text-slate-900">{numberFmt(today.data!.totals[m.key])}</p>
                 <p className="mt-1.5 text-[12px] text-slate-500">hoje · ontem <strong className="text-slate-700">{numberFmt(yesterday.data?.totals[m.key])}</strong></p>
+                <Split perf={today.data} k={m.key} />
+                <p className="text-[11px] text-slate-400">ontem: iPhone {numberFmt(yesterday.data?.platforms?.ios.totals[m.key])} · Android {numberFmt(yesterday.data?.platforms?.android.totals[m.key])}</p>
               </div>
             ))}
           </div>
@@ -87,10 +102,11 @@ export function DesempenhoTab() {
                   <p className="text-[12px] font-bold uppercase tracking-wide text-slate-400">{m.label}</p>
                   <p className="mt-1 text-[32px] font-black leading-none text-[#0056D2]">{numberFmt(period.data!.totals[m.key])}</p>
                   <p className="mt-1.5 text-[12px] text-slate-500">{m.hint}</p>
+                  <Split perf={period.data} k={m.key} />
                 </div>
               ))}
             </div>
-            <DailyTable series={period.data.series} />
+            <DailyTable perf={period.data} />
           </>
         )}
       </Card>
@@ -98,27 +114,39 @@ export function DesempenhoTab() {
   );
 }
 
-function DailyTable({ series }: { series: Perf['series'] }) {
-  if (!series.length) return <p className="mt-4 text-[13px] text-slate-500">Nada neste período.</p>;
+function DailyTable({ perf }: { perf: Perf }) {
+  const [view, setView] = useState<View>('all');
+  const series = view === 'all' ? perf.series : (perf.platforms?.[view].series ?? []);
   const rows = [...series].reverse().slice(0, 90);
   return (
-    <div className="mt-5 max-h-96 overflow-auto rounded-xl border border-slate-200">
-      <table className="w-full text-left text-[13px]">
-        <thead className="sticky top-0 bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-400">
-          <tr>
-            <th className="px-3 py-2">Dia</th>
-            {METRICS.map((m) => <th key={m.key} className="px-3 py-2 text-right">{m.label}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.date} className="border-t border-slate-100">
-              <td className="px-3 py-1.5 tabular-nums text-slate-600">{r.date.split('-').reverse().join('/')}</td>
-              {METRICS.map((m) => <td key={m.key} className="px-3 py-1.5 text-right tabular-nums">{numberFmt(r[m.key])}</td>)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="mt-5">
+      <div className="mb-2 flex items-center gap-1.5 text-[12px]">
+        <span className="mr-1 font-semibold text-slate-500">Dia a dia:</span>
+        {VIEWS.map((v) => (
+          <button key={v.key} type="button" onClick={() => setView(v.key)}
+            className={`rounded-md px-2.5 py-1 font-semibold ${view === v.key ? 'bg-[#0056D2] text-white' : 'border border-slate-200 bg-white text-slate-600'}`}>{v.label}</button>
+        ))}
+      </div>
+      {rows.length === 0 ? <p className="text-[13px] text-slate-500">Nada neste período.</p> : (
+        <div className="max-h-96 overflow-auto rounded-xl border border-slate-200">
+          <table className="w-full text-left text-[13px]">
+            <thead className="sticky top-0 bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+              <tr>
+                <th className="px-3 py-2">Dia</th>
+                {METRICS.map((m) => <th key={m.key} className="px-3 py-2 text-right">{m.label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.date} className="border-t border-slate-100">
+                  <td className="px-3 py-1.5 tabular-nums text-slate-600">{r.date.split('-').reverse().join('/')}</td>
+                  {METRICS.map((m) => <td key={m.key} className="px-3 py-1.5 text-right tabular-nums">{numberFmt(r[m.key])}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
