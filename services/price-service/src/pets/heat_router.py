@@ -10,7 +10,8 @@ from ..db import get_db
 from ..user_auth.deps import get_current_user
 from ..user_auth.models import User
 from .access import get_accessible_pet_or_404
-from .heat_models import HeatCycle
+from .heat_care import applies, validate_settings
+from .heat_models import HeatCycle, HeatSettings
 from .models import Pet
 
 router = APIRouter(prefix="/pets/{pet_id}/heat-cycles", tags=["Cio"])
@@ -117,3 +118,43 @@ def delete_heat_cycle(pet_id: str, cycle_id: str, db: Session = Depends(get_db),
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cio não encontrado")
     db.delete(record)
     db.commit()
+
+
+# ── Acompanhamento (ligar/desligar + ritmo) ─────────────────────────────────
+
+class HeatSettingsIn(BaseModel):
+    enabled: bool = True
+    interval_days: int
+    duration_days: int
+
+
+class HeatSettingsOut(BaseModel):
+    enabled: bool
+    interval_days: int
+    duration_days: int
+
+    model_config = {"from_attributes": True}
+
+
+@router.get("/settings", response_model=Optional[HeatSettingsOut])
+def get_heat_settings(pet_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    get_accessible_pet_or_404(db, user.id, pet_id)
+    return db.query(HeatSettings).filter(HeatSettings.pet_id == pet_id).first()
+
+
+@router.put("/settings", response_model=HeatSettingsOut)
+def put_heat_settings(pet_id: str, payload: HeatSettingsIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    pet = _female_pet(db, pet_id, user)
+    if not applies(pet):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="O acompanhamento do cio é só para cadelas e gatas não castradas.")
+    validate_settings(pet.species, payload.interval_days, payload.duration_days)
+    row = db.query(HeatSettings).filter(HeatSettings.pet_id == pet_id).first()
+    if row is None:
+        row = HeatSettings(pet_id=pet_id)
+        db.add(row)
+    row.enabled = payload.enabled
+    row.interval_days = payload.interval_days
+    row.duration_days = payload.duration_days
+    db.commit()
+    db.refresh(row)
+    return row

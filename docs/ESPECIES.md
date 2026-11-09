@@ -43,4 +43,4 @@ Espécie ausente = **cão** (pets antigos). A espécie pode ser um texto livre d
 
 - Peso: só `kg` e `lb`. Para hamster ou pássaro (gramas) seria melhor oferecer `g`.
 - Raça: sem lista para espécies fora cão/gato (campo livre seria um próximo passo).
-- Cio: só cão e gato por enquanto.
+- Cio: só cão e gato por enquanto. Ritmos próprios (cadela: 5/6 meses, 1/2/3 semanas; gata: sazonal, 2/3/4 semanas, 4/7/10 dias) em `lib/heatCycles.ts` (HEAT_PROFILES) e `pets/heat_care.py`; mudar um, mudar o outro.

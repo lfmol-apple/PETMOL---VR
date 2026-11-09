@@ -25,6 +25,7 @@ _PET_CHILD_TABLES = [
     'grooming_records',
     'grooming_routine_settings',
     'heat_cycles',
+    'heat_settings',
     'notification_pendencies',
     'parasite_control_records',
     'pet_caretakers',

@@ -1,6 +1,6 @@
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
-import type { HeatCycle } from '@/lib/heatCycles';
+import type { HeatCycle, HeatSettings } from '@/lib/heatCycles';
 
 function headers(): Record<string, string> {
   const token = getToken();
@@ -60,6 +60,26 @@ export async function deleteHeatCycle(petId: string, cycleId: string): Promise<H
   try {
     const res = await fetch(`${API_BASE_URL}/pets/${petId}/heat-cycles/${cycleId}`, { method: 'DELETE', headers: headers() });
     return res.ok ? { ok: true, data: null } : { ok: false, message: await readError(res) };
+  } catch {
+    return { ok: false, message: 'Sem conexão. Tente de novo.' };
+  }
+}
+
+/** null = ainda não ativou (ou falha de rede): o botão fica só escrito. */
+export async function fetchHeatSettings(petId: string): Promise<HeatSettings | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/pets/${petId}/heat-cycles/settings`, { headers: headers(), cache: 'no-store' });
+    if (!res.ok) return null;
+    return ((await res.json()) as HeatSettings | null) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveHeatSettings(petId: string, input: HeatSettings): Promise<HeatResult<HeatSettings>> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/pets/${petId}/heat-cycles/settings`, { method: 'PUT', headers: headers(), body: JSON.stringify(input) });
+    return res.ok ? { ok: true, data: (await res.json()) as HeatSettings } : { ok: false, message: await readError(res) };
   } catch {
     return { ok: false, message: 'Sem conexão. Tente de novo.' };
   }

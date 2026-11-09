@@ -16,6 +16,65 @@ export interface HeatCycle {
   notes: string | null;
 }
 
+/** Ritmo informado pelo tutor ao ativar o acompanhamento (espelho de pets/heat_care.py). */
+export interface HeatSettings {
+  enabled: boolean;
+  interval_days: number;
+  duration_days: number;
+}
+
+export interface HeatOption { days: number; label: string }
+export interface HeatProfile {
+  intervals: HeatOption[];
+  intervalDefault: number;
+  durations: HeatOption[];
+  durationDefault: number;
+  /** Gata: ciclo por temporada (pode pausar); cadela: ritmo regular. */
+  seasonal: boolean;
+  noun: string;
+  intervalQuestion: string;
+  durationQuestion: string;
+  note: string;
+}
+
+/** Cadela: 5 ou 6 meses; 1, 2 ou 3 semanas. Gata (poliéstrica sazonal): volta a cada 2–4 semanas na estação; 4–10 dias. */
+export const HEAT_PROFILES: Record<'dog' | 'cat', HeatProfile> = {
+  dog: {
+    intervals: [{ days: 150, label: 'De 5 em 5 meses' }, { days: 180, label: 'De 6 em 6 meses' }],
+    intervalDefault: 180,
+    durations: [{ days: 7, label: '1 semana' }, { days: 15, label: '15 dias' }, { days: 21, label: '3 semanas' }],
+    durationDefault: 21,
+    seasonal: false,
+    noun: 'cadela',
+    intervalQuestion: 'De quanto em quanto tempo o cio costuma vir?',
+    durationQuestion: 'Quanto tempo ele costuma durar?',
+    note: 'Se você não sabe, deixe como está: com 2 ou mais cios registrados, o PETMOL passa a usar o ritmo real dela.',
+  },
+  cat: {
+    intervals: [{ days: 14, label: 'A cada 2 semanas' }, { days: 21, label: 'A cada 3 semanas' }, { days: 28, label: 'A cada 4 semanas' }],
+    intervalDefault: 21,
+    durations: [{ days: 4, label: '4 dias' }, { days: 7, label: '1 semana' }, { days: 10, label: '10 dias' }],
+    durationDefault: 7,
+    seasonal: true,
+    noun: 'gata',
+    intervalQuestion: 'Na época de cio, de quanto em quanto tempo ele volta?',
+    durationQuestion: 'Quanto tempo cada cio costuma durar?',
+    note: 'Gatas entram em cio por temporadas (mais na primavera e no verão) e, sem cruzamento, o cio se repete a cada poucas semanas. Passado um tempo sem cio, o PETMOL entende como pausa.',
+  },
+};
+
+export function heatProfile(species: string): HeatProfile | null {
+  return Object.hasOwn(HEAT_PROFILES, species) ? HEAT_PROFILES[species as 'dog' | 'cat'] : null;
+}
+
+/** Gata sem cio há mais que isto = pausa da temporada: sem previsão. */
+export const CAT_SEASON_PAUSE_DAYS = 90;
+
+/** Dia previsto para o fim de um cio em andamento (início + duração informada). */
+export function expectedEndOn(cycle: HeatCycle, durationDays: number): string {
+  return addDays(cycle.started_on, durationDays - 1);
+}
+
 const DAY_MS = 86_400_000;
 
 /** Intervalo entre inícios de cio considerado plausível numa cadela (descarta registros esquecidos/errados). */
@@ -95,18 +154,34 @@ export interface HeatPrediction {
   /** Dias até lá (negativo = já passou da data estimada). */
   daysUntil: number;
   intervalDays: number;
+  /** Intervalos reais usados na média (0 = veio da configuração do tutor). */
   samples: number;
+  source: 'average' | 'settings';
 }
 
-/** Só cadelas, sem cio em andamento, com pelo menos um intervalo plausível. */
-export function predictNextHeat(cycles: HeatCycle[], species: string, todayIso: string): HeatPrediction | null {
-  if (species !== 'dog') return null;
+/**
+ * Sem cio em andamento e com pelo menos um cio encerrado.
+ *  - Cadela: com 2+ cios registrados manda o ritmo real; senão, o que o tutor informou (se informou).
+ *  - Gata: o ritmo do tutor, e some na pausa da temporada. Sem configuração, gata não tem previsão.
+ */
+export function predictNextHeat(
+  cycles: HeatCycle[], species: string, todayIso: string, settings?: HeatSettings | null,
+): HeatPrediction | null {
+  const profile = heatProfile(species);
+  if (!profile) return null;
   if (openCycle(cycles)) return null;
-  const avg = averageIntervalDays(cycles);
   const last = lastCycle(cycles);
-  if (!avg || !last) return null;
-  const nextOn = addDays(last.started_on, avg.days);
-  return { nextOn, daysUntil: daysBetween(todayIso, nextOn), intervalDays: avg.days, samples: avg.samples };
+  if (!last) return null;
+  if (profile.seasonal) {
+    if (!settings) return null;
+    if (daysBetween(last.started_on, todayIso) > CAT_SEASON_PAUSE_DAYS) return null;
+    return { nextOn: addDays(last.started_on, settings.interval_days), daysUntil: daysBetween(todayIso, addDays(last.started_on, settings.interval_days)), intervalDays: settings.interval_days, samples: 0, source: 'settings' };
+  }
+  const avg = averageIntervalDays(cycles);
+  const days = avg?.days ?? settings?.interval_days;
+  if (!days) return null;
+  const nextOn = addDays(last.started_on, days);
+  return { nextOn, daysUntil: daysBetween(todayIso, nextOn), intervalDays: days, samples: avg?.samples ?? 0, source: avg ? 'average' : 'settings' };
 }
 
 /** Parto estimado a partir do cruzamento (cadela ~63 dias, gata ~65). null para outras espécies. */
@@ -133,9 +208,9 @@ export function inPostHeatWatch(cycles: HeatCycle[], todayIso: string): boolean 
 export type HeatButtonState = 'in_heat' | 'soon' | 'idle';
 
 /** Estado do botão na foto: em cio (rosa), cio chegando (âmbar, só cadelas) ou neutro. */
-export function heatButtonState(cycles: HeatCycle[], species: string, todayIso: string): HeatButtonState {
+export function heatButtonState(cycles: HeatCycle[], species: string, todayIso: string, settings?: HeatSettings | null): HeatButtonState {
   if (openCycle(cycles)) return 'in_heat';
-  const p = predictNextHeat(cycles, species, todayIso);
+  const p = predictNextHeat(cycles, species, todayIso, settings);
   if (p && p.daysUntil <= HEAT_SOON_DAYS) return 'soon';
   return 'idle';
 }

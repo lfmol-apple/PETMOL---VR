@@ -4,17 +4,18 @@
  * Registro de cio (fêmeas não castradas, cão e gato).
  *  - Botão discreto no canto da foto do pet (mesmo padrão da banheirinha); abre o sheet "Cio".
  *  - Tudo é ESTIMATIVA para o tutor se organizar — nunca "dias férteis" nem diagnóstico (ver lib/heatCycles.ts).
- *  - Previsão do próximo cio só para cadelas; gatas só registram (o ciclo delas varia muito).
+ *  - Desativado: botão só escrito. Ativado: rosa. O 1º toque abre a configuração (ritmo e duração, por espécie).
+ *  - Cadela e gata têm ritmos próprios (ver HEAT_PROFILES); o servidor manda os lembretes por push.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { DateField } from '@/components/ui/DateField';
 import { showAppToast } from '@/features/interactions/userPromptChannel';
-import { createHeatCycle, deleteHeatCycle, fetchHeatCycles, updateHeatCycle } from '@/lib/heatApi';
+import { createHeatCycle, deleteHeatCycle, fetchHeatCycles, fetchHeatSettings, saveHeatSettings, updateHeatCycle } from '@/lib/heatApi';
 import {
-  cycleLengthDays, estimatedDueDate, heatButtonState, heatDayNumber, inPostHeatWatch, isLongHeat, openCycle,
-  predictNextHeat, type HeatCycle,
+  cycleLengthDays, estimatedDueDate, expectedEndOn, heatButtonState, heatDayNumber, heatProfile, inPostHeatWatch, isLongHeat, openCycle,
+  predictNextHeat, type HeatCycle, type HeatSettings,
 } from '@/lib/heatCycles';
 import { formatLocalDateOnly, localTodayISO } from '@/lib/localDate';
 import { petSpeciesEmoji } from '@/lib/petTaxonomy';
@@ -31,21 +32,25 @@ interface Props {
 
 export function HeatCycleButton({ petId, petName, species, photoSrc }: Props) {
   const [cycles, setCycles] = useState<HeatCycle[] | null>(null);
+  const [settings, setSettings] = useState<HeatSettings | null>(null);
   const [open, setOpen] = useState(false);
   const today = localTodayISO();
+  const enabled = Boolean(settings?.enabled);
 
   useEffect(() => {
     let alive = true;
+    void fetchHeatSettings(petId).then((st) => { if (alive) setSettings(st); });
     void fetchHeatCycles(petId).then((list) => { if (alive) setCycles(list ?? []); });
     return () => { alive = false; };
   }, [petId]);
 
-  const state = useMemo(() => heatButtonState(cycles ?? [], species, today), [cycles, species, today]);
-  const label = state === 'in_heat' ? 'Cio — em andamento' : state === 'soon' ? 'Cio — chegando' : 'Cio';
-  const tone =
-    state === 'in_heat' ? 'border-white bg-rose-500 hover:bg-rose-600'
-    : state === 'soon' ? 'border-amber-200 bg-amber-500 hover:bg-amber-600'
-    : 'border-white/40 bg-black/30 hover:bg-black/50';
+  const state = useMemo(() => heatButtonState(cycles ?? [], species, today, settings), [cycles, species, today, settings]);
+  const label = !enabled ? 'Cio' : state === 'in_heat' ? 'Cio — em andamento' : state === 'soon' ? 'Cio — chegando' : 'Cio';
+  // Desativado: só a palavra, sem marcação. Ativado: rosa (em andamento ganha a borda branca).
+  const tone = !enabled
+    ? 'border-transparent bg-transparent [text-shadow:0_1px_3px_rgba(0,0,0,0.7)]'
+    : state === 'in_heat' ? 'border-white bg-rose-600 hover:bg-rose-700'
+    : 'border-rose-200 bg-rose-500 hover:bg-rose-600';
 
   return (
     <>
@@ -66,6 +71,8 @@ export function HeatCycleButton({ petId, petName, species, photoSrc }: Props) {
           species={species}
           photoSrc={photoSrc ?? null}
           cycles={cycles ?? []}
+          settings={settings}
+          onSettings={setSettings}
           onChange={setCycles}
           onClose={() => setOpen(false)}
         />
@@ -78,17 +85,20 @@ const inputCls = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5
 const labelCls = 'mb-1 block text-[12px] font-bold text-slate-500';
 
 function HeatSheet({
-  petId, petName, species, photoSrc, cycles, onChange, onClose,
-}: Props & { cycles: HeatCycle[]; onChange: (c: HeatCycle[]) => void; onClose: () => void }) {
+  petId, petName, species, photoSrc, cycles, settings, onSettings, onChange, onClose,
+}: Props & { cycles: HeatCycle[]; settings: HeatSettings | null; onSettings: (s: HeatSettings | null) => void; onChange: (c: HeatCycle[]) => void; onClose: () => void }) {
   const today = localTodayISO();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [otherDay, setOtherDay] = useState(false);
   const [startDay, setStartDay] = useState(today);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [adjusting, setAdjusting] = useState(false);
+  const profile = heatProfile(species);
+  const enabled = Boolean(settings?.enabled);
 
   const current = openCycle(cycles);
-  const prediction = predictNextHeat(cycles, species, today);
+  const prediction = predictNextHeat(cycles, species, today, settings);
   const ordered = useMemo(() => [...cycles].sort((a, b) => b.started_on.localeCompare(a.started_on)), [cycles]);
 
   const run = useCallback(async <T,>(fn: () => Promise<{ ok: true; data: T } | { ok: false; message: string }>, done?: string) => {
@@ -129,13 +139,32 @@ function HeatSheet({
         onClose={onClose}
       />
       <SheetShell.Body>
+        {profile && (!enabled || adjusting) ? (
+          <HeatSetup
+            petName={petName}
+            profile={profile}
+            initial={settings}
+            adjusting={adjusting}
+            onSave={async (interval, duration) => {
+              const r = await saveHeatSettings(petId, { enabled: true, interval_days: interval, duration_days: duration });
+              if (!r.ok) return r.message;
+              onSettings(r.data);
+              setAdjusting(false);
+              showAppToast(adjusting ? 'Ritmo do cio atualizado.' : `Acompanhamento do cio de ${petName} ativado.`, { tone: 'success' });
+              return null;
+            }}
+            onCancel={adjusting ? () => setAdjusting(false) : undefined}
+          />
+        ) : (
         <div className="space-y-3">
           {/* Ação principal */}
           <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5">
             {current ? (
               <>
                 <p className="text-[15px] font-black text-slate-900">Em cio desde {fmt(current.started_on)}</p>
-                <p className="mt-0.5 text-[13px] text-slate-500">Dia {heatDayNumber(current, today)} do cio.</p>
+                <p className="mt-0.5 text-[13px] text-slate-500">
+                  Dia {heatDayNumber(current, today)} do cio{settings ? ` · deve terminar por volta de ${fmt(expectedEndOn(current, settings.duration_days))}` : ''}.
+                </p>
                 <button type="button" onClick={finish} disabled={busy}
                   className="mt-3 w-full rounded-xl bg-[#0056D2] py-3 text-[14px] font-extrabold text-white disabled:opacity-50 active:scale-[0.98]">
                   O cio terminou hoje
@@ -180,26 +209,24 @@ function HeatSheet({
           {!current && (
             <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5">
               <p className="text-[12px] font-bold uppercase tracking-wide text-slate-400">Próximo cio</p>
-              {species === 'dog' ? (
-                prediction ? (
-                  <>
-                    <p className="mt-1 text-[15px] font-black text-slate-900">
-                      Provável por volta de {fmt(prediction.nextOn)}
-                    </p>
-                    <p className="text-[13px] text-slate-500">
-                      {prediction.daysUntil > 0 ? `Daqui a ${prediction.daysUntil} dias` : prediction.daysUntil === 0 ? 'É por volta de hoje' : `Já passou ${-prediction.daysUntil} dias da data estimada`}
-                      {' · '}média de {prediction.intervalDays} dias entre cios ({prediction.samples} {prediction.samples === 1 ? 'intervalo' : 'intervalos'}).
-                    </p>
-                    <p className="mt-2 text-[12px] text-slate-400">É uma estimativa para você se organizar; cada cadela tem o seu ritmo.</p>
-                  </>
-                ) : (
-                  <p className="mt-1 text-[13px] leading-snug text-slate-500">
-                    Registre pelo menos dois cios e o PETMOL estima quando o próximo deve chegar.
+              {prediction ? (
+                <>
+                  <p className="mt-1 text-[15px] font-black text-slate-900">
+                    Provável por volta de {fmt(prediction.nextOn)}
                   </p>
-                )
+                  <p className="text-[13px] text-slate-500">
+                    {prediction.daysUntil > 0 ? `Daqui a ${prediction.daysUntil} dias` : prediction.daysUntil === 0 ? 'É por volta de hoje' : `Já passou ${-prediction.daysUntil} dias da data estimada`}
+                    {prediction.source === 'average'
+                      ? ` · média real de ${prediction.intervalDays} dias entre cios (${prediction.samples} ${prediction.samples === 1 ? 'intervalo' : 'intervalos'}).`
+                      : ` · pelo ritmo que você informou (${prediction.intervalDays} dias).`}
+                  </p>
+                  <p className="mt-2 text-[12px] text-slate-400">É uma estimativa para você se organizar; cada {profile?.noun ?? 'pet'} tem o seu ritmo.</p>
+                </>
               ) : (
                 <p className="mt-1 text-[13px] leading-snug text-slate-500">
-                  Gatas têm ciclos bem irregulares, por isso aqui só registramos para você levar ao veterinário.
+                  {profile?.seasonal && cycles.length
+                    ? 'Faz um tempo sem cio, então o PETMOL entende como pausa da temporada. Quando começar um novo, é só registrar.'
+                    : 'Registre o início do próximo cio e o PETMOL calcula o fim e avisa quando o seguinte estiver chegando.'}
                 </p>
               )}
             </section>
@@ -259,12 +286,83 @@ function HeatSheet({
             </section>
           )}
 
+          {profile && (
+            <div className="flex justify-center gap-4 pt-1">
+              <button type="button" onClick={() => setAdjusting(true)}
+                className="text-[12.5px] font-semibold text-slate-500 underline-offset-2 hover:underline">Ajustar ritmo</button>
+              <button type="button" disabled={busy}
+                onClick={async () => {
+                  if (!settings) return;
+                  setBusy(true);
+                  const r = await saveHeatSettings(petId, { ...settings, enabled: false });
+                  setBusy(false);
+                  if (!r.ok) { setError(r.message); return; }
+                  onSettings(r.data);
+                  showAppToast('Acompanhamento do cio desativado. O histórico fica guardado.', { tone: 'success' });
+                }}
+                className="text-[12.5px] font-semibold text-slate-500 underline-offset-2 hover:underline disabled:opacity-50">Desativar acompanhamento</button>
+            </div>
+          )}
+
           <p className="px-1 pb-2 text-center text-[11.5px] leading-snug text-slate-400">
             As datas e estimativas ajudam você a se organizar e não substituem a orientação do veterinário.
           </p>
         </div>
+        )}
       </SheetShell.Body>
     </SheetShell>
+  );
+}
+
+function HeatSetup({
+  petName, profile, initial, adjusting, onSave, onCancel,
+}: {
+  petName: string; profile: NonNullable<ReturnType<typeof heatProfile>>; initial: HeatSettings | null; adjusting: boolean;
+  onSave: (interval: number, duration: number) => Promise<string | null>; onCancel?: () => void;
+}) {
+  const [interval, setInterval_] = useState(initial?.interval_days ?? profile.intervalDefault);
+  const [duration, setDuration] = useState(initial?.duration_days ?? profile.durationDefault);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const chip = (active: boolean) =>
+    `rounded-full border px-3.5 py-2 text-[13px] font-bold transition-all active:scale-95 ${active ? 'border-rose-500 bg-rose-500 text-white' : 'border-slate-200 bg-white text-slate-700'}`;
+
+  return (
+    <div className="space-y-3">
+      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5">
+        <p className="text-[15px] font-black text-slate-900">{adjusting ? 'Ajustar o ritmo do cio' : `Acompanhar o cio de ${petName}`}</p>
+        <p className="mt-0.5 text-[13px] leading-snug text-slate-500">Duas respostas e o PETMOL calcula o fim do cio e avisa quando o próximo estiver chegando.</p>
+
+        <p className="mt-4 text-[13px] font-bold text-slate-800">{profile.intervalQuestion}</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {profile.intervals.map((o) => (
+            <button key={o.days} type="button" aria-pressed={interval === o.days} onClick={() => setInterval_(o.days)} className={chip(interval === o.days)}>{o.label}</button>
+          ))}
+        </div>
+
+        <p className="mt-4 text-[13px] font-bold text-slate-800">{profile.durationQuestion}</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {profile.durations.map((o) => (
+            <button key={o.days} type="button" aria-pressed={duration === o.days} onClick={() => setDuration(o.days)} className={chip(duration === o.days)}>{o.label}</button>
+          ))}
+        </div>
+
+        <p className="mt-3 text-[12px] leading-snug text-slate-400">{profile.note}</p>
+        {error && <p className="mt-3 rounded-lg bg-rose-50 p-2.5 text-[12.5px] text-rose-700">{error}</p>}
+        <button type="button" disabled={busy}
+          onClick={async () => { setBusy(true); setError(null); const m = await onSave(interval, duration); setBusy(false); if (m) setError(m); }}
+          className="mt-4 w-full rounded-xl bg-rose-500 py-3 text-[14px] font-extrabold text-white disabled:opacity-50 active:scale-[0.98]">
+          {adjusting ? 'Salvar' : 'Ativar acompanhamento'}
+        </button>
+        {onCancel && (
+          <button type="button" onClick={onCancel} className="mt-2 w-full text-center text-[12.5px] font-semibold text-slate-500 underline-offset-2 hover:underline">Cancelar</button>
+        )}
+      </section>
+      <p className="px-1 pb-2 text-center text-[11.5px] leading-snug text-slate-400">
+        As datas e estimativas ajudam você a se organizar e não substituem a orientação do veterinário.
+      </p>
+    </div>
   );
 }
 
