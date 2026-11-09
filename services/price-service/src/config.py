@@ -123,7 +123,7 @@ class Settings(BaseSettings):
     # Administradores adicionais (e-mails separados por vírgula) com o MESMO
     # painel do master. Só estes e-mails explícitos passam; ter linha em
     # admin_users sozinho continua não bastando.
-    admin_extra_emails: str = "contato@vepiconsorcios.com.br"
+    admin_extra_emails: str = "contato@vepiconsorcios.com.br,henriquefmol@yahoo.com.br"
 
     # Recebe os MESMOS pushes de "acesso/download" (analytics/router.py) que
     # o admin master recebe — só isso, nunca passa por get_current_admin nem
