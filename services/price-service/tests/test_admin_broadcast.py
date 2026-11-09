@@ -183,7 +183,7 @@ def test_quantidade_maior_que_o_publico_envia_para_todos_os_elegiveis(adm):
     assert adm.client.post("/v1/admin/broadcast/preview", json=body).json()["will_send"] == 2
 
 
-def test_ninguem_sem_push_nem_quem_pediu_para_parar_nem_quem_ja_recebeu_na_semana(adm):
+def test_ninguem_sem_push_nem_quem_pediu_para_parar_mas_quem_ja_recebeu_na_semana_recebe(adm):
     with SessionLocal() as db:
         _mk_user(db, "Sem Push", push=False)
         parou = _mk_user(db, "Parou")
@@ -195,14 +195,32 @@ def test_ninguem_sem_push_nem_quem_pediu_para_parar_nem_quem_ja_recebeu_na_seman
         db.add(ActivationCampaignContact(campaign="food", user_id=antigo,
                                          sent_at=datetime.now(timezone.utc) - timedelta(days=9)))
         db.commit()
+    # Decisão do dono (09/11/2026): sem limite semanal por padrão. Só opt-out e sem push ficam de fora.
     prev = adm.client.post("/v1/admin/broadcast/preview", json=_body()).json()
-    assert prev["will_send"] == 2            # o admin + "Recebeu Há Tempo"
-    assert prev["skipped"]["opt_out"] == 1 and prev["skipped"]["weekly_cap"] == 1
+    assert prev["will_send"] == 3            # o admin + "Recebeu" + "Recebeu Há Tempo"
+    assert prev["skipped"]["opt_out"] == 1 and prev["skipped"]["weekly_cap"] == 0
 
-    adm.client.post("/v1/admin/broadcast/send", json={**_body(), "confirm_count": 2})
-    # segundo envio logo depois: ninguém mais pode receber (1 por semana)
-    r = adm.client.post("/v1/admin/broadcast/send", json={**_body(), "confirm_count": 0})
-    assert r.status_code == 422
+    assert adm.client.post("/v1/admin/broadcast/send", json={**_body(), "confirm_count": 3}).status_code == 200
+    # e dá para mandar de novo na hora para todos
+    assert adm.client.post("/v1/admin/broadcast/send", json={**_body(), "confirm_count": 3}).status_code == 200
+
+    # o limite semanal só existe se for pedido de propósito pela API
+    capped = adm.client.post("/v1/admin/broadcast/preview", json=_body(ignore_weekly_cap=False)).json()
+    assert capped["skipped"]["weekly_cap"] >= 1
+
+
+def test_contagens_do_painel_nao_descontam_quem_recebeu_e_mostram_o_total_por_canal(adm):
+    with SessionLocal() as db:
+        recente = _mk_user(db, "Recebeu")
+        db.add(ActivationCampaignContact(campaign="food", user_id=recente,
+                                         sent_at=datetime.now(timezone.utc) - timedelta(days=1)))
+        parou = _mk_user(db, "Parou")
+        db.add(ActivationOptOut(user_id=parou))
+        db.commit()
+    d = adm.client.get("/v1/admin/broadcast/segments").json()
+    assert d["segments"]["todos"]["eligible"] == 2          # admin + "Recebeu"; "Parou" fora
+    a = d["audience"]
+    assert a["total"] == 3 and a["opted_out"] == 1 and a["reachable"] == 2 and a["web"] == 3
 
 
 def test_ignorar_limite_semanal_alcanca_quem_ja_recebeu_mas_nunca_quem_pediu_para_parar(adm):
@@ -213,7 +231,7 @@ def test_ignorar_limite_semanal_alcanca_quem_ja_recebeu_mas_nunca_quem_pediu_par
         db.add(ActivationCampaignContact(campaign="food", user_id=recente,
                                          sent_at=datetime.now(timezone.utc) - timedelta(days=2)))
         db.commit()
-    normal = adm.client.post("/v1/admin/broadcast/preview", json=_body()).json()
+    normal = adm.client.post("/v1/admin/broadcast/preview", json=_body(ignore_weekly_cap=False)).json()
     assert normal["will_send"] == 1 and normal["skipped"]["weekly_cap"] == 1     # só o admin
 
     livre = adm.client.post("/v1/admin/broadcast/preview", json=_body(ignore_weekly_cap=True)).json()

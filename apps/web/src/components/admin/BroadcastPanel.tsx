@@ -14,7 +14,8 @@ const API = '/api/v1/admin/broadcast';
 
 interface Goal { key: string; group: string; label: string; segment: string; title: string; open: string; message: string; why: string; success: string; eligible: number }
 interface SegmentInfo { label: string; eligible: number; skipped: { opt_out: number; weekly_cap: number; segment: number } }
-interface SegmentsResponse { segments: Record<string, SegmentInfo>; goals: Goal[]; destinations: Record<string, string>; weekly_cap_days: number }
+interface Audience { total: number; web: number; ios: number; android: number; opted_out: number; reachable: number }
+interface SegmentsResponse { segments: Record<string, SegmentInfo>; goals: Goal[]; destinations: Record<string, string>; weekly_cap_days: number; audience?: Audience }
 interface Preview { destination_label?: string; will_send: number; skipped: { opt_out: number; weekly_cap: number; segment: number }; sample: { title: string; body: string } | null }
 interface Metrics { delivered: number; tapped: number; opened: number; acted: number; goal_hit: number | null; goal_label: string | null; window_closed: boolean }
 interface HistoryItem {
@@ -54,7 +55,8 @@ export function BroadcastPanel({ prefill }: { prefill?: BroadcastPrefill | null 
   const [segment, setSegment] = useState('todos');
   const [kind, setKind] = useState<'all' | 'count' | 'test'>('test');
   const [count, setCount] = useState('');
-  const [ignoreCap, setIgnoreCap] = useState(false);
+  // Decisão do dono (09/11/2026): o push alcança SEMPRE todos com notificação ativa. Sem limite semanal.
+  const ignoreCap = true;
   const [preview, setPreview] = useState<Preview | null>(null);
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
@@ -187,18 +189,11 @@ export function BroadcastPanel({ prefill }: { prefill?: BroadcastPrefill | null 
               )}
             </div>
             <p className="mt-1 text-[11px] text-slate-500">
-              Só recebe quem tem notificação ativa e ninguém que pediu para parar. Por padrão, no máximo 1 mensagem por pessoa a cada {segs.data.weekly_cap_days} dias (o envio só para você não conta).
+              {segs.data.audience
+                ? <>Com notificação ativa: <strong>{numberFmt(segs.data.audience.total)}</strong> pessoas (navegador {numberFmt(segs.data.audience.web)} · iPhone {numberFmt(segs.data.audience.ios)} · Android {numberFmt(segs.data.audience.android)}). {numberFmt(segs.data.audience.opted_out)} pediram para parar e ficam de fora; <strong>{numberFmt(segs.data.audience.reachable)}</strong> recebem em “Todos”.</>
+                : 'Recebe quem tem notificação ativa, menos quem pediu para parar.'}
+              {' '}Sem limite por pessoa: quem já recebeu algo esta semana também recebe.
             </p>
-            {kind !== 'test' && (
-              <label className="mt-2 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-[12px] leading-snug text-amber-900">
-                <input type="checkbox" className="mt-0.5" checked={ignoreCap}
-                  onChange={(e) => { setIgnoreCap(e.target.checked); invalidate(); }} />
-                <span>
-                  <strong>Enviar agora, ignorando o limite semanal.</strong> Também alcança quem já recebeu mensagem nos últimos {segs.data.weekly_cap_days} dias.
-                  Use com cuidado: muitas mensagens seguidas levam as pessoas a desligar as notificações. Quem pediu para parar continua de fora.
-                </span>
-              </label>
-            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -225,7 +220,7 @@ export function BroadcastPanel({ prefill }: { prefill?: BroadcastPrefill | null 
                 Vão receber: <strong>{numberFmt(preview.will_send)}</strong> pessoa{preview.will_send === 1 ? '' : 's'}.
                 {kind !== 'test' && (
                   <span className="text-[12px] text-slate-500">
-                    {' '}Ficam de fora: {ignoreCap ? 'ninguém por limite semanal (ignorado)' : `${numberFmt(preview.skipped.weekly_cap)} já receberam esta semana`}, {numberFmt(preview.skipped.opt_out)} pediram para parar{preview.skipped.segment ? `, ${numberFmt(preview.skipped.segment)} fora do público escolhido` : ''}.
+                    {' '}Ficam de fora: {numberFmt(preview.skipped.opt_out)} pediram para parar{preview.skipped.segment ? `, ${numberFmt(preview.skipped.segment)} fora do público escolhido` : ''}.
                   </span>
                 )}
               </p>

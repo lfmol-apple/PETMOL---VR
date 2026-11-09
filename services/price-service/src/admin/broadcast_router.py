@@ -542,7 +542,8 @@ class BroadcastIn(BaseModel):
     title: Optional[str] = Field(default=None, max_length=80)   # gancho do título; vazio = padrão
     destination: Optional[Literal["home", "loja", "food", "vaccines", "parasites", "medication", "grooming"]] = None
     goal: Optional[str] = None   # chave do GOAL_CATALOG ("Esta notificação vai incentivar o usuário a…")
-    ignore_weekly_cap: bool = False   # enviar a qualquer momento: ignora o limite de 1 mensagem/semana (opt-out continua valendo)
+    # Decisão do dono (09/11/2026): o envio alcança SEMPRE todos com notificação ativa; sem limite semanal. Só opt-out fica de fora.
+    ignore_weekly_cap: bool = True
 
     @model_validator(mode="after")
     def _goal_known(self):
@@ -562,6 +563,18 @@ def _plan(db, payload: BroadcastIn, admin_user_id: str) -> tuple[list[dict], dic
     return targets, skipped, len(targets)
 
 
+def _audience_summary(db) -> dict:
+    """Quem tem notificação ativa, por canal. "total" = pessoas com pelo menos um canal; opt_out já descontado em "reachable"."""
+    from ..notifications import NativePushToken, PushSubscription
+    web = {str(u) for (u,) in db.query(PushSubscription.user_id).filter(PushSubscription.disabled_at.is_(None)).distinct().all()}
+    ios = {str(u) for (u,) in db.query(NativePushToken.user_id).filter(NativePushToken.disabled_at.is_(None), NativePushToken.platform == "ios").distinct().all()}
+    android = {str(u) for (u,) in db.query(NativePushToken.user_id).filter(NativePushToken.disabled_at.is_(None), NativePushToken.platform == "android").distinct().all()}
+    anyone = web | ios | android
+    blocked = opted_out_ids(db)
+    return {"total": len(anyone), "web": len(web), "ios": len(ios), "android": len(android),
+            "opted_out": len(anyone & blocked), "reachable": len(anyone - blocked)}
+
+
 @router.get("/segments")
 def segments(current=Depends(get_current_admin)):
     """Quantos receberiam agora em cada segmento + o catálogo de metas ("vai incentivar o usuário a…")."""
@@ -569,20 +582,21 @@ def segments(current=Depends(get_current_admin)):
     try:
         counts = {}
         for seg in SEGMENTS:
-            targets, skipped = eligible_users(db, seg)
+            targets, skipped = eligible_users(db, seg, True)
             counts[seg] = {"label": SEGMENT_LABELS[seg], "eligible": len(targets), "skipped": skipped}
         # Metas de um cuidado que não vale para toda espécie (vacina, parasita, banho) contam só quem tem pet a quem se aplica.
         care_eligible: dict[tuple[str, str], int] = {}
         for g in GOAL_CATALOG:
             if g.get("care") and (g["segment"], g["care"]) not in care_eligible:
-                care_eligible[(g["segment"], g["care"])] = len(eligible_users(db, g["segment"], care=g["care"])[0])
+                care_eligible[(g["segment"], g["care"])] = len(eligible_users(db, g["segment"], True, care=g["care"])[0])
         goals = [
             {"key": g["key"], "group": g["group"], "label": g["label"], "segment": g["segment"], "title": g["title"], "open": g["open"],
              "message": g["message"], "why": g["why"], "success": g["success"],
              "eligible": care_eligible[(g["segment"], g["care"])] if g.get("care") else counts[g["segment"]]["eligible"]}
             for g in GOAL_CATALOG
         ]
-        return {"segments": counts, "goals": goals, "destinations": DESTINATIONS, "weekly_cap_days": WEEKLY_CAP_DAYS}
+        return {"segments": counts, "goals": goals, "destinations": DESTINATIONS, "weekly_cap_days": WEEKLY_CAP_DAYS,
+                "audience": _audience_summary(db)}
     finally:
         db.close()
 
