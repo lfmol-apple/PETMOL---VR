@@ -95,7 +95,7 @@ def test_vigia_avisa_o_dono_na_vespera_e_no_dia_sem_repetir(adm, monkeypatch):
     assert sp.notify_owner_about_promos(today=sp.today_brt()) == 1          # véspera
     title = pushes[0][1]["title"]
     assert "amanhã" in title and "Dia do Pet" in title
-    assert pushes[0][1]["data"]["url"] == f"/admin/hoje?promo={pid}#enviar-notificacao"
+    assert pushes[0][1]["data"]["url"] == f"/admin?aba=push&promo={pid}"
     assert sp.notify_owner_about_promos(today=sp.today_brt()) == 0          # não repete
     assert sp.notify_owner_about_promos(today=amanha) == 1                  # no dia, novo aviso
     assert "hoje" in pushes[-1][1]["title"]

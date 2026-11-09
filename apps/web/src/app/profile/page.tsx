@@ -670,38 +670,12 @@ export default function ProfilePage() {
 
           {isAdmin && (
             <Link
-              href="/admin/dashboard"
-              className="flex items-center justify-between gap-3 rounded-[20px] border border-slate-100 bg-slate-50 px-5 py-4 hover:bg-blue-50 hover:border-blue-100 transition-all active:scale-[0.98]"
-            >
-              <span className="flex items-center gap-3">
-                <span className="text-xl">🛠️</span>
-                <span className="text-sm font-black text-slate-700">Painel Admin</span>
-              </span>
-              <span className="text-slate-400">→</span>
-            </Link>
-          )}
-
-          {isAdmin && (
-            <Link
-              href="/admin/hoje"
+              href="/admin"
               className="flex items-center justify-between gap-3 rounded-[20px] border border-blue-200 bg-blue-50 px-5 py-4 hover:bg-blue-100 transition-all active:scale-[0.98]"
             >
               <span className="flex items-center gap-3">
-                <span className="text-xl">☀️</span>
-                <span className="text-sm font-black text-slate-800">Hoje — visão simples</span>
-              </span>
-              <span className="text-slate-400">→</span>
-            </Link>
-          )}
-
-          {isAdmin && (
-            <Link
-              href="/admin/dashboard2"
-              className="flex items-center justify-between gap-3 rounded-[20px] border border-slate-100 bg-slate-50 px-5 py-4 hover:bg-blue-50 hover:border-blue-100 transition-all active:scale-[0.98]"
-            >
-              <span className="flex items-center gap-3">
-                <span className="text-xl">📈</span>
-                <span className="text-sm font-black text-slate-700">Painel Admin 2 — Crescimento</span>
+                <span className="text-xl">🛠️</span>
+                <span className="text-sm font-black text-slate-800">Painel Admin</span>
               </span>
               <span className="text-slate-400">→</span>
             </Link>

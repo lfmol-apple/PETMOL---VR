@@ -212,7 +212,7 @@ def notify_owner_about_promos(today: Optional[date] = None) -> int:
                         "title": f"{row.name} {when} — {merchant_names(row)}",
                         "body": "Toque para preparar o aviso aos tutores. Nada é enviado sem você.",
                         "tag": f"petmol-promo-{row.id}",
-                        "data": {"url": f"/admin/hoje?promo={row.id}#enviar-notificacao"},
+                        "data": {"url": f"/admin?aba=push&promo={row.id}"},
                     })
                     sent += 1
                 except Exception:
