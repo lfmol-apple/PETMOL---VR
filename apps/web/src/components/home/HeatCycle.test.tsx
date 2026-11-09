@@ -6,6 +6,8 @@ const api = vi.hoisted(() => ({
   createHeatCycle: vi.fn(),
   updateHeatCycle: vi.fn(),
   deleteHeatCycle: vi.fn(),
+  fetchHeatSettings: vi.fn(),
+  saveHeatSettings: vi.fn(),
 }));
 vi.mock('@/lib/heatApi', () => api);
 vi.mock('@/features/interactions/userPromptChannel', () => ({ showAppToast: vi.fn() }));
@@ -17,7 +19,7 @@ const cycle = (over: Record<string, unknown> = {}) => ({
 });
 
 describe('HeatCycleButton', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => { vi.clearAllMocks(); api.fetchHeatSettings.mockResolvedValue({ enabled: true, interval_days: 180, duration_days: 21 }); });
   afterEach(() => cleanup());
 
   it('sem registros: abre o sheet e registra "começou o cio hoje" com um toque', async () => {
@@ -43,10 +45,48 @@ describe('HeatCycleButton', () => {
     expect(api.updateHeatCycle.mock.calls[0][2]).toHaveProperty('ended_on');
   });
 
-  it('gata: explica que só registra (sem previsão)', async () => {
+  it('desativado: 1º toque abre a configuração (5/6 meses e duração) e ativa', async () => {
+    api.fetchHeatSettings.mockResolvedValue(null);
     api.fetchHeatCycles.mockResolvedValue([]);
+    api.saveHeatSettings.mockResolvedValue({ ok: true, data: { enabled: true, interval_days: 150, duration_days: 7 } });
+    render(<HeatCycleButton petId="p1" petName="Mel" species="dog" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Cio' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'De 5 em 5 meses' }));
+    fireEvent.click(screen.getByRole('button', { name: '1 semana' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ativar acompanhamento' }));
+    await waitFor(() => expect(api.saveHeatSettings).toHaveBeenCalledWith('p1', { enabled: true, interval_days: 150, duration_days: 7 }));
+    expect(await screen.findByRole('button', { name: 'Começou o cio hoje' })).toBeTruthy();
+  });
+
+  it('padrão da cadela: 6 meses e 3 semanas', async () => {
+    api.fetchHeatSettings.mockResolvedValue(null);
+    api.fetchHeatCycles.mockResolvedValue([]);
+    api.saveHeatSettings.mockResolvedValue({ ok: true, data: { enabled: true, interval_days: 180, duration_days: 21 } });
+    render(<HeatCycleButton petId="p1" petName="Mel" species="dog" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Cio' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Ativar acompanhamento' }));
+    await waitFor(() => expect(api.saveHeatSettings).toHaveBeenCalledWith('p1', { enabled: true, interval_days: 180, duration_days: 21 }));
+  });
+
+  it('gata: configuração própria (semanas), padrão 3 semanas e 1 semana', async () => {
+    api.fetchHeatSettings.mockResolvedValue(null);
+    api.fetchHeatCycles.mockResolvedValue([]);
+    api.saveHeatSettings.mockResolvedValue({ ok: true, data: { enabled: true, interval_days: 21, duration_days: 7 } });
     render(<HeatCycleButton petId="p1" petName="Mia" species="cat" />);
     fireEvent.click(await screen.findByRole('button', { name: 'Cio' }));
-    expect(await screen.findByText(/Gatas têm ciclos bem irregulares/)).toBeTruthy();
+    expect(await screen.findByText(/temporadas/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Ativar acompanhamento' }));
+    await waitFor(() => expect(api.saveHeatSettings).toHaveBeenCalledWith('p1', { enabled: true, interval_days: 21, duration_days: 7 }));
+  });
+
+  it('ativado: botão rosa; desativar volta ao texto simples', async () => {
+    api.fetchHeatCycles.mockResolvedValue([]);
+    api.saveHeatSettings.mockResolvedValue({ ok: true, data: { enabled: false, interval_days: 180, duration_days: 21 } });
+    render(<HeatCycleButton petId="p1" petName="Mel" species="dog" />);
+    const btn = await screen.findByRole('button', { name: 'Cio' });
+    await waitFor(() => expect(btn.className).toContain('bg-rose-500'));
+    fireEvent.click(btn);
+    fireEvent.click(await screen.findByRole('button', { name: 'Desativar acompanhamento' }));
+    await waitFor(() => expect(btn.className).toContain('bg-transparent'));
   });
 });

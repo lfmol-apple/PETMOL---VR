@@ -43,7 +43,7 @@ from .pets import models as _pets_models
 from .pets.vaccine_models import VaccineRecord as _  # Import to register with Base
 from .pets.parasite_models import ParasiteControlRecord as _pcr  # register with Base
 from .pets.grooming_models import GroomingRecord as _gr  # register with Base
-from .pets.heat_models import HeatCycle as _hc  # register with Base
+from .pets.heat_models import HeatCycle as _hc, HeatSettings as _hs  # register with Base
 from .store_promos import StorePromoRow as _sp, public_router as store_promos_public_router, admin_router as store_promos_admin_router  # register with Base
 from .health import models as _health_models  # Import health models to register with Base
 from .admin import admin_router
@@ -476,6 +476,13 @@ def start_push_scheduler():
                               max_instances=1, coalesce=True)
         except Exception as exc:
             push_logger.warning("[PETMOL] radar de promoções não agendado: %s", exc)
+        try:
+            # Cio: 9h10 de Brasília, avisa o fim estimado e a chegada do próximo (só quem ativou o acompanhamento).
+            from .pets.heat_care import send_heat_reminders
+            scheduler.add_job(send_heat_reminders, "cron", hour=9, minute=10, timezone="America/Sao_Paulo",
+                              id="send_heat_reminders", max_instances=1, coalesce=True)
+        except Exception as exc:
+            push_logger.warning("[PETMOL] lembretes de cio não agendados: %s", exc)
         try:
             # Resumo diário (9h de Brasília) dos avisos de remédio que não chegaram — substitui o e-mail
             # imediato por lembrete perdido (enchia a caixa do dono). Sem pendências, não envia nada.

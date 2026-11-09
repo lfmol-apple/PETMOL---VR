@@ -84,3 +84,22 @@ describe('avisos de cuidado', () => {
     expect(estimatedDueDate(null, 'dog')).toBeNull();
   });
 });
+
+describe('previsão pela configuração do tutor', () => {
+  const st = { enabled: true, interval_days: 180, duration_days: 21 };
+  it('cadela com 1 cio: usa os 6 meses informados', () => {
+    const p = predictNextHeat([c('2026-01-08', '2026-01-28')], 'dog', '2026-05-01', st)!;
+    expect(p.nextOn).toBe(addDays('2026-01-08', 180));
+    expect(p.source).toBe('settings');
+  });
+  it('cadela com 2+ cios: a média real manda', () => {
+    const p = predictNextHeat([c('2025-01-01', '2025-01-21'), c('2025-06-20', '2025-07-10')], 'dog', '2025-08-01', st)!;
+    expect(p.source).toBe('average');
+    expect(p.intervalDays).toBe(170);
+  });
+  it('gata: usa o ritmo do tutor e some na pausa da temporada', () => {
+    const cat = { enabled: true, interval_days: 21, duration_days: 7 };
+    expect(predictNextHeat([c('2026-10-01', '2026-10-07')], 'cat', '2026-10-10', cat)!.nextOn).toBe('2026-10-22');
+    expect(predictNextHeat([c('2026-01-01', '2026-01-07')], 'cat', '2026-06-01', cat)).toBeNull();
+  });
+});
