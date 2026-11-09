@@ -54,7 +54,8 @@ export function BroadcastPanel({ prefill }: { prefill?: BroadcastPrefill | null 
   const [segment, setSegment] = useState('todos');
   const [kind, setKind] = useState<'all' | 'count' | 'test'>('test');
   const [count, setCount] = useState('');
-  const [ignoreCap, setIgnoreCap] = useState(false);
+  // "Todos" tem que ser todos (decisão do dono, 09/11/2026): o limite semanal começa DESLIGADO; só quem pediu para parar fica de fora.
+  const [ignoreCap, setIgnoreCap] = useState(true);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
@@ -187,14 +188,14 @@ export function BroadcastPanel({ prefill }: { prefill?: BroadcastPrefill | null 
               )}
             </div>
             <p className="mt-1 text-[11px] text-slate-500">
-              Só recebe quem tem notificação ativa e ninguém que pediu para parar. Por padrão, no máximo 1 mensagem por pessoa a cada {segs.data.weekly_cap_days} dias (o envio só para você não conta).
+              Só recebe quem tem notificação ativa e ninguém que pediu para parar. Por padrão o envio alcança todos, sem limite semanal; marque a caixa abaixo para poupar quem já recebeu algo nos últimos {segs.data.weekly_cap_days} dias.
             </p>
             {kind !== 'test' && (
               <label className="mt-2 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-[12px] leading-snug text-amber-900">
                 <input type="checkbox" className="mt-0.5" checked={ignoreCap}
                   onChange={(e) => { setIgnoreCap(e.target.checked); invalidate(); }} />
                 <span>
-                  <strong>Enviar agora, ignorando o limite semanal.</strong> Também alcança quem já recebeu mensagem nos últimos {segs.data.weekly_cap_days} dias.
+                  <strong>Ignorar o limite semanal (marcado = todos de verdade).</strong> Alcança também quem já recebeu mensagem nos últimos {segs.data.weekly_cap_days} dias.
                   Use com cuidado: muitas mensagens seguidas levam as pessoas a desligar as notificações. Quem pediu para parar continua de fora.
                 </span>
               </label>
