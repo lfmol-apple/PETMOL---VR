@@ -987,13 +987,11 @@ def _target_users_email_racao(db) -> list[dict]:
     return out
 
 
-def _recently_emailed(db, days: int = 7) -> set[str]:
-    from datetime import timedelta
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+def _already_emailed(db, template: str) -> set[str]:
+    """Quem já recebeu ESTE e-mail (decisão do dono, 09/11/2026: sem limite entre campanhas; só não repete a mesma)."""
+    sent_prefix, _ctl = _email_prefixes(template)
     return {str(u) for (u,) in db.query(ActivationCampaignContact.user_id).filter(
-        or_(ActivationCampaignContact.campaign.startswith(CAMPAIGN_EMAIL_RACAO + "__", autoescape=True),
-            ActivationCampaignContact.campaign.startswith(CAMPAIGN_EMAIL_FOTO + "__", autoescape=True)),
-        ActivationCampaignContact.sent_at >= cutoff).all()}
+        ActivationCampaignContact.campaign.startswith(sent_prefix + "__", autoescape=True)).all()}
 
 
 def _email_racao_content(name: Optional[str], missing_pet_names: list[str], missing_food: bool,
@@ -1043,7 +1041,7 @@ def _run_email_racao(dry_run: bool, holdout_pct: int, pause_seconds: float = 0.3
         targets = _target_users_email_racao(db)
         if template == "foto":   # este modelo é sobre ração: só quem tem pet SEM ração
             targets = [t for t in targets if t["missing_food"] and t.get("missing_pets")]
-        recent = _recently_emailed(db, 7)
+        recent = _already_emailed(db, template)
         skipped = [t for t in targets if t["user_id"] in recent]
         targets = [t for t in targets if t["user_id"] not in recent]
         salt = "foto:" if template == "foto" else ""   # controle diferente em cada campanha
@@ -1132,7 +1130,7 @@ def panel_email_racao_summary(template: str = "recado", current=Depends(get_curr
         targets = _target_users_email_racao(db)
         if template == "foto":
             targets = [t for t in targets if t["missing_food"] and t.get("missing_pets")]
-        recent = _recently_emailed(db, 7)
+        recent = _already_emailed(db, template)
         eligible = [t for t in targets if t["user_id"] not in recent]
         out = {
             "template": template,

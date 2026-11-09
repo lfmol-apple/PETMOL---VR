@@ -124,6 +124,7 @@ def test_modelo_foto_personaliza_por_tutor_e_pets_sem_racao(monkeypatch):
     monkeypatch.setattr(mailer, "send_mail", lambda **kw: sent.__setitem__(kw["to"], kw) or True)
 
     r._run_email_racao(False, 0, pause_seconds=0, template="foto", variant="contando")
+    first_round = set(sent)
 
     a = sent[f"ana-{tag}@x.com"]
     assert a["subject"] == "Ana, o Ted está contando com você"          # nome do tutor + do pet (só o sem ração)
@@ -131,7 +132,12 @@ def test_modelo_foto_personaliza_por_tutor_e_pets_sem_racao(monkeypatch):
     assert "a ração do Ted" in a["body_html"]
     b = sent[f"bia-{tag}@x.com"]
     assert b["subject"].startswith("Bia,") and rex_id in b["body_html"]
-    assert f"rec-{tag}@x.com" not in sent                               # recebeu o outro modelo há <7 dias
+    assert f"rec-{tag}@x.com" in sent                                   # recebeu o OUTRO modelo: sem limite entre campanhas (09/11/2026)
+
+    # rodar de novo NÃO repete o mesmo e-mail para quem já recebeu
+    sent.clear()
+    r._run_email_racao(False, 0, pause_seconds=0, template="foto", variant="contando")
+    assert not (set(sent) & first_round)
 
     db = SessionLocal()
     try:

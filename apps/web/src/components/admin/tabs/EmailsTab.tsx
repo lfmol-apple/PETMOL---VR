@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { Card, adminApi } from '@/components/admin/AdminUi';
 import { fmtDateTime } from '@/components/admin/DataTable';
 import { ErrorBox, Loading, numberFmt, useAsync } from '@/components/admin/sections/sections';
+import { EmailRacaoPanel } from '@/components/admin/EmailRacaoPanel';
 
 interface Campaign {
   id: string; name: string; subject: string; body: string; template: 'custom' | 'recado' | 'foto';
@@ -93,6 +94,25 @@ function CampaignCard({ c, segments, onChange }: { c: Campaign; segments: Record
   const invalidate = () => { setPreview(null); setTyped(''); };
 
   if (editing) return <Editor id={c.id} initial={c} onDone={() => { setEditing(false); onChange(); }} />;
+
+  // Campanhas de ração (Recado Importante e Ração com a foto do pet): o painel completo de sempre, já configurado.
+  if (history) {
+    return (
+      <div>
+        <EmailRacaoPanel template={c.template === 'foto' ? 'foto' : 'recado'} />
+        <div className="px-2 pt-2">
+          {!removing ? (
+            <button type="button" disabled={running} onClick={() => setRemoving(true)} className="text-[12px] font-semibold text-slate-400 hover:text-rose-600">Remover campanha da lista</button>
+          ) : (
+            <span className="text-[12px] text-slate-600">Remover “{c.name}” da lista? Quem já recebeu continua registrado.{' '}
+              <button type="button" disabled={busy} onClick={() => run(() => adminApi(`/email-campaigns/${c.id}`, { method: 'DELETE' }))} className="font-bold text-rose-600">Sim, remover</button>
+              {' · '}<button type="button" onClick={() => setRemoving(false)} className="font-bold text-slate-500">Cancelar</button>
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Card title={c.name} subtitle={history ? 'Campanha antiga: só histórico do que já foi enviado.' : `Assunto: ${c.subject}`}>

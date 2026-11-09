@@ -36,11 +36,10 @@ describe('abas do painel', () => {
     await waitFor(() => expect(api.adminApi.mock.calls.some(([p, i]) => p === '/email-campaigns/c1/send' && JSON.parse(i.body).confirm_count === 42)).toBe(true));
   });
 
-  it('E-mails: campanha antiga é só histórico (sem botões de envio) e pode ser removida', async () => {
+  it('E-mails: campanha antiga mostra o painel completo de sempre e pode ser removida da lista', async () => {
     api.adminApi.mockResolvedValue({ segments: {}, campaigns: [camp({ id: 'h1', name: 'Recado Importante', template: 'recado', sent: 120, control: 13 })] });
     render(<EmailsTab />);
-    await screen.findByText('Recado Importante');
-    expect(screen.queryByRole('button', { name: 'Enviar teste para mim' })).toBeNull();
+    await screen.findByText('Remover campanha da lista');
     fireEvent.click(screen.getByRole('button', { name: 'Remover campanha da lista' }));
     fireEvent.click(screen.getByRole('button', { name: 'Sim, remover' }));
     await waitFor(() => expect(api.adminApi).toHaveBeenCalledWith('/email-campaigns/h1', { method: 'DELETE' }));
