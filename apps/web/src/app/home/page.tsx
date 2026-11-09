@@ -472,7 +472,7 @@ function HomePageInner() {
   // PWA Web Share Target: o PETMOL não armazena mais documentos/anexos, então
   // arquivos compartilhados são apenas descartados do cache (o SW ainda pode
   // gravá-los no redirect). Mantido só para limpar o cache e a URL.
-  // Notificação personalizada do admin (/admin/hoje): o toque abre a Home com ?b=<id do envio>. Avisa o
+  // Notificação personalizada do admin (/admin, aba Push): o toque abre a Home com ?b=<id do envio>. Avisa o
   // servidor UMA vez ("tocou na notificação") para medirmos o êxito do envio. Nada de dado pessoal.
   const [shoppingDeepLinkNonce, setShoppingDeepLinkNonce] = useState(0);
   const broadcastTapSent = useRef(false);
