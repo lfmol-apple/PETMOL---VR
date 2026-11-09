@@ -441,6 +441,24 @@ def init_db():
         finally:
             db.close()
 
+    # Administradores adicionais: se a conta já existe, garante a linha em
+    # admin_users (nunca cria conta nem mexe em senha).
+    from .config import admin_allowed_emails
+    _extras = admin_allowed_emails(settings) - {(settings.admin_master_email or "").strip().lower()}
+    if _extras:
+        db = SessionLocal()
+        try:
+            for _e in _extras:
+                _u = db.query(User).filter(func.lower(User.email) == _e).first()
+                if _u and not db.query(AdminUser).filter(AdminUser.user_id == _u.id).first():
+                    db.add(AdminUser(user_id=str(_u.id), role="admin"))
+                    db.commit()
+        except Exception as _exc:
+            db.rollback()
+            print(f"[PETMOL] ⚠️  admin extra não criado (não crítico): {_exc}")
+        finally:
+            db.close()
+
 
 @app.on_event("startup")
 def start_push_scheduler():

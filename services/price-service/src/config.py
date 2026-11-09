@@ -120,6 +120,11 @@ class Settings(BaseSettings):
     # even if the server's env file doesn't set it.
     admin_master_email: str = "leonardofmol@gmail.com"
 
+    # Administradores adicionais (e-mails separados por vírgula) com o MESMO
+    # painel do master. Só estes e-mails explícitos passam; ter linha em
+    # admin_users sozinho continua não bastando.
+    admin_extra_emails: str = "contato@vepiconsorcios.com.br"
+
     # Recebe os MESMOS pushes de "acesso/download" (analytics/router.py) que
     # o admin master recebe — só isso, nunca passa por get_current_admin nem
     # ganha nenhuma outra permissão. Vazio desativa. Overridable via env var
@@ -657,3 +662,9 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Get cached settings instance."""
     return Settings()
+
+
+def admin_allowed_emails(settings) -> set[str]:
+    """Master + administradores adicionais, em minúsculas."""
+    extra = (getattr(settings, "admin_extra_emails", "") or "").split(",")
+    return {e.strip().lower() for e in [settings.admin_master_email, *extra] if e and e.strip()}
