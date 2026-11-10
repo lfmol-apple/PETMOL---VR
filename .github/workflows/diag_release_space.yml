@@ -1,0 +1,56 @@
+name: Diagnose release sizes and disk space on VPS
+
+# Somente leitura de verdade: o script é enviado pelo STDIN do SSH e executado
+# em memória. Não copia arquivo para a VPS, não cria nada em /tmp, não reinicia
+# serviço, não faz deploy e não lê segredos. Ver deploy/scripts/diag_release_space.sh.
+#
+# Conexão: StrictHostKeyChecking=yes contra uma chave de host FIXADA — o segredo
+# opcional VPS_HOST_KEY, ou, na falta dele, deploy/vps_host_keys.pub (chaves
+# públicas do servidor, versionadas). Se a chave não conferir, a conexão falha;
+# não existe fallback para ssh-keyscan nem para aceitar chave nova.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run read-only diagnostic over SSH (script via stdin)
+        env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          VPS_HOST_KEY: ${{ secrets.VPS_HOST_KEY }}
+        run: |
+          set -euo pipefail
+          VPS_PORT="${VPS_PORT:-22}"
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          # known_hosts só com a chave confiável fixada (nunca ssh-keyscan).
+          HOSTSPEC="$VPS_IP"
+          [ "$VPS_PORT" = "22" ] || HOSTSPEC="[$VPS_IP]:$VPS_PORT"
+          : > ~/.ssh/known_hosts_pinned
+          if [ -n "${VPS_HOST_KEY:-}" ]; then
+            printf '%s\n' "$VPS_HOST_KEY" > ~/.ssh/known_hosts_pinned
+          else
+            while read -r ktype kblob; do
+              [ -n "$ktype" ] && printf '%s %s %s\n' "$HOSTSPEC" "$ktype" "$kblob" >> ~/.ssh/known_hosts_pinned
+            done < deploy/vps_host_keys.pub
+          fi
+          [ -s ~/.ssh/known_hosts_pinned ] || { echo "Nenhuma chave de host fixada — abortando."; exit 1; }
+
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o Port="$VPS_PORT" \
+              -o UserKnownHostsFile="$HOME/.ssh/known_hosts_pinned" \
+              -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=15 \
+              "$VPS_USER@$VPS_IP" 'bash -s' < deploy/scripts/diag_release_space.sh
