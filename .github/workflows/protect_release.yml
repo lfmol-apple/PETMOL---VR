@@ -10,13 +10,16 @@ name: Protect stable release copy on VPS
 #     renomeia (a pasta final nunca fica pela metade);
 #   - compara SHA-256 de todos os arquivos, links simbólicos e bits de execução
 #     entre origem e cópia; qualquer erro de leitura/hash ABORTA (sem || true);
-#   - protege o conteúdo contra escrita (chmod a-w, sem seguir links) e grava manifesto + metadados
-#     (<sha>.manifest, <sha>.info com status=complete) AINDA na pasta temporária;
-#   - só então faz o ÚLTIMO passo: renomear .incoming-* para <sha>/ — a pasta
-#     definitiva nunca existe sem manifesto, metadados e verificação concluídos.
-# Idempotente: se o destino já existe, NÃO sobrescreve — só verifica. Destino sem
-# manifesto/metadados completos é reportado como INCOMPLETO (exit 3), nunca como
-# preservado. Sobras .incoming-* são avisadas e nunca tocadas.
+#   - protege o conteúdo contra escrita (chmod a-w, sem seguir links) e grava o
+#     manifesto + metadados (<sha>.manifest, <sha>.info com
+#     status=pending-verification) ANTES da promoção;
+#   - só então renomeia .incoming-* para <sha>/ (a pasta definitiva nunca existe
+#     sem manifesto e metadados) e RE-VERIFICA a pasta definitiva: só depois dessa
+#     verificação final o .info passa a status=complete; se falhar, status=invalid.
+# Idempotente: se o destino já existe, NÃO sobrescreve — só REVALIDA tudo (hashes e
+# metadados), sempre, mesmo com status=complete. Estado diferente de complete é
+# revalidado antes de ser declarado íntegro; divergência marca invalid. Destino sem
+# manifesto/info é INCOMPLETO (exit 3), nunca preservado. Sobras .incoming-* são avisadas e nunca tocadas.
 #
 # O que NÃO faz: não toca em current, releases/, serviços, banco, retenção,
 # .env nem segredos; não apaga nada; não cria nada fora de protected-releases/.
@@ -112,6 +115,14 @@ jobs:
             )
           }
 
+          # Estado da cópia no .info: pending-verification -> (verificação final OK) complete,
+          # ou invalid. "complete" só existe depois de uma verificação bem-sucedida.
+          set_status() {
+            local st="$1"
+            { grep -vE '^(status|verified_at)=' "$INFO"; echo "status=$st"; [ "$st" = complete ] && echo "verified_at=$(date -u +%FT%TZ)"; true; } > "$BASE/.info.$$" \
+              && mv "$BASE/.info.$$" "$INFO"
+          }
+
           state() {
             echo "current -> $(readlink -f "$ROOT/current" 2>/dev/null || echo MISSING)"
             echo "releases/: $(ls -1 "$ROOT/releases" 2>/dev/null | tr '\n' ' ')"
@@ -128,21 +139,27 @@ jobs:
           if [ -e "$DST" ] || [ -L "$DST" ]; then
             echo "=== Destino já existe: apenas VERIFICANDO (sem sobrescrever) ==="
             [ -d "$DST" ] && [ ! -L "$DST" ] || fail "$DST existe mas não é um diretório regular."
-            if [ ! -f "$MAN" ] || [ ! -f "$INFO" ] || ! grep -qx 'status=complete' "$INFO"; then
+            if [ ! -f "$MAN" ] || [ ! -f "$INFO" ]; then
               echo "INCOMPLETA: faltam manifesto/metadados de $SHA. NÃO é considerada preservada. Nada foi alterado." >&2
               exit 3
             fi
             expected="$(sed -n 's/^manifest_sha256=//p' "$INFO")"
             actual="$($HASHBIN "$MAN" | cut -d' ' -f1)"
-            [ -n "$expected" ] && [ "$expected" = "$actual" ] || fail "manifesto não confere com o registrado em $INFO."
-            manifest "$DST" > "$BASE/.v-dst.$$" || fail "não foi possível examinar TODOS os arquivos da cópia; verificação inválida."
-            if cmp -s "$BASE/.v-dst.$$" "$MAN"; then echo "OK: cópia idêntica ao manifesto gravado."; else echo "DIVERGÊNCIA: a cópia difere do manifesto." >&2; exit 1; fi
+            if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+              set_status invalid || true
+              fail "manifesto não confere com o registrado em $INFO (marcada como invalid)."
+            fi
+            status_now="$(sed -n 's/^status=//p' "$INFO")"
+            [ "$status_now" = complete ] || echo "AVISO: estado atual '$status_now' — revalidando por completo antes de declarar íntegra."
+            manifest "$DST" > "$BASE/.v-dst.$$" || { set_status invalid || true; fail "não foi possível examinar TODOS os arquivos da cópia; verificação inválida (marcada como invalid)."; }
+            if cmp -s "$BASE/.v-dst.$$" "$MAN"; then echo "OK: cópia idêntica ao manifesto gravado."; else set_status invalid || true; echo "DIVERGÊNCIA: a cópia difere do manifesto (marcada como invalid)." >&2; exit 1; fi
             if [ -d "$SRC" ]; then
-              manifest "$SRC" > "$BASE/.v-src.$$" || fail "não foi possível examinar a origem."
-              if cmp -s "$BASE/.v-dst.$$" "$BASE/.v-src.$$"; then echo "OK: cópia idêntica à release de origem."; else echo "DIVERGÊNCIA: a cópia difere da origem." >&2; exit 1; fi
+              manifest "$SRC" > "$BASE/.v-src.$$" || { set_status invalid || true; fail "não foi possível examinar a origem (marcada como invalid)."; }
+              if cmp -s "$BASE/.v-dst.$$" "$BASE/.v-src.$$"; then echo "OK: cópia idêntica à release de origem."; else set_status invalid || true; echo "DIVERGÊNCIA: a cópia difere da origem (marcada como invalid)." >&2; exit 1; fi
             else
               echo "Origem releases/$SHA não existe mais (esperado após o prune)."
             fi
+            if [ "$status_now" != complete ]; then set_status complete && echo "Revalidação completa OK: estado atualizado para complete."; fi
             echo "VERIFICAÇÃO CONCLUÍDA. Nenhuma alteração feita."
             exit 0
           fi
@@ -190,7 +207,7 @@ jobs:
             echo "source=$SRC"
             echo "protected_at=$(date -u +%FT%TZ)"
             echo "manifest_sha256=$($HASHBIN "$BASE/.man.$$" | cut -d' ' -f1)"
-            echo "status=complete"
+            echo "status=pending-verification"
           } > "$BASE/.info.$$"
           mv "$BASE/.man.$$" "$MAN"
           mv "$BASE/.info.$$" "$INFO"
@@ -202,8 +219,11 @@ jobs:
           chmod a-w "$DST" || echo "AVISO: não foi possível remover a escrita da pasta de topo (a cópia continua válida e verificada)."
 
           echo "=== Verificação 3: pasta definitiva x manifesto ==="
-          manifest "$DST" > "$BASE/.v-dst.$$" || fail "não foi possível examinar a pasta definitiva."
-          cmp -s "$BASE/.v-dst.$$" "$MAN" && echo "OK: cópia protegida confere com o manifesto." || fail "a pasta definitiva diverge do manifesto."
+          manifest "$DST" > "$BASE/.v-dst.$$" || { set_status invalid || true; fail "não foi possível examinar a pasta definitiva (marcada como invalid)."; }
+          cmp -s "$BASE/.v-dst.$$" "$MAN" || { set_status invalid || true; fail "a pasta definitiva diverge do manifesto (marcada como invalid)."; }
+          echo "OK: cópia protegida confere com o manifesto."
+          set_status complete || fail "não foi possível registrar status=complete."
+          echo "Estado registrado: complete (somente após a verificação final)."
 
           echo "=== ESTADO DEPOIS (deve ser igual ao ANTES) ==="
           AFTER="$(state)"; echo "$AFTER"
