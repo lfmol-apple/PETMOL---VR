@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Somente leitura: tamanho de cada release, espaço em disco e se o usuário de
 # deploy conseguiria gravar numa pasta de preservação de release.
+# Executado via STDIN do SSH (bash -s): nada é copiado para a VPS nem criado em /tmp.
 # Nenhuma escrita, nenhum restart, nenhum deploy, nenhuma leitura de segredos.
 set -uo pipefail
 
