@@ -9,9 +9,14 @@ name: Protect stable release copy on VPS
 #     links simbólicos preservados), primeiro numa pasta .incoming-* e só então
 #     renomeia (a pasta final nunca fica pela metade);
 #   - compara SHA-256 de todos os arquivos, links simbólicos e bits de execução
-#     entre origem e cópia; grava o manifesto ao lado (<sha>.manifest);
-#   - marca a cópia como somente leitura (chmod a-w) contra exclusão acidental.
-# Idempotente: se a cópia já existe, NÃO sobrescreve — só verifica a integridade.
+#     entre origem e cópia; qualquer erro de leitura/hash ABORTA (sem || true);
+#   - protege o conteúdo contra escrita (chmod a-w, sem seguir links) e grava manifesto + metadados
+#     (<sha>.manifest, <sha>.info com status=complete) AINDA na pasta temporária;
+#   - só então faz o ÚLTIMO passo: renomear .incoming-* para <sha>/ — a pasta
+#     definitiva nunca existe sem manifesto, metadados e verificação concluídos.
+# Idempotente: se o destino já existe, NÃO sobrescreve — só verifica. Destino sem
+# manifesto/metadados completos é reportado como INCOMPLETO (exit 3), nunca como
+# preservado. Sobras .incoming-* são avisadas e nunca tocadas.
 #
 # O que NÃO faz: não toca em current, releases/, serviços, banco, retenção,
 # .env nem segredos; não apaga nada; não cria nada fora de protected-releases/.
@@ -63,26 +68,47 @@ jobs:
           DST="$BASE/$SHA"
           MAN="$BASE/$SHA.manifest"
           INFO="$BASE/$SHA.info"
-          # Limpa só os temporários desta execução (nunca apaga cópias, manifestos
-          # nem a pasta .incoming-* de uma falha, que fica para inspeção).
-          trap 'rm -f "$BASE/.verify-$SHA.$$" "$BASE/.verify-src-$SHA.$$" "$BASE/.src-$SHA.$$" "$BASE/.tmp-$SHA.$$" "$BASE/.final-$SHA.$$" 2>/dev/null || true' EXIT
+          TMP=""
 
           if command -v sha256sum >/dev/null 2>&1; then HASHBIN="sha256sum"; else HASHBIN="shasum -a 256"; fi
 
-          # Manifesto determinístico: hash de cada arquivo, links simbólicos
-          # (com destino), bits de execução e diretórios.
+          fail() { echo "FALHA: $*" >&2; exit 1; }
+
+          # Em qualquer saída (erro, INT, TERM): remove só os temporários DESTA execução e
+          # avisa se ficou cópia parcial. Nunca apaga cópia, manifesto nem sobra anterior.
+          cleanup() {
+            local rc=$?
+            rm -f "$BASE/.v-dst.$$" "$BASE/.v-src.$$" "$BASE/.v-tmp.$$" "$BASE/.v-tmp2.$$" \
+                  "$BASE/.man.$$" "$BASE/.info.$$" 2>/dev/null || true
+            if [ "$rc" -ne 0 ] && [ -n "$TMP" ] && [ -d "$TMP" ]; then
+              echo "AVISO: cópia parcial deixada em $TMP — NÃO é uma cópia preservada; nada foi apagado." >&2
+            fi
+            exit "$rc"
+          }
+          trap cleanup EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM HUP
+
+          # Manifesto determinístico. Cada etapa é checada EXPLICITAMENTE (não depende de
+          # set -e, que o bash desliga dentro de funções chamadas com ||): qualquer erro de
+          # leitura ou de hash devolve status != 0, e o número de hashes tem de bater com o
+          # número de arquivos.
           manifest() {
-            ( cd "$1"
-              echo "## arquivos (sha256)"
-              find . -type f -print0 | LC_ALL=C sort -z | xargs -0 $HASHBIN
-              echo "## links simbolicos"
-              find . -type l -print0 | LC_ALL=C sort -z | while IFS= read -r -d '' l; do
-                printf '%s -> %s\n' "$l" "$(readlink "$l")"
-              done
-              echo "## executaveis"
-              find . -type f -perm -u+x -print0 | LC_ALL=C sort -z | tr '\0' '\n'
-              echo "## diretorios"
-              find . -type d | LC_ALL=C sort
+            local dir="$1"
+            [ -d "$dir" ] || { echo "manifesto: $dir não é diretório" >&2; return 90; }
+            (
+              cd "$dir" || exit 90
+              nfiles=$(find . -type f -print0 | tr -cd '\0' | wc -c | tr -d ' ') || exit 91
+              [ "$nfiles" -gt 0 ] || { echo "manifesto: nenhum arquivo em $dir" >&2; exit 91; }
+              hashes=$(find . -type f -print0 | LC_ALL=C sort -z | xargs -0 $HASHBIN) || exit 92
+              nh=$(printf '%s\n' "$hashes" | grep -cE '^\\?[0-9a-f]{64}  ' || true)
+              [ "$nh" -eq "$nfiles" ] || { echo "manifesto: $nh hashes para $nfiles arquivos em $dir" >&2; exit 93; }
+              links=$(find . -type l -print0 | LC_ALL=C sort -z | while IFS= read -r -d '' l; do
+                        printf '%s -> %s\n' "$l" "$(readlink "$l")"; done) || exit 94
+              exes=$(find . -type f -perm -u+x -print0 | LC_ALL=C sort -z | tr '\0' '\n') || exit 95
+              dirs=$(find . -type d | LC_ALL=C sort) || exit 96
+              printf '## arquivos (sha256)\n%s\n## links simbolicos\n%s\n## executaveis\n%s\n## diretorios\n%s\n' \
+                "$hashes" "$links" "$exes" "$dirs"
             )
           }
 
@@ -94,69 +120,95 @@ jobs:
 
           BEFORE="$(state)"; echo "=== ESTADO ANTES (somente leitura) ==="; echo "$BEFORE"
 
-          if [ -d "$DST" ]; then
-            echo "=== Cópia já existe: apenas VERIFICANDO (sem sobrescrever) ==="
-            manifest "$DST" > "$BASE/.verify-$SHA.$$" 2>/dev/null || true
+          for d in "$BASE"/.incoming-*; do
+            [ -e "$d" ] && echo "AVISO: sobra de execução anterior (NÃO é cópia preservada, não foi tocada): $d"
+          done 2>/dev/null || true
+
+          # ── Já existe: só VERIFICAR (nunca sobrescreve) ──────────────────────────────
+          if [ -e "$DST" ] || [ -L "$DST" ]; then
+            echo "=== Destino já existe: apenas VERIFICANDO (sem sobrescrever) ==="
+            [ -d "$DST" ] && [ ! -L "$DST" ] || fail "$DST existe mas não é um diretório regular."
+            if [ ! -f "$MAN" ] || [ ! -f "$INFO" ] || ! grep -qx 'status=complete' "$INFO"; then
+              echo "INCOMPLETA: faltam manifesto/metadados de $SHA. NÃO é considerada preservada. Nada foi alterado." >&2
+              exit 3
+            fi
+            expected="$(sed -n 's/^manifest_sha256=//p' "$INFO")"
+            actual="$($HASHBIN "$MAN" | cut -d' ' -f1)"
+            [ -n "$expected" ] && [ "$expected" = "$actual" ] || fail "manifesto não confere com o registrado em $INFO."
+            manifest "$DST" > "$BASE/.v-dst.$$" || fail "não foi possível examinar TODOS os arquivos da cópia; verificação inválida."
+            if cmp -s "$BASE/.v-dst.$$" "$MAN"; then echo "OK: cópia idêntica ao manifesto gravado."; else echo "DIVERGÊNCIA: a cópia difere do manifesto." >&2; exit 1; fi
             if [ -d "$SRC" ]; then
-              manifest "$SRC" > "$BASE/.verify-src-$SHA.$$"
-              if cmp -s "$BASE/.verify-$SHA.$$" "$BASE/.verify-src-$SHA.$$"; then echo "OK: cópia idêntica à release de origem."; else echo "DIVERGÊNCIA: cópia difere da origem."; exit 1; fi
+              manifest "$SRC" > "$BASE/.v-src.$$" || fail "não foi possível examinar a origem."
+              if cmp -s "$BASE/.v-dst.$$" "$BASE/.v-src.$$"; then echo "OK: cópia idêntica à release de origem."; else echo "DIVERGÊNCIA: a cópia difere da origem." >&2; exit 1; fi
             else
               echo "Origem releases/$SHA não existe mais (esperado após o prune)."
             fi
-            if [ -f "$MAN" ]; then
-              if cmp -s "$BASE/.verify-$SHA.$$" "$MAN"; then echo "OK: cópia idêntica ao manifesto gravado."; else echo "DIVERGÊNCIA: cópia difere do manifesto."; exit 1; fi
-            else
-              echo "AVISO: manifesto $MAN ausente; nada para comparar além da origem."
-            fi
-            rm -f "$BASE/.verify-$SHA.$$" "$BASE/.verify-src-$SHA.$$"
             echo "VERIFICAÇÃO CONCLUÍDA. Nenhuma alteração feita."
             exit 0
           fi
 
+          # ── Nova cópia ───────────────────────────────────────────────────────────────
           echo "=== Pré-condições ==="
-          [ -d "$SRC" ] && [ ! -L "$SRC" ] || { echo "FALHA: release $SRC não existe (ou é link). Nada foi feito."; exit 1; }
+          [ -d "$SRC" ] && [ ! -L "$SRC" ] || fail "release $SRC não existe (ou é link). Nada foi feito."
           need_kb=$(du -sk "$SRC" | cut -f1)
           avail_kb=$(df -Pk "$ROOT" | awk 'NR==2{print $4}')
           echo "origem: ${need_kb} KB | livre: ${avail_kb} KB"
-          # exige 2x o tamanho + 1 GB de folga
-          [ "$avail_kb" -ge $(( need_kb * 2 + 1048576 )) ] || { echo "FALHA: espaço insuficiente. Nada foi feito."; exit 1; }
+          [ "$avail_kb" -ge $(( need_kb * 2 + 1048576 )) ] || fail "espaço insuficiente (exige 2x + 1 GB). Nada foi feito."
 
-          echo "=== Cópia ==="
           mkdir -p "$BASE"
+          # Metadados órfãos (sem cópia correspondente) são preservados, não sobrescritos.
+          for f in "$MAN" "$INFO"; do
+            if [ -e "$f" ]; then
+              o="$BASE/.orphan-$(basename "$f")-$(date +%s)"; mv "$f" "$o"
+              echo "AVISO: metadado órfão preservado em $o"
+            fi
+          done
+
+          echo "=== Cópia para pasta temporária ==="
           TMP="$BASE/.incoming-$SHA-$(date +%s)"
-          [ ! -e "$TMP" ] || { echo "FALHA: $TMP já existe."; exit 1; }
-          cp -a "$SRC" "$TMP"
+          [ ! -e "$TMP" ] || fail "$TMP já existe."
+          cp -a "$SRC" "$TMP" || fail "a cópia falhou."
 
-          echo "=== Verificação de integridade (origem x cópia) ==="
-          manifest "$SRC" > "$BASE/.src-$SHA.$$"
-          manifest "$TMP" > "$BASE/.tmp-$SHA.$$"
-          if ! cmp -s "$BASE/.src-$SHA.$$" "$BASE/.tmp-$SHA.$$"; then
-            echo "FALHA: cópia diverge da origem. Deixei $TMP para inspeção; nada foi apagado nem promovido."
-            exit 1
-          fi
-          echo "OK: $(grep -c '^[0-9a-f]\{64\}  ' "$BASE/.src-$SHA.$$") arquivos idênticos."
+          echo "=== Verificação 1: origem x cópia ==="
+          manifest "$SRC" > "$BASE/.v-src.$$" || fail "não foi possível examinar TODOS os arquivos da origem."
+          manifest "$TMP" > "$BASE/.v-tmp.$$" || fail "não foi possível examinar TODOS os arquivos da cópia."
+          cmp -s "$BASE/.v-src.$$" "$BASE/.v-tmp.$$" || fail "a cópia diverge da origem (pasta parcial mantida para inspeção)."
+          echo "OK: $(grep -cE '^\\?[0-9a-f]{64}  ' "$BASE/.v-src.$$") arquivos idênticos."
 
-          echo "=== Promoção (renomear dentro da mesma pasta) ==="
-          [ ! -e "$DST" ] || { echo "FALHA: $DST apareceu durante a cópia."; exit 1; }
-          mv "$TMP" "$DST"
-          cp "$BASE/.src-$SHA.$$" "$MAN"
+          echo "=== Proteção contra escrita do CONTEÚDO e verificação 2 (ainda na pasta temporária) ==="
+          # Só o conteúdo (nunca segue links simbólicos). A pasta de topo fica gravável até
+          # depois da promoção: renomear diretório sem permissão de escrita falha em alguns
+          # sistemas, e a validade da cópia não depende desse último chmod.
+          find "$TMP" -mindepth 1 ! -type l -exec chmod a-w {} + || fail "não foi possível proteger contra escrita."
+          manifest "$TMP" > "$BASE/.v-tmp2.$$" || fail "não foi possível reexaminar a cópia protegida."
+          cmp -s "$BASE/.v-src.$$" "$BASE/.v-tmp2.$$" || fail "a cópia protegida diverge da origem."
+
+          echo "=== Gravando manifesto e metadados ==="
+          cp "$BASE/.v-src.$$" "$BASE/.man.$$"
           {
             echo "sha=$SHA"
-            echo "protected_at=$(date -u +%FT%TZ)"
             echo "source=$SRC"
-            echo "manifest_sha256=$($HASHBIN "$MAN" | cut -d' ' -f1)"
-          } > "$INFO"
-          chmod -R a-w "$DST"
+            echo "protected_at=$(date -u +%FT%TZ)"
+            echo "manifest_sha256=$($HASHBIN "$BASE/.man.$$" | cut -d' ' -f1)"
+            echo "status=complete"
+          } > "$BASE/.info.$$"
+          mv "$BASE/.man.$$" "$MAN"
+          mv "$BASE/.info.$$" "$INFO"
 
-          echo "=== Reverificação final da cópia protegida ==="
-          manifest "$DST" > "$BASE/.final-$SHA.$$"
-          cmp -s "$BASE/.final-$SHA.$$" "$MAN" && echo "OK: cópia protegida confere com o manifesto." || { echo "FALHA na reverificação"; exit 1; }
-          rm -f "$BASE"/.src-"$SHA".$$ "$BASE"/.tmp-"$SHA".$$ "$BASE"/.final-"$SHA".$$
+          echo "=== Promoção FINAL (único passo que cria a pasta definitiva) ==="
+          [ ! -e "$DST" ] || fail "$DST apareceu durante a cópia."
+          mv "$TMP" "$DST" || fail "não foi possível promover a cópia."
+          TMP=""
+          chmod a-w "$DST" || echo "AVISO: não foi possível remover a escrita da pasta de topo (a cópia continua válida e verificada)."
+
+          echo "=== Verificação 3: pasta definitiva x manifesto ==="
+          manifest "$DST" > "$BASE/.v-dst.$$" || fail "não foi possível examinar a pasta definitiva."
+          cmp -s "$BASE/.v-dst.$$" "$MAN" && echo "OK: cópia protegida confere com o manifesto." || fail "a pasta definitiva diverge do manifesto."
 
           echo "=== ESTADO DEPOIS (deve ser igual ao ANTES) ==="
           AFTER="$(state)"; echo "$AFTER"
-          [ "$BEFORE" = "$AFTER" ] && echo "OK: current, releases/ e serviços inalterados." || echo "ATENÇÃO: o estado mudou (possível deploy concorrente); revisar."
-          echo "Resumo: $(cat "$INFO" | tr '\n' ' ')"
+          if [ "$BEFORE" = "$AFTER" ]; then echo "OK: current, releases/ e serviços inalterados."; else echo "ATENÇÃO: o estado mudou (possível deploy concorrente); revisar."; fi
+          echo "Resumo: $(tr '\n' ' ' < "$INFO")"
           REMOTE_EOF
           bash -n "$RUNNER_TEMP/protect_release.sh"
 
