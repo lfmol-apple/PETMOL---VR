@@ -1,0 +1,43 @@
+name: Diagnose release sizes and disk space on VPS
+
+# Somente leitura: mede o tamanho das releases e o espaço livre na VPS para
+# planejar uma cópia protegida da release estável, fora da rotina de
+# exclusão (KEEP_RELEASES) do activate.sh. Ver deploy/scripts/diag_release_space.sh.
+# Sem escritas, sem restart, sem deploy, sem ler segredos.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  diag:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload script to VPS
+        env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          VPS_PORT="${VPS_PORT:-22}"
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+          scp -i ~/.ssh/deploy_key -o Port="$VPS_PORT" -o StrictHostKeyChecking=no \
+            deploy/scripts/diag_release_space.sh \
+            "$VPS_USER@$VPS_IP:/tmp/diag_release_space.sh"
+
+      - name: Run on VPS
+        env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          VPS_PORT="${VPS_PORT:-22}"
+          SSH="ssh -i ~/.ssh/deploy_key -o Port=$VPS_PORT -o StrictHostKeyChecking=no $VPS_USER@$VPS_IP"
+          $SSH "bash /tmp/diag_release_space.sh; rm -f /tmp/diag_release_space.sh"
