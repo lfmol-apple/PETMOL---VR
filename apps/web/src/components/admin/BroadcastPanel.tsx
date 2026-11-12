@@ -16,12 +16,17 @@ interface Goal { key: string; group: string; label: string; segment: string; tit
 interface SegmentInfo { label: string; eligible: number; skipped: { opt_out: number; weekly_cap: number; segment: number } }
 interface Audience { total: number; web: number; ios: number; android: number; opted_out: number; reachable: number }
 interface SegmentsResponse { segments: Record<string, SegmentInfo>; goals: Goal[]; destinations: Record<string, string>; weekly_cap_days: number; audience?: Audience }
-interface Preview { destination_label?: string; will_send: number; skipped: { opt_out: number; weekly_cap: number; segment: number }; sample: { title: string; body: string } | null }
+interface Preview {
+  destination_label?: string; will_send: number; skipped: { opt_out: number; weekly_cap: number; segment: number }; sample: { title: string; body: string } | null;
+  test_accounts?: { name: string; has_push: boolean }[]; product?: { title: string; url: string };
+}
+/** Resposta da conferência do link de produto: loja, nome lido do próprio link (quando a loja deixa) e imagem. */
+interface LinkInfo { url: string; store: string; host: string; final_host: string | null; title: string | null; image: string | null; readable: boolean; reason: string | null }
 interface Metrics { delivered: number; tapped: number; opened: number; acted: number; goal_hit: number | null; goal_label: string | null; window_closed: boolean }
 interface HistoryItem {
   id: string; created_at: string; message: string; segment: string; audience_kind: 'all' | 'count' | 'test';
   audience_requested: number | null; goal: string | null; recipients_total: number; delivered_total: number;
-  phase: 'sending' | 'done' | 'error'; metrics: Metrics;
+  phase: 'sending' | 'done' | 'error'; metrics: Metrics; product?: { title: string; url: string } | null;
 }
 
 async function call<T>(path: string, body?: unknown): Promise<T> {
@@ -38,9 +43,9 @@ async function call<T>(path: string, body?: unknown): Promise<T> {
 
 const pctOf = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` : '–');
 const audienceLabel = (h: HistoryItem) =>
-  h.audience_kind === 'test' ? 'só eu (teste)' : h.audience_kind === 'count' ? `${numberFmt(h.audience_requested ?? 0)} sorteadas` : 'todos';
+  h.audience_kind === 'test' ? 'teste (contas de admin)' : h.audience_kind === 'count' ? `${numberFmt(h.audience_requested ?? 0)} sorteadas` : 'todos';
 
-/** Preenchimento vindo do Radar de promoções: o dono revisa e envia (começa em "Só eu" para testar). */
+/** Preenchimento vindo do Radar de promoções: o dono revisa e envia (começa em "Teste" para conferir). */
 export interface BroadcastPrefill { key: string; goal: string; title: string; message: string; destination: string; note: string }
 
 export function BroadcastPanel({ prefill }: { prefill?: BroadcastPrefill | null }) {
@@ -55,6 +60,12 @@ export function BroadcastPanel({ prefill }: { prefill?: BroadcastPrefill | null 
   const [segment, setSegment] = useState('todos');
   const [kind, setKind] = useState<'all' | 'count' | 'test'>('test');
   const [count, setCount] = useState('');
+  // Link de produto (opcional): o dono cola, o painel confere o nome e o toque abre o produto direto na loja.
+  const [productUrl, setProductUrl] = useState('');
+  const [linkInfo, setLinkInfo] = useState<LinkInfo | null>(null);
+  const [productTitle, setProductTitle] = useState('');
+  const [checking, setChecking] = useState(false);
+  const [linkErr, setLinkErr] = useState<string | null>(null);
   // Decisão do dono (09/11/2026): o push alcança SEMPRE todos com notificação ativa. Sem limite semanal.
   const ignoreCap = true;
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -77,10 +88,28 @@ export function BroadcastPanel({ prefill }: { prefill?: BroadcastPrefill | null 
   const groups = Array.from(new Set(goals.map((g) => g.group)));
 
   const body = () => ({
-    message, title: title.trim() || null, destination, segment, goal: goalKey || null, ignore_weekly_cap: ignoreCap,
+    message, title: title.trim() || null, destination: linkInfo ? 'produto' : destination, segment, goal: goalKey || null, ignore_weekly_cap: ignoreCap,
+    ...(linkInfo ? { product_url: linkInfo.url, product_title: productTitle.trim() } : {}),
     audience: { kind, count: kind === 'count' ? Number(count) || undefined : undefined },
   });
   const invalidate = () => { setPreview(null); setTyped(''); setOkMsg(null); setErr(null); };
+
+  const clearLink = () => { setProductUrl(''); setLinkInfo(null); setProductTitle(''); setLinkErr(null); invalidate(); };
+  const checkLink = async () => {
+    setChecking(true); setLinkErr(null); setLinkInfo(null); invalidate();
+    try {
+      const info = await call<LinkInfo>('/link-preview', { url: productUrl.trim() });
+      setLinkInfo(info);
+      setProductTitle(info.title ?? '');
+      // Já deixa a ação e o texto prontos (sem apagar o que o dono já escreveu).
+      const g = goals.find((x) => x.key === 'link_produto');
+      if (!goalKey) { setGoalKey('link_produto'); setSegment(g?.segment ?? 'todos'); }
+      if (!title.trim() && g) setTitle(g.title);
+      if (!message.trim()) setMessage((info.title ?? g?.message ?? '').slice(0, 240));
+      setDestination('produto');
+    } catch (e) { setLinkErr((e as Error).message); }
+    finally { setChecking(false); }
+  };
 
   const pickGoal = (key: string) => {
     setGoalKey(key);
@@ -119,7 +148,7 @@ export function BroadcastPanel({ prefill }: { prefill?: BroadcastPrefill | null 
         <>
           {prefillNote && (
             <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-[12.5px] leading-snug text-amber-900">
-              {prefillNote} Revise o texto, teste em <strong>“Só eu”</strong> e só então escolha quem recebe.
+              {prefillNote} Revise o texto, faça o <strong>teste</strong> (dono, Henrique e VEP) e só então escolha quem recebe.
             </p>
           )}
           <div>
@@ -163,10 +192,49 @@ export function BroadcastPanel({ prefill }: { prefill?: BroadcastPrefill | null 
             </p>
           </div>
 
+          <div className="rounded-xl border border-slate-200 p-3">
+            <label className={label} htmlFor="bc-link">Link de produto (opcional): o toque abre o produto direto na loja</label>
+            <div className="flex gap-2">
+              <input id="bc-link" className={input} value={productUrl} inputMode="url" autoComplete="off"
+                placeholder="Cole o link (Amazon, Cobasi, Shopee, Mercado Livre…)"
+                onChange={(e) => { setProductUrl(e.target.value); setLinkInfo(null); setProductTitle(''); setLinkErr(null); invalidate(); }} />
+              <button type="button" onClick={checkLink} disabled={checking || productUrl.trim().length < 12}
+                className="shrink-0 rounded-lg border border-[#0056D2] px-3 py-2 text-[13px] font-bold text-[#0056D2] disabled:opacity-40">
+                {checking ? 'Conferindo…' : 'Conferir link'}
+              </button>
+            </div>
+            {linkErr && <p className="mt-2 rounded-lg bg-rose-50 p-2 text-[12.5px] text-rose-700">{linkErr}</p>}
+            {linkInfo && (
+              <div className="mt-2 space-y-2 rounded-lg bg-slate-50 p-3">
+                <div className="flex items-start gap-3">
+                  {linkInfo.image && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={linkInfo.image} alt="" referrerPolicy="no-referrer" className="h-16 w-16 shrink-0 rounded-lg bg-white object-contain" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{linkInfo.store || 'Loja'} · {linkInfo.final_host || linkInfo.host}</p>
+                    {linkInfo.readable
+                      ? <p className="text-[13px] font-bold text-slate-900">Nome lido do link: {linkInfo.title}</p>
+                      : <p className="text-[12.5px] text-amber-800">{linkInfo.reason || 'Não consegui ler o nome do produto. Digite abaixo.'}</p>}
+                  </div>
+                </div>
+                <div>
+                  <label className={label} htmlFor="bc-ptitle">Nome do produto (confira; é o que fica registrado no histórico)</label>
+                  <input id="bc-ptitle" maxLength={160} className={input} value={productTitle}
+                    onChange={(e) => { setProductTitle(e.target.value); invalidate(); }} />
+                </div>
+                <div className="flex flex-wrap items-center gap-3 text-[12px]">
+                  <a href={linkInfo.url} target="_blank" rel="noopener noreferrer" className="font-bold text-[#0056D2] underline">Abrir o link para testar</a>
+                  <button type="button" onClick={clearLink} className="text-slate-500 underline">Remover link</button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div>
             <label className={label} htmlFor="bc-dest">Ao tocar na notificação, abrir</label>
-            <select id="bc-dest" className={input} value={destination} onChange={(e) => { setDestination(e.target.value); invalidate(); }}>
-              {Object.entries(segs.data.destinations).map(([k, t]) => (<option key={k} value={k}>{t}</option>))}
+            <select id="bc-dest" className={input} value={linkInfo ? 'produto' : destination} disabled={!!linkInfo} onChange={(e) => { setDestination(e.target.value); invalidate(); }}>
+              {Object.entries(segs.data.destinations).filter(([k]) => k !== 'produto' || !!linkInfo).map(([k, t]) => (<option key={k} value={k}>{t}</option>))}
             </select>
           </div>
 
@@ -178,7 +246,7 @@ export function BroadcastPanel({ prefill }: { prefill?: BroadcastPrefill | null 
               ))}
             </select>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-slate-700">
-              {([['test', 'Só eu (teste)'], ['count', 'Uma quantidade'], ['all', 'Todos']] as const).map(([k, t]) => (
+              {([['test', 'Teste (dono, Henrique e VEP)'], ['count', 'Uma quantidade'], ['all', 'Todos']] as const).map(([k, t]) => (
                 <label key={k} className="flex items-center gap-1.5">
                   <input type="radio" name="bc-kind" checked={kind === k} onChange={() => { setKind(k); invalidate(); }} /> {t}
                 </label>
@@ -197,7 +265,7 @@ export function BroadcastPanel({ prefill }: { prefill?: BroadcastPrefill | null 
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <button type="button" onClick={doPreview} disabled={busy || message.trim().length < 3 || (kind === 'count' && !Number(count))}
+            <button type="button" onClick={doPreview} disabled={busy || message.trim().length < 3 || (kind === 'count' && !Number(count)) || (!!linkInfo && productTitle.trim().length < 2)}
               className="rounded-lg border border-[#0056D2] px-4 py-2 text-[13px] font-bold text-[#0056D2] disabled:opacity-40">
               Ver prévia e quantas pessoas
             </button>
@@ -214,6 +282,7 @@ export function BroadcastPanel({ prefill }: { prefill?: BroadcastPrefill | null 
                   <p className="mt-1 text-[14px] font-extrabold text-slate-900">{preview.sample.title}</p>
                   <p className="text-[13px] text-slate-700">{preview.sample.body}</p>
                   {preview.destination_label && <p className="mt-1 text-[11px] text-slate-400">Ao tocar abre: {preview.destination_label}</p>}
+                  {preview.product && <p className="mt-1 text-[12px] font-semibold text-slate-700">Produto: {preview.product.title}</p>}
                 </div>
               ) : <p className="text-[13px] text-slate-500">Ninguém receberia esta mensagem agora.</p>}
               <p className="text-[14px] text-slate-800">
@@ -224,6 +293,18 @@ export function BroadcastPanel({ prefill }: { prefill?: BroadcastPrefill | null 
                   </span>
                 )}
               </p>
+              {kind === 'test' && preview.test_accounts && (
+                <div className="rounded-lg bg-white p-3 text-[12.5px] ring-1 ring-black/5">
+                  <p className="font-bold text-slate-700">O teste vai para estas contas:</p>
+                  <ul className="mt-1 space-y-0.5">
+                    {preview.test_accounts.map((a) => (
+                      <li key={a.name} className={a.has_push ? 'text-slate-700' : 'text-amber-800'}>
+                        {a.has_push ? '✓' : '⚠'} {a.name}{a.has_push ? '' : ' — sem notificação ativa: não vai receber'}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {needsTyping && (
                 <div>
                   <label className={label} htmlFor="bc-confirm">Para confirmar, digite {preview.will_send}</label>
@@ -233,7 +314,7 @@ export function BroadcastPanel({ prefill }: { prefill?: BroadcastPrefill | null 
               )}
               <button type="button" onClick={doSend} disabled={busy || !canSend}
                 className="rounded-lg bg-[#0056D2] px-4 py-2 text-[13px] font-bold text-white disabled:opacity-40">
-                {kind === 'test' ? 'Enviar só para mim' : `Enviar para ${numberFmt(preview.will_send)} pessoa${preview.will_send === 1 ? '' : 's'}`}
+                {kind === 'test' ? `Enviar teste (${preview.will_send} ${preview.will_send === 1 ? 'conta' : 'contas'})` : `Enviar para ${numberFmt(preview.will_send)} pessoa${preview.will_send === 1 ? '' : 's'}`}
               </button>
               <p className="text-[11px] text-slate-500">Depois de enviada, uma notificação não pode ser desfeita.</p>
             </div>
@@ -252,6 +333,7 @@ export function BroadcastPanel({ prefill }: { prefill?: BroadcastPrefill | null 
                 return (
                   <li key={h.id} className="rounded-xl border border-slate-200 p-3">
                     <p className="text-[13px] font-bold text-slate-900">{h.message}</p>
+                    {h.product && <p className="text-[12px] text-slate-600">Produto: {h.product.title}</p>}
                     <p className="text-[11px] text-slate-500">
                       {new Date(h.created_at).toLocaleString('pt-BR')} · {audienceLabel(h)} · {h.phase === 'sending' ? 'enviando…' : h.phase === 'error' ? 'erro no envio' : `${numberFmt(h.delivered_total)} de ${numberFmt(h.recipients_total)} entregues`}
                       {m.goal_label ? ` · meta: ${m.goal_label}` : ''}{!m.window_closed ? ' · ainda contando' : ''}

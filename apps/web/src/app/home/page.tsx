@@ -3,6 +3,7 @@
 import { takePendingDeepLink, withDeepLinkNonce } from '@/lib/deepLinkIntent';
 import { shareAppUrl } from '@/lib/landingLinks';
 import { trackProductEvent } from '@/lib/analytics';
+import { openPushProductLink, isPushProductUrl } from '@/features/commerce/pushProductLink';
 import { UserPlus, ChevronRight } from 'lucide-react';
 import { InviteChoiceSheet } from '@/components/home/InviteChoiceSheet';
 import { HowToSheet } from '@/components/home/HowToSheet';
@@ -481,6 +482,19 @@ function HomePageInner() {
     if (!bid || broadcastTapSent.current) return;
     broadcastTapSent.current = true;
     trackProductEvent('broadcast_opened', { broadcast: bid });
+  }, [searchParams]);
+
+  // Notificação do admin com LINK DE PRODUTO (/admin, aba Push): ?produto=<link>&b=<envio>. Abre o produto direto na loja,
+  // uma vez só, e limpa a URL (o botão "voltar" não reabre a loja). Só lojas conhecidas; link de fora é ignorado.
+  const productLinkOpened = useRef(false);
+  useEffect(() => {
+    const raw = searchParams.get('produto');
+    if (!raw || productLinkOpened.current) return;
+    productLinkOpened.current = true;
+    try { window.history.replaceState(window.history.state, '', '/home'); } catch { /* melhor esforço */ }
+    if (!isPushProductUrl(raw)) return;
+    trackProductEvent('broadcast_product_opened', { broadcast: searchParams.get('b') ?? undefined });
+    openPushProductLink(raw);
   }, [searchParams]);
 
   useEffect(() => {

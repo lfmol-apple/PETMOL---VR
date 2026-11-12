@@ -26,12 +26,14 @@ import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text, or_
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text, func, or_
 
 from ..analytics.models import AnalyticsProductEvent
+from ..config import admin_allowed_emails, get_settings
 from ..events.models import Event
 from ..health.models import FeedingPlan
 from ..db import Base, SessionLocal
@@ -45,6 +47,7 @@ from .activation_campaign_router import ActivationCampaignContact, opted_out_ids
 from .analytics.permissions_bi import has_any_push, shares_location
 from .analytics.queries import _feeding_configured_pet_ids
 from .deps import get_current_admin
+from .product_link import ProductLinkError, fetch_product_info, validate_product_url
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +138,11 @@ GOAL_CATALOG: list[dict] = [
      "message": "Tem promoção nas lojas parceiras. Veja na Loja do PETMOL o que {pets} pode precisar.",
      "why": "Avisa o tutor de uma campanha real das lojas (11.11, Black Friday…), a partir do Radar de promoções. É promoção: use com moderação.",
      "success": "Tocou em uma oferta/loja parceira em 24h."},
+    {"key": "link_produto", "title": '{tutor}, olha este produto para {pets}', "group": "Compras", "label": "Abrir um produto (link direto da loja)", "segment": "todos",
+     "state": None, "events": {"broadcast_product_opened"},
+     "message": "Toque para ver o produto direto na loja.",
+     "why": "Leva o tutor direto à página do produto que você escolheu (promoção, lançamento, oferta). É promoção: use com moderação.",
+     "success": "Abriu o produto da loja em 24h."},
     {"key": "abrir", "title": '{tutor}, novidade para {pets}', "group": "Engajamento", "label": "Só abrir o app (lembrar que o PETMOL existe)", "segment": "todos",
      "state": None, "events": set(),
      "message": "Toque para ver o que há de novo no PETMOL.",
@@ -150,9 +158,10 @@ DESTINATIONS = {
     "parasites": "Vermífugo e antipulgas",
     "medication": "Medicação",
     "grooming": "Banho e tosa",
+    "produto": "O produto do link (direto na loja)",
 }
 _GOAL_OPEN = {"compra_racao": "loja", "cupom": "loja", "promocao_loja": "loja", "racao": "food", "vacina": "vaccines",
-              "parasitas": "parasites", "medicacao": "medication", "banho": "grooming"}
+              "parasitas": "parasites", "medicacao": "medication", "banho": "grooming", "link_produto": "produto"}
 for _g in GOAL_CATALOG:
     _g["open"] = _GOAL_OPEN.get(_g["key"], "home")
 GOALS = tuple(g["key"] for g in GOAL_CATALOG)
@@ -176,6 +185,8 @@ class AdminBroadcast(Base):
     delivered_total = Column(Integer, nullable=False, default=0)
     phase = Column(String(12), nullable=False, default="sending")  # sending | done | error
     finished_at = Column(DateTime(timezone=True), nullable=True)
+    link_url = Column(Text, nullable=True)       # push de produto: o link colado pelo dono (o toque abre direto na loja)
+    link_title = Column(Text, nullable=True)     # nome do produto conferido pelo dono
 
 
 class AdminBroadcastRecipient(Base):
@@ -334,12 +345,24 @@ def eligible_users(db, segment: str, ignore_weekly_cap: bool = False, care: Opti
 
 
 def _admin_target(db, admin_user_id: str) -> list[dict]:
-    """"Só eu": o próprio dono, com os pets dele (teste fiel do que o tutor vê)."""
-    u = db.query(User).filter(User.id == admin_user_id).first()
-    if not u:
-        return []
-    pets = _pets_by_user(db, {str(u.id)}).get(str(u.id), [])
-    return [{"user_id": str(u.id), "name": u.name, "pet_names": [n for _, n in pets if n]}]
+    """Teste: as contas de administrador (o dono, o Henrique e a VEP Consórcio), cada uma com os próprios pets
+    (teste fiel do que o tutor vê). Quem pediu o teste sempre entra; contas que ainda não existem são ignoradas."""
+    emails = admin_allowed_emails(get_settings())
+    users = {str(u.id): u for u in db.query(User).filter(func.lower(User.email).in_(emails)).all()} if emails else {}
+    me = db.query(User).filter(User.id == admin_user_id).first()
+    if me:
+        users.setdefault(str(me.id), me)
+    pets = _pets_by_user(db, set(users))
+    # quem pediu primeiro, depois as outras contas
+    ordered = sorted(users.values(), key=lambda u: (str(u.id) != str(admin_user_id), (u.name or "").lower()))
+    return [{"user_id": str(u.id), "name": u.name, "pet_names": [n for _, n in pets.get(str(u.id), []) if n]} for u in ordered]
+
+
+def _test_accounts_info(db, targets: list[dict]) -> list[dict]:
+    """Para o painel: quem receberia o teste e se tem notificação ativa (sem ela o teste não chega)."""
+    ids = {t["user_id"] for t in targets}
+    with_push = {str(u) for (u,) in db.query(User.id).filter(User.id.in_(ids or {"__none__"}), has_any_push(User.id)).all()}
+    return [{"name": first_name(t.get("name")) or "Conta sem nome", "has_push": t["user_id"] in with_push} for t in targets]
 
 
 def _select_targets(db, segment: str, kind: str, count: Optional[int], admin_user_id: str,
@@ -359,27 +382,31 @@ def _spawn(fn, *args) -> None:
     threading.Thread(target=fn, args=args, daemon=True).start()
 
 
-def _push_payload(broadcast_id: str, title: str, body: str, destination: str = "home") -> dict:
+def _push_payload(broadcast_id: str, title: str, body: str, destination: str = "home", product_url: Optional[str] = None) -> dict:
     # O toque abre a tela escolhida (Lojas, Ração...) e o app avisa "tocou na notificação" (b=<id>)
-    # para medirmos o êxito.
-    modal = f"modal={destination}&" if destination and destination != "home" else ""
+    # para medirmos o êxito. Destino "produto": a Home abre o link do produto DIRETO na loja (?produto=<link>).
+    if destination == "produto" and product_url:
+        url = f"/home?produto={quote(product_url, safe='')}&b={broadcast_id}"
+    else:
+        modal = f"modal={destination}&" if destination and destination not in ("home", "produto") else ""
+        url = f"/home?{modal}b={broadcast_id}"
     return {
         "title": title,
         "body": body,
         "tag": f"broadcast-{broadcast_id}",
-        "data": {"url": f"/home?{modal}b={broadcast_id}"},
+        "data": {"url": url},
     }
 
 
 def _run_send(broadcast_id: str, message: str, targets: list[dict], title_template: Optional[str] = None,
-              destination: str = "home") -> None:
+              destination: str = "home", product_url: Optional[str] = None) -> None:
     db = SessionLocal()
     delivered = 0
     try:
         for i, t in enumerate(targets):
             try:
                 title, body = personalize(message, t.get("name"), t.get("pet_names") or [], title_template)
-                ok = push_to_user(t["user_id"], _push_payload(broadcast_id, title, body, destination)) > 0
+                ok = push_to_user(t["user_id"], _push_payload(broadcast_id, title, body, destination, product_url)) > 0
             except Exception as exc:  # um tutor com problema nunca derruba o envio dos outros
                 logger.warning("broadcast %s: falha para %s: %s", broadcast_id, t.get("user_id"), exc)
                 title, body, ok = None, None, False
@@ -518,6 +545,7 @@ def _serialize(db, b: AdminBroadcast) -> dict:
         "recipients_total": b.recipients_total,
         "delivered_total": b.delivered_total,
         "phase": b.phase,
+        "product": {"title": b.link_title, "url": b.link_url} if b.link_url else None,
         "metrics": broadcast_metrics(db, b),
     }
 
@@ -540,7 +568,10 @@ class BroadcastIn(BaseModel):
     segment: Literal["todos", "sem_racao", "sem_gps", "sem_foto", "sem_pet"] = "todos"
     audience: AudienceIn = AudienceIn()
     title: Optional[str] = Field(default=None, max_length=80)   # gancho do título; vazio = padrão
-    destination: Optional[Literal["home", "loja", "food", "vaccines", "parasites", "medication", "grooming"]] = None
+    destination: Optional[Literal["home", "loja", "food", "vaccines", "parasites", "medication", "grooming", "produto"]] = None
+    # Push de produto: o link colado pelo dono (só lojas conhecidas) e o nome que ele conferiu. O toque abre o produto direto na loja.
+    product_url: Optional[str] = Field(default=None, max_length=700)
+    product_title: Optional[str] = Field(default=None, max_length=160)
     goal: Optional[str] = None   # chave do GOAL_CATALOG ("Esta notificação vai incentivar o usuário a…")
     # Decisão do dono (09/11/2026): o envio alcança SEMPRE todos com notificação ativa; sem limite semanal. Só opt-out fica de fora.
     ignore_weekly_cap: bool = True
@@ -549,6 +580,20 @@ class BroadcastIn(BaseModel):
     def _goal_known(self):
         if self.goal is not None and self.goal not in GOALS:
             raise ValueError("Ação desconhecida.")
+        if (self.product_url or "").strip():
+            try:
+                self.product_url = validate_product_url(self.product_url or "")
+            except ProductLinkError as exc:
+                raise ValueError(str(exc))
+            if not (self.product_title or "").strip():
+                raise ValueError("Confira o nome do produto antes de enviar.")
+            self.product_title = self.product_title.strip()
+            self.destination = "produto"
+        else:
+            self.product_url = None
+            self.product_title = None
+            if self.destination == "produto" or self.goal == "link_produto":
+                raise ValueError("Cole o link do produto.")
         return self
 
 
@@ -601,6 +646,20 @@ def segments(current=Depends(get_current_admin)):
         db.close()
 
 
+class LinkPreviewIn(BaseModel):
+    url: str = Field(min_length=1, max_length=700)
+
+
+@router.post("/link-preview")
+def link_preview(payload: LinkPreviewIn, current=Depends(get_current_admin)):
+    """Confere o link de produto: loja, nome lido do próprio link (quando a loja deixa) e imagem. Só lojas conhecidas, https."""
+    try:
+        info = fetch_product_info(payload.url)
+    except ProductLinkError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return {k: info[k] for k in ("url", "store", "host", "final_host", "title", "image", "readable", "reason")}
+
+
 @router.post("/preview")
 def preview(payload: BroadcastIn, current=Depends(get_current_admin)):
     """Quantos vão receber e como a notificação chega (com nomes reais de um destinatário)."""
@@ -614,8 +673,13 @@ def preview(payload: BroadcastIn, current=Depends(get_current_admin)):
             title, body = personalize(payload.message, ex.get("name"), ex.get("pet_names") or [], payload.title)
             sample = {"title": title, "body": body}
         dest = payload.destination or (_GOAL.get(payload.goal or "") or {}).get("open") or "home"
-        return {"will_send": will_send, "skipped": skipped, "sample": sample, "destination": dest,
-                "destination_label": DESTINATIONS.get(dest, dest)}
+        result = {"will_send": will_send, "skipped": skipped, "sample": sample, "destination": dest,
+                  "destination_label": DESTINATIONS.get(dest, dest)}
+        if payload.audience.kind == "test":
+            result["test_accounts"] = _test_accounts_info(db, targets)
+        if payload.product_url:
+            result["product"] = {"title": payload.product_title, "url": payload.product_url}
+        return result
     finally:
         db.close()
 
@@ -638,14 +702,14 @@ def send(payload: SendIn, current=Depends(get_current_admin)):
         b = AdminBroadcast(
             created_by=str(admin_user.id), message=payload.message.strip(), segment=payload.segment,
             audience_kind=payload.audience.kind, audience_requested=payload.audience.count, goal=payload.goal,
-            recipients_total=will_send, phase="sending")
+            recipients_total=will_send, phase="sending", link_url=payload.product_url, link_title=payload.product_title)
         db.add(b)
         db.commit()
         broadcast_id = b.id
         destination = payload.destination or (_GOAL.get(payload.goal or "") or {}).get("open") or "home"
     finally:
         db.close()
-    _spawn(_run_send, broadcast_id, payload.message.strip(), targets, payload.title, destination)
+    _spawn(_run_send, broadcast_id, payload.message.strip(), targets, payload.title, destination, payload.product_url)
     return {"id": broadcast_id, "will_send": will_send, "phase": "sending"}
 
 

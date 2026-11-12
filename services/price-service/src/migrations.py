@@ -692,6 +692,9 @@ def run_pg_migrations(engine: Engine) -> None:
         # app_installs (downloads) e analytics_product_events (acessos), + geo-IP
         # nos eventos-âncora de sessão (mesma fonte/rótulo do geo-IP de
         # app_installs — nunca a localização declarada do tutor).
+        # Push de produto (admin): o link colado e o nome conferido ficam guardados no envio (histórico).
+        _pg_add_column_if_missing(conn, "admin_broadcasts", "link_url", "TEXT")
+        _pg_add_column_if_missing(conn, "admin_broadcasts", "link_title", "TEXT")
         _pg_add_column_if_missing(conn, "app_installs", "utm_source", "TEXT")
         _pg_add_column_if_missing(conn, "app_installs", "utm_medium", "TEXT")
         _pg_add_column_if_missing(conn, "app_installs", "utm_campaign", "TEXT")
@@ -786,6 +789,9 @@ def run_sqlite_migrations(engine: Engine) -> None:
         if conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='photo_moderation_decisions'")).fetchone():
             changed |= _sqlite_add_column_if_missing(conn, "photo_moderation_decisions", "image_retained", "BOOLEAN DEFAULT 0 NOT NULL")
             changed |= _sqlite_add_column_if_missing(conn, "photo_moderation_decisions", "image_views", "INTEGER DEFAULT 0 NOT NULL")
+        if conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='admin_broadcasts'")).fetchone():
+            changed |= _sqlite_add_column_if_missing(conn, "admin_broadcasts", "link_url", "TEXT")
+            changed |= _sqlite_add_column_if_missing(conn, "admin_broadcasts", "link_title", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "users", "terms_accepted", "BOOLEAN DEFAULT 0")
         changed |= _sqlite_add_column_if_missing(conn, "users", "terms_version", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "users", "terms_accepted_at", "DATETIME")
