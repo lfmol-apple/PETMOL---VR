@@ -95,6 +95,12 @@ def env(request, monkeypatch):
     _wipe(sf)
 
 
+@pytest.fixture(autouse=True)
+def _sem_teto_de_lote(monkeypatch):
+    """Estes testes são de reserva/execução/recuperação com lotes grandes; o teto por lote tem testes próprios (test_push_campaign_stop_limit.py)."""
+    monkeypatch.setattr(svc, "max_batch_limit", lambda: 1_000_000)
+
+
 def seed(env, n, species="cat", *, push=True, optout=False, pets=1):
     with env.sf() as s:
         w = World(s)
@@ -385,10 +391,15 @@ def test_chave_de_idempotencia_invalida(env, key):
 def test_um_lote_por_vez_na_campanha(env):
     seed(env, 40)
     cid = campaign(env)
+    with env.sf() as s:                                                                      # prévia gerada quando ainda não havia lote
+        pv_livre = svc.preview_batch(s, cid, CATS, requested=5, all_available=False, admin_id=ADMIN)
     first, *_ = reserve(env, cid, CATS, 10)
-    assert error_of(reserve, env, cid, CATS, 5).code == "batch_in_progress"
-    with env.sf() as s:
-        assert svc.preview_batch(s, cid, CATS, requested=5, all_available=False, admin_id=ADMIN)["can_reserve"] is False
+    e = error_of(svc.reserve_batch, env.sf, cid, CATS, requested=5, all_available=False, idempotency_key=uuid.uuid4().hex, admin_id=ADMIN,
+                 token=pv_livre["token"], confirm_count=5)                                  # a reserva direta é recusada mesmo com token antigo
+    assert e.code == "batch_in_progress"
+    with env.sf() as s:                                                                      # e agora NENHUMA prévia que autorize reserva é emitida
+        pv = svc.preview_batch(s, cid, CATS, requested=5, all_available=False, admin_id=ADMIN)
+    assert pv["can_reserve"] is False and pv["token"] is None and pv["blocking_batch"]["phase"] in ("reserved", "sending")
     run(env, first["batch"]["id"])
     assert reserve(env, cid, CATS, 5)[0]["batch"]["batch_no"] == 2
 

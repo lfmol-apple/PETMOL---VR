@@ -68,20 +68,21 @@ export interface AudienceCount {
 export interface BatchMetrics { delivered: number; tapped: number; opened: number; acted: number }
 export interface Batch {
   id: string; campaign_id: string; batch_no: number; phase: BatchPhase; created_at: string | null;
-  requested: number | 'all' | null; reserved: number | null; filters?: unknown; counts: Counts; interrupted_suspected: boolean; accepted_note: string;
+  requested: number | 'all' | null; reserved: number | null; filters?: unknown; stop?: StopInfo; counts: Counts; interrupted_suspected: boolean; accepted_note: string;
   metrics?: BatchMetrics | null;
 }
+export interface StopInfo { state: 'none' | 'requested' | 'acknowledged' | 'finished_before_stop'; requested_at: string | null; acknowledged_at: string | null }
 export interface CampaignContent { title: string | null; message: string; goal: string | null; destination: string | null; product_url: string | null; product_title: string | null }
 export interface Campaign {
   id: string; name: string; status: 'draft' | 'active' | 'closed' | string; created_at: string | null; content_locked: boolean;
-  content: CampaignContent; used_total: number; counts: Counts; batches: Batch[];
+  content: CampaignContent; used_total: number; counts: Counts; batches: Batch[]; max_batch?: number;
 }
 export interface CampaignListItem { id: string; name: string; status: string; content_locked: boolean; created_at: string | null; counts: Counts }
 
 export interface BatchPreview {
   campaign_id: string; counts: AudienceCount; available: number; will_reserve: number; smaller_than_requested: boolean;
-  can_reserve: boolean; blocking_batch: { id: string; batch_no: number } | null; content: CampaignContent & Record<string, unknown>;
-  next_batch_no: number; confirmation: string | null; token: string | null; expires_at: string | null;
+  can_reserve: boolean; blocking_batch: { id: string; batch_no: number; phase?: string } | null; content: CampaignContent & Record<string, unknown>;
+  next_batch_no: number; max_batch?: number; confirmation: string | null; token: string | null; expires_at: string | null;
 }
 export interface ReserveResult { batch: Batch; idempotent_replay: boolean; started: boolean }
 
@@ -110,8 +111,16 @@ export function explainError(e: unknown): { text: string; needsNewPreview: boole
       return { text: 'A prévia não é válida. Gere uma nova prévia.', needsNewPreview: true, retrySameKey: false };
     case 'no_one_available':
       return { text: 'Não há mais destinatários disponíveis para estes filtros nesta campanha.', needsNewPreview: true, retrySameKey: false };
+    case 'batch_awaiting_decision':
+      return { text: e.message, needsNewPreview: true, retrySameKey: false };
     case 'batch_in_progress':
       return { text: 'Já existe um lote em andamento ou interrompido nesta campanha. Conclua-o antes de reservar outro.', needsNewPreview: false, retrySameKey: false };
+    case 'batch_limit_exceeded':
+      return { text: e.message, needsNewPreview: true, retrySameKey: false };
+    case 'batch_not_running':
+      return { text: 'Este lote já terminou ou já estava interrompido: não há mais envio para parar. A tela vai se atualizar.', needsNewPreview: false, retrySameKey: false };
+    case 'confirmation_required':
+      return { text: 'Confirme explicitamente para parar o envio.', needsNewPreview: false, retrySameKey: false };
     case 'campaign_closed':
       return { text: 'A campanha está encerrada.', needsNewPreview: false, retrySameKey: false };
     case 'bad_confirmation':

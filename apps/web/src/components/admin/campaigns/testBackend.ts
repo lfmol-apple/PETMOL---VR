@@ -16,6 +16,7 @@ export class Backend {
   used = 0;
   overrides = new Map<string, Handler[]>();  // "METHOD path" → fila de respostas pontuais
   delayMs = 0;
+  maxBatch: number | null = null;       // teto por lote do servidor falso
   countDelays: number[] = [];          // atrasos pontuais para /audience/count (um por chamada, em ordem)
   world: { id: string; cat: boolean; female: boolean }[] | null = null;     // modo "mundo": contagens calculadas de verdade
   usedBy = new Map<string, Set<string>>();
@@ -26,7 +27,7 @@ export class Backend {
   last(method: string, pathEnd: string) { return [...this.calls].reverse().find((c) => c.method === method && c.path.endsWith(pathEnd)); }
 
   addCampaign(p: Partial<any> = {}) {
-    const c = {
+    const c: any = {
       id: `camp${++this.seq}`, name: 'Ração gatos', status: 'active', created_at: '2026-11-13T12:00:00Z', content_locked: false,
       content: { title: '{tutor}, ração para {pets}', message: 'Oferta de ração.', goal: null, destination: 'home', product_url: null, product_title: null },
       used_total: 0, counts: zero(), batches: [], ...p,
@@ -35,7 +36,7 @@ export class Backend {
     return c;
   }
   addBatch(c: any, p: Partial<any>) {
-    const b = { id: `bat${++this.seq}`, campaign_id: c.id, batch_no: c.batches.length + 1, phase: 'done', created_at: '2026-11-13T12:05:00Z', requested: 50, reserved: 50,
+    const b: any = { stop: { state: 'none', requested_at: null, acknowledged_at: null }, id: `bat${++this.seq}`, campaign_id: c.id, batch_no: c.batches.length + 1, phase: 'done', created_at: '2026-11-13T12:05:00Z', requested: 50, reserved: 50,
       counts: { ...zero(), accepted: 50 }, interrupted_suspected: false, accepted_note: "'Aceito' = o provedor (APNs/FCM/Web Push) aceitou o envio. Não é confirmação de entrega ao celular.",
       metrics: { delivered: 50, tapped: 4, opened: 9, acted: 2 }, ...p };
     c.batches.push(b);
@@ -93,6 +94,19 @@ export class Backend {
     'POST /link-preview': (b) => ({ json: { url: b.url, store: 'Amazon', host: 'amzn.to', final_host: 'amazon.com.br', title: 'Ração Premier Gatos 7,5kg', image: null, readable: true, reason: null } }),
   };
 
+  /** Teto por lote do servidor falso: recusa pedido acima do teto e "todos" acima do teto (nunca reduz em silêncio). */
+  private checkLimit(method: string, path: string, body: any) {
+    if (this.maxBatch === null || method !== 'POST' || !/\/campaigns\/[^/]+\/batches(\/preview)?$/.test(path)) return null;
+    const cid = path.match(/\/campaigns\/([^/]+)\//)![1];
+    const avail = this.world ? (this.worldAudience({ ...body, campaign_id: cid }) as any)._avail.length : this.available;
+    const n = body.all_available ? avail : body.batch_size;
+    if (n > this.maxBatch) return { detail: { code: 'batch_limit_exceeded', message: `O limite por lote é ${this.maxBatch} tutor(es) e você pediu ${n}.`, limit: this.maxBatch, requested: n } };
+    return null;
+  }
+
+  /** Simula a thread de envio reconhecendo a parada: o lote vira `interrupted` e a parada `acknowledged`. */
+  ackStop(batch: any) { batch.phase = 'interrupted'; batch.stop = { ...batch.stop, state: 'acknowledged', acknowledged_at: '2026-11-13T12:10:00Z' }; }
+
   async handle(url: string, init?: RequestInit) {
     const method = init?.method ?? 'GET';
     const path = url.replace('/api/v1/admin/push-campaigns', '').replace('/api/v1/admin/broadcast', '');
@@ -100,12 +114,23 @@ export class Backend {
     this.calls.push({ method, path, body });
     if (this.delayMs) await new Promise((r) => setTimeout(r, this.delayMs));
     const key = `${method} ${path}`;
+    const limitErr = this.checkLimit(method, path, body);
+    if (limitErr) return { ok: false, status: 422, json: async () => limitErr };
     const queue = this.overrides.get(key);
     let h: Handler | undefined = queue?.shift();
     let m: RegExpMatchArray | null;
     if (!h) {
       if (this.routes[key]) h = this.routes[key];
-      else if ((m = path.match(/^\/campaigns\/([^/]+)$/)) && method === 'GET') h = () => { const c = this.campaigns.find((x) => x.id === m![1]); return c ? { json: c } : { status: 404, json: { detail: { code: 'campaign_not_found', message: 'Campanha não encontrada.' } } }; };
+      else if ((m = path.match(/^\/batches\/([^/]+)\/stop$/)) && method === 'POST') h = (b, s) => {
+        if (b?.confirm !== true) return { status: 422, json: { detail: { code: 'confirmation_required', message: 'Confirme.' } } };
+        for (const c of s.campaigns) for (const bt of c.batches) if (bt.id === m![1]) {
+          if (bt.stop.state === 'requested') return { json: { batch: bt, already_requested: true } };
+          bt.stop = { state: 'requested', requested_at: '2026-11-13T12:09:00Z', acknowledged_at: null };
+          return { json: { batch: bt, already_requested: false } };
+        }
+        return { status: 404, json: { detail: { code: 'batch_not_found', message: 'Lote não encontrado.' } } };
+      };
+      else if ((m = path.match(/^\/campaigns\/([^/]+)$/)) && method === 'GET') h = () => { const c = this.campaigns.find((x) => x.id === m![1]); return c ? { json: this.maxBatch !== null ? { ...c, max_batch: this.maxBatch } : c } : { status: 404, json: { detail: { code: 'campaign_not_found', message: 'Campanha não encontrada.' } } }; };
       else if ((m = path.match(/^\/campaigns\/([^/]+)\/close$/)) && method === 'POST') h = () => { const c = this.campaigns.find((x) => x.id === m![1])!; c.status = 'closed'; return { json: c }; };
       else if ((m = path.match(/^\/campaigns\/([^/]+)\/batches\/preview$/)) && method === 'POST' && this.world) h = (b, s) => {
         const a = s.worldAudience({ ...b, campaign_id: m![1] }) as any; const avail = a._avail.length;

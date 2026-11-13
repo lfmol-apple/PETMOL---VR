@@ -33,6 +33,53 @@ export function CountChips({ counts, total }: { counts: Record<RecipientState, n
   );
 }
 
+/** Parar o envio: confirmação explícita; o pedido fica gravado no servidor e a thread de envio o confere entre os destinatários. */
+function StopControl({ b, onChanged }: { b: Batch; onChanged: () => void }) {
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const inFlight = useRef(false);
+  const requested = b.stop?.state === 'requested';
+  const go = async () => {
+    if (inFlight.current) return;                                   // clique duplicado: um pedido por vez (e o servidor é idempotente)
+    inFlight.current = true; setBusy(true); setMsg(null);
+    try { await call(`/batches/${b.id}/stop`, { confirm: true }); setAsking(false); onChanged(); }
+    catch (e) { setMsg(explainError(e).text); onChanged(); }
+    finally { inFlight.current = false; setBusy(false); }
+  };
+  if (requested) {
+    return (
+      <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-[12.5px] leading-snug text-amber-950" aria-label="Parada solicitada">
+        <p><strong>Parada solicitada.</strong> O servidor já registrou o pedido e vai parar assim que terminar o envio que está em andamento neste instante. Esse envio será registrado com o resultado real (não é cancelado). Ninguém novo será enviado.</p>
+        <ol className="mt-1.5 flex flex-wrap gap-1.5 text-[11.5px] font-semibold" aria-label="Etapas da parada">
+          <li className="rounded-full bg-amber-200 px-2 py-0.5">1 · Solicitada ✔</li>
+          <li className="rounded-full bg-white px-2 py-0.5 ring-1 ring-amber-300">2 · Reconhecida (aguardando)</li>
+          <li className="rounded-full bg-white px-2 py-0.5 text-slate-500 ring-1 ring-slate-200">3 · Decidir: continuar ou devolver</li>
+        </ol>
+      </div>
+    );
+  }
+  if (!asking) {
+    return <button type="button" onClick={() => setAsking(true)} className="rounded-lg border border-rose-400 bg-white px-3 py-1.5 text-[12.5px] font-bold text-rose-800 hover:bg-rose-50">Parar envio</button>;
+  }
+  return (
+    <div role="alertdialog" aria-label="Confirmar parada do envio" className="space-y-2 rounded-lg border border-rose-300 bg-rose-50 p-3 text-[12.5px] leading-snug text-rose-950">
+      <p><strong>Parar o envio deste lote?</strong></p>
+      <ul className="list-disc space-y-0.5 pl-5">
+        <li>O envio que está em andamento neste instante termina e é registrado normalmente.</li>
+        <li>Quem já recebeu continua registrado e não recebe de novo.</li>
+        <li>Quem ainda não foi tentado fica reservado: depois você escolhe continuar só com eles ou devolvê-los ao público.</li>
+        <li>Resultados incertos nunca são reenviados automaticamente.</li>
+      </ul>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" disabled={busy} onClick={go} className="rounded-lg bg-rose-700 px-3 py-1.5 font-bold text-white disabled:opacity-40">{busy ? 'Solicitando…' : 'Sim, parar o envio'}</button>
+        <button type="button" disabled={busy} onClick={() => setAsking(false)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-700">Cancelar</button>
+      </div>
+      {msg && <p role="alert" className="text-rose-800">{msg}</p>}
+    </div>
+  );
+}
+
 function Recovery({ b, onChanged }: { b: Batch; onChanged: () => void }) {
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState<null | 'resume' | 'release'>(null);
@@ -48,7 +95,9 @@ function Recovery({ b, onChanged }: { b: Batch; onChanged: () => void }) {
   };
   return (
     <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-[13px] leading-snug text-amber-950">
-      <p><strong>Lote interrompido.</strong> O envio parou no meio (ex.: o servidor reiniciou). O sistema não reenviou nada sozinho.</p>
+      {b.stop?.state === 'acknowledged'
+        ? <p><strong>Envio parado a seu pedido.</strong> A parada foi reconhecida pelo servidor: nada novo foi enviado depois dela e o sistema não reenviou nada sozinho.</p>
+        : <p><strong>Lote interrompido.</strong> O envio parou no meio (ex.: o servidor reiniciou). O sistema não reenviou nada sozinho.</p>}
       {b.counts.uncertain > 0 && <p>{numberFmt(b.counts.uncertain)} tutor(es) com <strong>resultado incerto</strong>: podem ou não ter recebido. Eles <strong>não</strong> serão reenviados nem substituídos.</p>}
       {b.counts.failed > 0 && <p>{numberFmt(b.counts.failed)} com falha: também não serão reenviados.</p>}
       {left > 0 ? (
@@ -102,6 +151,8 @@ function BatchCard({ b, onChanged, fields }: { b: Batch; onChanged: () => void; 
           <button type="button" disabled={busy} onClick={reclassify} className="mt-2 rounded-lg bg-amber-700 px-3 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-40">{busy ? 'Verificando…' : 'Verificar lote parado'}</button>
         </div>
       )}
+      {active && <StopControl b={b} onChanged={onChanged} />}
+      {b.phase === 'done' && b.stop?.state === 'finished_before_stop' && <p className="text-[12px] text-slate-700">Você pediu a parada, mas o lote já tinha terminado: todos os reservados foram tentados.</p>}
       {b.phase === 'interrupted' && <Recovery b={b} onChanged={onChanged} />}
       {b.phase !== 'interrupted' && b.counts.uncertain > 0 && <p className="text-[12px] text-amber-900">{numberFmt(b.counts.uncertain)} com resultado incerto: não são reenviados automaticamente.</p>}
       {b.phase === 'done' && b.counts.failed > 0 && <p className="text-[12px] text-rose-800">{numberFmt(b.counts.failed)} com falha: não são reenviados nem substituídos por outros tutores.</p>}

@@ -699,6 +699,9 @@ def run_pg_migrations(engine: Engine) -> None:
         for _col, _ddl in (("campaign_id", "VARCHAR(36)"), ("batch_no", "INTEGER"), ("idempotency_key", "VARCHAR(64)"),
                            ("filters_json", "TEXT"), ("filters_hash", "VARCHAR(64)"), ("requested_n", "INTEGER"), ("reserved_n", "INTEGER")):
             _pg_add_column_if_missing(conn, "admin_broadcasts", _col, _ddl)
+        # Parada de lote (etapa 6.1): 3 colunas nulas, aditivas.
+        for _col, _ddl in (("stop_requested_at", "TIMESTAMP WITH TIME ZONE"), ("stop_requested_by", "VARCHAR(36)"), ("stop_ack_at", "TIMESTAMP WITH TIME ZONE")):
+            _pg_add_column_if_missing(conn, "admin_broadcasts", _col, _ddl)
         conn.execute(text('CREATE INDEX IF NOT EXISTS ix_admin_broadcasts_campaign_id ON admin_broadcasts (campaign_id)'))
         conn.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_broadcasts_idempotency_key ON admin_broadcasts (idempotency_key)'))
         conn.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_broadcasts_campaign_batch ON admin_broadcasts (campaign_id, batch_no)'))
@@ -801,6 +804,8 @@ def run_sqlite_migrations(engine: Engine) -> None:
             changed |= _sqlite_add_column_if_missing(conn, "admin_broadcasts", "link_title", "TEXT")
             for _col, _ddl in (("campaign_id", "VARCHAR(36)"), ("batch_no", "INTEGER"), ("idempotency_key", "VARCHAR(64)"),
                                ("filters_json", "TEXT"), ("filters_hash", "VARCHAR(64)"), ("requested_n", "INTEGER"), ("reserved_n", "INTEGER")):
+                changed |= _sqlite_add_column_if_missing(conn, "admin_broadcasts", _col, _ddl)
+            for _col, _ddl in (("stop_requested_at", "DATETIME"), ("stop_requested_by", "VARCHAR(36)"), ("stop_ack_at", "DATETIME")):
                 changed |= _sqlite_add_column_if_missing(conn, "admin_broadcasts", _col, _ddl)
             conn.execute(text('CREATE INDEX IF NOT EXISTS ix_admin_broadcasts_campaign_id ON admin_broadcasts (campaign_id)'))
             conn.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_broadcasts_idempotency_key ON admin_broadcasts (idempotency_key)'))

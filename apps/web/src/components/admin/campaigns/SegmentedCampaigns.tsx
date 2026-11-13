@@ -198,7 +198,7 @@ export function SegmentedCampaigns() {
                 <FilterBuilder fields={fields} state={filter} onChange={setFilter} brandHints={boot.brands} locationNote={boot.fields.location_origins} />
               </Step>
               <Step n={4} title="Contagem, lote e confirmação" note="Veja quantos tutores atendem, escolha o tamanho do lote, confira a prévia e confirme.">
-                <BatchComposer campaign={campaign} filter={built.filter} ready={built.ready} summary={summary} busyBatch={busyBatch}
+                <BatchComposer campaign={campaign} maxBatch={campaign.max_batch ?? null} filter={built.filter} ready={built.ready} summary={summary} busyBatch={busyBatch}
                   onReserved={() => { void reload(); void loadList(); }} />
               </Step>
             </>

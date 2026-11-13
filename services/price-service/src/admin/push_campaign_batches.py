@@ -42,7 +42,7 @@ from typing import Callable, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, ValidationError
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import and_, delete, exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import IntegrityError
@@ -64,9 +64,12 @@ logger = logging.getLogger(__name__)
 
 PREVIEW_TTL_SECONDS = 600
 STALE_AFTER = timedelta(minutes=5)       # lote "sending" sem nenhuma atividade por tanto tempo é SUSPEITO de interrompido
-EXEC_CHUNK = 20
-EXEC_PAUSE_SECONDS = 0.2
-BATCH_ACTIVE_PHASES = ("reserved", "sending")
+EXEC_CHUNK = 1                            # 1 destinatário por vez: a parada é conferida entre CADA destinatário (nada fica "em envio" à toa)
+EXEC_PAUSE_SECONDS = 0.02
+DEFAULT_MAX_BATCH = 50
+BATCH_ACTIVE_PHASES = ("reserved", "sending")       # EXECUÇÃO ativa (thread rodando ou prestes a rodar): usada por parada, recuperação e partida
+# Quem BLOQUEIA nova reserva, prévia que autorize reserva e encerramento: execução ativa OU lote `interrupted` que ainda tem destinatários
+# nunca tentados esperando decisão (continuar/devolver). `interrupted` sem pendentes (só aceitos/falhos/incertos) não tem o que decidir e não bloqueia.
 KEY_RE = re.compile(r"^[A-Za-z0-9_-]{16,64}$")
 
 # Endpoints e gancho de partida DESTE módulo (atrás da flag; só administradores). O núcleo do app só registra o router.
@@ -74,6 +77,25 @@ router = APIRouter(prefix="/v1/admin/push-campaigns", tags=["Admin Push Campaign
 
 # Provedor e agendamento são "ganchos" de módulo: os testes os trocam por provedores FALSOS (nenhum teste envia push real).
 send_push: Callable = push_to_user
+
+
+def max_batch_limit() -> int:
+    """Teto de destinatários por lote (env PUSH_CAMPAIGNS_MAX_BATCH; padrão 50). Valor inválido ou < 1 cai no padrão conservador."""
+    try:
+        v = int(getattr(get_settings(), "push_campaigns_max_batch", DEFAULT_MAX_BATCH))
+    except (TypeError, ValueError):
+        return DEFAULT_MAX_BATCH
+    return v if v >= 1 else DEFAULT_MAX_BATCH
+
+
+def _limit_error_for_request(n: int, limit: int) -> BatchError:
+    return BatchError("batch_limit_exceeded", f"O limite por lote é {limit} tutor(es) e você pediu {n}. Reduza a quantidade para até {limit}: o sistema não divide o pedido em vários lotes nem o reduz sozinho.",
+                      status=422, limit=limit, requested=n)
+
+
+def _limit_error_for_all(n: int, limit: int) -> BatchError:
+    return BatchError("batch_limit_exceeded", f"Há {n} tutor(es) disponíveis, acima do limite de {limit} por lote (\"todos os disponíveis\" também respeita o limite). Escolha uma quantidade de até {limit}.",
+                      status=422, limit=limit, requested=n)
 
 
 def spawn(fn: Callable, *args) -> None:
@@ -208,6 +230,27 @@ def _stored_filters(batch) -> Optional[dict]:
         return None
 
 
+def _stop_pending_vals(requested, ack) -> bool:
+    return requested is not None and (ack is None or ack < requested)
+
+
+def _stop_info(batch) -> dict:
+    """Estados da parada: none · requested (pedida, o envio em andamento ainda termina) · acknowledged (reconhecida: lote interrompido,
+    nada novo é reivindicado) · finished_before_stop (o lote acabou antes de a parada valer)."""
+    req, ack = batch.stop_requested_at, batch.stop_ack_at
+    if req is None:
+        state = "none"
+    elif _stop_pending_vals(req, ack):
+        state = "requested" if batch.phase in BATCH_ACTIVE_PHASES else "acknowledged"
+    elif batch.phase == "interrupted":
+        state = "acknowledged"
+    elif batch.phase == "done":
+        state = "finished_before_stop"
+    else:
+        state = "none"                                    # parada antiga já resolvida e o lote foi retomado
+    return {"state": state, "requested_at": _aware(req).isoformat() if req else None, "acknowledged_at": _aware(ack).isoformat() if ack else None}
+
+
 def serialize_batch(db, batch, *, now: Optional[datetime] = None) -> dict:
     now = now or _utcnow()
     counts = _state_counts(db, batch_id=batch.id)
@@ -216,7 +259,7 @@ def serialize_batch(db, batch, *, now: Optional[datetime] = None) -> dict:
         "id": batch.id, "campaign_id": batch.campaign_id, "batch_no": batch.batch_no, "phase": batch.phase,
         "created_at": _aware(batch.created_at).isoformat() if batch.created_at else None,
         "requested": batch.requested_n if batch.audience_kind == "count" else "all", "reserved": batch.reserved_n,
-        "filters_hash": batch.filters_hash, "filters": _stored_filters(batch), "counts": counts, "interrupted_suspected": bool(suspect),
+        "filters_hash": batch.filters_hash, "filters": _stored_filters(batch), "stop": _stop_info(batch), "counts": counts, "interrupted_suspected": bool(suspect),
         "accepted_note": "'Aceito' = o provedor (APNs/FCM/Web Push) aceitou o envio. Não é confirmação de entrega ao celular.",
         "metrics": br.broadcast_metrics(db, batch),
     }
@@ -226,7 +269,7 @@ def serialize_campaign(db, c: PushCampaign) -> dict:
     batches = db.query(br.AdminBroadcast).filter(br.AdminBroadcast.campaign_id == c.id).order_by(br.AdminBroadcast.batch_no.asc()).all()
     return {
         "id": c.id, "name": c.name, "status": c.status, "created_at": _aware(c.created_at).isoformat() if c.created_at else None,
-        "content_locked": c.content_locked_at is not None, "content_hash": c.content_hash,
+        "content_locked": c.content_locked_at is not None, "content_hash": c.content_hash, "max_batch": max_batch_limit(),
         "content": {"title": c.title, "message": c.message, "goal": c.goal, "destination": c.destination,
                     "product_url": c.product_url, "product_title": c.product_title},
         "used_total": sum(_state_counts(db, campaign_id=c.id).values()), "counts": _state_counts(db, campaign_id=c.id),
@@ -240,6 +283,9 @@ def preview_batch(db, campaign_id: str, flt: AudienceFilter, *, requested: Optio
                   now: Optional[datetime] = None) -> dict:
     now = now or _utcnow()
     spec = _requested_spec(requested, all_available)
+    limit = max_batch_limit()
+    if spec != "all" and int(spec) > limit:
+        raise _limit_error_for_request(int(spec), limit)
     c = _campaign_or_404(db, campaign_id)
     if c.status == "closed":
         raise BatchError("campaign_closed", "A campanha está encerrada.")
@@ -248,18 +294,19 @@ def preview_batch(db, campaign_id: str, flt: AudienceFilter, *, requested: Optio
     used = {str(u) for (u,) in db.query(PushCampaignRecipient.user_id).filter(PushCampaignRecipient.campaign_id == campaign_id).all()}
     available = sorted(res.reachable - used)
     will = len(available) if all_available else min(requested or 0, len(available))
-    running = db.query(br.AdminBroadcast.id, br.AdminBroadcast.batch_no).filter(
-        br.AdminBroadcast.campaign_id == campaign_id, br.AdminBroadcast.phase.in_(BATCH_ACTIVE_PHASES)).first()
+    if will > limit:                                                    # "todos os disponíveis" acima do teto: recusa (nunca reduz em silêncio)
+        raise _limit_error_for_all(will, limit)
+    running = _blocking_batch(db, campaign_id)
     out = {
         "campaign_id": campaign_id, "counts": counts, "available": len(available), "will_reserve": will,
         "smaller_than_requested": bool(not all_available and requested and will < requested),
-        "can_reserve": will > 0 and running is None, "blocking_batch": ({"id": running[0], "batch_no": running[1]} if running else None),
+        "can_reserve": will > 0 and running is None, "blocking_batch": ({"id": running[0], "batch_no": running[1], "phase": running[2]} if running else None),
         "content": {"title": c.title, "message": c.message, "destination": c.destination, "product_url": c.product_url,
                     "product_title": c.product_title},
-        "next_batch_no": (db.query(func.max(br.AdminBroadcast.batch_no)).filter(br.AdminBroadcast.campaign_id == campaign_id).scalar() or 0) + 1,
+        "max_batch": limit, "next_batch_no": (db.query(func.max(br.AdminBroadcast.batch_no)).filter(br.AdminBroadcast.campaign_id == campaign_id).scalar() or 0) + 1,
         "confirmation": f"Para confirmar, digite {will}." if will else None, "token": None, "expires_at": None,
     }
-    if will > 0:
+    if out["can_reserve"]:                                    # com lote bloqueante NENHUMA prévia que autorize reserva é emitida
         exp = now + timedelta(seconds=PREVIEW_TTL_SECONDS)
         out["token"] = sign_preview_token({"c": campaign_id, "h": c.content_hash, "f": flt.filters_hash(), "r": spec, "a": len(available),
                                            "d": audience_digest(available), "w": will, "u": str(admin_id), "exp": int(exp.timestamp())})
@@ -307,12 +354,15 @@ def reserve_batch(session_factory, campaign_id: str, flt: AudienceFilter, *, req
     Quem chama dispara a execução DEPOIS (`start_batch`) — a reserva já está confirmada no banco."""
     now = now or _utcnow()
     spec = _requested_spec(requested, all_available)
+    limit = max_batch_limit()
     if not KEY_RE.match(idempotency_key or ""):
         raise BatchError("invalid_request", "Chave de idempotência inválida (16 a 64 letras, números, '-' ou '_').", status=422)
     with session_factory() as db:
         replay = _replay_or_conflict(db, idempotency_key, campaign_id, flt, spec)      # 1) clique repetido: devolve o que já existe
         if replay:
             return replay
+        if spec != "all" and int(spec) > limit:                                          # teto por lote (a repetição idempotente acima não é afetada)
+            raise _limit_error_for_request(int(spec), limit)
         claims = verify_preview_token(token or "", now)                                  # 2) prévia assinada e atual
         if (claims.get("c"), claims.get("f"), claims.get("r"), claims.get("u")) != (campaign_id, flt.filters_hash(), spec, str(admin_id)):
             raise BatchError("preview_stale", "A prévia não corresponde a esta campanha, filtros, quantidade ou administrador. Faça uma nova prévia.")
@@ -329,9 +379,9 @@ def reserve_batch(session_factory, campaign_id: str, flt: AudienceFilter, *, req
                 if replay:
                     db.rollback()
                     return replay
-                if db.query(br.AdminBroadcast.id).filter(br.AdminBroadcast.campaign_id == campaign_id,
-                                                         br.AdminBroadcast.phase.in_(BATCH_ACTIVE_PHASES)).first():
-                    raise BatchError("batch_in_progress", "Há um lote desta campanha em andamento ou interrompido. Conclua ou recupere antes de reservar outro.")
+                blk = _blocking_batch(db, campaign_id)
+                if blk:
+                    raise _blocking_error(blk, "reservar outro lote")
                 used = {str(u) for (u,) in db.query(PushCampaignRecipient.user_id).filter(PushCampaignRecipient.campaign_id == campaign_id).all()}
                 available = sorted(pa.resolve_audience(db, flt, now=now).reachable - used)           # MESMA semântica da contagem
                 if audience_digest(available) != claims.get("d") or len(available) != claims.get("a"):
@@ -340,6 +390,8 @@ def reserve_batch(session_factory, campaign_id: str, flt: AudienceFilter, *, req
                 will = len(available) if spec == "all" else min(int(spec), len(available))
                 if will != claims.get("w"):
                     raise BatchError("audience_changed", "A quantidade do lote mudou desde a prévia. Faça uma nova prévia.", available_now=len(available))
+                if will > limit:                                                         # confere de novo na RESERVA (a API direta não contorna o teto)
+                    raise (_limit_error_for_all(will, limit) if spec == "all" else _limit_error_for_request(will, limit))
                 if will == 0:
                     raise BatchError("no_one_available", "Ninguém está disponível para este lote.", status=422)
                 if confirm_count != will:
@@ -410,23 +462,78 @@ def _finalize_if_done(db, batch_id: str) -> None:
     if counts["reserved"] == 0 and counts["sending"] == 0:
         db.execute(update(br.AdminBroadcast).where(br.AdminBroadcast.id == batch_id).values(
             phase="done", delivered_total=counts["accepted"], recipients_total=sum(counts.values()), finished_at=_utcnow()))
+        db.execute(update(br.AdminBroadcast).where(br.AdminBroadcast.id == batch_id, br.AdminBroadcast.stop_requested_at.is_not(None),
+                                                   or_(br.AdminBroadcast.stop_ack_at.is_(None), br.AdminBroadcast.stop_ack_at < br.AdminBroadcast.stop_requested_at))
+                   .values(stop_ack_at=_utcnow()))                    # o lote acabou antes da parada valer: não fica "pendente" para sempre
         db.commit()
+
+
+def _blocking_batch(db, campaign_id: str):
+    """Primeiro lote da campanha que impede novas reservas/encerramento (ver BLOCKING acima); None se nada bloqueia."""
+    awaiting = exists().where(PushCampaignRecipient.batch_id == br.AdminBroadcast.id, PushCampaignRecipient.state == "reserved")
+    return db.query(br.AdminBroadcast.id, br.AdminBroadcast.batch_no, br.AdminBroadcast.phase).filter(
+        br.AdminBroadcast.campaign_id == campaign_id,
+        or_(br.AdminBroadcast.phase.in_(BATCH_ACTIVE_PHASES), and_(br.AdminBroadcast.phase == "interrupted", awaiting))).order_by(br.AdminBroadcast.batch_no).first()
+
+
+def _blocking_error(blk, what: str) -> BatchError:
+    """`what`: 'reservar outro lote' / 'encerrar a campanha'."""
+    if blk[2] == "interrupted":
+        return BatchError("batch_awaiting_decision", f"O lote {blk[1]} está interrompido e aguarda sua decisão (continuar só os nunca tentados ou devolvê-los ao público) "
+                                                     f"antes de {what}.", batch_id=blk[0], batch_no=blk[1])
+    return BatchError("batch_in_progress", f"O lote {blk[1]} desta campanha está em andamento. Conclua ou pare o envio antes de {what}.", batch_id=blk[0], batch_no=blk[1])
+
+
+def _stop_pending(db, batch_id: str) -> bool:
+    """Lê do banco (sempre fresco) se há pedido de parada pendente para o lote."""
+    row = db.execute(select(br.AdminBroadcast.stop_requested_at, br.AdminBroadcast.stop_ack_at).where(br.AdminBroadcast.id == batch_id)).first()
+    db.rollback()                                                 # encerra a leitura: a próxima consulta enxerga o que outros confirmaram
+    return bool(row) and _stop_pending_vals(row[0], row[1])
+
+
+def _unclaim(db, rec_ids: list[str]) -> None:
+    """Devolve a `reserved` quem foi reivindicado mas COMPROVADAMENTE não tentado (o provedor só é chamado depois da conferência da parada,
+    na mesma thread). Nunca mexe em quem já foi para o provedor."""
+    if rec_ids:
+        db.execute(update(PushCampaignRecipient).where(PushCampaignRecipient.id.in_(rec_ids), PushCampaignRecipient.state == "sending")
+                   .values(state="reserved", attempted_at=None))
+        db.commit()
+
+
+def _acknowledge_stop(db, batch_id: str) -> None:
+    """Reconhece a parada: nada novo será reivindicado. Lote vira `interrupted` (as regras de recuperação existentes decidem o resto)
+    ou `done` se não sobrou ninguém."""
+    counts = _state_counts(db, batch_id=batch_id)
+    if counts["reserved"] == 0 and counts["sending"] == 0:
+        _finalize_if_done(db, batch_id)
+        return
+    db.execute(update(br.AdminBroadcast).where(br.AdminBroadcast.id == batch_id, br.AdminBroadcast.phase == "sending")
+               .values(phase="interrupted", stop_ack_at=_utcnow()))
+    db.commit()
+    logger.warning("push-campaign batch %s: parada reconhecida (reservados=%s, aceitos=%s, incertos=%s)", batch_id, counts["reserved"], counts["accepted"], counts["uncertain"])
 
 
 def execute_batch(session_factory, batch_id: str, *, chunk: int = EXEC_CHUNK, pause: Optional[float] = None) -> None:
     """Envia SÓ os destinatários `reserved` do lote. `Exception` do provedor ⇒ `uncertain`. Uma queda do processo (BaseException/kill) deixa
-    `sending` no banco, que a recuperação reclassifica como `uncertain` — nunca reenvia."""
+    `sending` no banco, que a recuperação reclassifica como `uncertain` — nunca reenvia.
+    PARADA: antes de reivindicar e antes de CADA chamada ao provedor, consulta o pedido persistido no banco. Se pendente, devolve a `reserved`
+    quem foi reivindicado e ainda não tentado, reconhece a parada e termina. Uma chamada já em andamento NÃO é cancelada: o resultado dela
+    (aceito/falha/incerto) é registrado normalmente antes de a parada valer."""
     pause = EXEC_PAUSE_SECONDS if pause is None else pause
     with session_factory() as db:
         batch = db.get(br.AdminBroadcast, batch_id)
         if batch is None or batch.campaign_id is None:
             return
         campaign = db.get(PushCampaign, batch.campaign_id)
+        c_message, c_title, c_destination, c_url = campaign.message, campaign.title, campaign.destination, campaign.product_url   # fixos: lidos uma vez
         db.execute(update(br.AdminBroadcast).where(br.AdminBroadcast.id == batch_id, br.AdminBroadcast.phase.in_(("reserved", "interrupted")))
                    .values(phase="sending"))
         db.commit()
         try:
             while True:
+                if _stop_pending(db, batch_id):
+                    _acknowledge_stop(db, batch_id)
+                    return
                 claimed = _claim_chunk(db, batch_id, chunk)
                 if not claimed:
                     break
@@ -434,12 +541,16 @@ def execute_batch(session_factory, batch_id: str, *, chunk: int = EXEC_CHUNK, pa
                 names = {str(i): n for i, n in db.query(User.id, User.name).filter(User.id.in_(uids)).all()}
                 pets = br._pets_by_user(db, uids)
                 blocked = {str(u) for u in opted_out_ids(db)}
-                for rec_id, uid in claimed:
+                for idx, (rec_id, uid) in enumerate(claimed):
+                    if _stop_pending(db, batch_id):                                         # entre os destinatários: ninguém novo vai ao provedor
+                        _unclaim(db, [r for r, _ in claimed[idx:]])
+                        _acknowledge_stop(db, batch_id)
+                        return
                     if uid in blocked:                                                       # pediu para parar DEPOIS da reserva: não envia
                         _finish(db, rec_id, "failed", 0, "opted_out_after_reservation")
                         continue
-                    title, body = br.personalize(campaign.message, names.get(uid), [n for _, n in pets.get(uid, []) if n], campaign.title)
-                    payload = br._push_payload(batch_id, title, body, campaign.destination, campaign.product_url)
+                    title, body = br.personalize(c_message, names.get(uid), [n for _, n in pets.get(uid, []) if n], c_title)
+                    payload = br._push_payload(batch_id, title, body, c_destination, c_url)
                     try:
                         devices = int(send_push(uid, payload) or 0)
                     except Exception as exc:                                                 # timeout/rede/qualquer exceção: pode ter sido enviado
@@ -485,6 +596,8 @@ def recover_batch(session_factory, batch_id: str, *, only_if_stale: bool = False
                            .values(state="uncertain", error_code="interrupted", finished_at=now)).rowcount
             left = db.query(func.count()).filter(PushCampaignRecipient.batch_id == batch_id, PushCampaignRecipient.state == "reserved").scalar()
             batch.phase = "interrupted" if left else "done"
+            if _stop_pending_vals(batch.stop_requested_at, batch.stop_ack_at):
+                batch.stop_ack_at = now                       # a API reiniciou com parada pendente: reconhecida aqui (não pára a retomada depois)
             if not left:
                 counts = _state_counts(db, batch_id=batch_id)
                 batch.delivered_total, batch.finished_at = counts["accepted"], now
@@ -525,6 +638,32 @@ def _interrupted_batch(db, batch_id: str):
     return batch
 
 
+def request_stop(session_factory, batch_id: str, admin_id: str, now: Optional[datetime] = None) -> dict:
+    """Registra (no banco) o pedido de PARADA de um lote em andamento. Idempotente: vários cliques/administradores ao mesmo tempo geram UM pedido
+    e todos recebem sucesso. Não cancela a chamada ao provedor em curso; quem já foi aceito continua registrado; nada é reenviado."""
+    now = now or _utcnow()
+    with session_factory() as db:
+        batch = db.get(br.AdminBroadcast, batch_id)
+        if batch is None or batch.campaign_id is None:
+            raise BatchError("batch_not_found", "Lote não encontrado.", status=404)
+        with _campaign_lock(batch.campaign_id):
+            _lock_campaign_row(db, batch.campaign_id)
+            db.refresh(batch)
+            if batch.phase in BATCH_ACTIVE_PHASES:
+                if _stop_pending_vals(batch.stop_requested_at, batch.stop_ack_at):
+                    db.rollback()
+                    return {"batch": serialize_batch(db, batch), "already_requested": True}
+                batch.stop_requested_at, batch.stop_requested_by = now, str(admin_id)
+                db.commit()
+                logger.warning("push-campaign batch %s: parada solicitada pelo administrador %s", batch_id, admin_id)
+                return {"batch": serialize_batch(db, batch), "already_requested": False}
+            if batch.phase == "interrupted" and batch.stop_requested_at is not None and not _stop_pending_vals(batch.stop_requested_at, batch.stop_ack_at):
+                db.rollback()
+                return {"batch": serialize_batch(db, batch), "already_requested": True, "already_stopped": True}
+            db.rollback()
+            raise BatchError("batch_not_running", "Este lote não está em envio (já terminou ou já estava interrompido).", status=409)
+
+
 def resume_batch(session_factory, batch_id: str, confirm_count: int) -> dict:
     """Envia SOMENTE quem nunca foi tentado (`reserved`) de um lote 'interrupted', com confirmação do número. `uncertain`/`failed` não entram."""
     with session_factory() as db:
@@ -537,6 +676,10 @@ def resume_batch(session_factory, batch_id: str, confirm_count: int) -> dict:
             left = db.query(func.count()).filter(PushCampaignRecipient.batch_id == batch_id, PushCampaignRecipient.state == "reserved").scalar()
             if left == 0 or confirm_count != left:
                 raise BatchError("bad_confirmation", f"Restam {left} tutores nunca tentados. Confirme esse número.", remaining=left)
+            limit = max_batch_limit()
+            if left > limit:                                                                  # continuação também respeita o teto
+                raise BatchError("batch_limit_exceeded", f"Restam {left} tutores nunca tentados, acima do limite de {limit} por lote. Devolva-os ao público "
+                                                         f"ou aumente o limite no servidor antes de continuar.", status=422, limit=limit, remaining=left)
             batch.phase = "sending"
             db.commit()
             return {"batch": serialize_batch(db, batch), "remaining": int(left)}
@@ -570,8 +713,9 @@ def close_campaign(session_factory, campaign_id: str) -> dict:
             c = _lock_campaign_row(db, campaign_id)
             if c is None:
                 raise BatchError("campaign_not_found", "Campanha não encontrada.", status=404)
-            if db.query(br.AdminBroadcast.id).filter(br.AdminBroadcast.campaign_id == campaign_id, br.AdminBroadcast.phase.in_(BATCH_ACTIVE_PHASES)).first():
-                raise BatchError("batch_in_progress", "Há um lote em andamento ou interrompido nesta campanha.")
+            blk = _blocking_batch(db, campaign_id)
+            if blk:
+                raise _blocking_error(blk, "encerrar a campanha")
             c.status, c.closed_at = "closed", _utcnow()
             db.commit()
             return serialize_campaign(db, c)
@@ -688,6 +832,20 @@ def api_get_batch(batch_id: str, current=Depends(get_current_admin)):
             return serialize_batch(db, _interrupted_batch(db, batch_id))
         except BatchError as exc:
             raise _http(exc)
+
+
+class StopIn(BaseModel):
+    confirm: bool = False
+
+
+@router.post("/batches/{batch_id}/stop")
+def api_stop(batch_id: str, payload: StopIn, current=Depends(get_current_admin)):
+    if payload.confirm is not True:
+        raise HTTPException(status_code=422, detail={"code": "confirmation_required", "message": "Confirme explicitamente que quer parar o envio."})
+    try:
+        return request_stop(SessionLocal, batch_id, str(current[0].id))
+    except BatchError as exc:
+        raise _http(exc)
 
 
 @router.post("/batches/{batch_id}/recover")
