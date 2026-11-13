@@ -695,6 +695,13 @@ def run_pg_migrations(engine: Engine) -> None:
         # Push de produto (admin): o link colado e o nome conferido ficam guardados no envio (histórico).
         _pg_add_column_if_missing(conn, "admin_broadcasts", "link_url", "TEXT")
         _pg_add_column_if_missing(conn, "admin_broadcasts", "link_title", "TEXT")
+        # Campanhas push com lotes (etapa 1): colunas anuláveis + índices únicos. Aditivo; o envio avulso não usa.
+        for _col, _ddl in (("campaign_id", "VARCHAR(36)"), ("batch_no", "INTEGER"), ("idempotency_key", "VARCHAR(64)"),
+                           ("filters_json", "TEXT"), ("filters_hash", "VARCHAR(64)"), ("requested_n", "INTEGER"), ("reserved_n", "INTEGER")):
+            _pg_add_column_if_missing(conn, "admin_broadcasts", _col, _ddl)
+        conn.execute(text('CREATE INDEX IF NOT EXISTS ix_admin_broadcasts_campaign_id ON admin_broadcasts (campaign_id)'))
+        conn.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_broadcasts_idempotency_key ON admin_broadcasts (idempotency_key)'))
+        conn.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_broadcasts_campaign_batch ON admin_broadcasts (campaign_id, batch_no)'))
         _pg_add_column_if_missing(conn, "app_installs", "utm_source", "TEXT")
         _pg_add_column_if_missing(conn, "app_installs", "utm_medium", "TEXT")
         _pg_add_column_if_missing(conn, "app_installs", "utm_campaign", "TEXT")
@@ -792,6 +799,12 @@ def run_sqlite_migrations(engine: Engine) -> None:
         if conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='admin_broadcasts'")).fetchone():
             changed |= _sqlite_add_column_if_missing(conn, "admin_broadcasts", "link_url", "TEXT")
             changed |= _sqlite_add_column_if_missing(conn, "admin_broadcasts", "link_title", "TEXT")
+            for _col, _ddl in (("campaign_id", "VARCHAR(36)"), ("batch_no", "INTEGER"), ("idempotency_key", "VARCHAR(64)"),
+                               ("filters_json", "TEXT"), ("filters_hash", "VARCHAR(64)"), ("requested_n", "INTEGER"), ("reserved_n", "INTEGER")):
+                changed |= _sqlite_add_column_if_missing(conn, "admin_broadcasts", _col, _ddl)
+            conn.execute(text('CREATE INDEX IF NOT EXISTS ix_admin_broadcasts_campaign_id ON admin_broadcasts (campaign_id)'))
+            conn.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_broadcasts_idempotency_key ON admin_broadcasts (idempotency_key)'))
+            conn.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_broadcasts_campaign_batch ON admin_broadcasts (campaign_id, batch_no)'))
         changed |= _sqlite_add_column_if_missing(conn, "users", "terms_accepted", "BOOLEAN DEFAULT 0")
         changed |= _sqlite_add_column_if_missing(conn, "users", "terms_version", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "users", "terms_accepted_at", "DATETIME")

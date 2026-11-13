@@ -30,7 +30,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text, func, or_
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text, UniqueConstraint, func, or_
 
 from ..analytics.models import AnalyticsProductEvent
 from ..config import admin_allowed_emails, get_settings
@@ -187,6 +187,19 @@ class AdminBroadcast(Base):
     finished_at = Column(DateTime(timezone=True), nullable=True)
     link_url = Column(Text, nullable=True)       # push de produto: o link colado pelo dono (o toque abre direto na loja)
     link_title = Column(Text, nullable=True)     # nome do produto conferido pelo dono
+    # Campanhas com lotes (admin/push_campaigns.py). Todas anuláveis: o envio avulso atual não usa nenhuma e segue igual.
+    campaign_id = Column(String(36), nullable=True, index=True)
+    batch_no = Column(Integer, nullable=True)                 # 1, 2, 3… dentro da campanha
+    idempotency_key = Column(String(64), nullable=True)       # único: o mesmo clique/requisição nunca cria dois lotes
+    filters_json = Column(Text, nullable=True)                # retrato dos filtros usados neste lote
+    filters_hash = Column(String(64), nullable=True)
+    requested_n = Column(Integer, nullable=True)              # quantos o admin pediu
+    reserved_n = Column(Integer, nullable=True)               # quantos o banco realmente reservou
+
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_admin_broadcasts_idempotency_key"),
+        UniqueConstraint("campaign_id", "batch_no", name="uq_admin_broadcasts_campaign_batch"),
+    )
 
 
 class AdminBroadcastRecipient(Base):

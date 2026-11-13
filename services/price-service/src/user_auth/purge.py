@@ -97,6 +97,7 @@ def purge_user_data(db: Session, user) -> list[str]:
         ("push_subscriptions", "user_id"),
         ("native_push_tokens", "user_id"),
         ("push_delivery_logs", "user_id"),
+        ("push_campaign_recipient", "user_id"),
         ("notification_pendencies", "user_id"),
         ("reminders", "user_id"),
         ("user_consents", "user_id"),
