@@ -414,6 +414,41 @@ def test_a_propria_reserva_recusa_campanha_encerrada_mesmo_com_previa_anterior(e
     assert e.code == "campaign_closed" and nothing_reserved(env, cid)
 
 
+def test_reivindicar_um_pedaco_so_pega_reservados_nunca_incertos_falhos_ou_aceitos(env):
+    """Teste direto e instantâneo (sem laço): o único estado que a execução reivindica é `reserved`."""
+    seed(env, 8)
+    cid = campaign(env)
+    res, *_ = reserve(env, cid, CATS, 8)
+    bid = res["batch"]["id"]
+    with env.sf() as s:
+        recs = s.query(pc.PushCampaignRecipient).filter(pc.PushCampaignRecipient.batch_id == bid).order_by(pc.PushCampaignRecipient.id).all()
+        for r, st in zip(recs[:4], ("uncertain", "failed", "accepted", "sending")):
+            r.state = st
+        s.commit()
+        expected = {str(r.user_id) for r in recs[4:]}
+    with env.sf() as s:
+        got = svc._claim_chunk(s, bid, 100)
+    assert {u for _id, u in got} == expected and len(got) == 4
+    states = {st for (_u, st, *_rest) in rows(env, cid)}
+    assert states == {"uncertain", "failed", "accepted", "sending"}
+
+
+def test_conteudo_alterado_entre_a_previa_e_a_reserva_invalida_a_previa(env):
+    """Antes do 1º lote o conteúdo ainda não está travado no banco: se mudar depois da prévia, a reserva recusa (o token guarda o hash)."""
+    seed(env, 10)
+    cid = campaign(env)
+    with env.sf() as s:
+        pv = svc.preview_batch(s, cid, CATS, requested=5, all_available=False, admin_id=ADMIN)
+    with env.sf() as s:
+        c = s.get(pc.PushCampaign, cid)
+        c.message = "Texto diferente do que foi conferido na prévia."
+        c.content_hash = pc.compute_content_hash(c.title, c.message, c.destination, c.goal, c.product_url, c.product_title)
+        s.commit()
+    e = error_of(svc.reserve_batch, env.sf, cid, CATS, requested=5, all_available=False, idempotency_key=uuid.uuid4().hex, admin_id=ADMIN,
+                 token=pv["token"], confirm_count=5)
+    assert e.code == "preview_stale" and nothing_reserved(env, cid)
+
+
 def test_conteudo_fica_fixo_depois_do_primeiro_lote_e_o_link_de_afiliado_nao_e_alterado(env):
     seed(env, 6)
     cid = campaign(env, product_url=URL_AFILIADO, product_title="Ração Golden 15kg")
