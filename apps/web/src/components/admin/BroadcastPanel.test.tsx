@@ -89,6 +89,19 @@ describe('BroadcastPanel', () => {
     expect(sent.audience.kind).toBe('all');
   });
 
+  it('409 "envio em andamento" ganha explicação (pode ser lote de campanha); o bloqueio em si não muda', async () => {
+    const real = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).getMockImplementation()!;
+    (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, init?: RequestInit) => {
+      if (String(url).endsWith('/send')) return { ok: false, status: 409, json: async () => ({ detail: 'Já existe um envio em andamento. Espere terminar.' }) };
+      return real(url, init);
+    });
+    render(<BroadcastPanel />);
+    fireEvent.change(await screen.findByLabelText(/vai incentivar o usuário a/i), { target: { value: 'abrir' } });
+    fireEvent.click(screen.getByText('Ver prévia e quantas pessoas'));
+    fireEvent.click(await screen.findByText(/Enviar teste \(/));
+    expect(await screen.findByText(/Já existe um envio em andamento\. Espere terminar\..*lote da aba Campanhas.*um envio por vez/)).toBeTruthy();
+  });
+
   it('o teste (3 contas) não exige digitar a contagem', async () => {
     render(<BroadcastPanel />);
     fireEvent.change(await screen.findByLabelText(/vai incentivar o usuário a/i), { target: { value: 'abrir' } });

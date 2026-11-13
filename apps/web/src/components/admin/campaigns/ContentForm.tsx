@@ -3,6 +3,7 @@
 /** Passo 2 — conteúdo comercial. Depois do 1º lote ele fica TRAVADO (o backend recusa mudanças): aqui só se exibe. */
 import { useState } from 'react';
 import { call, type Campaign, type CampaignContent } from './api';
+import { destinationLabel, exampleOf, hasVariables } from './filters';
 
 const input = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[14px] text-slate-900';
 const label = 'mb-1 block text-[12px] font-bold text-slate-600';
@@ -17,11 +18,16 @@ export const draftFrom = (c: Campaign): Draft => ({
   destination: c.content.destination ?? 'home', productUrl: c.content.product_url ?? '', productTitle: c.content.product_title ?? '',
 });
 
-export function ContentReadOnly({ content, locked }: { content: CampaignContent; locked: boolean }) {
+export function ContentReadOnly({ content, locked, destinations }: { content: CampaignContent; locked: boolean; destinations: Record<string, string> }) {
   return (
     <dl className="grid gap-2 text-[13px] sm:grid-cols-2">
-      <div><dt className="text-[11px] font-bold uppercase text-slate-500">Título</dt><dd className="text-slate-900">{content.title || '(padrão: “{tutor}, uma novidade para {pets}”)'}</dd></div>
-      <div><dt className="text-[11px] font-bold uppercase text-slate-500">Destino ao tocar</dt><dd className="text-slate-900">{content.destination}</dd></div>
+      <div><dt className="text-[11px] font-bold uppercase text-slate-500">Título</dt><dd className="text-slate-900">{content.title || '{tutor}, uma novidade para {pets}'}</dd></div>
+      <div><dt className="text-[11px] font-bold uppercase text-slate-500">Ao tocar, abre</dt><dd className="text-slate-900">{destinationLabel(content.destination, destinations)}</dd></div>
+      <div className="sm:col-span-2 rounded-lg bg-slate-50 p-2.5">
+        <dt className="text-[11px] font-bold uppercase text-slate-500">Como aparece no celular (exemplo)</dt>
+        <dd className="text-slate-900"><strong>{exampleOf(content.title || '{tutor}, uma novidade para {pets}')}</strong><br />{exampleOf(content.message)}</dd>
+        <dd className="mt-1 text-[11.5px] text-slate-500">No envio, <strong>{'{tutor}'}</strong> vira o nome de cada tutor e <strong>{'{pets}'}</strong> o nome dos pets dele (aqui: “Ana” e “Thor”).</dd>
+      </div>
       <div className="sm:col-span-2"><dt className="text-[11px] font-bold uppercase text-slate-500">Mensagem</dt><dd className="whitespace-pre-wrap text-slate-900">{content.message}</dd></div>
       {content.product_url && (
         <div className="sm:col-span-2"><dt className="text-[11px] font-bold uppercase text-slate-500">Produto e link monetizado (guardado exatamente como foi colado)</dt>
@@ -99,8 +105,16 @@ export function ContentForm({ goals, destinations, initial, onCreated }: {
       <div>
         <label className={label} htmlFor="cp-msg">Mensagem principal</label>
         <textarea id="cp-msg" rows={3} maxLength={240} className={input} value={d.message} onChange={(e) => set({ message: e.target.value })} />
-        <p className="mt-1 text-[11px] text-slate-500">{d.message.length}/240 · <code>{'{tutor}'}</code> e <code>{'{pets}'}</code> viram os nomes.</p>
+        <p className="mt-1 text-[11px] text-slate-500">{d.message.length}/240 · <code>{'{tutor}'}</code> e <code>{'{pets}'}</code> são trocados no envio pelo nome do tutor e dos pets dele.</p>
       </div>
+      {(d.title.trim() || d.message.trim()) && (
+        <div className="rounded-xl bg-slate-50 p-3" aria-label="Prévia do texto">
+          <p className="text-[11px] font-bold uppercase text-slate-500">Como vai aparecer no celular (exemplo com “Ana” e o pet “Thor”)</p>
+          <p className="text-[14px] font-bold text-slate-900">{exampleOf(d.title.trim() || '{tutor}, uma novidade para {pets}')}</p>
+          <p className="text-[13px] text-slate-700">{exampleOf(d.message)}</p>
+          {(hasVariables(d.title) || hasVariables(d.message) || !d.title.trim()) && <p className="mt-1 text-[11.5px] text-slate-500">Cada tutor recebe com o próprio nome e os nomes dos pets dele.</p>}
+        </div>
+      )}
       <div className="rounded-xl border border-slate-200 p-3">
         <label className={label} htmlFor="cp-link">Link do produto (opcional): você cola o link monetizado, o PETMOL não altera nada nele</label>
         <div className="flex gap-2">
@@ -109,7 +123,13 @@ export function ContentForm({ goals, destinations, initial, onCreated }: {
           <button type="button" disabled={checking || !hasLink} onClick={checkLink} className="shrink-0 rounded-lg bg-slate-800 px-3 text-[13px] font-bold text-white disabled:opacity-40">{checking ? 'Conferindo…' : 'Conferir'}</button>
         </div>
         {linkErr && <p role="alert" className="mt-2 text-[12.5px] text-rose-700">{linkErr}</p>}
-        {link && <p className="mt-2 text-[12.5px] text-emerald-800">Loja reconhecida: <strong>{link.store}</strong>.{link.reason ? ` ${link.reason}` : ''}</p>}
+        {link && (
+          <p className={`mt-2 text-[12.5px] leading-snug ${link.readable ? 'text-emerald-800' : 'text-amber-900'}`}>
+            Loja reconhecida: <strong>{link.store}</strong>.{' '}
+            {link.readable ? 'O nome do produto foi lido do link.'
+              : 'Não foi possível ler o nome do produto agora (sem conexão com a loja, ou a loja não permite a leitura automática). Isso não é um erro do link: ele continua exatamente como você colou. Digite o nome do produto abaixo.'}
+          </p>
+        )}
         {hasLink && (
           <div className="mt-2">
             <label className={label} htmlFor="cp-ptitle">Nome do produto</label>

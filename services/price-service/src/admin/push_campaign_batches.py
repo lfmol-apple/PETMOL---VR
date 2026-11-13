@@ -200,6 +200,14 @@ def _last_activity(db, batch) -> datetime:
     return max(stamps)
 
 
+def _stored_filters(batch) -> Optional[dict]:
+    """Os filtros EXATOS usados na reserva (retrato já guardado no lote). Só leitura: nunca é reescrito."""
+    try:
+        return json.loads(batch.filters_json) if batch.filters_json else None
+    except ValueError:
+        return None
+
+
 def serialize_batch(db, batch, *, now: Optional[datetime] = None) -> dict:
     now = now or _utcnow()
     counts = _state_counts(db, batch_id=batch.id)
@@ -208,7 +216,7 @@ def serialize_batch(db, batch, *, now: Optional[datetime] = None) -> dict:
         "id": batch.id, "campaign_id": batch.campaign_id, "batch_no": batch.batch_no, "phase": batch.phase,
         "created_at": _aware(batch.created_at).isoformat() if batch.created_at else None,
         "requested": batch.requested_n if batch.audience_kind == "count" else "all", "reserved": batch.reserved_n,
-        "filters_hash": batch.filters_hash, "counts": counts, "interrupted_suspected": bool(suspect),
+        "filters_hash": batch.filters_hash, "filters": _stored_filters(batch), "counts": counts, "interrupted_suspected": bool(suspect),
         "accepted_note": "'Aceito' = o provedor (APNs/FCM/Web Push) aceitou o envio. Não é confirmação de entrega ao celular.",
         "metrics": br.broadcast_metrics(db, batch),
     }

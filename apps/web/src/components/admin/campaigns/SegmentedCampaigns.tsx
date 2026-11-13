@@ -11,7 +11,7 @@ import { ContentForm, ContentReadOnly, draftFrom, emptyDraft, type Draft, type G
 import { FilterBuilder } from './FilterBuilder';
 import { BatchComposer } from './BatchComposer';
 import { BatchHistory, CountChips } from './BatchHistory';
-import { buildFilter, describeCond, emptyFilter, type FilterState } from './filters';
+import { buildFilter, describeCond, emptyFilter, filterToState, type FilterState, type StoredFilter } from './filters';
 import { Loading } from '@/components/admin/sections/sections';
 
 interface Boot { fields: FieldsResponse; brands: { text: string; tutors: number }[]; goals: Goal[]; destinations: Record<string, string> }
@@ -41,6 +41,8 @@ export function SegmentedCampaigns() {
   const [filter, setFilter] = useState<FilterState>(emptyFilter());
   const [confirmClose, setConfirmClose] = useState(false);
   const [closeErr, setCloseErr] = useState<string | null>(null);
+  const [seedNote, setSeedNote] = useState<string | null>(null);
+  const seededFor = useRef<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -71,7 +73,7 @@ export function SegmentedCampaigns() {
     if (!openId) return;
     try { setCampaign(await call<Campaign>(`/campaigns/${openId}`)); setLoadErr(null); } catch (e) { setLoadErr(explainError(e).text); }
   }, [openId]);
-  useEffect(() => { setCampaign(null); setConfirmClose(false); setCloseErr(null); if (openId) void reload(); }, [openId, reload]);
+  useEffect(() => { setCampaign(null); setConfirmClose(false); setCloseErr(null); seededFor.current = null; setSeedNote(null); if (openId) void reload(); }, [openId, reload]);
 
   // Acompanha lotes em andamento (a thread de envio roda no servidor).
   const hasActive = !!campaign?.batches.some((b) => b.phase === 'reserved' || b.phase === 'sending');
@@ -84,6 +86,14 @@ export function SegmentedCampaigns() {
   }, [hasActive]);
 
   const fields: FieldInfo[] = useMemo(() => boot?.fields.fields ?? [], [boot]);
+  // Ao abrir uma campanha com lotes, os filtros do ÚLTIMO lote viram o ponto de partida do próximo (editáveis; o histórico não muda).
+  useEffect(() => {
+    if (!campaign || !boot || seededFor.current === campaign.id) return;
+    seededFor.current = campaign.id;
+    const last = [...campaign.batches].sort((a, b) => b.batch_no - a.batch_no).find((b) => b.filters);
+    if (last) { setFilter(filterToState(last.filters as StoredFilter, boot.fields.fields)); setSeedNote(`Filtros do lote ${last.batch_no} carregados como ponto de partida. Você pode alterá-los livremente: isso não muda o que já foi enviado.`); }
+    else { setFilter(emptyFilter()); setSeedNote(null); }
+  }, [campaign, boot]);
   const built = useMemo(() => buildFilter(filter, fields), [filter, fields]);
   const summary = useMemo(() => {
     const by = new Map(fields.map((f) => [f.field, f]));
@@ -172,14 +182,19 @@ export function SegmentedCampaigns() {
       {loadErr && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-[13px] text-rose-800">{loadErr}</p>}
       {!campaign ? <Loading /> : (
         <>
-          <header>
-            <h2 className="text-[17px] font-extrabold text-slate-900">{campaign.name}</h2>
-            <p className="text-[12.5px] text-slate-600">{STATUS_LABEL[campaign.status] ?? campaign.status} · já alcançados nesta campanha: {campaign.used_total}</p>
+          <header className="flex items-start gap-2">
+            <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-800 text-[12px] font-extrabold text-white" aria-hidden>1</span>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Campanha</p>
+              <h2 className="text-[17px] font-extrabold text-slate-900">{campaign.name}</h2>
+              <p className="text-[12.5px] text-slate-600">{STATUS_LABEL[campaign.status] ?? campaign.status} · já alcançados nesta campanha: {campaign.used_total}</p>
+            </div>
           </header>
-          <Step n={2} title="Conteúdo"><ContentReadOnly content={campaign.content} locked={campaign.content_locked} /></Step>
+          <Step n={2} title="Conteúdo"><ContentReadOnly content={campaign.content} locked={campaign.content_locked} destinations={boot.destinations} /></Step>
           {campaign.status !== 'closed' && (
             <>
-              <Step n={3} title="Quem recebe (filtros)" note="Combine condições com E/OU. Os filtros podem mudar de um lote para o outro; quem já recebeu nunca volta.">
+              <Step n={3} title="Quem recebe (filtros)" note="Os filtros podem mudar de um lote para o outro; quem já recebeu nunca volta. E = o tutor precisa atender a todas as condições combinadas. OU = basta atender a uma das alternativas.">
+                {seedNote && <p role="status" className="mb-3 rounded-lg bg-sky-50 p-2.5 text-[12.5px] leading-snug text-sky-900">{seedNote}</p>}
                 <FilterBuilder fields={fields} state={filter} onChange={setFilter} brandHints={boot.brands} locationNote={boot.fields.location_origins} />
               </Step>
               <Step n={4} title="Contagem, lote e confirmação" note="Veja quantos tutores atendem, escolha o tamanho do lote, confira a prévia e confirme.">
@@ -191,7 +206,7 @@ export function SegmentedCampaigns() {
           {campaign.status === 'closed' && <p className="rounded-lg bg-slate-100 p-3 text-[13px] text-slate-700">Campanha encerrada: não aceita novos lotes.</p>}
           <Step n={5} title="Histórico e resultados">
             <div className="mb-3"><CountChips counts={campaign.counts} total={campaign.used_total} /></div>
-            <BatchHistory batches={campaign.batches} onChanged={() => void reload()} />
+            <BatchHistory batches={campaign.batches} fields={fields} onChanged={() => void reload()} />
           </Step>
         </>
       )}
