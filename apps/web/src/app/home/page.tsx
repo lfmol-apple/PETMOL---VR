@@ -3,7 +3,7 @@
 import { takePendingDeepLink, withDeepLinkNonce } from '@/lib/deepLinkIntent';
 import { shareAppUrl } from '@/lib/landingLinks';
 import { trackProductEvent } from '@/lib/analytics';
-import { openPushProductLink, isPushProductUrl } from '@/features/commerce/pushProductLink';
+import { openPushProductLink, isPushProductUrl, productTapKey } from '@/features/commerce/pushProductLink';
 import { UserPlus, ChevronRight } from 'lucide-react';
 import { InviteChoiceSheet } from '@/components/home/InviteChoiceSheet';
 import { HowToSheet } from '@/components/home/HowToSheet';
@@ -476,25 +476,30 @@ function HomePageInner() {
   // Notificação personalizada do admin (/admin, aba Push): o toque abre a Home com ?b=<id do envio>. Avisa o
   // servidor UMA vez ("tocou na notificação") para medirmos o êxito do envio. Nada de dado pessoal.
   const [shoppingDeepLinkNonce, setShoppingDeepLinkNonce] = useState(0);
-  const broadcastTapSent = useRef(false);
+  // Um toque por ENVIO (não um por sessão): o app costuma continuar aberto entre as notificações.
+  const lastBroadcastTapped = useRef<string | null>(null);
   useEffect(() => {
     const bid = searchParams.get('b');
-    if (!bid || broadcastTapSent.current) return;
-    broadcastTapSent.current = true;
+    if (!bid) { lastBroadcastTapped.current = null; return; }
+    if (lastBroadcastTapped.current === bid) return;
+    lastBroadcastTapped.current = bid;
     trackProductEvent('broadcast_opened', { broadcast: bid });
   }, [searchParams]);
 
-  // Notificação do admin com LINK DE PRODUTO (/admin, aba Push): ?produto=<link>&b=<envio>. Abre o produto direto na loja,
-  // uma vez só, e limpa a URL (o botão "voltar" não reabre a loja). Só lojas conhecidas; link de fora é ignorado.
-  const productLinkOpened = useRef(false);
+  // Notificação do admin com LINK DE PRODUTO (/admin, aba Push): ?produto=<link>&b=<envio>. Abre o produto direto na loja e
+  // limpa a URL (o botão "voltar" não reabre a loja). Cada ENVIO abre uma vez: o app costuma continuar aberto entre uma
+  // notificação e outra, então a trava é por envio, nunca por sessão. Só lojas conhecidas; link de fora é ignorado.
+  const lastProductOpened = useRef<string | null>(null);
   useEffect(() => {
     const raw = searchParams.get('produto');
-    if (!raw || productLinkOpened.current) return;
-    productLinkOpened.current = true;
+    const key = productTapKey(raw, searchParams.get('b'));
+    if (!raw || !key) { lastProductOpened.current = null; return; }
+    if (lastProductOpened.current === key) return;
+    lastProductOpened.current = key;
     try { window.history.replaceState(window.history.state, '', '/home'); } catch { /* melhor esforço */ }
     if (!isPushProductUrl(raw)) return;
     trackProductEvent('broadcast_product_opened', { broadcast: searchParams.get('b') ?? undefined });
-    openPushProductLink(raw);
+    void openPushProductLink(raw);
   }, [searchParams]);
 
   useEffect(() => {
