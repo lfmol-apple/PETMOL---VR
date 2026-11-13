@@ -22,8 +22,8 @@ function Stat({ label, value, hint, tone = 'slate' }: { label: string; value: Re
   );
 }
 
-export function BatchComposer({ campaign, filter, ready, summary, onReserved, busyBatch }: {
-  campaign: Campaign; filter: unknown; ready: boolean; summary: string[]; onReserved: (r: ReserveResult) => void; busyBatch: boolean;
+export function BatchComposer({ campaign, filter, ready, summary, onReserved, busyBatch, maxBatch }: {
+  campaign: Campaign; maxBatch?: number | null; filter: unknown; ready: boolean; summary: string[]; onReserved: (r: ReserveResult) => void; busyBatch: boolean;
 }) {
   const closed = campaign.status === 'closed';
   const [mode, setMode] = useState<'n' | 'all'>('n');
@@ -110,7 +110,11 @@ export function BatchComposer({ campaign, filter, ready, summary, onReserved, bu
 
   const p = preview?.p ?? null;
   const confirmOk = !!p && !expired && p.will_reserve > 0 && typed.trim() === String(p.will_reserve);
-  const canPreview = ready && sizeOk && !closed && !busyBatch && !noOne && busy === null;
+  // Teto por lote (definido no servidor): a tela avisa e bloqueia, mas quem decide é o servidor (prévia e reserva conferem de novo).
+  const limit = maxBatch ?? p?.max_batch ?? null;
+  const overLimit = limit !== null && mode === 'n' && requested !== null && requested > limit;
+  const allOver = limit !== null && mode === 'all' && available !== null && available > limit;
+  const canPreview = ready && sizeOk && !closed && !busyBatch && !noOne && !overLimit && !allOver && busy === null;
 
   if (closed) return <p className="rounded-lg bg-slate-100 p-3 text-[13px] text-slate-700">Campanha encerrada: não aceita novos lotes. O histórico continua disponível abaixo.</p>;
 
@@ -158,6 +162,13 @@ export function BatchComposer({ campaign, filter, ready, summary, onReserved, bu
             onChange={(e) => setN(e.target.value.replace(/\D/g, '').slice(0, 7))} />
           <label className="flex items-center gap-2 text-[13px]"><input type="radio" name="batch-mode" checked={mode === 'all'} onChange={() => setMode('all')} /> Todos os disponíveis{available !== null && ` (${numberFmt(available)})`}</label>
         </div>
+        {limit !== null && (
+          <p className="mt-2 rounded-lg bg-slate-50 p-2 text-[12px] leading-snug text-slate-700" data-testid="limite-por-lote">
+            Limite por lote: <strong>{numberFmt(limit)} tutor{limit === 1 ? '' : 'es'}</strong> (definido no servidor, vale também para “todos os disponíveis”). Pedidos acima do limite são recusados: o sistema não divide o pedido em vários lotes nem o reduz sozinho.
+          </p>
+        )}
+        {overLimit && <p role="alert" className="mt-2 rounded-lg bg-rose-50 p-2.5 text-[12.5px] leading-snug text-rose-900">Você pediu {numberFmt(requested)}, acima do limite de {numberFmt(limit)} por lote. Reduza a quantidade para até {numberFmt(limit)}.</p>}
+        {allOver && <p role="alert" className="mt-2 rounded-lg bg-rose-50 p-2.5 text-[12.5px] leading-snug text-rose-900">Há {numberFmt(available)} disponíveis, acima do limite de {numberFmt(limit)} por lote. Escolha “Quantidade” e informe até {numberFmt(limit)}.</p>}
         <p className="mt-2 text-[11.5px] text-slate-500">Os tutores são sorteados entre os disponíveis. Quem já foi usado nesta campanha nunca é escolhido de novo, mesmo mudando os filtros.</p>
       </fieldset>
 

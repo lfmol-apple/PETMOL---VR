@@ -195,6 +195,11 @@ class AdminBroadcast(Base):
     filters_hash = Column(String(64), nullable=True)
     requested_n = Column(Integer, nullable=True)              # quantos o admin pediu
     reserved_n = Column(Integer, nullable=True)               # quantos o banco realmente reservou
+    # Pedido de PARADA do lote (persistido: a thread de envio consulta entre os destinatários; sobrevive a reinício da API).
+    # Parada pendente = stop_requested_at preenchido e (stop_ack_at vazio ou anterior ao pedido).
+    stop_requested_at = Column(DateTime(timezone=True), nullable=True)
+    stop_requested_by = Column(String(36), nullable=True)
+    stop_ack_at = Column(DateTime(timezone=True), nullable=True)   # quando o executor (ou a recuperação) reconheceu a parada
 
     __table_args__ = (
         UniqueConstraint("idempotency_key", name="uq_admin_broadcasts_idempotency_key"),

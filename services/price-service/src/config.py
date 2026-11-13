@@ -100,6 +100,9 @@ class Settings(BaseSettings):
     # Campanhas push manuais com segmentação e lotes (admin/push_campaigns.py). DESLIGADO por padrão: ligar = env
     # PUSH_CAMPAIGNS_ENABLED=true + restart. Desligada, os endpoints novos respondem 404 e o envio avulso não muda.
     push_campaigns_enabled: bool = False
+    # Teto de destinatários POR LOTE (validado na prévia, na reserva e na continuação; vale também para "todos os disponíveis").
+    # Padrão conservador: 50. Mudar = env PUSH_CAMPAIGNS_MAX_BATCH + restart (primeiro teste real: 1). Valor < 1 cai no padrão.
+    push_campaigns_max_batch: int = 50
 
     # Preço real da Cobasi (API pública de catálogo VTEX) para a Loja do Baby.
     # Cache longo de propósito — reduz volume de chamadas à Cobasi (evitar

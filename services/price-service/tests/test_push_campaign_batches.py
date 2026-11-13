@@ -95,6 +95,12 @@ def env(request, monkeypatch):
     _wipe(sf)
 
 
+@pytest.fixture(autouse=True)
+def _sem_teto_de_lote(monkeypatch):
+    """Estes testes são de reserva/execução/recuperação com lotes grandes; o teto por lote tem testes próprios (test_push_campaign_stop_limit.py)."""
+    monkeypatch.setattr(svc, "max_batch_limit", lambda: 1_000_000)
+
+
 def seed(env, n, species="cat", *, push=True, optout=False, pets=1):
     with env.sf() as s:
         w = World(s)
