@@ -210,7 +210,11 @@ export function BatchComposer({ campaign, filter, ready, summary, onReserved, bu
               Atenção: você pediu {numberFmt(requested)}, mas só há {numberFmt(p.available)} disponíveis. O lote será de {numberFmt(p.will_reserve)}. Se estiver de acordo, confirme digitando esse número abaixo.
             </p>
           )}
-          {!p.can_reserve && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-[13px] text-rose-900">{p.blocking_batch ? `O lote ${p.blocking_batch.batch_no} ainda está em andamento ou interrompido.` : 'Não há destinatários para reservar.'}</p>}
+          {!p.can_reserve && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-[13px] text-rose-900">{p.blocking_batch
+            ? (p.blocking_batch.phase === 'interrupted'
+              ? `O lote ${p.blocking_batch.batch_no} está interrompido e aguarda sua decisão: continue só os nunca tentados ou devolva-os ao público (no histórico, abaixo) antes de reservar outro.`
+              : `O lote ${p.blocking_batch.batch_no} ainda está em andamento. Conclua ou pare o envio antes de reservar outro.`)
+            : 'Não há destinatários para reservar.'}</p>}
           {p.can_reserve && (
             <>
               <p className="text-[12.5px] text-slate-600" aria-live="off">

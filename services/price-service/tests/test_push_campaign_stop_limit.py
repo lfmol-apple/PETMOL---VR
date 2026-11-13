@@ -239,50 +239,7 @@ def test_lote_de_envio_avulso_nao_pode_ser_parado_por_aqui_e_a_parada_libera_o_a
         assert s.get(br.AdminBroadcast, avid).stop_requested_at is None
 
 
-@pytest.mark.skipif(False, reason="")
-def test_concorrencia_parada_x_reserva_x_continuacao_nunca_duplica_nem_perde_registro(env):
-    """15 rodadas: retomar e parar disputam o mesmo lote interrompido; reservas concorrentes devem ser recusadas. Invariantes: ninguém recebe 2×,
-    nenhum destinatário fica 'sending' sem executor, e o resultado final é consistente."""
-    if env.kind != "postgres":
-        pytest.skip("disputa real só no PostgreSQL")
-    for _ in range(15):
-        seed(env, 6)
-        cid = campaign(env)
-        res, *_ = reserve(env, cid, CATS, 6); bid = res["batch"]["id"]
-        svc.request_stop(env.sf, bid, ADMIN); run(env, bid)                   # interrompido, 6 reservados, parada reconhecida
-        barrier, out = threading.Barrier(3), {}
-        def t_resume():
-            barrier.wait(10)
-            try: out["resume"] = svc.resume_batch(env.sf, bid, 6)
-            except svc.BatchError as e: out["resume"] = e.code
-        def t_stop():
-            barrier.wait(10)
-            try: out["stop"] = svc.request_stop(env.sf, bid, ADMIN_2)
-            except svc.BatchError as e: out["stop"] = e.code
-        def t_reserve():
-            barrier.wait(10)
-            try:
-                with env.sf() as s:
-                    pv = svc.preview_batch(s, cid, CATS, requested=None, all_available=True, admin_id=ADMIN)
-                out["reserve"] = pv["can_reserve"]                            # lote interrompido ainda bloqueia nova reserva
-            except svc.BatchError as e: out["reserve"] = e.code
-        ts = [threading.Thread(target=f) for f in (t_resume, t_stop, t_reserve)]
-        [t.start() for t in ts]; [t.join(30) for t in ts]
-        assert out["reserve"] in (False, "batch_in_progress")
-        prov = Fake()
-        env.mp.setattr(svc, "send_push", prov)
-        if snap(env, bid)["phase"] == "sending":
-            svc.execute_batch(env.sf, bid, chunk=1, pause=0)                  # quem retomou executa (a thread da API faria o mesmo)
-        b = snap(env, bid)
-        assert max(prov.users.values(), default=0) <= 1
-        assert b["counts"]["sending"] == 0
-        assert b["phase"] in ("done", "interrupted")
-        if b["phase"] == "done":
-            assert b["counts"]["accepted"] == 6 and len(prov.calls) == 6
-        else:                                                                 # parada venceu a retomada: nada enviado, tudo reservado
-            assert b["counts"]["reserved"] == 6 and len(prov.calls) == 0
-        with env.sf() as s:
-            assert s.query(pc.PushCampaignRecipient).filter(pc.PushCampaignRecipient.batch_id == bid).count() == 6
+# (a disputa parada × continuação × nova reserva foi movida para test_push_campaign_interrupted_blocks.py, sem depender de quem vence a corrida)
 
 
 # ══ R2 — TETO POR LOTE ═══════════════════════════════════════════════════════

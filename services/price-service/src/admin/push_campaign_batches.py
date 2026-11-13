@@ -42,7 +42,7 @@ from typing import Callable, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, ValidationError
-from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy import and_, delete, exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import IntegrityError
@@ -67,7 +67,9 @@ STALE_AFTER = timedelta(minutes=5)       # lote "sending" sem nenhuma atividade 
 EXEC_CHUNK = 1                            # 1 destinatário por vez: a parada é conferida entre CADA destinatário (nada fica "em envio" à toa)
 EXEC_PAUSE_SECONDS = 0.02
 DEFAULT_MAX_BATCH = 50
-BATCH_ACTIVE_PHASES = ("reserved", "sending")
+BATCH_ACTIVE_PHASES = ("reserved", "sending")       # EXECUÇÃO ativa (thread rodando ou prestes a rodar): usada por parada, recuperação e partida
+# Quem BLOQUEIA nova reserva, prévia que autorize reserva e encerramento: execução ativa OU lote `interrupted` que ainda tem destinatários
+# nunca tentados esperando decisão (continuar/devolver). `interrupted` sem pendentes (só aceitos/falhos/incertos) não tem o que decidir e não bloqueia.
 KEY_RE = re.compile(r"^[A-Za-z0-9_-]{16,64}$")
 
 # Endpoints e gancho de partida DESTE módulo (atrás da flag; só administradores). O núcleo do app só registra o router.
@@ -294,18 +296,17 @@ def preview_batch(db, campaign_id: str, flt: AudienceFilter, *, requested: Optio
     will = len(available) if all_available else min(requested or 0, len(available))
     if will > limit:                                                    # "todos os disponíveis" acima do teto: recusa (nunca reduz em silêncio)
         raise _limit_error_for_all(will, limit)
-    running = db.query(br.AdminBroadcast.id, br.AdminBroadcast.batch_no).filter(
-        br.AdminBroadcast.campaign_id == campaign_id, br.AdminBroadcast.phase.in_(BATCH_ACTIVE_PHASES)).first()
+    running = _blocking_batch(db, campaign_id)
     out = {
         "campaign_id": campaign_id, "counts": counts, "available": len(available), "will_reserve": will,
         "smaller_than_requested": bool(not all_available and requested and will < requested),
-        "can_reserve": will > 0 and running is None, "blocking_batch": ({"id": running[0], "batch_no": running[1]} if running else None),
+        "can_reserve": will > 0 and running is None, "blocking_batch": ({"id": running[0], "batch_no": running[1], "phase": running[2]} if running else None),
         "content": {"title": c.title, "message": c.message, "destination": c.destination, "product_url": c.product_url,
                     "product_title": c.product_title},
         "max_batch": limit, "next_batch_no": (db.query(func.max(br.AdminBroadcast.batch_no)).filter(br.AdminBroadcast.campaign_id == campaign_id).scalar() or 0) + 1,
         "confirmation": f"Para confirmar, digite {will}." if will else None, "token": None, "expires_at": None,
     }
-    if will > 0:
+    if out["can_reserve"]:                                    # com lote bloqueante NENHUMA prévia que autorize reserva é emitida
         exp = now + timedelta(seconds=PREVIEW_TTL_SECONDS)
         out["token"] = sign_preview_token({"c": campaign_id, "h": c.content_hash, "f": flt.filters_hash(), "r": spec, "a": len(available),
                                            "d": audience_digest(available), "w": will, "u": str(admin_id), "exp": int(exp.timestamp())})
@@ -378,9 +379,9 @@ def reserve_batch(session_factory, campaign_id: str, flt: AudienceFilter, *, req
                 if replay:
                     db.rollback()
                     return replay
-                if db.query(br.AdminBroadcast.id).filter(br.AdminBroadcast.campaign_id == campaign_id,
-                                                         br.AdminBroadcast.phase.in_(BATCH_ACTIVE_PHASES)).first():
-                    raise BatchError("batch_in_progress", "Há um lote desta campanha em andamento ou interrompido. Conclua ou recupere antes de reservar outro.")
+                blk = _blocking_batch(db, campaign_id)
+                if blk:
+                    raise _blocking_error(blk, "reservar outro lote")
                 used = {str(u) for (u,) in db.query(PushCampaignRecipient.user_id).filter(PushCampaignRecipient.campaign_id == campaign_id).all()}
                 available = sorted(pa.resolve_audience(db, flt, now=now).reachable - used)           # MESMA semântica da contagem
                 if audience_digest(available) != claims.get("d") or len(available) != claims.get("a"):
@@ -465,6 +466,22 @@ def _finalize_if_done(db, batch_id: str) -> None:
                                                    or_(br.AdminBroadcast.stop_ack_at.is_(None), br.AdminBroadcast.stop_ack_at < br.AdminBroadcast.stop_requested_at))
                    .values(stop_ack_at=_utcnow()))                    # o lote acabou antes da parada valer: não fica "pendente" para sempre
         db.commit()
+
+
+def _blocking_batch(db, campaign_id: str):
+    """Primeiro lote da campanha que impede novas reservas/encerramento (ver BLOCKING acima); None se nada bloqueia."""
+    awaiting = exists().where(PushCampaignRecipient.batch_id == br.AdminBroadcast.id, PushCampaignRecipient.state == "reserved")
+    return db.query(br.AdminBroadcast.id, br.AdminBroadcast.batch_no, br.AdminBroadcast.phase).filter(
+        br.AdminBroadcast.campaign_id == campaign_id,
+        or_(br.AdminBroadcast.phase.in_(BATCH_ACTIVE_PHASES), and_(br.AdminBroadcast.phase == "interrupted", awaiting))).order_by(br.AdminBroadcast.batch_no).first()
+
+
+def _blocking_error(blk, what: str) -> BatchError:
+    """`what`: 'reservar outro lote' / 'encerrar a campanha'."""
+    if blk[2] == "interrupted":
+        return BatchError("batch_awaiting_decision", f"O lote {blk[1]} está interrompido e aguarda sua decisão (continuar só os nunca tentados ou devolvê-los ao público) "
+                                                     f"antes de {what}.", batch_id=blk[0], batch_no=blk[1])
+    return BatchError("batch_in_progress", f"O lote {blk[1]} desta campanha está em andamento. Conclua ou pare o envio antes de {what}.", batch_id=blk[0], batch_no=blk[1])
 
 
 def _stop_pending(db, batch_id: str) -> bool:
@@ -696,8 +713,9 @@ def close_campaign(session_factory, campaign_id: str) -> dict:
             c = _lock_campaign_row(db, campaign_id)
             if c is None:
                 raise BatchError("campaign_not_found", "Campanha não encontrada.", status=404)
-            if db.query(br.AdminBroadcast.id).filter(br.AdminBroadcast.campaign_id == campaign_id, br.AdminBroadcast.phase.in_(BATCH_ACTIVE_PHASES)).first():
-                raise BatchError("batch_in_progress", "Há um lote em andamento ou interrompido nesta campanha.")
+            blk = _blocking_batch(db, campaign_id)
+            if blk:
+                raise _blocking_error(blk, "encerrar a campanha")
             c.status, c.closed_at = "closed", _utcnow()
             db.commit()
             return serialize_campaign(db, c)

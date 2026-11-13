@@ -153,3 +153,31 @@ describe('R2 — limite por lote na interface', () => {
     expect(screen.queryByRole('region', { name: 'Prévia do lote' })).toBeNull();
   });
 });
+
+describe('lote interrompido aguardando decisão (API e interface coerentes)', () => {
+  it('se o servidor recusar a reserva por lote interrompido, a mensagem explica e a prévia é descartada', async () => {
+    be.addCampaign();
+    await openCampaign();
+    fireEvent.change(screen.getByLabelText('Quantidade de tutores no lote'), { target: { value: '5' } });
+    await waitFor(() => expect((screen.getByRole('button', { name: /Conferir prévia/ }) as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole('button', { name: /Conferir prévia/ }));
+    await screen.findByRole('region', { name: 'Prévia do lote' });
+    be.on('POST /campaigns/camp1/batches', () => ({ status: 409, json: { detail: { code: 'batch_awaiting_decision', message: 'O lote 1 está interrompido e aguarda sua decisão (continuar só os nunca tentados ou devolvê-los ao público) antes de reservar outro lote.' } } }));
+    fireEvent.change(screen.getByLabelText(/digite 5/), { target: { value: '5' } });
+    fireEvent.click(screen.getByRole('button', { name: /Confirmar e enviar/ }));
+    expect(await screen.findByText(/está interrompido e aguarda sua decisão/)).toBeTruthy();
+    expect(screen.queryByRole('region', { name: 'Prévia do lote' })).toBeNull();
+  });
+
+  it('prévia devolvida com lote interrompido mostra o motivo com a decisão que falta (sem botão de confirmar)', async () => {
+    be.addCampaign();
+    await openCampaign();
+    be.on('POST /campaigns/camp1/batches/preview', () => ({ json: { campaign_id: 'camp1', counts: be.audience({ batch_size: 5 }), available: 100, will_reserve: 5, smaller_than_requested: false, can_reserve: false,
+      blocking_batch: { id: 'b1', batch_no: 1, phase: 'interrupted' }, content: be.campaigns[0].content, next_batch_no: 2, confirmation: null, token: null, expires_at: null } }));
+    fireEvent.change(screen.getByLabelText('Quantidade de tutores no lote'), { target: { value: '5' } });
+    await waitFor(() => expect((screen.getByRole('button', { name: /Conferir prévia/ }) as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole('button', { name: /Conferir prévia/ }));
+    expect((await screen.findByText(/O lote 1 está interrompido e aguarda sua decisão/)).textContent).toMatch(/continue só os nunca tentados ou devolva-os ao público/);
+    expect(screen.queryByRole('button', { name: /Confirmar e enviar/ })).toBeNull();
+  });
+});

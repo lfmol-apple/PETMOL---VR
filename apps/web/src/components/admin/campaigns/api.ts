@@ -81,7 +81,7 @@ export interface CampaignListItem { id: string; name: string; status: string; co
 
 export interface BatchPreview {
   campaign_id: string; counts: AudienceCount; available: number; will_reserve: number; smaller_than_requested: boolean;
-  can_reserve: boolean; blocking_batch: { id: string; batch_no: number } | null; content: CampaignContent & Record<string, unknown>;
+  can_reserve: boolean; blocking_batch: { id: string; batch_no: number; phase?: string } | null; content: CampaignContent & Record<string, unknown>;
   next_batch_no: number; max_batch?: number; confirmation: string | null; token: string | null; expires_at: string | null;
 }
 export interface ReserveResult { batch: Batch; idempotent_replay: boolean; started: boolean }
@@ -111,6 +111,8 @@ export function explainError(e: unknown): { text: string; needsNewPreview: boole
       return { text: 'A prévia não é válida. Gere uma nova prévia.', needsNewPreview: true, retrySameKey: false };
     case 'no_one_available':
       return { text: 'Não há mais destinatários disponíveis para estes filtros nesta campanha.', needsNewPreview: true, retrySameKey: false };
+    case 'batch_awaiting_decision':
+      return { text: e.message, needsNewPreview: true, retrySameKey: false };
     case 'batch_in_progress':
       return { text: 'Já existe um lote em andamento ou interrompido nesta campanha. Conclua-o antes de reservar outro.', needsNewPreview: false, retrySameKey: false };
     case 'batch_limit_exceeded':

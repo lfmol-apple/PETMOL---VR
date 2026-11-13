@@ -33,3 +33,14 @@ Flag continua OFF; sem envio real; arquitetura em thread mantida (nenhum serviç
 - Mutação (10 mutantes no código novo): 9 mortos; 1 equivalente (conferir a parada antes de reivindicar é redundante com a conferência antes de cada envio — a segunda devolve o reivindicado; a primeira só evita o vai-e-volta).
 - Frontend: +12 testes (parar envio, confirmação, clique duplicado, estados, limite).
 - Homologação isolada (backend real + PostgreSQL + provedor falso): 44/44 de parada e teto, 49/49 de integração e as contagens da tela conferidas.
+
+## Correção pós-CI: lote `interrupted` aguardando decisão bloqueia (API = interface)
+
+Achado no CI do PR consolidado (teste de disputa instável): a interface e as mensagens tratavam o lote interrompido como bloqueante, mas o backend só bloqueava `reserved`/`sending`.
+
+- `BATCH_ACTIVE_PHASES` (`reserved`, `sending`) **não mudou**: continua sendo a *execução ativa* (parada, recuperação, partida).
+- Novo critério separado, `_blocking_batch`: lote em execução ativa **ou** `interrupted` que ainda tem destinatários **nunca tentados** (`reserved`) aguardando decisão. `interrupted` sem pendentes (só aceitos/falhos/incertos) não tem o que decidir e não bloqueia (evita impasse eterno).
+- Bloqueia: **reserva** (`batch_awaiting_decision` 409 / `batch_in_progress` 409), **prévia** (`can_reserve=false`, **sem token**, `blocking_batch.phase`) e **encerramento da campanha**.
+- Não bloqueia: **continuar** e **devolver** o próprio lote. Resolvido (`done`) → nova reserva e encerramento liberados.
+- Interface: mensagem da prévia distingue "em andamento" de "interrompido, aguarda sua decisão"; erro novo mapeado.
+- Testes: `tests/test_push_campaign_interrupted_blocks.py` (SQLite + PostgreSQL): prévia, reserva direta com token antigo, encerramento, continuar, devolver, nova reserva depois de resolver, sem duplicidade, interrompido sem pendentes, 6 ordens controladas de parada/continuação/nova reserva e 25 rodadas de disputa real (PostgreSQL) com atrasos reprodutíveis — o resultado esperado **não depende de quem vence**. O teste instável foi substituído por esta versão determinística. Mutação: 6 de 6 mutantes mortos (inclusive "interrupted em BATCH_ACTIVE_PHASES").
