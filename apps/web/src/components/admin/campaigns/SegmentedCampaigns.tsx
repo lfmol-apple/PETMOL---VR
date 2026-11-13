@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { call, explainError, type Campaign, type CampaignListItem, type FieldInfo, type FieldsResponse } from './api';
 import { ContentForm, ContentReadOnly, draftFrom, emptyDraft, type Draft, type Goal } from './ContentForm';
 import { FilterBuilder } from './FilterBuilder';
+import { AudienceExplorer } from './AudienceExplorer';
 import { BatchComposer } from './BatchComposer';
 import { BatchHistory, CountChips } from './BatchHistory';
 import { buildFilter, describeCond, emptyFilter, filterToState, type FilterState, type StoredFilter } from './filters';
@@ -114,6 +115,10 @@ export function SegmentedCampaigns() {
   if (view.kind === 'list') {
     return (
       <div className="space-y-4">
+        <section aria-labelledby="explorar" className="rounded-2xl border-2 border-sky-300 bg-white p-4">
+          <h3 id="explorar" className="mb-3 text-[15px] font-extrabold text-slate-900">Explorar o público (só contagem, sem criar campanha)</h3>
+          <AudienceExplorer fields={fields} locationNote={boot.fields.location_origins} brandHints={boot.brands} />
+        </section>
         <Step n={1} title="Criar ou continuar uma campanha" note="Cada campanha tem o seu conteúdo e a sua própria lista de quem já foi alcançado. Um tutor nunca recebe a mesma campanha duas vezes.">
           <button type="button" className="mb-3 rounded-lg bg-sky-700 px-4 py-2.5 text-[14px] font-bold text-white" onClick={() => setView({ kind: 'new', draft: emptyDraft() })}>+ Nova campanha</button>
           {loadErr && <p role="alert" className="mb-2 text-[13px] text-rose-800">{loadErr}</p>}
