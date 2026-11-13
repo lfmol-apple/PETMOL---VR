@@ -49,6 +49,7 @@ from .admin.missing_pets_admin import router as missing_pets_admin_router
 from .admin.performance_router import router as performance_admin_router
 from .admin.push_campaigns import PushCampaign as _pc, PushCampaignRecipient as _pcr, router as push_campaigns_admin_router  # register with Base
 from .admin.push_audience import router as push_audience_admin_router
+from .admin.push_campaign_batches import router as push_campaign_batches_admin_router
 from .store_promos import StorePromoRow as _sp, public_router as store_promos_public_router, admin_router as store_promos_admin_router  # register with Base
 from .health import models as _health_models  # Import health models to register with Base
 from .admin import admin_router
@@ -299,6 +300,7 @@ app.include_router(store_promos_admin_router)
 app.include_router(email_campaigns_admin_router)
 app.include_router(push_campaigns_admin_router)
 app.include_router(push_audience_admin_router)
+app.include_router(push_campaign_batches_admin_router)
 app.include_router(missing_pets_admin_router)
 app.include_router(performance_admin_router)
 app.include_router(store_promos_public_router)
@@ -323,6 +325,7 @@ app.include_router(store_promos_admin_router, prefix="/api")
 app.include_router(email_campaigns_admin_router, prefix="/api")
 app.include_router(push_campaigns_admin_router, prefix="/api")
 app.include_router(push_audience_admin_router, prefix="/api")
+app.include_router(push_campaign_batches_admin_router, prefix="/api")
 app.include_router(missing_pets_admin_router, prefix="/api")
 app.include_router(performance_admin_router, prefix="/api")
 app.include_router(moderation_admin_router, prefix="/api")
