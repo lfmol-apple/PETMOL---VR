@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- inspeção livre do JSON montado */
 import { describe, expect, it } from 'vitest';
-import fixture from './fields.fixture.json';
+import fixture from './fields.fixture';
 import type { FieldInfo } from './api';
 import { GROUPS, buildFilter, condError, defaultCond, describeCond, kindOf, uid, type FilterState } from './filters';
 

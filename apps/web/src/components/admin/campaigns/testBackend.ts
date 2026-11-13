@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- servidor falso de teste: corpos JSON livres */
 /** Servidor FALSO para os testes da interface de campanhas: nada sai da memória, nenhum push real existe aqui. */
 import { vi } from 'vitest';
-import fields from './fields.fixture.json';
+import fields from './fields.fixture';
 
 export interface Call { method: string; path: string; body?: any }
 type Handler = (body: any, ctx: Backend) => { status?: number; json: unknown } | Promise<{ status?: number; json: unknown }>;
