@@ -5,6 +5,7 @@ TODOS os testes de serviço rodam nos DOIS bancos (SQLite e PostgreSQL). O Postg
 guarda que faz qualquer chamada ao provedor real explodir."""
 import os
 import threading
+import json
 import uuid
 from collections import Counter
 from datetime import timedelta
@@ -431,6 +432,22 @@ def test_reivindicar_um_pedaco_so_pega_reservados_nunca_incertos_falhos_ou_aceit
     assert {u for _id, u in got} == expected and len(got) == 4
     states = {st for (_u, st, *_rest) in rows(env, cid)}
     assert states == {"uncertain", "failed", "accepted", "sending"}
+
+
+def test_cada_lote_expoe_os_filtros_exatos_da_sua_reserva(env):
+    """O histórico mostra POR QUE aquele público foi escolhido: os filtros guardados no lote, intactos, mesmo que os filtros mudem depois."""
+    seed(env, 12)
+    cid = campaign(env)
+    r1, *_ = reserve(env, cid, CATS, 3)
+    run(env, r1["batch"]["id"])
+    other = F(R("pet_species", "in", ["cat", "dog"]), scope="any")
+    reserve(env, cid, other, 2)
+    with env.sf() as s:
+        out = svc.serialize_campaign(s, s.get(pc.PushCampaign, cid))
+    b1, b2 = out["batches"]
+    assert b1["filters"] == json.loads(CATS.canonical_json())
+    assert b2["filters"] == json.loads(other.canonical_json())
+    assert b1["filters_hash"] == CATS.filters_hash()
 
 
 def test_conteudo_alterado_entre_a_previa_e_a_reserva_invalida_a_previa(env):

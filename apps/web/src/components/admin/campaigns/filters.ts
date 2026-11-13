@@ -153,3 +153,61 @@ export function describeCond(c: Cond, f: FieldInfo | undefined): string {
 }
 
 export function conditionCount(s: FilterState): number { return s.blocks.reduce((n, b) => n + b.conds.length, 0); }
+
+// ── Filtros guardados no lote (JSON do backend) → tela / texto ───────────────
+
+type RawRule = { kind: 'rule'; field: string; op: string; value: unknown; approximate_ack?: boolean };
+type RawGroup = { kind: 'group'; op: Op; pet_scope?: PetScope | null; items: (RawRule | RawGroup)[] };
+export interface StoredFilter { version?: number; root: RawGroup }
+
+function condFromRule(r: RawRule, f: FieldInfo | undefined): Cond {
+  const k = f ? kindOf(f) : 'text';
+  let value: unknown = r.value;
+  if (k === 'gps') { const o = (r.value ?? {}) as Record<string, unknown>; value = { lat: String(o.lat ?? ''), lng: String(o.lng ?? ''), km: String(o.km ?? '') }; }
+  else if (k === 'number' || k === 'date') value = Array.isArray(r.value) ? r.value.map(String) : String(r.value ?? '');
+  return { id: uid('c'), field: r.field, op: r.op, value, ack: !!r.approximate_ack };
+}
+
+/** Transforma os filtros guardados num lote no estado editável da tela (ponto de partida para o próximo lote). */
+export function filterToState(stored: StoredFilter | null | undefined, fields: FieldInfo[]): FilterState {
+  const root = stored?.root;
+  if (!root || !Array.isArray(root.items)) return emptyFilter();
+  const by = new Map(fields.map((f) => [f.field, f]));
+  const blocks: Block[] = [];
+  const loose: Cond[] = [];
+  for (const it of root.items) {
+    if (it.kind === 'group') {
+      blocks.push({ id: uid('b'), op: it.op ?? 'and', petScope: (it.pet_scope as PetScope) ?? 'any', conds: it.items.filter((x): x is RawRule => x.kind === 'rule').map((r) => condFromRule(r, by.get(r.field))) });
+    } else loose.push(condFromRule(it, by.get(it.field)));
+  }
+  if (loose.length) blocks.unshift({ id: uid('b'), op: root.op ?? 'and', petScope: 'any', conds: loose });
+  return { op: root.op ?? 'and', blocks };
+}
+
+/** Resumo legível dos filtros de um lote (o histórico precisa explicar POR QUE aquele público foi escolhido). */
+export function describeStoredFilter(stored: StoredFilter | null | undefined, fields: FieldInfo[]): string[] {
+  const st = filterToState(stored, fields);
+  if (!st.blocks.length) return ['Sem filtros: todos os tutores alcançáveis por push.'];
+  const by = new Map(fields.map((f) => [f.field, f]));
+  const lines: string[] = [];
+  if (st.blocks.length > 1) lines.push(st.op === 'and' ? 'O tutor precisa estar em TODOS os blocos (E):' : 'O tutor precisa estar em QUALQUER um dos blocos (OU):');
+  st.blocks.forEach((b, i) => {
+    const hasPet = b.conds.some((c) => by.get(c.field)?.scope === 'pet');
+    const scope = hasPet ? ` · pets: ${PET_SCOPE_LABEL[b.petScope].label.toLowerCase()}` : '';
+    const joiner = b.op === 'and' ? ' E ' : ' OU ';
+    lines.push(`${st.blocks.length > 1 ? `Bloco ${i + 1}: ` : ''}${b.conds.map((c) => describeCond(c, by.get(c.field))).join(joiner)}${scope}`);
+  });
+  return lines;
+}
+
+/** Exemplo de como {tutor} e {pets} ficam no aparelho (a substituição real é feita no envio). */
+export function exampleOf(text: string | null | undefined): string {
+  return (text ?? '').split('{tutor}').join('Ana').split('{pets}').join('Thor');
+}
+export const hasVariables = (text: string | null | undefined) => /\{(tutor|pets)\}/.test(text ?? '');
+
+/** Nome legível do destino do toque (o backend manda a chave: produto, home, food…). */
+export function destinationLabel(key: string | null | undefined, destinations: Record<string, string>): string {
+  if (!key) return 'Tela inicial';
+  return destinations[key] ?? key;
+}

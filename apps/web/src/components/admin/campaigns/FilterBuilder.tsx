@@ -163,6 +163,9 @@ export function FilterBuilder({ fields, state, onChange, brandHints, locationNot
             <option value="and">TODOS os blocos (E)</option>
             <option value="or">QUALQUER um dos blocos (OU)</option>
           </select>
+          <p className="basis-full text-[12px] leading-snug text-slate-600">
+            {state.op === 'and' ? 'E: o tutor precisa atender a TODOS os blocos ao mesmo tempo. Quanto mais blocos, menor o público.' : 'OU: basta o tutor atender a UM dos blocos. Quanto mais blocos, maior o público.'}
+          </p>
         </div>
       )}
       {state.blocks.map((b, i) => {
@@ -180,6 +183,11 @@ export function FilterBuilder({ fields, state, onChange, brandHints, locationNot
                 )}
                 <button type="button" className="text-[12px] font-semibold text-rose-700 underline" onClick={() => onChange({ ...state, blocks: state.blocks.filter((x) => x.id !== b.id) })}>Remover bloco</button>
               </div>
+              {b.conds.length > 1 && (
+                <p className="basis-full text-[12px] leading-snug text-slate-600">
+                  {b.op === 'and' ? 'E: o tutor precisa atender a TODAS as condições deste bloco.' : 'OU: basta o tutor atender a UMA das condições deste bloco.'}
+                </p>
+              )}
             </header>
             {hasPet && (
               <div className="mb-2 rounded-lg bg-sky-50 p-2.5">

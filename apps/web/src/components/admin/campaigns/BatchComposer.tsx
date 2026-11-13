@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, call, explainError, newIdempotencyKey, type AudienceCount, type BatchPreview, type Campaign, type ReserveResult } from './api';
 import { numberFmt } from '@/components/admin/sections/sections';
+import { exampleOf, hasVariables } from './filters';
 
 const input = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[14px] text-slate-900';
 
@@ -30,20 +31,24 @@ export function BatchComposer({ campaign, filter, ready, summary, onReserved, bu
   const requested = mode === 'n' && /^\d+$/.test(n) && Number(n) >= 1 ? Number(n) : null;
   const sizeOk = mode === 'all' || requested !== null;
 
-  const sig = useMemo(() => JSON.stringify({ filter, mode, requested, c: campaign.id }), [filter, mode, requested, campaign.id]);
+  // O que mexe na contagem: filtros, tamanho, campanha E o estado dos lotes (reservou, concluiu, recuperou, devolveu).
+  // A contagem SEMPRE vem do servidor: nada de somar/subtrair localmente.
+  const batchState = campaign.batches.map((b) => `${b.id}:${b.phase}:${Object.values(b.counts).join(',')}`).join('|');
+  const sig = useMemo(() => JSON.stringify({ filter, mode, requested, c: campaign.id, st: campaign.status, bs: batchState }), [filter, mode, requested, campaign.id, campaign.status, batchState]);
 
   // ── contagem dinâmica (com espera, ignorando respostas antigas) ──
-  const [count, setCount] = useState<{ data: AudienceCount | null; loading: boolean; error: string | null }>({ data: null, loading: false, error: null });
+  const [count, setCount] = useState<{ data: AudienceCount | null; sig: string | null; loading: boolean; error: string | null }>({ data: null, sig: null, loading: false, error: null });
   const reqSeq = useRef(0);
   useEffect(() => {
-    if (!ready || closed) { setCount({ data: null, loading: false, error: null }); return; }
-    const mine = ++reqSeq.current;
+    const thisSig = sig;
+    const mine = ++reqSeq.current;                       // qualquer resposta de uma consulta anterior passa a ser ignorada
+    if (!ready || closed) { setCount({ data: null, sig: null, loading: false, error: null }); return; }
     setCount((c) => ({ ...c, loading: true, error: null }));
     const t = setTimeout(async () => {
       try {
         const data = await call<AudienceCount>('/audience/count', { filter, campaign_id: campaign.id, batch_size: mode === 'n' ? requested : null, all_available: mode === 'all' });
-        if (mine === reqSeq.current) setCount({ data, loading: false, error: null });
-      } catch (e) { if (mine === reqSeq.current) setCount({ data: null, loading: false, error: explainError(e).text }); }
+        if (mine === reqSeq.current) setCount({ data, sig: thisSig, loading: false, error: null });
+      } catch (e) { if (mine === reqSeq.current) setCount({ data: null, sig: null, loading: false, error: explainError(e).text }); }
     }, 450);
     return () => clearTimeout(t);
   }, [sig, ready, closed]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -67,7 +72,8 @@ export function BatchComposer({ campaign, filter, ready, summary, onReserved, bu
 
   const expiresMs = preview?.p.expires_at ? Date.parse(preview.p.expires_at) - now : null;
   const expired = expiresMs !== null && expiresMs <= 0;
-  const available = count.data?.available ?? null;
+  const fresh = !!count.data && count.sig === sig && !count.loading;     // número antigo nunca aparece como se fosse atual
+  const available = fresh ? count.data!.available : null;
   const noOne = available === 0;
 
   const doPreview = async () => {
@@ -114,19 +120,27 @@ export function BatchComposer({ campaign, filter, ready, summary, onReserved, bu
       <div aria-live="polite" aria-busy={count.loading}>
         {!ready ? <p className="rounded-lg bg-amber-50 p-3 text-[13px] text-amber-900">Complete os filtros marcados com “Falta” para ver a contagem.</p>
           : count.error ? <p role="alert" className="rounded-lg bg-rose-50 p-3 text-[13px] text-rose-800">{count.error}</p>
-          : !count.data ? <p className="text-[13px] text-slate-500">Contando…</p> : (
-            <div className={count.loading ? 'opacity-60' : ''}>
+          : !fresh ? (
+            <div role="status">
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                <Stat label="Atendem aos filtros" value={numberFmt(count.data.matches)} />
-                <Stat label="Alcançáveis por push" value={numberFmt(count.data.reachable)} hint={`sem push ${numberFmt(count.data.not_reachable.no_push)} · desligaram ${numberFmt(count.data.not_reachable.opt_out)}`} />
-                <Stat label="Já usados na campanha" value={numberFmt(count.data.used)} hint={`${numberFmt(count.data.used_in_campaign_total)} no total da campanha`} />
-                <Stat label="Ainda disponíveis" value={numberFmt(count.data.available)} tone="emerald" />
-                <Stat label="Próximo lote" value={mode === 'all' ? numberFmt(count.data.available) : requested ? numberFmt(Math.min(requested, count.data.available)) : '—'} tone="sky" />
+                {['Atendem aos filtros', 'Alcançáveis por push', 'Já usados na campanha', 'Ainda disponíveis', 'Próximo lote'].map((l) => <Stat key={l} label={l} value="…" />)}
               </div>
-              <p className="mt-2 text-[11.5px] text-slate-500">iPhone {numberFmt(count.data.by_platform.ios)} · Android {numberFmt(count.data.by_platform.android)} · web {numberFmt(count.data.by_platform.web)}. Esta contagem orienta; o servidor refaz o cálculo na prévia e na confirmação.</p>
-              {count.data.warnings.length > 0 && (
+              <p className="mt-2 text-[12px] text-slate-500">Atualizando a contagem no servidor…</p>
+            </div>
+          ) : (
+            <div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+                <Stat label="Atendem aos filtros" value={numberFmt(count.data!.matches)} />
+                <Stat label="Alcançáveis por push" value={numberFmt(count.data!.reachable)} hint={`sem push ${numberFmt(count.data!.not_reachable.no_push)} · desligaram ${numberFmt(count.data!.not_reachable.opt_out)}`} />
+                <Stat label="Já usados na campanha" value={numberFmt(count.data!.used_in_campaign_total)}
+                  hint={count.data!.used_in_campaign_total === count.data!.used ? 'todos atendem aos filtros atuais' : `${numberFmt(count.data!.used)} deles atendem aos filtros atuais`} />
+                <Stat label="Ainda disponíveis" value={numberFmt(count.data!.available)} hint="alcançáveis que atendem aos filtros e ainda não foram usados" tone="emerald" />
+                <Stat label="Próximo lote" value={mode === 'all' ? numberFmt(count.data!.available) : requested ? numberFmt(Math.min(requested, count.data!.available)) : '—'} tone="sky" />
+              </div>
+              <p className="mt-2 text-[11.5px] text-slate-500">iPhone {numberFmt(count.data!.by_platform.ios)} · Android {numberFmt(count.data!.by_platform.android)} · web {numberFmt(count.data!.by_platform.web)}. Esta contagem vem do servidor e orienta; o servidor refaz o cálculo na prévia e na confirmação.</p>
+              {count.data!.warnings.length > 0 && (
                 <ul className="mt-2 space-y-1.5">
-                  {count.data.warnings.map((w, i) => (
+                  {count.data!.warnings.map((w, i) => (
                     <li key={`${w.code}-${i}`} className={`rounded-lg p-2.5 text-[12.5px] leading-snug ${w.level === 'attention' ? 'bg-amber-50 text-amber-900' : 'bg-slate-50 text-slate-700'}`}>{w.text}</li>
                   ))}
                 </ul>
@@ -147,7 +161,7 @@ export function BatchComposer({ campaign, filter, ready, summary, onReserved, bu
         <p className="mt-2 text-[11.5px] text-slate-500">Os tutores são sorteados entre os disponíveis. Quem já foi usado nesta campanha nunca é escolhido de novo, mesmo mudando os filtros.</p>
       </fieldset>
 
-      {busyBatch && <p role="status" className="rounded-lg bg-amber-50 p-3 text-[13px] text-amber-900">Há um lote em andamento ou interrompido. Conclua-o abaixo antes de reservar o próximo.</p>}
+      {busyBatch && <p role="status" className="rounded-lg bg-amber-50 p-3 text-[13px] leading-snug text-amber-900">Há um lote em andamento ou interrompido. Conclua-o abaixo antes de reservar o próximo. Enquanto ele durar, o <strong>envio avulso</strong> também precisa aguardar: o sistema só permite um envio por vez, para ninguém receber duas coisas ao mesmo tempo.</p>}
       {noOne && ready && <p role="status" className="rounded-lg bg-slate-100 p-3 text-[13px] text-slate-700">Nenhum destinatário disponível com estes filtros. Ajuste os filtros ou encerre a campanha.</p>}
 
       <button type="button" onClick={doPreview} disabled={!canPreview} className="rounded-lg bg-sky-700 px-4 py-2.5 text-[14px] font-bold text-white disabled:opacity-40">
@@ -167,8 +181,10 @@ export function BatchComposer({ campaign, filter, ready, summary, onReserved, bu
         <section aria-label="Prévia do lote" className="space-y-3 rounded-xl border-2 border-sky-300 bg-white p-4">
           <h4 className="text-[15px] font-extrabold text-slate-900">Prévia do lote {p.next_batch_no}</h4>
           <div className="rounded-lg bg-slate-50 p-3 text-[13px]">
-            <p className="font-bold text-slate-900">{p.content.title || '{tutor}, uma novidade para {pets}'}</p>
-            <p className="mt-0.5 text-slate-700">{p.content.message}</p>
+            <p className="text-[11px] font-bold uppercase text-slate-500">Como aparece no celular (exemplo)</p>
+            <p className="font-bold text-slate-900">{exampleOf(p.content.title || '{tutor}, uma novidade para {pets}')}</p>
+            <p className="mt-0.5 text-slate-700">{exampleOf(p.content.message)}</p>
+            {(hasVariables(p.content.title) || hasVariables(p.content.message) || !p.content.title) && <p className="mt-1 text-[11.5px] text-slate-500">No envio, <strong>{'{tutor}'}</strong> vira o nome de cada tutor e <strong>{'{pets}'}</strong> o nome dos pets dele (aqui: “Ana” e “Thor”).</p>}
             {p.content.product_url && <p className="mt-1 break-all text-[12px] text-slate-500">Produto: {String(p.content.product_title)} · {p.content.product_url}</p>}
           </div>
           <div>

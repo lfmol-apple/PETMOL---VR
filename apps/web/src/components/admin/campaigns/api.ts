@@ -68,7 +68,7 @@ export interface AudienceCount {
 export interface BatchMetrics { delivered: number; tapped: number; opened: number; acted: number }
 export interface Batch {
   id: string; campaign_id: string; batch_no: number; phase: BatchPhase; created_at: string | null;
-  requested: number | 'all' | null; reserved: number | null; counts: Counts; interrupted_suspected: boolean; accepted_note: string;
+  requested: number | 'all' | null; reserved: number | null; filters?: unknown; counts: Counts; interrupted_suspected: boolean; accepted_note: string;
   metrics?: BatchMetrics | null;
 }
 export interface CampaignContent { title: string | null; message: string; goal: string | null; destination: string | null; product_url: string | null; product_title: string | null }

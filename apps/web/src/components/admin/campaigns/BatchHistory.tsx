@@ -4,6 +4,8 @@
 import { useRef, useState } from 'react';
 import { call, explainError, type Batch, type BatchPhase, type RecipientState } from './api';
 import { numberFmt } from '@/components/admin/sections/sections';
+import type { FieldInfo } from './api';
+import { describeStoredFilter } from './filters';
 
 export const STATE_LABEL: Record<RecipientState, { label: string; help: string; cls: string }> = {
   reserved: { label: 'Reservados', help: 'Garantidos no servidor, ainda não tentados.', cls: 'bg-slate-100 text-slate-800' },
@@ -67,7 +69,7 @@ function Recovery({ b, onChanged }: { b: Batch; onChanged: () => void }) {
   );
 }
 
-function BatchCard({ b, onChanged }: { b: Batch; onChanged: () => void }) {
+function BatchCard({ b, onChanged, fields }: { b: Batch; onChanged: () => void; fields: FieldInfo[] }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const inFlight = useRef(false);
@@ -86,6 +88,12 @@ function BatchCard({ b, onChanged }: { b: Batch; onChanged: () => void }) {
         <span className="text-[12px] text-slate-600">{PHASE_LABEL[b.phase] ?? b.phase}{b.created_at ? ` · ${new Date(b.created_at).toLocaleString('pt-BR')}` : ''}</span>
       </div>
       <p className="text-[12px] text-slate-600">Pedido: {b.requested === 'all' ? 'todos os disponíveis' : numberFmt(b.requested as number)} · Reservados no início: {numberFmt(b.reserved)}</p>
+      <div className="rounded-lg bg-slate-50 p-2.5" aria-label={`Filtros do lote ${b.batch_no}`}>
+        <p className="text-[11px] font-bold uppercase text-slate-500">Quem foi escolhido (filtros usados neste lote)</p>
+        <ul className="mt-0.5 space-y-0.5 text-[12.5px] text-slate-800">
+          {(b.filters ? describeStoredFilter(b.filters as never, fields) : ['Filtros não registrados para este lote.']).map((l, i) => <li key={i}>{l}</li>)}
+        </ul>
+      </div>
       <CountChips counts={b.counts} total={total} />
       {active && !b.interrupted_suspected && <p role="status" className="text-[12.5px] text-sky-900">Envio em andamento. Esta tela se atualiza sozinha.</p>}
       {active && b.interrupted_suspected && (
@@ -106,7 +114,7 @@ function BatchCard({ b, onChanged }: { b: Batch; onChanged: () => void }) {
   );
 }
 
-export function BatchHistory({ batches, onChanged }: { batches: Batch[]; onChanged: () => void }) {
+export function BatchHistory({ batches, onChanged, fields }: { batches: Batch[]; onChanged: () => void; fields: FieldInfo[] }) {
   if (!batches.length) return <p className="text-[13px] text-slate-500">Nenhum lote ainda. Depois do primeiro envio, o histórico aparece aqui.</p>;
-  return <ul className="space-y-3">{[...batches].sort((a, b) => b.batch_no - a.batch_no).map((b) => <BatchCard key={b.id} b={b} onChanged={onChanged} />)}</ul>;
+  return <ul className="space-y-3">{[...batches].sort((a, b) => b.batch_no - a.batch_no).map((b) => <BatchCard key={b.id} b={b} onChanged={onChanged} fields={fields} />)}</ul>;
 }
