@@ -1,0 +1,171 @@
+'use client';
+
+/** Passo 8 — histórico de lotes, resultados e recuperação. "Aceito pelo provedor" NUNCA é chamado de "entregue". */
+import { useRef, useState } from 'react';
+import { call, explainError, type Batch, type BatchPhase, type RecipientState } from './api';
+import { numberFmt } from '@/components/admin/sections/sections';
+import type { FieldInfo } from './api';
+import { describeStoredFilter } from './filters';
+
+export const STATE_LABEL: Record<RecipientState, { label: string; help: string; cls: string }> = {
+  reserved: { label: 'Reservados', help: 'Garantidos no servidor, ainda não tentados.', cls: 'bg-slate-100 text-slate-800' },
+  sending: { label: 'Em envio', help: 'Tentativa registrada; aguardando resposta do provedor.', cls: 'bg-sky-100 text-sky-900' },
+  accepted: { label: 'Aceitos pelo provedor', help: 'O provedor (Apple/Google/web push) recebeu o envio. Não confirma a entrega no celular.', cls: 'bg-emerald-100 text-emerald-900' },
+  failed: { label: 'Com falha', help: 'O envio foi recusado ou o tutor não tem aparelho válido. Não é reenviado automaticamente.', cls: 'bg-rose-100 text-rose-900' },
+  uncertain: { label: 'Resultado incerto', help: 'Não sabemos se o provedor recebeu. Por segurança, NÃO é reenviado automaticamente.', cls: 'bg-amber-100 text-amber-900' },
+};
+const ORDER: RecipientState[] = ['reserved', 'sending', 'accepted', 'failed', 'uncertain'];
+
+export const PHASE_LABEL: Record<BatchPhase, string> = {
+  reserved: 'Reservado, iniciando', sending: 'Enviando', done: 'Concluído', interrupted: 'Interrompido', error: 'Erro',
+};
+
+export function CountChips({ counts, total }: { counts: Record<RecipientState, number>; total?: number }) {
+  return (
+    <ul className="flex flex-wrap gap-1.5" aria-label="Situação dos destinatários">
+      {ORDER.map((s) => (
+        <li key={s} title={STATE_LABEL[s].help} className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${STATE_LABEL[s].cls} ${counts[s] === 0 ? 'opacity-50' : ''}`}>
+          {STATE_LABEL[s].label}: {numberFmt(counts[s])}
+        </li>
+      ))}
+      {total !== undefined && <li className="rounded-full bg-white px-2.5 py-1 text-[12px] font-semibold text-slate-600 ring-1 ring-slate-200">Total: {numberFmt(total)}</li>}
+    </ul>
+  );
+}
+
+/** Parar o envio: confirmação explícita; o pedido fica gravado no servidor e a thread de envio o confere entre os destinatários. */
+function StopControl({ b, onChanged }: { b: Batch; onChanged: () => void }) {
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const inFlight = useRef(false);
+  const requested = b.stop?.state === 'requested';
+  const go = async () => {
+    if (inFlight.current) return;                                   // clique duplicado: um pedido por vez (e o servidor é idempotente)
+    inFlight.current = true; setBusy(true); setMsg(null);
+    try { await call(`/batches/${b.id}/stop`, { confirm: true }); setAsking(false); onChanged(); }
+    catch (e) { setMsg(explainError(e).text); onChanged(); }
+    finally { inFlight.current = false; setBusy(false); }
+  };
+  if (requested) {
+    return (
+      <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-[12.5px] leading-snug text-amber-950" aria-label="Parada solicitada">
+        <p><strong>Parada solicitada.</strong> O servidor já registrou o pedido e vai parar assim que terminar o envio que está em andamento neste instante. Esse envio será registrado com o resultado real (não é cancelado). Ninguém novo será enviado.</p>
+        <ol className="mt-1.5 flex flex-wrap gap-1.5 text-[11.5px] font-semibold" aria-label="Etapas da parada">
+          <li className="rounded-full bg-amber-200 px-2 py-0.5">1 · Solicitada ✔</li>
+          <li className="rounded-full bg-white px-2 py-0.5 ring-1 ring-amber-300">2 · Reconhecida (aguardando)</li>
+          <li className="rounded-full bg-white px-2 py-0.5 text-slate-500 ring-1 ring-slate-200">3 · Decidir: continuar ou devolver</li>
+        </ol>
+      </div>
+    );
+  }
+  if (!asking) {
+    return <button type="button" onClick={() => setAsking(true)} className="rounded-lg border border-rose-400 bg-white px-3 py-1.5 text-[12.5px] font-bold text-rose-800 hover:bg-rose-50">Parar envio</button>;
+  }
+  return (
+    <div role="alertdialog" aria-label="Confirmar parada do envio" className="space-y-2 rounded-lg border border-rose-300 bg-rose-50 p-3 text-[12.5px] leading-snug text-rose-950">
+      <p><strong>Parar o envio deste lote?</strong></p>
+      <ul className="list-disc space-y-0.5 pl-5">
+        <li>O envio que está em andamento neste instante termina e é registrado normalmente.</li>
+        <li>Quem já recebeu continua registrado e não recebe de novo.</li>
+        <li>Quem ainda não foi tentado fica reservado: depois você escolhe continuar só com eles ou devolvê-los ao público.</li>
+        <li>Resultados incertos nunca são reenviados automaticamente.</li>
+      </ul>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" disabled={busy} onClick={go} className="rounded-lg bg-rose-700 px-3 py-1.5 font-bold text-white disabled:opacity-40">{busy ? 'Solicitando…' : 'Sim, parar o envio'}</button>
+        <button type="button" disabled={busy} onClick={() => setAsking(false)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-700">Cancelar</button>
+      </div>
+      {msg && <p role="alert" className="text-rose-800">{msg}</p>}
+    </div>
+  );
+}
+
+function Recovery({ b, onChanged }: { b: Batch; onChanged: () => void }) {
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState<null | 'resume' | 'release'>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const inFlight = useRef(false);
+  const left = b.counts.reserved;
+  const act = async (kind: 'resume' | 'release') => {
+    if (inFlight.current) return;
+    inFlight.current = true; setBusy(kind); setMsg(null);
+    try { await call(`/batches/${b.id}/${kind}`, { confirm_count: left }); setTyped(''); onChanged(); }
+    catch (e) { setMsg(explainError(e).text); onChanged(); }
+    finally { inFlight.current = false; setBusy(null); }
+  };
+  return (
+    <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-[13px] leading-snug text-amber-950">
+      {b.stop?.state === 'acknowledged'
+        ? <p><strong>Envio parado a seu pedido.</strong> A parada foi reconhecida pelo servidor: nada novo foi enviado depois dela e o sistema não reenviou nada sozinho.</p>
+        : <p><strong>Lote interrompido.</strong> O envio parou no meio (ex.: o servidor reiniciou). O sistema não reenviou nada sozinho.</p>}
+      {b.counts.uncertain > 0 && <p>{numberFmt(b.counts.uncertain)} tutor(es) com <strong>resultado incerto</strong>: podem ou não ter recebido. Eles <strong>não</strong> serão reenviados nem substituídos.</p>}
+      {b.counts.failed > 0 && <p>{numberFmt(b.counts.failed)} com falha: também não serão reenviados.</p>}
+      {left > 0 ? (
+        <>
+          <p>{numberFmt(left)} tutor(es) <strong>nunca foram tentados</strong>. Você escolhe: continuar o envio só para eles ou devolvê-los ao público (voltam a ficar disponíveis na campanha).</p>
+          <div>
+            <label htmlFor={`rc-${b.id}`} className="mb-1 block text-[12px] font-bold">Para confirmar, digite {left}</label>
+            <input id={`rc-${b.id}`} inputMode="numeric" autoComplete="off" className="w-32 rounded-lg border border-amber-400 bg-white px-3 py-2 text-[14px]" value={typed} onChange={(e) => setTyped(e.target.value.replace(/\D/g, ''))} />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" disabled={typed !== String(left) || busy !== null} onClick={() => act('resume')} className="rounded-lg bg-emerald-700 px-3 py-2 text-[13px] font-bold text-white disabled:opacity-40">{busy === 'resume' ? 'Retomando…' : `Continuar só os ${left} nunca tentados`}</button>
+            <button type="button" disabled={typed !== String(left) || busy !== null} onClick={() => act('release')} className="rounded-lg bg-slate-700 px-3 py-2 text-[13px] font-bold text-white disabled:opacity-40">{busy === 'release' ? 'Devolvendo…' : `Devolver os ${left} ao público`}</button>
+          </div>
+        </>
+      ) : <p>Ninguém ficou sem ser tentado: não há nada a continuar.</p>}
+      {msg && <p role="alert" className="text-rose-800">{msg}</p>}
+    </div>
+  );
+}
+
+function BatchCard({ b, onChanged, fields }: { b: Batch; onChanged: () => void; fields: FieldInfo[] }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const inFlight = useRef(false);
+  const total = Object.values(b.counts).reduce((a, n) => a + n, 0);
+  const active = b.phase === 'reserved' || b.phase === 'sending';
+  const reclassify = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true; setBusy(true); setMsg(null);
+    try { await call(`/batches/${b.id}/recover`, {}); onChanged(); } catch (e) { setMsg(explainError(e).text); } finally { inFlight.current = false; setBusy(false); }
+  };
+  const tone = b.phase === 'done' ? 'border-emerald-200' : b.phase === 'interrupted' ? 'border-amber-300' : b.phase === 'error' ? 'border-rose-300' : 'border-sky-300';
+  return (
+    <li className={`space-y-2 rounded-xl border-2 bg-white p-3 ${tone}`}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h4 className="text-[14px] font-extrabold text-slate-900">Lote {b.batch_no}</h4>
+        <span className="text-[12px] text-slate-600">{PHASE_LABEL[b.phase] ?? b.phase}{b.created_at ? ` · ${new Date(b.created_at).toLocaleString('pt-BR')}` : ''}</span>
+      </div>
+      <p className="text-[12px] text-slate-600">Pedido: {b.requested === 'all' ? 'todos os disponíveis' : numberFmt(b.requested as number)} · Reservados no início: {numberFmt(b.reserved)}</p>
+      <div className="rounded-lg bg-slate-50 p-2.5" aria-label={`Filtros do lote ${b.batch_no}`}>
+        <p className="text-[11px] font-bold uppercase text-slate-500">Quem foi escolhido (filtros usados neste lote)</p>
+        <ul className="mt-0.5 space-y-0.5 text-[12.5px] text-slate-800">
+          {(b.filters ? describeStoredFilter(b.filters as never, fields) : ['Filtros não registrados para este lote.']).map((l, i) => <li key={i}>{l}</li>)}
+        </ul>
+      </div>
+      <CountChips counts={b.counts} total={total} />
+      {active && !b.interrupted_suspected && <p role="status" className="text-[12.5px] text-sky-900">Envio em andamento. Esta tela se atualiza sozinha.</p>}
+      {active && b.interrupted_suspected && (
+        <div className="rounded-lg bg-amber-50 p-2.5 text-[12.5px] leading-snug text-amber-950">
+          <p>Este lote parece parado (sem atividade há mais de 5 minutos). Você pode verificar: isso apenas <strong>reclassifica</strong> o que estava em envio como “incerto”; <strong>não envia nada</strong>.</p>
+          <button type="button" disabled={busy} onClick={reclassify} className="mt-2 rounded-lg bg-amber-700 px-3 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-40">{busy ? 'Verificando…' : 'Verificar lote parado'}</button>
+        </div>
+      )}
+      {active && <StopControl b={b} onChanged={onChanged} />}
+      {b.phase === 'done' && b.stop?.state === 'finished_before_stop' && <p className="text-[12px] text-slate-700">Você pediu a parada, mas o lote já tinha terminado: todos os reservados foram tentados.</p>}
+      {b.phase === 'interrupted' && <Recovery b={b} onChanged={onChanged} />}
+      {b.phase !== 'interrupted' && b.counts.uncertain > 0 && <p className="text-[12px] text-amber-900">{numberFmt(b.counts.uncertain)} com resultado incerto: não são reenviados automaticamente.</p>}
+      {b.phase === 'done' && b.counts.failed > 0 && <p className="text-[12px] text-rose-800">{numberFmt(b.counts.failed)} com falha: não são reenviados nem substituídos por outros tutores.</p>}
+      {b.metrics && b.counts.accepted > 0 && (
+        <p className="text-[12px] text-slate-600">Resultado no app: {numberFmt(b.metrics.tapped)} tocaram na notificação · {numberFmt(b.metrics.opened)} abriram o app depois do envio.</p>
+      )}
+      <p className="text-[11px] text-slate-500">{b.accepted_note}</p>
+      {msg && <p role="alert" className="text-[12.5px] text-rose-800">{msg}</p>}
+    </li>
+  );
+}
+
+export function BatchHistory({ batches, onChanged, fields }: { batches: Batch[]; onChanged: () => void; fields: FieldInfo[] }) {
+  if (!batches.length) return <p className="text-[13px] text-slate-500">Nenhum lote ainda. Depois do primeiro envio, o histórico aparece aqui.</p>;
+  return <ul className="space-y-3">{[...batches].sort((a, b) => b.batch_no - a.batch_no).map((b) => <BatchCard key={b.id} b={b} onChanged={onChanged} fields={fields} />)}</ul>;
+}

@@ -37,7 +37,13 @@ async function call<T>(path: string, body?: unknown): Promise<T> {
     cache: 'no-store',
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `Erro ${res.status}`);
+  if (!res.ok) {
+    const msg = typeof data.detail === 'string' ? data.detail : `Erro ${res.status}`;
+    // Só a explicação: o bloqueio de um envio por vez (avulso ou lote de campanha) continua igual.
+    throw new Error(res.status === 409 && /envio em andamento/i.test(msg)
+      ? `${msg} Pode ser um envio avulso anterior ou um lote da aba Campanhas: o sistema só permite um envio por vez para ninguém receber duas notificações ao mesmo tempo. Acompanhe na aba Campanhas ou no histórico abaixo e tente de novo quando terminar.`
+      : msg);
+  }
   return data as T;
 }
 
