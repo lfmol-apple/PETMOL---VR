@@ -3,6 +3,18 @@
 import { vi } from 'vitest';
 import fields from './fields.fixture';
 
+const EXPIRED = {
+  today: '2026-11-14', active_plans: 1572, plans_with_end_date: 1423,
+  note: 'Previsão vencida não significa que a ração acabou: a data vem do plano e pode estar desatualizada.',
+  buckets: [
+    { key: 'ate_7', label: 'Até 7 dias', min_days: 1, max_days: 7, plans: 6, calculated: 2, manual: 4, tutors: 5, tutors_reachable: 4 },
+    { key: 'd8_30', label: '8 a 30 dias', min_days: 8, max_days: 30, plans: 10, calculated: 3, manual: 7, tutors: 9, tutors_reachable: 7 },
+    { key: 'd31_90', label: '31 a 90 dias', min_days: 31, max_days: 90, plans: 20, calculated: 5, manual: 15, tutors: 18, tutors_reachable: 14 },
+    { key: 'mais_90', label: 'Mais de 90 dias', min_days: 91, max_days: null, plans: 30, calculated: 6, manual: 24, tutors: 25, tutors_reachable: 20 },
+  ],
+  total: { plans: 66, calculated: 16, manual: 50, tutors: 50, tutors_reachable: 40 },
+};
+
 export interface Call { method: string; path: string; body?: any }
 type Handler = (body: any, ctx: Backend) => { status?: number; json: unknown } | Promise<{ status?: number; json: unknown }>;
 
@@ -83,6 +95,7 @@ export class Backend {
   routes: Record<string, Handler> = {
     'GET /config': (_b, s) => ({ json: { enabled: s.enabled } }),
     'GET /fields': () => ({ json: fields }),
+    'GET /audience/expired-feeding-plans': () => ({ json: EXPIRED }),
     'GET /audience/location-coverage': () => ({ json: { reachable: 200, approximate_note: 'Cobertura é quantos tutores têm o dado, não a precisão geográfica: IP e GPS indicam cidade/estado APROXIMADOS, nunca a residência.', origins: [
       { key: 'cadastro', label: 'Cadastro (digitado pelo tutor)', approximate: false, state: 16, city: 18 },
       { key: 'ip_direto', label: 'IP do próprio tutor (última sessão)', approximate: true, tutors: 130, percent: 65 },

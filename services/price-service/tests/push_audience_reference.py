@@ -179,13 +179,15 @@ def rule_pet(p, r):
         return p["neutered"] is True
     if f == "feeding_registered":
         return configured(p["plan"])
-    if f in ("feeding_days_left", "feeding_expired", "feeding_date_source"):
+    if f in ("feeding_days_left", "feeding_expired", "feeding_date_source", "feeding_overdue_days"):
         pl = p["plan"]
         if not pl or pl["deleted"] or not pl["enabled"] or pl["end"] is None:
             return False
         d = (pl["end"] - NOW.date()).days
         if f == "feeding_days_left":
             return d >= 0 and cmp(op, v, d)
+        if f == "feeding_overdue_days":
+            return d < 0 and cmp(op, v, -d)
         if f == "feeding_expired":
             return d < 0
         return pl["source"] == v
@@ -202,7 +204,7 @@ def rule_pet(p, r):
 
 
 PET_FIELDS = {"pet_species", "pet_sex", "pet_breed_contains", "pet_age_months", "pet_weight_kg", "pet_neutered_yes", "feeding_registered",
-              "feeding_brand_contains", "feeding_days_left", "feeding_expired", "feeding_date_source", "care_vaccine", "care_parasite", "care_grooming"}
+              "feeding_brand_contains", "feeding_days_left", "feeding_overdue_days", "feeding_expired", "feeding_date_source", "care_vaccine", "care_parasite", "care_grooming"}
 
 
 def holds(u, g):
@@ -342,6 +344,9 @@ def gen_rule(rng: random.Random, field: str) -> dict:
     if field == "feeding_days_left":
         op = rng.choice(["gte", "lte", "between"])
         return {"kind": "rule", "field": field, "op": op, "value": rng.choice([0, 1, 7, 15, 30]) if op != "between" else sorted([rng.randint(0, 5), rng.randint(5, 40)])}
+    if field == "feeding_overdue_days":
+        op = rng.choice(["gte", "lte", "between"])
+        return {"kind": "rule", "field": field, "op": op, "value": rng.choice([1, 2, 7, 30]) if op != "between" else sorted([rng.randint(1, 3), rng.randint(3, 20)])}
     if field == "feeding_expired":
         return {"kind": "rule", "field": field, "op": "eq", "value": True}
     if field == "feeding_date_source":

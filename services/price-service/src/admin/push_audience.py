@@ -165,6 +165,7 @@ FIELD_META: dict[str, dict] = {
     "location_best_state": {"group": "Localização", "origin": "melhor", "precision": "aproximada (cadastro; na falta, IP da última sessão)"},
     "location_best_city": {"group": "Localização", "origin": "melhor", "precision": "aproximada (cadastro; na falta, IP da última sessão)"},
     "feeding_days_left": {"group": "Alimentação", "origin": "Plano de ração: data de fim (calculada pelo sistema ou informada pelo tutor)", "precision": "estimada pelo plano do tutor"},
+    "feeding_overdue_days": {"group": "Alimentação", "origin": "Plano de ração: dias desde a data de fim prevista", "precision": "estimada pelo plano do tutor"},
     "feeding_expired": {"group": "Alimentação", "origin": "Plano de ração: data de fim já passou", "precision": "estimada pelo plano do tutor"},
     "feeding_date_source": {"group": "Alimentação", "origin": "Plano de ração: quem definiu a data de fim", "precision": "declarada ou calculada"},
     "feeding_registered": {"group": "Alimentação", "origin": "Ração cadastrada (definição do produto)", "precision": "declarada"},
@@ -216,7 +217,7 @@ def validate_filter_values(flt: AudienceFilter) -> None:
         elif rule.field in ("tutor_pet_count",):
             for v in (rule.value if isinstance(rule.value, list) else [rule.value]):
                 _num(v, label, integer=True)
-        elif rule.field in ("pet_age_months", "pet_weight_kg", "feeding_days_left"):
+        elif rule.field in ("pet_age_months", "pet_weight_kg", "feeding_days_left", "feeding_overdue_days"):
             for v in (rule.value if isinstance(rule.value, list) else [rule.value]):
                 _num(v, label)
         elif rule.field in ("location_registered_state", "location_registered_city", "location_geoip_region", "location_best_state", "location_best_city",
@@ -718,6 +719,13 @@ def _r_feeding_days_left(ctx, rule):
     return _with_source_breakdown(_Outcome("pet", ids, _feeding_cov(ctx)), days)
 
 
+def _r_feeding_overdue_days(ctx, rule):
+    v = _scalar_bounds(rule, float)
+    days = _plan_days_left(ctx)
+    ids = {p for p, (d, _) in days.items() if d < 0 and _cmp(rule.op, v, -d)} & set(ctx.pet_owner)
+    return _with_source_breakdown(_Outcome("pet", ids, _feeding_cov(ctx)), days)
+
+
 def _r_feeding_expired(ctx, rule):
     days = _plan_days_left(ctx)
     ids = {p for p, (d, _) in days.items() if d < 0} & set(ctx.pet_owner)
@@ -760,7 +768,7 @@ _RULES: dict[str, Callable[[AudienceContext, FilterRule], _Outcome]] = {
     "location_ip_state": _r_geo("state", ("ip",)), "location_ip_city": _r_geo("city", ("ip",)),
     "location_gps_state": _r_geo("state", ("gps",)), "location_gps_city": _r_geo("city", ("gps",)),
     "location_best_state": _r_geo("state", ("cadastro", "ip", "gps")), "location_best_city": _r_geo("city", ("cadastro", "ip", "gps")),
-    "feeding_days_left": _r_feeding_days_left, "feeding_expired": _r_feeding_expired, "feeding_date_source": _r_feeding_date_source,
+    "feeding_days_left": _r_feeding_days_left, "feeding_expired": _r_feeding_expired, "feeding_overdue_days": _r_feeding_overdue_days, "feeding_date_source": _r_feeding_date_source,
     "feeding_registered": _r_feeding_registered, "feeding_brand_contains": _r_feeding_brand,
     "care_vaccine": _r_care(VaccineRecord), "care_parasite": _r_care(ParasiteControlRecord), "care_grooming": _r_care(GroomingRecord),
     "care_medication": _r_care_medication,
@@ -962,6 +970,46 @@ def list_fields(current=Depends(get_current_admin)):
     return {"fields": describe_fields(),
             "activity_note": "Atividade = eventos registrados no app, não necessariamente login.",
             "location_origins": _ORIGIN_LABEL}
+
+
+OVERDUE_BUCKETS = (("ate_7", "Até 7 dias", 1, 7), ("d8_30", "8 a 30 dias", 8, 30), ("d31_90", "31 a 90 dias", 31, 90), ("mais_90", "Mais de 90 dias", 91, 36500))
+
+
+def expired_feeding_plans(db, now: Optional[datetime] = None) -> dict:
+    """Planos de alimentação ATIVOS cuja previsão de fim já passou, por faixa de atraso e origem da data. Somente leitura.
+    Tutores alcançáveis (push ativo, sem opt-out) SEM contagem duplicada: dentro de cada faixa e no total, um tutor vale 1
+    mesmo com vários pets vencidos. Mesma conta e mesmos planos do filtro `feeding_expired`."""
+    ctx = AudienceContext(db, now)
+    days = {p: v for p, v in _plan_days_left(ctx).items() if p in ctx.pet_owner}
+    reach = ctx.reachable_universe
+    rows = []
+    all_plans = all_calc = all_man = 0
+    all_tutors: set[str] = set()
+    for key, label, lo, hi in OVERDUE_BUCKETS:
+        sel = {p: s for p, (d, s) in days.items() if d < 0 and lo <= -d <= hi}
+        tutors = {ctx.pet_owner[p] for p in sel}
+        calc = sum(1 for s in sel.values() if s == "calculated")
+        rows.append({"key": key, "label": label, "min_days": lo, "max_days": None if key == "mais_90" else hi, "plans": len(sel),
+                     "calculated": calc, "manual": len(sel) - calc, "tutors": len(tutors), "tutors_reachable": len(tutors & reach)})
+        all_plans += len(sel)
+        all_calc += calc
+        all_man += len(sel) - calc
+        all_tutors |= tutors
+    active = db.query(func.count(FeedingPlan.id)).filter(FeedingPlan.deleted_at.is_(None), FeedingPlan.enabled.is_(True)).scalar() or 0
+    return {"today": ctx.now.date().isoformat(), "active_plans": int(active), "plans_with_end_date": len(days),
+            "total": {"plans": all_plans, "calculated": all_calc, "manual": all_man, "tutors": len(all_tutors), "tutors_reachable": len(all_tutors & reach)},
+            "buckets": rows,
+            "note": "Previsão vencida não significa que a ração acabou: a data vem do plano (calculada pelo sistema ou informada pelo tutor) e pode estar desatualizada."}
+
+
+@router.get("/audience/expired-feeding-plans")
+def audience_expired_feeding_plans(current=Depends(get_current_admin)):
+    db = _read_only_session()
+    try:
+        return expired_feeding_plans(db)
+    finally:
+        db.rollback()
+        db.close()
 
 
 @router.get("/audience/location-coverage")

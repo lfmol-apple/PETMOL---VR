@@ -184,6 +184,7 @@ FILTER_FIELDS: dict[str, dict] = {
     "feeding_registered":     {"scope": "pet", "ops": ("eq",), "label": "Ração cadastrada", "values": (True,)},
     # ração acabando: segue a data de fim do PLANO do tutor (calculada pelo sistema ou informada por ele); vencida é um filtro à parte
     "feeding_days_left":      {"scope": "pet", "ops": ("gte", "lte", "between"), "label": "Dias até a ração acabar (data do plano, ainda não vencida)"},
+    "feeding_overdue_days":   {"scope": "pet", "ops": ("gte", "lte", "between"), "label": "Dias desde a data de fim prevista do plano (só vencidos)"},
     "feeding_expired":        {"scope": "pet", "ops": ("eq",), "label": "Data de fim da ração já passou (plano sem atualização)", "values": (True,)},
     "feeding_date_source":    {"scope": "pet", "ops": ("eq",), "label": "Origem da data de fim da ração", "values": ("calculated", "manual")},
     "feeding_brand_contains": {"scope": "pet", "ops": ("contains",), "label": "Marca/produto da ração contém (texto)"},

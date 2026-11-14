@@ -646,7 +646,7 @@ def test_teto_de_escala_vira_503_no_endpoint(api, db, monkeypatch):
 def test_so_ha_endpoints_de_leitura_e_nenhum_envia():
     rotas = {(tuple(sorted(r.methods)), r.path) for r in pa.router.routes}
     assert rotas == {(("GET",), "/v1/admin/push-campaigns/fields"), (("GET",), "/v1/admin/push-campaigns/suggestions/brands"),
-                     (("GET",), "/v1/admin/push-campaigns/audience/location-coverage"), (("POST",), "/v1/admin/push-campaigns/audience/count")}
+                     (("GET",), "/v1/admin/push-campaigns/audience/location-coverage"), (("GET",), "/v1/admin/push-campaigns/audience/expired-feeding-plans"), (("POST",), "/v1/admin/push-campaigns/audience/count")}
     src = open(pa.__file__, encoding="utf-8").read()
     assert "push_to_user" not in src and "_spawn" not in src and "db.commit" not in src and "db.add" not in src
 
@@ -1006,3 +1006,51 @@ def test_racao_mesma_conta_e_mesmo_dia_do_aplicativo(db):
     assert exp == {t}                                                               # no dia seguinte (UTC) a previsão passa a vencida
     db.query(FeedingPlan).update({"enabled": False})                                # pausado: o app nem calcula os dias → o filtro também não
     assert pa.resolve_audience(db, F(R("feeding_expired", "eq", True), scope="any"), now=datetime(2026, 11, 15, 0, 1, tzinfo=timezone.utc)).matches == set()
+
+
+# ══ 7) PLANOS DE ALIMENTAÇÃO COM PREVISÃO VENCIDA (painel administrativo) ═════
+
+def test_painel_vencidos_faixas_origem_e_tutores_sem_duplicar(db):
+    w = World(db)
+    a = w.user("A", ios=True)                    # 2 pets vencidos (faixas diferentes) + alcançável
+    b = w.user("B", ios=True)
+    c = w.user("C")                              # vencido mas SEM push
+    d = w.user("D", ios=True, optout=True)       # vencido, opt-out
+    e = w.user("E", ios=True)                    # não vencido
+    _plano(w, a, ends_in=-3, source="manual"); _plano(w, a, ends_in=-40, source="calculated")
+    _plano(w, b, ends_in=-7, source="calculated"); _plano(w, b, ends_in=-8, source="manual")
+    _plano(w, c, ends_in=-100, source="manual"); _plano(w, d, ends_in=-31, source="manual")
+    _plano(w, e, ends_in=2, source="manual"); _plano(w, e, ends_in=-1, enabled=False)       # pausado: fora
+    r = pa.expired_feeding_plans(db, now=NOW)
+    by = {x["key"]: x for x in r["buckets"]}
+    assert (by["ate_7"]["plans"], by["ate_7"]["tutors"], by["ate_7"]["tutors_reachable"]) == (2, 2, 2)           # a(-3) e b(-7)
+    assert (by["d8_30"]["plans"], by["d8_30"]["tutors_reachable"]) == (1, 1)                                      # b(-8)
+    assert (by["d31_90"]["plans"], by["d31_90"]["tutors"], by["d31_90"]["tutors_reachable"]) == (2, 2, 1)         # a(-40) e d(-31, opt-out)
+    assert (by["mais_90"]["plans"], by["mais_90"]["tutors"], by["mais_90"]["tutors_reachable"]) == (1, 1, 0)      # c sem push
+    t = r["total"]
+    assert t["plans"] == 6 and t["calculated"] == 2 and t["manual"] == 4
+    assert t["tutors"] == 4 and t["tutors_reachable"] == 2                                                        # a e b contados UMA vez (têm 2 planos)
+    assert sum(x["tutors_reachable"] for x in r["buckets"]) > t["tutors_reachable"]                               # a soma das faixas duplicaria; o total não
+    assert "pode estar desatualizada" in r["note"] and r["active_plans"] == 7
+    # coerência com o filtro: mesmos planos/tutores que `feeding_expired` e que a soma das faixas por `feeding_overdue_days`
+    m, reach = ids_of(db, F(R("feeding_expired", "eq", True), scope="any"))
+    assert len(m) == t["tutors"] and len(reach) == t["tutors_reachable"]
+    for key, lo, hi in (("ate_7", 1, 7), ("d8_30", 8, 30), ("d31_90", 31, 90)):
+        mm, rr = ids_of(db, F(R("feeding_overdue_days", "between", [lo, hi]), scope="any"))
+        assert len(mm) == by[key]["tutors"] and len(rr) == by[key]["tutors_reachable"]
+    mm, rr = ids_of(db, F(R("feeding_overdue_days", "gte", 91), scope="any"))
+    assert len(mm) == by["mais_90"]["tutors"] and len(rr) == by["mais_90"]["tutors_reachable"]
+
+
+def test_painel_vencidos_e_somente_leitura_e_nao_toca_planos(db):
+    w = World(db)
+    a = w.user("A", ios=True)
+    _plano(w, a, ends_in=-5)
+    snap = lambda: db.query(FeedingPlan.id, FeedingPlan.estimated_end_date, FeedingPlan.next_reminder_date, FeedingPlan.enabled, FeedingPlan.reminder_source,
+                            FeedingPlan.deleted_at, FeedingPlan.last_food_push_date, FeedingPlan.updated_at).all()
+    before = snap()
+    pa.expired_feeding_plans(db, now=NOW)
+    assert snap() == before and db.query(FeedingPlan).count() == 1
+    src = open(pa.__file__, encoding="utf-8").read()
+    fn = src[src.index("def expired_feeding_plans"):src.index("@router.get(\"/audience/expired-feeding-plans\")")]
+    assert "commit" not in fn and ".add(" not in fn and "delete(" not in fn and "update(" not in fn

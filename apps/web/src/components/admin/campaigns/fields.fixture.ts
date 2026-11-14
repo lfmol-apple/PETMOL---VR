@@ -338,6 +338,21 @@ const fixture = {
    "precision": "estimada pelo plano do tutor"
   },
   {
+   "field": "feeding_overdue_days",
+   "label": "Dias desde a data de fim prevista do plano (só vencidos)",
+   "group": "Alimentação",
+   "scope": "pet",
+   "ops": [
+    "gte",
+    "lte",
+    "between"
+   ],
+   "values": null,
+   "approximate": false,
+   "origin": "Plano de ração: dias desde a data de fim prevista",
+   "precision": "estimada pelo plano do tutor"
+  },
+  {
    "field": "feeding_expired",
    "label": "Data de fim da ração já passou (plano sem atualização)",
    "group": "Alimentação",
