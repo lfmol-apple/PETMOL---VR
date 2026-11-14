@@ -51,6 +51,12 @@ def list_missing_pets(status: Literal["active", "found", "all"] = "all", limit: 
         ids = [str(r.id) for r in rows]
         notified = _counts(db, MissingPetNotification, ids, MissingPetNotification.missing_pet_id)
         found = _counts(db, FoundReport, ids, FoundReport.missing_pet_id)
+        # Quem encontrou: o encerramento ("foi encontrado") não guarda quem apertou, então a origem é INFERIDA pelos relatos "achei":
+        # há relato de OUTRA pessoa (ou anônimo) = terceiro; só relato do próprio tutor, ou nenhum = sem terceiro (pode ser teste).
+        reporters: dict[str, list[Optional[str]]] = {}
+        if ids:
+            for pid, fuid in db.query(FoundReport.missing_pet_id, FoundReport.finder_user_id).filter(FoundReport.missing_pet_id.in_(ids)).all():
+                reporters.setdefault(str(pid), []).append(str(fuid) if fuid else None)
         seen = _counts(db, PetSighting, ids, PetSighting.matched_missing_pet_id)
         owners = {str(u.id): u for u in db.query(User).filter(User.id.in_({r.user_id for r in rows if r.user_id} or {"__none__"})).all()}
         total_active = db.query(func.count(MissingPet.id)).filter(MissingPet.status == "active").scalar() or 0
@@ -58,6 +64,11 @@ def list_missing_pets(status: Literal["active", "found", "all"] = "all", limit: 
         out = []
         for r in rows:
             o = owners.get(str(r.user_id)) if r.user_id else None
+            rep = reporters.get(str(r.id), [])
+            third = sum(1 for f in rep if f is None or f != (str(r.user_id) if r.user_id else None))
+            found_by = None
+            if r.status == "found":
+                found_by = "terceiro" if third else ("proprio_relato" if rep else "sem_relato")
             out.append({
                 "id": r.id, "pet_name": r.pet_name, "species": r.species, "breed": r.breed, "status": r.status,
                 "photo_url": _photo_src(r.photo_url), "created_at": r.created_at.isoformat() if r.created_at else None,
@@ -65,6 +76,7 @@ def list_missing_pets(status: Literal["active", "found", "all"] = "all", limit: 
                 "last_seen_location": r.last_seen_location, "radius_km": r.current_radius_km,
                 "reporter_type": r.reporter_type, "public_slug": r.public_slug,
                 "tutor_name": o.name if o else None, "tutor_email": o.email if o else None,
+                "found_by": found_by, "third_party_reports": third,
                 "notified": notified.get(str(r.id), 0), "found_reports": found.get(str(r.id), 0), "sightings": seen.get(str(r.id), 0),
             })
         return {"total": total, "active": int(total_active), "items": out}

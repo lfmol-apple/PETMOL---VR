@@ -67,3 +67,20 @@ describe('abas do painel', () => {
     expect(screen.getAllByText('Notificações ativas').length).toBeGreaterThan(0);
   });
 });
+
+describe('Pets sumidos: quem encontrou', () => {
+  afterEach(() => cleanup());
+  it('mostra se o achado veio de outra pessoa ou só do tutor (possível teste) e rotula expirado', async () => {
+    const base = { species: 'dog', breed: null, photo_url: null, created_at: null, found_at: null, last_seen_location: null, radius_km: null, reporter_type: null, public_slug: null, tutor_name: 'Ana', tutor_email: null, notified: 0, found_reports: 0, sightings: 0 };
+    api.adminApi.mockResolvedValue({ total: 3, active: 0, items: [
+      { ...base, id: '1', pet_name: 'Rex', status: 'found', found_by: 'terceiro', third_party_reports: 1 },
+      { ...base, id: '2', pet_name: 'Mel', status: 'found', found_by: 'sem_relato', third_party_reports: 0 },
+      { ...base, id: '3', pet_name: 'Bob', status: 'expired', found_by: null, third_party_reports: 0 },
+    ] });
+    render(<PetsSumidosTab />);
+    await screen.findByText('Rex');
+    const t = screen.getAllByTestId('quem-achou').map((e) => e.textContent);
+    expect(t[0]).toMatch(/outra pessoa/); expect(t[1]).toMatch(/possível teste/);
+    expect(screen.getAllByText('Expirado').length).toBe(1);
+  });
+});

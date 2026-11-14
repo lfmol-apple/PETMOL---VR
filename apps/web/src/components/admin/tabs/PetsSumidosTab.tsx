@@ -12,10 +12,21 @@ interface Item {
   created_at: string | null; found_at: string | null; last_seen_location: string | null; radius_km: number | null;
   reporter_type: string | null; public_slug: string | null; tutor_name: string | null; tutor_email: string | null;
   notified: number; found_reports: number; sightings: number;
+  found_by: 'terceiro' | 'proprio_relato' | 'sem_relato' | null; third_party_reports: number;
 }
 interface Resp { total: number; active: number; items: Item[] }
 
 const FILTERS = [{ key: 'all', label: 'Todos' }, { key: 'active', label: 'Sumidos agora' }, { key: 'found', label: 'Encontrados' }] as const;
+const STATUS: Record<string, { label: string; cls: string }> = {
+  active: { label: 'Sumido', cls: 'bg-rose-100 text-rose-700' }, found: { label: 'Encontrado', cls: 'bg-emerald-100 text-emerald-700' },
+  expired: { label: 'Expirado', cls: 'bg-slate-100 text-slate-600' }, removed: { label: 'Removido', cls: 'bg-slate-100 text-slate-600' },
+};
+/** Quem encerrou como encontrado (inferido pelos relatos "achei"; o encerramento em si não guarda quem apertou). */
+export const FOUND_BY: Record<string, { text: string; cls: string }> = {
+  terceiro: { text: 'Achado por outra pessoa (relato “achei”)', cls: 'bg-emerald-50 text-emerald-800' },
+  proprio_relato: { text: 'Só o próprio tutor relatou — possível teste', cls: 'bg-amber-50 text-amber-800' },
+  sem_relato: { text: 'Encerrado pelo tutor/família, sem nenhum relato de terceiro — possível teste', cls: 'bg-amber-50 text-amber-800' },
+};
 const SPECIES: Record<string, string> = { dog: 'Cão', cat: 'Gato' };
 
 export function PetsSumidosTab() {
@@ -50,10 +61,11 @@ export function PetsSumidosTab() {
                     <p className="flex flex-wrap items-center gap-2 text-[14px] font-extrabold text-slate-900">
                       {i.pet_name}
                       <span className="text-[12px] font-medium text-slate-500">{[SPECIES[i.species ?? ''] ?? i.species, i.breed].filter(Boolean).join(' · ')}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${active ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                        {active ? 'Sumido' : 'Encontrado'}
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${(STATUS[i.status] ?? STATUS.removed).cls}`}>
+                        {(STATUS[i.status] ?? { label: i.status }).label}
                       </span>
                     </p>
+                    {i.found_by && <p data-testid="quem-achou" className={`mt-0.5 inline-block rounded-md px-2 py-0.5 text-[12px] font-semibold ${FOUND_BY[i.found_by].cls}`}>{FOUND_BY[i.found_by].text}</p>}
                     <p className="text-[12px] text-slate-500">
                       Avisou: {i.tutor_name || '—'}{i.tutor_email ? ` · ${i.tutor_email}` : ''}{i.reporter_type && i.reporter_type !== 'tutor_app' ? ` · via ${i.reporter_type}` : ''}
                     </p>
