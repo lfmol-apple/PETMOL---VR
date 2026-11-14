@@ -140,7 +140,7 @@ export function SendHistory({ refreshKey = 0 }: { refreshKey?: number }) {
             <div className="mt-1.5 flex flex-wrap items-end gap-2">
               <div className="text-[12px] text-slate-600">
                 <label htmlFor="hist-ocultar-data" className="mr-1.5">Ocultar envios anteriores a</label>
-                <DateField id="hist-ocultar-data" className="inline-block" max={todayBR()} value={date} onChange={(v) => { setDate(v); setPlan(null); }} />
+                <DateField id="hist-ocultar-data" className="inline-block w-44" inputClassName="w-full rounded-lg border border-slate-300 bg-white py-1 pl-2 pr-8 text-[13px]" max={todayBR()} value={date} onChange={(v) => { setDate(v); setPlan(null); }} />
               </div>
               <label className="flex items-center gap-1.5 text-[12px] text-slate-600"><input type="checkbox" checked={onlyTests} onChange={(e) => { setOnlyTests(e.target.checked); setPlan(null); }} /> só testes (“só eu”)</label>
               <button type="button" disabled={busy || !date} onClick={() => preview('hide')} className="rounded-lg border border-slate-400 bg-white px-3 py-1.5 text-[12.5px] font-bold text-slate-800 disabled:opacity-40">Ver quantos</button>
@@ -162,7 +162,7 @@ export function SendHistory({ refreshKey = 0 }: { refreshKey?: number }) {
             <div className="mt-1.5 flex flex-wrap items-end gap-2">
               <div className="text-[12px] text-slate-600">
                 <label htmlFor="hist-excluir-data" className="mr-1.5">Testes anteriores a</label>
-                <DateField id="hist-excluir-data" className="inline-block" max={todayBR()} value={delDate} onChange={(v) => { setDelDate(v); setPlan(null); }} />
+                <DateField id="hist-excluir-data" className="inline-block w-44" inputClassName="w-full rounded-lg border border-slate-300 bg-white py-1 pl-2 pr-8 text-[13px]" max={todayBR()} value={delDate} onChange={(v) => { setDelDate(v); setPlan(null); }} />
               </div>
               <button type="button" disabled={busy || !delDate} onClick={() => preview('delete')} className="rounded-lg border border-rose-400 bg-white px-3 py-1.5 text-[12.5px] font-bold text-rose-800 disabled:opacity-40">Ver quantos testes</button>
             </div>
