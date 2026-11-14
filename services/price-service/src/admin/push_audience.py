@@ -858,7 +858,7 @@ def compute_audience(db, flt: AudienceFilter, *, campaign_id: Optional[str] = No
             origins.append(_LOCATION_ORIGINS[rule.field])
         if cov is not None and cov.total and cov.with_data / cov.total < 0.5 and rule.field not in ("pet_neutered_yes", "feeding_registered"):
             warnings.append({"code": "low_coverage", "level": "attention", "field": rule.field,
-                             "text": f"Dados incompletos: só {_pct(cov)}% dos {cov.unit} têm esse dado ({cov.with_data} de {cov.total}). "
+                             "text": f"Dados incompletos ({FILTER_FIELDS[rule.field]['label']}): só {_pct(cov)}% dos {cov.unit} têm esse dado ({cov.with_data} de {cov.total}). "
                                      f"Quem não preencheu fica de fora do filtro."})
         if out.extra.get("source_breakdown") is not None:
             sb = out.extra["source_breakdown"]

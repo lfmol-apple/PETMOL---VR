@@ -26,6 +26,7 @@ export const VALUE_LABEL: Record<string, string> = {
   last_7d: 'Atividade nos últimos 7 dias', d8_30: 'Atividade entre 8 e 30 dias atrás', over_30d: 'Última atividade há mais de 30 dias', no_events: 'Sem atividade registrada',
   ios: 'iPhone (iOS)', android: 'Android', web: 'Navegador (web)',
   dog: 'Cão', cat: 'Gato', other: 'Outro', male: 'Macho', female: 'Fêmea',
+  calculated: 'calculada pelo sistema', manual: 'informada pelo tutor',
 };
 
 export const OP_LABEL: Record<string, string> = { eq: 'é igual a', gte: 'é no mínimo', lte: 'é no máximo', between: 'está entre', in: 'é um de', contains: 'contém', within_km: 'a até' };

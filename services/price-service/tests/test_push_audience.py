@@ -1007,3 +1007,12 @@ def test_racao_mesma_conta_e_mesmo_dia_do_aplicativo(db):
     assert exp == {t}                                                               # no dia seguinte (UTC) a previsão passa a vencida
     db.query(FeedingPlan).update({"enabled": False})                                # pausado: o app nem calcula os dias → o filtro também não
     assert pa.resolve_audience(db, F(R("feeding_expired", "eq", True), scope="any"), now=datetime(2026, 11, 15, 0, 1, tzinfo=timezone.utc)).matches == set()
+
+
+def test_aviso_de_dados_incompletos_diz_qual_filtro(db):
+    w = World(db)
+    a = w.user("A", ios=True); w.user("B", ios=True)
+    w.pet(a, birth_date=date(2020, 1, 1))
+    w.pet(w.user("C", ios=True)); w.pet(w.user("D", ios=True))   # pets sem nascimento: cobertura de idade < 50%
+    txt = next(x["text"] for x in run(db, F(R("pet_age_months", "gte", 1), scope="any"))["warnings"] if x["code"] == "low_coverage")
+    assert "Dados incompletos (Idade do pet (meses))" in txt
