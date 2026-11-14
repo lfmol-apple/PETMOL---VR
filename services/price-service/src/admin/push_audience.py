@@ -836,8 +836,9 @@ def _r_place(ctx: AudienceContext, rule: FilterRule) -> _Outcome:
 
 def _r_tutor_sex(ctx: AudienceContext, rule: FilterRule) -> _Outcome:
     """Sexo provável pelo primeiro nome — em memória, sem gravar nada. (Validação já recusa o filtro com a flag desligada.)"""
-    names = {str(i): n for i, n in ctx.db.query(User.id, User.name).all()}
-    est = {u: tutor_sex.estimate(names.get(u)) for u in ctx.all_users}
+    ov = tutor_sex.load_overrides(ctx.db)
+    people = {str(i): (n, e) for i, n, e in ctx.db.query(User.id, User.name, User.email).all()}
+    est = {u: tutor_sex.estimate(*people.get(u, (None, None)), overrides=ov) for u in ctx.all_users}
     wanted = set(rule.value)
     ids = {u for u, e in est.items() if e in wanted}
     classified = sum(1 for e in est.values() if e != tutor_sex.UNKNOWN)
