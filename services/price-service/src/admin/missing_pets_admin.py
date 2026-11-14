@@ -1,7 +1,8 @@
 """Aba "Pets sumidos" do painel do dono: todos os alertas, com quem avisou, quantos foram notificados e achados."""
 from __future__ import annotations
 
-from typing import Literal
+import re
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
@@ -10,6 +11,23 @@ from ..db import SessionLocal
 from ..missing_pets import FoundReport, MissingPet, MissingPetNotification, PetSighting
 from ..user_auth.models import User
 from .deps import get_current_admin
+
+_OWN_HOST = re.compile(r"^https?://(?:www\.)?petmol\.com\.br(/.*)$", re.I)
+
+
+def _photo_src(url: Optional[str]) -> Optional[str]:
+    """Endereço da foto utilizável no painel: fotos antigas ficaram só como 'pets/<id>.jpg' (servidas em /uploads/...) e outras
+    com o domínio completo; ambos viram caminho do próprio site, que o navegador resolve na mesma origem."""
+    if not url:
+        return None
+    u = url.strip()
+    m = _OWN_HOST.match(u)
+    if m:
+        return m.group(1)
+    if u.startswith(("http://", "https://", "/", "data:")):
+        return u
+    return "/uploads/" + u.lstrip("/")
+
 
 router = APIRouter(prefix="/v1/admin/missing-pets", tags=["Admin Pets sumidos"])
 
@@ -42,7 +60,7 @@ def list_missing_pets(status: Literal["active", "found", "all"] = "all", limit: 
             o = owners.get(str(r.user_id)) if r.user_id else None
             out.append({
                 "id": r.id, "pet_name": r.pet_name, "species": r.species, "breed": r.breed, "status": r.status,
-                "photo_url": r.photo_url, "created_at": r.created_at.isoformat() if r.created_at else None,
+                "photo_url": _photo_src(r.photo_url), "created_at": r.created_at.isoformat() if r.created_at else None,
                 "found_at": r.found_at.isoformat() if r.found_at else None,
                 "last_seen_location": r.last_seen_location, "radius_km": r.current_radius_km,
                 "reporter_type": r.reporter_type, "public_slug": r.public_slug,
