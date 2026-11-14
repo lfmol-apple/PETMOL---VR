@@ -21,7 +21,7 @@ from tests.test_admin_broadcast import _mk_pet, _mk_user  # reaproveita os auxil
 # ── validação do link ────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("url", [
-    "https://amzn.to/3SN1ORt", "https://www.amazon.com.br/dp/B07FQ6F1PZ?tag=amazonpetmol-20",
+    "https://amzn.to/3SN1ORt", "https://link.amazon/B06SDei2R", "https://www.amazon.com.br/dp/B07FQ6F1PZ?tag=amazonpetmol-20",
     "https://s.shopee.com.br/4AzW1leQcW", "https://www.cobasi.com.br/racao-x-123/p", "https://meli.la/1Ab2Cd3",
 ])
 def test_links_de_lojas_conhecidas_passam(url):
