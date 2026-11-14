@@ -1175,3 +1175,22 @@ def test_nomes_geograficos_ibge():
     assert gn.city_key("RS", "Capão da Canoa") == gn.city_key("RS", "capao da canoa") == "capao da canoa"
     assert gn.city_key("SP", "City of The Dalles") is None and gn.is_robot_city("City of The Dalles")
     assert gn.city_key("SP", "Bairro Qualquer") is None
+
+
+def test_simples_e_avancado_juntos_sem_contradicao_nem_duplicacao(db):
+    w = World(db)
+    sp_gata = w.user("Ana", ios=True, state="SP", city="Campinas"); w.pet(sp_gata, "cat", sex="female")
+    sp_cao = w.user("Beto", ios=True, state="SP", city="Campinas"); w.pet(sp_cao, "dog", sex="male")
+    rj_gata = w.user("Carla", ios=True, state="RJ", city="Niterói"); w.pet(rj_gata, "cat", sex="female"); w.pet(rj_gata, "cat", sex="female")
+    db.commit()
+    def got(items, op="and"):
+        return pa.resolve_audience(db, F(*items, op=op), now=NOW).reachable
+    place_sp = R("location_place", "in", ["UF:SP"], ack=True)
+    best_rj = R("location_best_state", "in", ["RJ"], ack=True)
+    gato = R("pet_species", "in", ["cat"])
+    assert got([place_sp, best_rj]) == set()                                    # contradição → ninguém (sem erro)
+    assert got([place_sp, best_rj], op="or") == {sp_gata, sp_cao, rj_gata}      # OU → união
+    assert got([G(place_sp, gato, scope="same"), G(best_rj, gato, scope="same")], op="or") == {sp_gata, rj_gata}
+    out = pa.compute_audience(db, F(G(best_rj, gato, scope="same"), place_sp, op="or"), now=NOW)
+    assert out["matches"] == 3                                                  # tutor com 2 pets conta 1 vez
+    assert got([R("location_place", "in", ["UF:SP", "CAP:SP", "CITY:SP:campinas"], ack=True)]) == {sp_gata, sp_cao}
