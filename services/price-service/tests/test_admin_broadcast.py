@@ -3,6 +3,7 @@
 Cobre: personalização (tutor + pets), público (todos / quantidade / só eu / segmentos), regras de segurança
 (push ativo, opt-out, 1 por semana, contagem confirmada, um envio por vez) e a medição do êxito
 (o tutor fazer algo no app depois do envio)."""
+import json
 import uuid
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -435,3 +436,9 @@ def test_historico_exclui_so_testes_avulsos_terminados_e_nunca_envio_real_ou_lot
         rec = {r.broadcast_id for r in db.query(br.AdminBroadcastRecipient).all()}
         assert rec == {real}                                                            # destinatários do teste apagado foram junto; os do real ficam
         assert adm.admin_id in br._recent_contacted(db)                                 # cota semanal preservada pelo envio real
+        # trilha de auditoria: quem, quando, até que data e o retrato do que foi apagado (com os destinatários)
+        aud = db.query(br.AdminBroadcastDeletionAudit).all()
+        assert len(aud) == 1 and aud[0].deleted_by == adm.admin_id and aud[0].cutoff_date == _day(5)
+        assert aud[0].deleted_count == 1 and aud[0].recipients_deleted == 1
+        snap = json.loads(aud[0].snapshot_json)
+        assert [x["id"] for x in snap] == [t_old] and snap[0]["message"] == "msg 10d test" and snap[0]["recipient_user_ids"] == [adm.admin_id]
