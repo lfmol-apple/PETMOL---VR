@@ -18,6 +18,7 @@ Cada meta é medida no banco (o item foi CRIADO depois do envio) e/ou nos evento
 """
 from __future__ import annotations
 
+import json
 import logging
 import random
 import re
@@ -206,6 +207,20 @@ class AdminBroadcast(Base):
         UniqueConstraint("idempotency_key", name="uq_admin_broadcasts_idempotency_key"),
         UniqueConstraint("campaign_id", "batch_no", name="uq_admin_broadcasts_campaign_batch"),
     )
+
+
+class AdminBroadcastDeletionAudit(Base):
+    """Trilha de auditoria da exclusão de testes avulsos: quem excluiu, quando, até que data e um retrato do que foi apagado.
+    (Tabela nova, criada por `create_all`; nunca é apagada por nenhuma tela.)"""
+    __tablename__ = "admin_broadcast_deletion_audit"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    deleted_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+    deleted_by = Column(String(36), nullable=True)
+    cutoff_date = Column(String(10), nullable=False)          # "AAAA-MM-DD" (Brasília): testes anteriores a este dia
+    deleted_count = Column(Integer, nullable=False, default=0)
+    recipients_deleted = Column(Integer, nullable=False, default=0)
+    snapshot_json = Column(Text, nullable=False)               # [{id, created_at, message, audience_kind, recipients_total, delivered_total, phase, recipient_user_ids}]
 
 
 class AdminBroadcastRecipient(Base):
@@ -854,6 +869,15 @@ def history_delete_tests(payload: HideIn, current=Depends(get_current_admin)):
             raise HTTPException(status_code=409, detail=f"A lista mudou: agora são {len(rows)} testes (você confirmou {payload.confirm_count}). Confira de novo.")
         ids = [b.id for b in rows]
         if ids:
+            recips: dict[str, list[str]] = {}
+            for rb, ru in db.query(AdminBroadcastRecipient.broadcast_id, AdminBroadcastRecipient.user_id).filter(AdminBroadcastRecipient.broadcast_id.in_(ids)).all():
+                recips.setdefault(str(rb), []).append(str(ru))
+            snapshot = [{"id": b.id, "created_at": b.created_at.isoformat() if b.created_at else None, "message": b.message, "audience_kind": b.audience_kind,
+                         "recipients_total": b.recipients_total, "delivered_total": b.delivered_total, "phase": b.phase, "created_by": b.created_by,
+                         "recipient_user_ids": recips.get(str(b.id), [])} for b in rows]
+            db.add(AdminBroadcastDeletionAudit(deleted_by=str(getattr(current[0], "id", "")) if isinstance(current, tuple) else None, cutoff_date=payload.before,
+                                               deleted_count=len(ids), recipients_deleted=sum(len(v) for v in recips.values()),
+                                               snapshot_json=json.dumps(snapshot, ensure_ascii=False)))      # mesma transação: sem auditoria, sem exclusão
             db.query(AdminBroadcastRecipient).filter(AdminBroadcastRecipient.broadcast_id.in_(ids)).delete(synchronize_session=False)
             db.query(AdminBroadcast).filter(AdminBroadcast.id.in_(ids), AdminBroadcast.audience_kind == "test", AdminBroadcast.campaign_id.is_(None)).delete(synchronize_session=False)
         db.commit()
