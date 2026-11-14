@@ -68,7 +68,7 @@ export function AudienceExplorer({ fields, state, onChange, onUse, locationNote,
     if (!cov) return null;
     const c = covBy(usedOrigin === 'ip' ? 'ip_direto' : usedOrigin);
     if (usedOrigin === 'cadastro') return `${c?.state ?? 0} têm estado e ${c?.city ?? 0} têm cidade, de ${cov.reachable} alcançáveis`;
-    if (usedOrigin === 'ip') { const a = covBy('ip_aparelho'); return `${a?.tutors ?? 0} de ${cov.reachable} alcançáveis (${a?.percent ?? 0}%): ${covBy('ip_direto')?.tutors ?? 0} pelo IP do próprio tutor + ${a?.additional_tutors ?? 0} só pelo aparelho`; }
+    if (usedOrigin === 'ip') { const a = covBy('ip_aparelho'); const d = covBy('ip_direto')?.tutors ?? 0; const extra = a?.additional_tutors ?? 0; return `${a?.union_tutors ?? d + extra} de ${cov.reachable} alcançáveis (${a?.union_percent ?? 0}%): ${d} pelo IP do próprio tutor + ${extra} só pelo aparelho`; }
     if (usedOrigin === 'gps') return `${c?.state ?? 0} têm estado e ${c?.city ?? 0} têm cidade, de ${cov.reachable} alcançáveis`;
     return `estado ${c?.state ?? 0} (${c?.state_percent ?? 0}%) e cidade ${c?.city ?? 0} (${c?.city_percent ?? 0}%), de ${cov.reachable} alcançáveis`;
   })();

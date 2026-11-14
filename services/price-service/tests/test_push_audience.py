@@ -884,6 +884,7 @@ def test_cobertura_por_origem_so_entre_alcancaveis_e_sem_confundir_com_precisao(
     assert cov["reachable"] == 4 and "não a precisão" in cov["approximate_note"].replace("a precisão geográfica", "a precisão") or "precisão" in cov["approximate_note"]
     assert by["cadastro"]["state"] == 1 and by["cadastro"]["city"] == 1 and by["cadastro"]["approximate"] is False
     assert by["ip_direto"]["tutors"] == 1 and by["ip_aparelho"]["tutors"] == 1 and by["ip_aparelho"]["additional_tutors"] == 1
+    assert by["ip_aparelho"]["union_tutors"] == 2 and by["ip_aparelho"]["union_percent"] == 50.0       # direto (d) + só aparelho (c), sem duplicar
     assert by["gps"]["state"] == 1 and by["gps"]["city"] == 1 and by["gps"]["approximate"] is True
     assert by["melhor"]["state"] == 4 and by["melhor"]["city"] == 4 and by["melhor"]["state_percent"] == 100.0
     assert b is not None and a is not None
