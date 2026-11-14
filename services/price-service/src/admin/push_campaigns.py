@@ -176,6 +176,10 @@ FILTER_FIELDS: dict[str, dict] = {
     # "melhor localização": o dado mais confiável disponível por tutor (cadastro → senão IP da última sessão). Sempre aproximada.
     "location_best_state":    {"scope": "tutor", "ops": ("in",), "label": "Estado (melhor dado disponível, aproximado)", "approximate": True},
     "location_best_city":     {"scope": "tutor", "ops": ("in",), "label": "Cidade (melhor dado disponível, aproximada)", "approximate": True},
+    # Lugar escolhido nas listas do painel (sem digitar): "BR" | "UF:SP" | "CAP:SP" | "CITY:SP:campinas" — cidade SEMPRE junto da UF.
+    "location_place":         {"scope": "tutor", "ops": ("in",), "label": "Lugar (Brasil, estado, capital ou cidade; aproximado)", "approximate": True},
+    # Sexo PROVÁVEL pelo primeiro nome; calculado na consulta, sem persistência. Só existe com push_tutor_sex_estimate_enabled.
+    "tutor_sex_estimate":     {"scope": "tutor", "ops": ("in",), "label": "Tutor ou tutora (provável, pelo primeiro nome)", "values": ("male", "female", "unknown")},
     "location_ip_state":      {"scope": "tutor", "ops": ("in",), "label": "Estado pelo IP (aproximado)", "approximate": True},
     "location_ip_city":       {"scope": "tutor", "ops": ("in",), "label": "Cidade pelo IP (aproximada)", "approximate": True},
     "location_gps_state":     {"scope": "tutor", "ops": ("in",), "label": "Estado pelo GPS (aproximado)", "approximate": True},

@@ -109,3 +109,12 @@ export function moveLocOrigin(s: FilterState, from: LocOrigin, to: LocOrigin): F
   }
   return out;
 }
+
+/** Escolha única em campo de lista (`in`): clicar no mesmo valor limpa. Usado pelos seletores de lugar e de tutor/tutora. */
+export function pickIn(s: FilterState, field: string, value: string, ack = false): FilterState {
+  const cur = quickCond(s, field)?.value as string[] | undefined;
+  return setQuick(s, field, cur && cur.length === 1 && cur[0] === value ? null : { op: 'in', value: [value], ack });
+}
+
+/** Remove a condição rápida de um campo (qualquer valor). */
+export const removeField = (s: FilterState, field: string): FilterState => setQuick(s, field, null);

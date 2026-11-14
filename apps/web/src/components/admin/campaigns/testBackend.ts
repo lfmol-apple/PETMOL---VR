@@ -20,8 +20,19 @@ type Handler = (body: any, ctx: Backend) => { status?: number; json: unknown } |
 
 const zero = () => ({ reserved: 0, sending: 0, accepted: 0, failed: 0, uncertain: 0 });
 
+const PLACE_FIELD_INFO = { field: 'location_place', label: 'Lugar (Brasil, estado, capital ou cidade; aproximado)', group: 'Localização', scope: 'tutor', ops: ['in'], values: null, approximate: true, origin: 'melhor', precision: 'aproximada' };
+const SEX_FIELD_INFO = { field: 'tutor_sex_estimate', label: 'Tutor ou tutora (provável, pelo primeiro nome)', group: 'Tutor', scope: 'tutor', ops: ['in'], values: ['male', 'female', 'unknown'], approximate: false, origin: 'Primeiro nome', precision: 'provável (nada é gravado)' };
+export const PLACE_OPTIONS = {
+  reachable: 200, brazil_tutors: 198, known_state_tutors: 190, unknown_location_tutors: 8, foreign_tutors: 2, note: '',
+  states: [
+    { uf: 'MG', name: 'Minas Gerais', tutors: 40, capital: { name: 'Belo Horizonte', tutors: 12 }, cities: [{ key: 'belo horizonte', name: 'Belo Horizonte', tutors: 12, capital: true }, { key: 'uberlandia', name: 'Uberlândia', tutors: 5, capital: false }] },
+    { uf: 'SP', name: 'São Paulo', tutors: 100, capital: { name: 'São Paulo', tutors: 50 }, cities: [{ key: 'campinas', name: 'Campinas', tutors: 9, capital: false }, { key: 'sao paulo', name: 'São Paulo', tutors: 50, capital: true }] },
+  ],
+};
+
 export class Backend {
   enabled = true;
+  sexEnabled = false;                // recurso experimental Tutor/Tutora: desligado por padrão, como no servidor
   calls: Call[] = [];
   campaigns: any[] = [];
   available = 120;                    // tutores disponíveis para o próximo lote
@@ -94,7 +105,8 @@ export class Backend {
 
   routes: Record<string, Handler> = {
     'GET /config': (_b, s) => ({ json: { enabled: s.enabled } }),
-    'GET /fields': () => ({ json: fields }),
+    'GET /fields': (_b, s) => ({ json: { ...fields, fields: [...fields.fields, PLACE_FIELD_INFO, ...(s.sexEnabled ? [SEX_FIELD_INFO] : [])] } }),
+    'GET /audience/location-options': () => ({ json: PLACE_OPTIONS }),
     'GET /audience/expired-feeding-plans': () => ({ json: EXPIRED }),
     'GET /audience/location-coverage': () => ({ json: { reachable: 200, approximate_note: 'Cobertura é quantos tutores têm o dado, não a precisão geográfica: IP e GPS indicam cidade/estado APROXIMADOS, nunca a residência.', origins: [
       { key: 'cadastro', label: 'Cadastro (digitado pelo tutor)', approximate: false, state: 16, city: 18 },

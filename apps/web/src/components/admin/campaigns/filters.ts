@@ -3,6 +3,7 @@
  * o backend continua sendo a validação definitiva (a tela só evita pedir contagens inválidas).
  */
 import type { FieldInfo } from './api';
+import { placeLabel, sexLabel } from './places';
 
 export type Op = 'and' | 'or';
 export type PetScope = 'any' | 'all' | 'same';
@@ -140,6 +141,8 @@ export function buildFilter(state: FilterState, fields: FieldInfo[]): Built {
 /** Texto legível de uma condição (resumo e conferência na prévia). */
 export function describeCond(c: Cond, f: FieldInfo | undefined): string {
   if (!f) return c.field;
+  if (c.field === 'location_place') return (Array.isArray(c.value) ? c.value : []).map((x) => placeLabel(String(x))).join(' ou ');
+  if (c.field === 'tutor_sex_estimate') return `Tutor ou tutora: ${(Array.isArray(c.value) ? c.value : []).map((x) => sexLabel(String(x))).join(' ou ')} (provável)`;
   const k = kindOf(f);
   const v = c.value;
   const lbl = (x: unknown) => VALUE_LABEL[String(x)] ?? String(x);

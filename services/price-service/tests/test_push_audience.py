@@ -191,7 +191,8 @@ def test_diferencial_300_filtros_aleatorios_motor_igual_ao_avaliador_de_referenc
 
 
 def test_diferencial_cobre_todos_os_campos_disponiveis():
-    assert set(ref.ALL_FIELDS) == set(pc.FILTER_FIELDS)
+    # location_place e tutor_sex_estimate têm testes próprios (lugar escolhido em lista; sexo provável experimental, desligado por padrão)
+    assert set(ref.ALL_FIELDS) | {"location_place", "tutor_sex_estimate"} == set(pc.FILTER_FIELDS)
 
 
 # ══ 2) CASOS NOMEADOS ════════════════════════════════════════════════════════
@@ -618,7 +619,7 @@ def test_endpoint_de_contagem_nao_tem_efeito_colateral(api, db):
 def test_catalogo_de_campos_so_traz_o_que_funciona(api):
     body = api.get("/v1/admin/push-campaigns/fields").json()
     campos = {f["field"]: f for f in body["fields"]}
-    assert set(campos) == set(pc.FILTER_FIELDS)
+    assert set(campos) == set(pc.FILTER_FIELDS) - {"tutor_sex_estimate"}      # experimental e desligado: nem aparece
     assert not {"tutor_sex", "tutor_age", "pet_neutered_no", "litter"} & set(campos)
     assert campos["pet_neutered_yes"]["values"] == [True]                                  # só a opção afirmativa
     assert campos["tutor_activity"]["values"] == ["last_7d", "d8_30", "over_30d", "no_events"]
@@ -646,7 +647,7 @@ def test_teto_de_escala_vira_503_no_endpoint(api, db, monkeypatch):
 def test_so_ha_endpoints_de_leitura_e_nenhum_envia():
     rotas = {(tuple(sorted(r.methods)), r.path) for r in pa.router.routes}
     assert rotas == {(("GET",), "/v1/admin/push-campaigns/fields"), (("GET",), "/v1/admin/push-campaigns/suggestions/brands"),
-                     (("GET",), "/v1/admin/push-campaigns/audience/location-coverage"), (("GET",), "/v1/admin/push-campaigns/audience/expired-feeding-plans"), (("POST",), "/v1/admin/push-campaigns/audience/count")}
+                     (("GET",), "/v1/admin/push-campaigns/audience/location-coverage"), (("GET",), "/v1/admin/push-campaigns/audience/location-options"), (("GET",), "/v1/admin/push-campaigns/audience/expired-feeding-plans"), (("POST",), "/v1/admin/push-campaigns/audience/count")}
     src = open(pa.__file__, encoding="utf-8").read()
     assert "push_to_user" not in src and "_spawn" not in src and "db.commit" not in src and "db.add" not in src
 
@@ -1063,3 +1064,114 @@ def test_aviso_de_dados_incompletos_diz_qual_filtro(db):
     w.pet(w.user("C", ios=True)); w.pet(w.user("D", ios=True))   # pets sem nascimento: cobertura de idade < 50%
     txt = next(x["text"] for x in run(db, F(R("pet_age_months", "gte", 1), scope="any"))["warnings"] if x["code"] == "low_coverage")
     assert "Dados incompletos (Idade do pet (meses))" in txt
+
+
+# ── Lugar (Brasil/estado/capital/cidade), normalização IBGE e sexo provável do tutor ────────────────────────────
+
+def test_lugar_brasil_estado_capital_cidade_sem_dupla_contagem(db):
+    w = World(db)
+    sp_cap = w.user("a", ios=True, state="SP", city="São Paulo")
+    sp_cap2 = w.user("b", ios=True, state="São Paulo", city="São Paulo capital")       # variante "capital" → mesma cidade
+    sp_camp = w.user("c", ios=True, state="sp", city="Campinas")
+    pb_camp = w.user("d", ios=True, state="PB", city="Campina Grande")
+    sp_unknown_city = w.user("e", ios=True, state="SP", city="Bairro Inventado")
+    no_geo = w.user("f", ios=True)
+    foreign = w.user("g", ios=True); w.evt(foreign, timedelta(days=1), region="Florida", city="Miami")
+    robot = w.user("h", ios=True); w.evt(robot, timedelta(days=1), region="Oregon", city="City of The Dalles")
+    db.commit()
+    g = lambda *v: {x for x in pa.resolve_audience(db, F(R("location_place", "in", list(v), ack=True)), now=NOW).reachable}
+    assert g("UF:SP") == {sp_cap, sp_cap2, sp_camp, sp_unknown_city}                    # cidade não reconhecida continua valendo no estado
+    assert g("CAP:SP") == {sp_cap, sp_cap2}
+    assert g("CITY:SP:campinas") == {sp_camp}
+    assert g("CITY:PB:campina grande") == {pb_camp}
+    assert g("CITY:SP:campina grande") == set()                                         # cidade só vale junto da UF certa
+    assert g("BR") == {sp_cap, sp_cap2, sp_camp, pb_camp, sp_unknown_city, no_geo, robot}   # sem localização conhecida (ou só robô) entra no nacional
+    assert foreign not in g("BR")                                                        # só-estrangeiro, não
+    assert robot not in g("UF:SP")
+    assert g("UF:SP", "UF:PB") == g("UF:SP") | {pb_camp}                                # ou: tutor contado uma vez
+
+
+def test_lugar_homonimas_e_origem_mais_confiavel(db):
+    w = World(db)
+    ba = w.user("a", ios=True, state="BA", city="Salvador")
+    ms = w.user("b", ios=True, state="MS", city="Campo Grande")
+    pb = w.user("c", ios=True, state="PB", city="Campo Grande")                          # homônima: só existe em MS no IBGE → cidade não reconhecida em PB
+    ip_only = w.user("d", ios=True); w.evt(ip_only, timedelta(days=1), region="Rio de Janeiro", city="Niterói")
+    db.commit()
+    g = lambda *v: {x for x in pa.resolve_audience(db, F(R("location_place", "in", list(v), ack=True)), now=NOW).reachable}
+    assert g("CAP:BA") == {ba} and g("CAP:MS") == {ms}
+    assert g("CITY:MS:campo grande") == {ms}
+    assert g("UF:PB") == {pb}
+    assert g("CITY:RJ:niteroi") == {ip_only}
+
+
+def test_lugar_valida_valores():
+    from src.admin.push_audience import FilterError, validate_filter_values
+    ok = F(R("location_place", "in", ["BR", "UF:SP", "CAP:RJ", "CITY:SP:campinas"], ack=True))
+    validate_filter_values(ok)
+    for bad in (["sp"], ["UF:XX"], ["CITY:SP"], ["CAP:"], ["Campinas"], [""]):
+        with pytest.raises(FilterError):
+            validate_filter_values(F(R("location_place", "in", bad, ack=True)))
+
+
+def test_opcoes_de_localizacao_so_do_que_existe_e_contagem_unica(db):
+    w = World(db)
+    for n, st, ct in (("a", "SP", "São Paulo"), ("b", "SP", "São Paulo capital"), ("c", "SP", "Campinas"), ("d", "PIAUÍ", "Teresina"), ("e", "SP", "Inventada")):
+        w.user(n, ios=True, state=st, city=ct)
+    w.user("f", ios=True, state="RJ", city="Rio de Janeiro", optout=True)                # fora (opt-out)
+    w.user("g", ios=True)                                                               # sem localização
+    x = w.user("h", ios=True); w.evt(x, timedelta(days=1), region="Florida", city="Miami")
+    db.commit()
+    from src.admin.push_audience import location_options
+    o = location_options(db, now=NOW)
+    ufs = {s["uf"]: s for s in o["states"]}
+    assert set(ufs) == {"SP", "PI"}                                                      # só estados que existem; sem RJ (opt-out) nem Flórida
+    assert ufs["SP"]["name"] == "São Paulo" and ufs["SP"]["tutors"] == 4
+    assert ufs["SP"]["capital"] == {"name": "São Paulo", "tutors": 2}
+    assert {c["name"]: c["tutors"] for c in ufs["SP"]["cities"]} == {"Campinas": 1, "São Paulo": 2}   # "Inventada" não é oferecida
+    assert ufs["PI"]["name"] == "Piauí"
+    assert o["foreign_tutors"] == 1 and o["unknown_location_tutors"] == 1 and o["known_state_tutors"] == 5
+
+
+def test_sexo_provavel_desligado_por_padrao_e_sem_persistencia(db, api, monkeypatch):
+    from src.admin import tutor_sex
+    from src.config import get_settings
+    w = World(db)
+    h = w.user("Carlos Silva", ios=True); m = w.user("Maria Souza", ios=True); u = w.user("Thor", ios=True); z = w.user("J. R. Silva", ios=True)
+    db.commit()
+    # desligado: o filtro não existe (nem no catálogo, nem na validação)
+    assert "tutor_sex_estimate" not in {f["field"] for f in api.get("/v1/admin/push-campaigns/fields").json()["fields"]}
+    r = api.post("/v1/admin/push-campaigns/audience/count", json={"filter": {"version": 1, "root": G(R("tutor_sex_estimate", "in", ["male"]))}})
+    assert r.status_code in (400, 422)
+    monkeypatch.setenv("PUSH_TUTOR_SEX_ESTIMATE_ENABLED", "true"); get_settings.cache_clear()
+    try:
+        assert tutor_sex.enabled()
+        got = lambda *v: pa.resolve_audience(db, F(R("tutor_sex_estimate", "in", list(v))), now=NOW).reachable
+        assert got("male") == {h} and got("female") == {m}
+        assert got("unknown") == {u, z}                                                  # nome fora da base / sigla: nunca classificado
+        assert got("male", "female", "unknown") == {h, m, u, z}
+        from sqlalchemy import inspect as sa_inspect
+        assert not any("sex" in c["name"] or "gender" in c["name"] for c in sa_inspect(db.get_bind()).get_columns("users"))   # nada gravado no tutor
+    finally:
+        monkeypatch.delenv("PUSH_TUTOR_SEX_ESTIMATE_ENABLED", raising=False); get_settings.cache_clear()
+
+
+def test_sexo_provavel_regras_de_nome():
+    from src.admin.tutor_sex import estimate, first_name
+    assert estimate("João Pedro") == "male" and estimate("ANA Clara") == "female" and estimate("  maria ") == "female"
+    assert estimate("Alex") == "male"
+    for dubious in ("", None, "X", "L.", "123", "Pet Shop Silva", "Dr Silva", "@maria", "Zzzzzz Qqqq"):
+        assert estimate(dubious) == "unknown", dubious
+    assert first_name("Ana-Maria") == "" and first_name("Ana Maria") == "Ana"
+
+
+def test_nomes_geograficos_ibge():
+    from src.admin import geo_names as gn
+    assert gn.municipality_count() == 5571 and len(gn.UF_NAMES) == 27 and set(gn.CAPITALS) == set(gn.UF_NAMES)
+    assert gn.to_uf("PIAUÍ") == "PI" and gn.to_uf("sp") == "SP" and gn.to_uf("Florida") is None and gn.to_uf("Guiana Francesa") is None
+    assert gn.is_brazil("República Federativa do Brasil") and gn.is_brazil("Brasil") and not gn.is_brazil("Guiana Francesa")
+    assert gn.city_key("SP", "São Paulo capital") == "sao paulo" == gn.city_key("SP", "Sao Paulo")
+    assert gn.city_key("SP", "Campinas") == "campinas" and gn.city_key("MS", "Campo Grande") == "campo grande" and gn.city_key("PB", "Campo Grande") is None
+    assert gn.city_key("RS", "Capão da Canoa") == gn.city_key("RS", "capao da canoa") == "capao da canoa"
+    assert gn.city_key("SP", "City of The Dalles") is None and gn.is_robot_city("City of The Dalles")
+    assert gn.city_key("SP", "Bairro Qualquer") is None

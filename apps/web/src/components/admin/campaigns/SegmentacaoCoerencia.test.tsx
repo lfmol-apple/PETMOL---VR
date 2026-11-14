@@ -227,58 +227,77 @@ describe('"Criar campanha com este público" leva TODOS os filtros e nunca envia
   });
 });
 
-describe('Localização do tutor: origem sempre visível, aproximação identificada e cobertura real', () => {
-  const origin = (n: RegExp) => within(section()).getByRole('radio', { name: n });
-  it('padrão "Melhor disponível": filtros aproximados com ciência, origem e cobertura aparecem na tela', async () => {
+describe('Onde: Brasil inteiro, estado, capital ou cidade — sem digitar, só o que existe nos dados', () => {
+  const sel = (id: string) => within(section()).getByLabelText(id) as HTMLSelectElement;
+  const place = () => JSON.stringify(lastBody().filter);
+  it('lista estados com nome completo e contagem; estado inteiro, capital e cidade falam com o motor com ciência de "aproximado"', async () => {
     await open();
-    await waitFor(() => expect(screen.getByTestId('cobertura-origem').textContent).toMatch(/estado 197 \(98,5%\)|estado 197 \(98.5%\)/));
-    expect(screen.getByTestId('origem-localizacao').textContent).toMatch(/APROXIMADOS \(não é a residência/);
-    const uf = within(section()).getByLabelText('Adicionar estado') as HTMLSelectElement;
-    fireEvent.change(uf, { target: { value: 'SP' } }); fireEvent.change(uf, { target: { value: 'MG' } });
-    fireEvent.change(within(section()).getByLabelText('Cidade'), { target: { value: 'Campinas' } });
-    fireEvent.click(within(section()).getByRole('button', { name: 'Adicionar cidade' }));
-    await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/location_best_city/), { timeout: 3000 });
-    const rules = JSON.stringify(lastBody().filter);
-    expect(rules).toMatch(/"field":"location_best_state"[^}]*"value":\["SP","MG"\]/);
-    expect(rules.match(/"approximate_ack":true/g)?.length).toBe(2);
+    await waitFor(() => expect(within(section()).getByRole('option', { name: 'São Paulo (100)' })).toBeTruthy());
+    expect(within(section()).queryByLabelText('Cidade (digitar)')).toBeNull();                   // nada de campo de texto
+    expect(within(section()).queryByRole('radio', { name: /^IP/ })).toBeNull();                  // origem interna não aparece
+    fireEvent.change(sel('Estado'), { target: { value: 'SP' } });
+    await waitFor(() => expect(place()).toMatch(/"field":"location_place"[^}]*"value":\["UF:SP"\][^}]*"approximate_ack":true/), { timeout: 3000 });
+    fireEvent.click(within(section()).getByRole('radio', { name: /Só a capital — São Paulo \(50\)/ }));
+    await waitFor(() => expect(place()).toMatch(/\["CAP:SP"\]/), { timeout: 3000 });
+    fireEvent.change(sel('Cidade'), { target: { value: 'campinas' } });
+    await waitFor(() => expect(place()).toMatch(/\["CITY:SP:campinas"\]/), { timeout: 3000 });
+    expect(place()).not.toMatch(/UF:SP|CAP:SP/);                                                 // um lugar por vez (sem dupla contagem)
+    await waitFor(() => expect(screen.getByRole('button', { name: /Remover Cidade: Campinas \(SP\)/ })).toBeTruthy());
   });
-
-  it('trocar a origem mantém os valores, troca o campo e a nota de cobertura; "Cadastro" é declarada (sem ciência)', async () => {
+  it('Brasil inteiro, voltar ao estado inteiro e limpar o estado', async () => {
     await open();
-    fireEvent.change(within(section()).getByLabelText('Adicionar estado'), { target: { value: 'RJ' } });
-    await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/location_best_state/), { timeout: 3000 });
-    fireEvent.click(origin(/^IP/));
-    await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/location_ip_state[^}]*"value":\["RJ"\]/), { timeout: 3000 });
-    expect(screen.getByTestId('cobertura-origem').textContent).toMatch(/196 de 200 alcançáveis \(98%\): 130 pelo IP do próprio tutor \+ 66 só pelo aparelho/);
-    fireEvent.click(origin(/^GPS/));
-    await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/location_gps_state/), { timeout: 3000 });
-    expect(screen.getByTestId('origem-localizacao').textContent).toMatch(/município de referência mais próximo/);
-    fireEvent.click(origin(/^Cadastro/));
-    await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/location_registered_state[^}]*"value":\["RJ"\][^}]*"approximate_ack":false/), { timeout: 3000 });
-    expect(screen.getByTestId('origem-localizacao').textContent).not.toMatch(/APROXIMADOS/);
-    expect(screen.getByTestId('cobertura-origem').textContent).toMatch(/16 têm estado e 18 têm cidade/);
+    await waitFor(() => expect(within(section()).getByRole('option', { name: 'Minas Gerais (40)' })).toBeTruthy());
+    fireEvent.change(sel('Estado'), { target: { value: 'MG' } });
+    await waitFor(() => expect(place()).toMatch(/UF:MG/), { timeout: 3000 });
+    fireEvent.click(within(section()).getByRole('radio', { name: 'Brasil inteiro' }));
+    await waitFor(() => expect(place()).toMatch(/\["BR"\]/), { timeout: 3000 });
+    fireEvent.change(sel('Estado'), { target: { value: '' } });
+    await waitFor(() => expect(be.calls.filter((c) => /audience\/count/.test(c.path)).at(-1)!.body.filter.root.items.length).toBe(0), { timeout: 3000 });
   });
-
-  it('sem filtro de localização, só a origem mostrada muda (nada é enviado ao motor)', async () => {
+  it('explica quem fica de fora: estrangeiros e quem ainda não tem estado entra em "Brasil inteiro"', async () => {
     await open();
-    await waitFor(() => expect(screen.getByTestId('cobertura-origem')).toBeTruthy());
-    fireEvent.click(origin(/^GPS/));
-    expect(origin(/^GPS/).getAttribute('aria-checked')).toBe('true');
-    expect(be.calls.filter((c) => c.method === 'POST' && /audience\/count/.test(c.path)).every((c) => !/location_/.test(JSON.stringify(c.body)))).toBe(true);
+    await waitFor(() => expect(screen.getByTestId('onde').textContent).toMatch(/2 fora do Brasil não entram nas listas de estado/));
+    expect(screen.getByTestId('onde').textContent).toMatch(/\(8\) entra em “Brasil inteiro”/);
+  });
+});
+
+describe('Tutor ou tutora (experimental, provável pelo primeiro nome)', () => {
+  it('desligado por padrão: o seletor nem aparece', async () => {
+    await open();
+    await waitFor(() => expect(within(section()).getByRole('option', { name: 'São Paulo (100)' })).toBeTruthy());
+    expect(screen.queryByTestId('tutor-sexo')).toBeNull();
+  });
+  it('ligado: Todos / Tutor / Tutora / Sem identificação, escolha única, sem mudar texto', async () => {
+    be.sexEnabled = true;
+    await open();
+    const g = await screen.findByTestId('tutor-sexo');
+    expect(within(g).getAllByRole('radio').map((r) => r.textContent)).toEqual(['Todos', 'Tutor (homem)', 'Tutora (mulher)', 'Sem identificação']);
+    fireEvent.click(within(g).getByRole('radio', { name: 'Tutora (mulher)' }));
+    await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/"field":"tutor_sex_estimate","op":"in","value":\["female"\]/), { timeout: 3000 });
+    fireEvent.click(within(g).getByRole('radio', { name: 'Sem identificação' }));
+    await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/\["unknown"\]/), { timeout: 3000 });
+    expect(JSON.stringify(lastBody().filter)).not.toMatch(/female/);
+    fireEvent.click(within(g).getByRole('radio', { name: 'Todos' }));
+    await waitFor(() => expect(be.calls.filter((c) => /audience\/count/.test(c.path)).at(-1)!.body.filter.root.items.length).toBe(0), { timeout: 3000 });
+    expect(g.textContent).toMatch(/sem guardar nada e sem mudar o texto enviado/);
   });
 });
 
 describe('Ração acabando: segue a data do plano do tutor; vencida é um filtro à parte', () => {
-  it('"Acaba em até N dias" vira intervalo de hoje até N (não inclui vencidas) e combina com origem da data no mesmo pet', async () => {
+  const feed = (n: string | RegExp) => within(section()).getByRole('radio', { name: n });
+  it('Qualquer / 7 / 15 / 30 dias: vira intervalo de hoje até N (não inclui vencidas) e combina com origem da data no mesmo pet', async () => {
     await open();
-    fireEvent.click(chip('Acaba em até 7 dias'));
+    expect(feed('Qualquer').getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(feed('7 dias'));
     await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/"field":"feeding_days_left","op":"between","value":\["0","7"\]|"field":"feeding_days_left"[^}]*"value":\[0,7\]/), { timeout: 3000 });
-    fireEvent.click(chip('Acaba em até 30 dias'));                                       // escolha única: troca a faixa
+    fireEvent.click(feed('30 dias'));                                                         // escolha única: troca a faixa
     await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/\[0,30\]|\["0","30"\]/), { timeout: 3000 });
     expect(JSON.stringify(lastBody().filter)).not.toMatch(/\[0,7\]|\["0","7"\]/);
     fireEvent.click(chip('Data calculada pelo sistema'));
     await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/feeding_date_source[^}]*calculated/), { timeout: 3000 });
     expect(lastBody().filter.root.items[0].pet_scope).toBe('same');                      // mesmo pet
+    fireEvent.click(feed('Qualquer'));
+    await waitFor(() => expect(JSON.stringify(lastBody().filter)).not.toMatch(/feeding_days_left/), { timeout: 3000 });
   });
   it('"Data de fim já passou" é um chip próprio e não mistura com "acaba em"', async () => {
     await open();

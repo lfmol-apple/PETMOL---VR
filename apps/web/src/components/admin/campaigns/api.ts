@@ -59,6 +59,8 @@ export interface FieldsResponse { fields: FieldInfo[]; activity_note: string; lo
 export interface LocationOriginCov { key: string; label: string; approximate: boolean; state?: number; city?: number; tutors?: number; additional_tutors?: number; percent?: number; union_tutors?: number; union_percent?: number; state_percent?: number; city_percent?: number }
 export interface LocationCoverage { reachable: number; approximate_note: string; origins: LocationOriginCov[] }
 
+export type { PlaceOptions } from './places';
+
 export interface ExpiredBucket { key: string; label: string; min_days: number; max_days: number | null; plans: number; calculated: number; manual: number; tutors: number; tutors_reachable: number }
 export interface ExpiredFeedingPlans {
   today: string; active_plans: number; plans_with_end_date: number; note: string; buckets: ExpiredBucket[];

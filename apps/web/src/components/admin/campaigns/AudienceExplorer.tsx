@@ -6,14 +6,14 @@
  * (usa apenas POST /audience/count, somente leitura). O botão "Criar campanha com este público" leva os filtros para a campanha.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { call, explainError, type AudienceCount, type FieldInfo, type LocationCoverage } from './api';
+import { call, explainError, type AudienceCount, type FieldInfo } from './api';
 import { FilterBuilder } from './FilterBuilder';
 import { buildFilter, conditionCount, describeCond, emptyFilter, type FilterState } from './filters';
+import { removeField } from './quickFilters';
 import { chipLocks, findConflicts } from './consistency';
-import { AGE_BANDS, FEED_BANDS, LOC_ORIGINS, WEIGHT_BANDS, bandKey, locField, locOriginOf, moveLocOrigin, pickBand, pickOne, quickCond, removeCond, toggleFlag, toggleIn, type LocOrigin } from './quickFilters';
+import { AGE_BANDS, FEED_BANDS, WEIGHT_BANDS, bandKey, pickBand, pickIn, pickOne, quickCond, removeCond, toggleFlag, toggleIn } from './quickFilters';
+import { PLACE_FIELD, SEX_FIELD, SEX_OPTIONS, parsePlace, placeValue, rememberPlaces, type PlaceOptions } from './places';
 import { numberFmt } from '@/components/admin/sections/sections';
-
-const UFS = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
 
 function Chip({ on, onClick, children, hint, title }: { on: boolean; onClick: () => void; children: React.ReactNode; hint?: string; title?: string }) {
   return (
@@ -48,6 +48,53 @@ function Bar({ label, n, total }: { label: string; n: number; total: number }) {
   );
 }
 
+function Seg({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" role="radio" aria-checked={on} onClick={onClick}
+      className={`rounded-lg border px-3 py-1.5 text-[13px] font-semibold transition ${on ? 'border-sky-600 bg-sky-600 text-white shadow-sm' : 'border-slate-300 bg-white text-slate-700 hover:border-sky-400'}`}>{children}</button>
+  );
+}
+
+const clearField = (s: FilterState, field: string): FilterState => removeField(s, field);
+
+/** Escolha de lugar em 3 passos, sem digitar: Brasil inteiro · estado (nome completo) → estado inteiro / só a capital / uma cidade. */
+function PlacePicker({ state, onChange, places }: { state: FilterState; onChange: (s: FilterState) => void; places: PlaceOptions | null }) {
+  const cur = parsePlace(((quickCond(state, PLACE_FIELD)?.value as string[] | undefined) ?? [])[0]);
+  const uf = cur?.uf ?? '';
+  const st = places?.states.find((x) => x.uf === uf);
+  const set = (p: Parameters<typeof placeValue>[0]) => onChange(pickIn(removeField(state, PLACE_FIELD), PLACE_FIELD, placeValue(p), true));
+  const mode = cur?.mode ?? 'none';
+  return (
+    <div className="w-full space-y-2.5" data-testid="onde">
+      <div role="radiogroup" aria-label="Abrangência" className="flex flex-wrap items-center gap-1.5">
+        <Seg on={mode === 'none' || mode === 'br'} onClick={() => set({ mode: 'br' })}>Brasil inteiro</Seg>
+        <label className="sr-only" htmlFor="onde-estado">Estado</label>
+        <select id="onde-estado" value={uf} onChange={(e) => { if (e.target.value) set({ mode: 'state', uf: e.target.value }); else onChange(removeField(state, PLACE_FIELD)); }}
+          className={`rounded-lg border px-3 py-1.5 text-[13px] font-semibold ${uf ? 'border-sky-600 bg-sky-50 text-sky-900' : 'border-slate-300 bg-white text-slate-700'}`}>
+          <option value="">Escolher estado…</option>
+          {(places?.states ?? []).map((s) => <option key={s.uf} value={s.uf}>{s.name} ({s.tutors})</option>)}
+        </select>
+      </div>
+      {st && (
+        <div role="radiogroup" aria-label="Dentro do estado" className="flex flex-wrap items-center gap-1.5">
+          <Seg on={mode === 'state'} onClick={() => set({ mode: 'state', uf })}>Estado inteiro ({st.tutors})</Seg>
+          <Seg on={mode === 'capital'} onClick={() => set({ mode: 'capital', uf })}>Só a capital — {st.capital.name} ({st.capital.tutors})</Seg>
+          <span className="text-[12px] text-slate-500">ou</span>
+          <label className="sr-only" htmlFor="onde-cidade">Cidade</label>
+          <select id="onde-cidade" value={mode === 'city' ? cur?.city ?? '' : ''} onChange={(e) => { if (e.target.value) set({ mode: 'city', uf, city: e.target.value }); }}
+            className={`rounded-lg border px-3 py-1.5 text-[13px] font-semibold ${mode === 'city' ? 'border-sky-600 bg-sky-50 text-sky-900' : 'border-slate-300 bg-white text-slate-700'}`}>
+            <option value="">Uma cidade específica…</option>
+            {st.cities.map((c) => <option key={c.key} value={c.key}>{c.name} ({c.tutors})</option>)}
+          </select>
+        </div>
+      )}
+      <p className="text-[11.5px] leading-snug text-slate-500">
+        Só aparecem lugares onde há tutores. {places ? <>Cada tutor conta uma vez. {places.foreign_tutors > 0 && <>{places.foreign_tutors} fora do Brasil não entram nas listas de estado. </>}Quem ainda não tem estado conhecido ({places.unknown_location_tutors}) entra em “Brasil inteiro”.</> : 'Carregando as listas…'}
+      </p>
+    </div>
+  );
+}
+
 export function AudienceExplorer({ fields, state, onChange, onUse, locationNote, brandHints, maxBatch }: {
   maxBatch?: number | null; fields: FieldInfo[]; state: FilterState; onChange: (s: FilterState) => void; onUse?: (s: FilterState) => void;
   locationNote?: Record<string, string>; brandHints: { text: string; tutors: number }[];
@@ -56,22 +103,8 @@ export function AudienceExplorer({ fields, state, onChange, onUse, locationNote,
   const sig = useMemo(() => JSON.stringify(built.filter), [built]);
   const [res, setRes] = useState<{ data: AudienceCount | null; sig: string | null; error: string | null }>({ data: null, sig: null, error: null });
   const [advanced, setAdvanced] = useState(false);
-  const [cityText, setCityText] = useState('');
-  const [origin, setOrigin] = useState<LocOrigin>('melhor');
-  const [cov, setCov] = useState<LocationCoverage | null>(null);
-  useEffect(() => { let alive = true; call<LocationCoverage>('/audience/location-coverage').then((c) => { if (alive) setCov(c); }).catch(() => undefined); return () => { alive = false; }; }, []);
-  const usedOrigin = locOriginOf(state) ?? origin;               // a origem dos filtros já escolhidos manda; sem filtro, vale a selecionada
-  const oMeta = LOC_ORIGINS.find((o) => o.key === usedOrigin)!;
-  const ackLoc = oMeta.approx;
-  const covBy = (k: string) => cov?.origins.find((o) => o.key === k);
-  const covLine = (() => {
-    if (!cov) return null;
-    const c = covBy(usedOrigin === 'ip' ? 'ip_direto' : usedOrigin);
-    if (usedOrigin === 'cadastro') return `${c?.state ?? 0} têm estado e ${c?.city ?? 0} têm cidade, de ${cov.reachable} alcançáveis`;
-    if (usedOrigin === 'ip') { const a = covBy('ip_aparelho'); const d = covBy('ip_direto')?.tutors ?? 0; const extra = a?.additional_tutors ?? 0; return `${a?.union_tutors ?? d + extra} de ${cov.reachable} alcançáveis (${a?.union_percent ?? 0}%): ${d} pelo IP do próprio tutor + ${extra} só pelo aparelho`; }
-    if (usedOrigin === 'gps') return `${c?.state ?? 0} têm estado e ${c?.city ?? 0} têm cidade, de ${cov.reachable} alcançáveis`;
-    return `estado ${c?.state ?? 0} (${c?.state_percent ?? 0}%) e cidade ${c?.city ?? 0} (${c?.city_percent ?? 0}%), de ${cov.reachable} alcançáveis`;
-  })();
+  const [places, setPlaces] = useState<PlaceOptions | null>(null);
+  useEffect(() => { let alive = true; call<PlaceOptions>('/audience/location-options').then((o) => { if (alive) { rememberPlaces(o); setPlaces(o); } }).catch(() => undefined); return () => { alive = false; }; }, []);
   const seq = useRef(0);
 
   useEffect(() => {
@@ -123,6 +156,14 @@ export function AudienceExplorer({ fields, state, onChange, onUse, locationNote,
           {WEIGHT_BANDS.map((b) => <Chip key={b.key} on={bandKey(state, 'pet_weight_kg', WEIGHT_BANDS) === b.key} hint={b.hint} onClick={() => onChange(pickBand(state, 'pet_weight_kg', b))}>{b.label}</Chip>)}
         </Group>
         <Group title="Tutor" hint="Aparelho com push e atividade no app" note={lock('platform', 'tutor_activity')}>
+          {by.has(SEX_FIELD) && (
+            <div role="radiogroup" aria-label="Tutor ou tutora" className="flex w-full flex-wrap items-center gap-1.5" data-testid="tutor-sexo">
+              <span className="mr-1 text-[12.5px] font-bold text-slate-700">Tutor ou tutora</span>
+              <Seg on={!quickCond(state, SEX_FIELD)} onClick={() => onChange(clearField(state, SEX_FIELD))}>Todos</Seg>
+              {SEX_OPTIONS.map((o) => <Seg key={o.value} on={((quickCond(state, SEX_FIELD)?.value as string[] | undefined) ?? [])[0] === o.value} onClick={() => onChange(pickIn(state, SEX_FIELD, o.value))}>{o.label}</Seg>)}
+              <p className="w-full text-[11.5px] leading-snug text-slate-500">Provável, pelo primeiro nome — calculado na hora, sem guardar nada e sem mudar o texto enviado. Nome duvidoso fica em “Sem identificação”.</p>
+            </div>
+          )}
           <Chip on={has('platform', 'ios')} onClick={() => onChange(toggleIn(state, 'platform', 'ios'))}>iPhone</Chip>
           <Chip on={has('platform', 'android')} onClick={() => onChange(toggleIn(state, 'platform', 'android'))}>Android</Chip>
           <Chip on={has('platform', 'web')} onClick={() => onChange(toggleIn(state, 'platform', 'web'))}>Navegador</Chip>
@@ -131,42 +172,16 @@ export function AudienceExplorer({ fields, state, onChange, onUse, locationNote,
           <Chip on={eq('tutor_activity', 'd8_30')} onClick={() => onChange(pickOne(state, 'tutor_activity', 'd8_30'))}>Ativo há 8 a 30 dias</Chip>
           <Chip on={eq('tutor_activity', 'over_30d')} onClick={() => onChange(pickOne(state, 'tutor_activity', 'over_30d'))}>Sumido há +30 dias</Chip>
         </Group>
-        <Group title="Localização do tutor" hint="sempre aproximada, exceto o que o tutor digitou — nunca é residência confirmada">
-          <div role="radiogroup" aria-label="Origem da localização" className="flex w-full flex-wrap gap-1.5">
-            {LOC_ORIGINS.map((o) => (
-              <button key={o.key} type="button" role="radio" aria-checked={usedOrigin === o.key} title={o.hint}
-                onClick={() => { const from = usedOrigin; setOrigin(o.key); onChange(moveLocOrigin(state, from, o.key)); }}
-                className={`rounded-lg border px-2.5 py-1.5 text-[12.5px] font-semibold ${usedOrigin === o.key ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-indigo-400'}`}>
-                {o.label}{o.approx ? ' ≈' : ''}
-              </button>
-            ))}
-          </div>
-          <p className="w-full text-[11.5px] leading-snug text-slate-600" data-testid="origem-localizacao">
-            Origem: <strong>{oMeta.label}</strong> — {oMeta.hint}. {oMeta.approx ? 'Cidade/estado APROXIMADOS (não é a residência do tutor).' : 'Declarada pelo tutor; só 8% preenchem.'}
-            {covLine ? <> Cobertura: <strong data-testid="cobertura-origem">{covLine}</strong>.</> : null}
-          </p>
-          <label className="sr-only" htmlFor="loc-uf">Adicionar estado</label>
-          <select id="loc-uf" value="" onChange={(e) => { if (e.target.value) onChange(toggleIn(state, locField(usedOrigin, 'state'), e.target.value, ackLoc)); }}
-            className="rounded-full border border-slate-300 bg-white px-3 py-2 text-[13.5px] font-semibold text-slate-700">
-            <option value="">+ Estado…</option>
-            {UFS.map((u) => <option key={u} value={u}>{u}</option>)}
-          </select>
-          {((quickCond(state, locField(usedOrigin, 'state'))?.value as string[] | undefined) ?? []).map((u) => (
-            <Chip key={u} on onClick={() => onChange(toggleIn(state, locField(usedOrigin, 'state'), u, ackLoc))} title="Clique para remover">{u} ✕</Chip>
-          ))}
-          <span className="mx-1 hidden w-px self-stretch bg-slate-200 sm:block" aria-hidden />
-          <form className="flex gap-1.5" onSubmit={(e) => { e.preventDefault(); const t = cityText.trim(); if (t) { onChange(toggleIn(state, locField(usedOrigin, 'city'), t, ackLoc)); setCityText(''); } }}>
-            <input aria-label="Cidade" value={cityText} onChange={(e) => setCityText(e.target.value)} placeholder="Cidade (ex.: Campinas)" maxLength={80}
-              className="w-44 rounded-full border border-slate-300 bg-white px-3 py-2 text-[13.5px]" />
-            <button type="submit" className="rounded-full border border-slate-300 bg-white px-3 py-2 text-[13.5px] font-semibold text-slate-700 hover:border-sky-400">Adicionar cidade</button>
-          </form>
-          {((quickCond(state, locField(usedOrigin, 'city'))?.value as string[] | undefined) ?? []).map((c) => (
-            <Chip key={c} on onClick={() => onChange(toggleIn(state, locField(usedOrigin, 'city'), c, ackLoc))} title="Clique para remover">{c} ✕</Chip>
-          ))}
+        <Group title="Onde" hint="sempre aproximado (cadastro, IP ou GPS) — nunca é a residência confirmada" note={null}>
+          <PlacePicker state={state} onChange={onChange} places={places} />
         </Group>
         <Group title="Cuidados e ração" note={lock('feeding_registered', 'feeding_days_left', 'feeding_expired', 'feeding_date_source', 'care_vaccine', 'care_parasite', 'care_grooming')}>
           <Chip on={!!quickCond(state, 'feeding_registered')} onClick={() => onChange(toggleFlag(state, 'feeding_registered'))}>Tem ração cadastrada</Chip>
-          {FEED_BANDS.map((b) => <Chip key={b.key} on={bandKey(state, 'feeding_days_left', FEED_BANDS) === b.key} onClick={() => onChange(pickBand(state, 'feeding_days_left', b))}>{b.label}</Chip>)}
+          <div role="radiogroup" aria-label="Ração acabando em até" className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-[12.5px] font-bold text-slate-700">Ração acabando em até</span>
+            <Seg on={bandKey(state, 'feeding_days_left', FEED_BANDS) === null} onClick={() => onChange(clearField(state, 'feeding_days_left'))}>Qualquer</Seg>
+            {FEED_BANDS.map((b) => <Seg key={b.key} on={bandKey(state, 'feeding_days_left', FEED_BANDS) === b.key} onClick={() => onChange(pickBand(state, 'feeding_days_left', b))}>{b.hint || b.label.replace(/^Acaba em até /, '')}</Seg>)}
+          </div>
           <Chip on={!!quickCond(state, 'feeding_expired')} onClick={() => onChange(toggleFlag(state, 'feeding_expired'))} title="A data de fim do plano passou e o tutor não atualizou">Data de fim já passou</Chip>
           <Chip on={eq('feeding_date_source', 'calculated')} onClick={() => onChange(pickOne(state, 'feeding_date_source', 'calculated'))} title="O sistema calculou a partir de pacote, consumo e última compra">Data calculada pelo sistema</Chip>
           <Chip on={eq('feeding_date_source', 'manual')} onClick={() => onChange(pickOne(state, 'feeding_date_source', 'manual'))} title="O tutor informou a data da próxima compra">Data informada pelo tutor</Chip>

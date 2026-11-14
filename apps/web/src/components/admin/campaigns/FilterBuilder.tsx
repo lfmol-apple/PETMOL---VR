@@ -113,7 +113,7 @@ function FieldPicker({ fields, onPick, onClose }: { fields: FieldInfo[]; onPick:
   return (
     <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-2" role="group" aria-label="Escolha um filtro">
       {GROUPS.map((g) => {
-        const list = fields.filter((f) => f.group === g.key);
+        const list = fields.filter((f) => f.group === g.key && f.field !== 'location_place' && f.field !== 'tutor_sex_estimate');   // estes dois têm seletor próprio na tela principal
         if (!list.length) return null;
         const isOpen = open === g.key;
         return (

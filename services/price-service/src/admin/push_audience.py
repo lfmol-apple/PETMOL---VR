@@ -64,6 +64,7 @@ from ..user_auth.models import User
 from .activation_campaign_router import opted_out_ids
 from .analytics.permissions_bi import has_any_push
 from .analytics.queries import _feeding_configured_pet_ids
+from . import geo_names, tutor_sex
 from .deps import get_current_admin
 from .push_campaigns import (
     FILTER_FIELDS, AudienceFilter, FilterGroup, FilterRule, PushCampaign, PushCampaignRecipient, require_push_campaigns,
@@ -164,6 +165,8 @@ FIELD_META: dict[str, dict] = {
     "location_gps_city": {"group": "Localização", "origin": "gps_municipio", "precision": "aproximada (GPS → município de referência mais próximo)"},
     "location_best_state": {"group": "Localização", "origin": "melhor", "precision": "aproximada (cadastro; na falta, IP da última sessão)"},
     "location_best_city": {"group": "Localização", "origin": "melhor", "precision": "aproximada (cadastro; na falta, IP da última sessão)"},
+    "location_place": {"group": "Localização", "origin": "melhor", "precision": "aproximada (cadastro; na falta, IP ou GPS; não é residência)"},
+    "tutor_sex_estimate": {"group": "Tutor", "origin": "Primeiro nome comparado, na hora, com a base pública de nomes do IBGE", "precision": "provável (nada é gravado)"},
     "feeding_days_left": {"group": "Alimentação", "origin": "Plano de ração: data de fim (calculada pelo sistema ou informada pelo tutor)", "precision": "estimada pelo plano do tutor"},
     "feeding_overdue_days": {"group": "Alimentação", "origin": "Plano de ração: dias desde a data de fim prevista", "precision": "estimada pelo plano do tutor"},
     "feeding_expired": {"group": "Alimentação", "origin": "Plano de ração: data de fim já passou", "precision": "estimada pelo plano do tutor"},
@@ -177,7 +180,7 @@ FIELD_META: dict[str, dict] = {
 }
 _LOCATION_ORIGINS = {"location_registered_state": "cadastro", "location_registered_city": "cadastro",
                      "location_gps_radius": "gps", "location_geoip_region": "geoip",
-                     "location_best_state": "melhor", "location_best_city": "melhor",
+                     "location_best_state": "melhor", "location_best_city": "melhor", "location_place": "melhor",
                      "location_ip_state": "ip", "location_ip_city": "ip", "location_gps_state": "gps_municipio", "location_gps_city": "gps_municipio"}
 _ORIGIN_LABEL = {"cadastro": "cidade/estado digitados pelo tutor", "gps": "GPS do aparelho (última posição enviada)",
                  "geoip": "região aproximada pelo IP da última sessão",
@@ -225,6 +228,13 @@ def validate_filter_values(flt: AudienceFilter) -> None:
             vals = rule.value if isinstance(rule.value, list) else []
             if not vals or len(vals) > 30 or any(not isinstance(v, str) or not norm_text(v) or len(v) > 80 for v in vals):
                 raise FilterError(f"{label}: informe de 1 a 30 valores de texto.")
+        elif rule.field == "location_place":
+            vals = rule.value if isinstance(rule.value, list) else []
+            if not vals or len(vals) > 30 or any(not _valid_place(v) for v in vals):
+                raise FilterError(f"{label}: escolha o lugar na lista (Brasil, estado, capital ou cidade).")
+        elif rule.field == "tutor_sex_estimate":
+            if not tutor_sex.enabled():
+                raise FilterError("Filtro Tutor/Tutora desativado (recurso experimental desligado).")
         elif rule.op == "contains" and len(norm_text(rule.value)) < 2:
             raise FilterError(f"{label}: texto curto demais.")
         if rule.op == "between":
@@ -474,6 +484,15 @@ class _Geo:
     city: Optional[str]
     origin: str
     at: Optional[datetime] = None
+    ckey: Optional[str] = None     # cidade reconhecida no IBGE dentro da UF (nome oficial sem acento/caixa) ou None; calculada, não gravada
+
+    def __post_init__(self) -> None:
+        uf = geo_names.to_uf(self.state)
+        self.ckey = geo_names.city_key(uf, self.city) if uf else None
+
+    @property
+    def uf(self) -> Optional[str]:
+        return geo_names.to_uf(self.state)
 
 
 def _geo_of_event(region, city) -> tuple[Optional[str], Optional[str]]:
@@ -761,6 +780,70 @@ def _r_care(model):
     return run
 
 
+def _valid_place(v) -> bool:
+    if not isinstance(v, str):
+        return False
+    if v == "BR":
+        return True
+    parts = v.split(":")
+    if parts[0] in ("UF", "CAP") and len(parts) == 2:
+        return parts[1] in geo_names.UF_NAMES
+    if parts[0] == "CITY" and len(parts) == 3:
+        return parts[1] in geo_names.UF_NAMES and bool(parts[2]) and len(parts[2]) <= 80
+    return False
+
+
+def _place_by_user(ctx: AudienceContext) -> dict[str, tuple[Optional[str], Optional[str], bool]]:
+    """tutor → (UF, chave da cidade reconhecida, estrangeiro). UF vem da PRIMEIRA origem (cadastro → IP → GPS) com estado brasileiro;
+    a cidade só vale se for da MESMA UF (nunca mistura origens de estados diferentes). Estrangeiro = só há região fora do Brasil."""
+    src = _geo_sources(ctx)
+    out: dict[str, tuple[Optional[str], Optional[str], bool]] = {}
+    for uid in ctx.all_users:
+        geos = [src[n][uid] for n in ("cadastro", "ip", "gps") if uid in src[n]]
+        uf = next((g.uf for g in geos if g.uf), None)
+        if uf:
+            ck = next((g.ckey for g in geos if g.uf == uf and g.ckey), None)
+            out[uid] = (uf, ck, False)
+        elif any(g.state and not geo_names.is_robot_city(g.city) for g in geos):
+            out[uid] = (None, None, True)
+    return out
+
+
+def _r_place(ctx: AudienceContext, rule: FilterRule) -> _Outcome:
+    places = _place_by_user(ctx)
+    wanted = list(rule.value)
+    ids: set[str] = set()
+    for uid in ctx.all_users:
+        uf, ck, foreign = places.get(uid, (None, None, False))
+        for w in wanted:
+            if w == "BR":
+                ok = not foreign                      # Brasil inteiro: todos, exceto quem só tem localização fora do Brasil
+            elif w.startswith("UF:"):
+                ok = uf == w[3:]
+            elif w.startswith("CAP:"):
+                ok = uf == w[4:] and ck == geo_names.capital_key(uf)
+            else:
+                _, wuf, wck = w.split(":", 2)
+                ok = uf == wuf and ck == wck
+            if ok:
+                ids.add(uid)
+                break
+    known = sum(1 for uf, _, _ in places.values() if uf)
+    out = _Outcome("tutor", ids, _Cov(known, len(ctx.all_users), "tutores"))
+    out.extra["origin_breakdown"] = {}
+    return out
+
+
+def _r_tutor_sex(ctx: AudienceContext, rule: FilterRule) -> _Outcome:
+    """Sexo provável pelo primeiro nome — em memória, sem gravar nada. (Validação já recusa o filtro com a flag desligada.)"""
+    names = {str(i): n for i, n in ctx.db.query(User.id, User.name).all()}
+    est = {u: tutor_sex.estimate(names.get(u)) for u in ctx.all_users}
+    wanted = set(rule.value)
+    ids = {u for u, e in est.items() if e in wanted}
+    classified = sum(1 for e in est.values() if e != tutor_sex.UNKNOWN)
+    return _Outcome("tutor", ids, _Cov(classified, len(ctx.all_users), "tutores"))
+
+
 _RULES: dict[str, Callable[[AudienceContext, FilterRule], _Outcome]] = {
     "tutor_created_at": _r_tutor_created_at, "tutor_pet_count": _r_tutor_pet_count, "tutor_species_mix": _r_tutor_species_mix,
     "tutor_activity": _r_tutor_activity, "platform": _r_platform,
@@ -770,6 +853,7 @@ _RULES: dict[str, Callable[[AudienceContext, FilterRule], _Outcome]] = {
     "location_ip_state": _r_geo("state", ("ip",)), "location_ip_city": _r_geo("city", ("ip",)),
     "location_gps_state": _r_geo("state", ("gps",)), "location_gps_city": _r_geo("city", ("gps",)),
     "location_best_state": _r_geo("state", ("cadastro", "ip", "gps")), "location_best_city": _r_geo("city", ("cadastro", "ip", "gps")),
+    "location_place": _r_place, "tutor_sex_estimate": _r_tutor_sex,
     "feeding_days_left": _r_feeding_days_left, "feeding_expired": _r_feeding_expired, "feeding_overdue_days": _r_feeding_overdue_days, "feeding_date_source": _r_feeding_date_source,
     "feeding_registered": _r_feeding_registered, "feeding_brand_contains": _r_feeding_brand,
     "care_vaccine": _r_care(VaccineRecord), "care_parasite": _r_care(ParasiteControlRecord), "care_grooming": _r_care(GroomingRecord),
@@ -916,6 +1000,8 @@ def compute_audience(db, flt: AudienceFilter, *, campaign_id: Optional[str] = No
 def describe_fields() -> list[dict]:
     out = []
     for key, spec in FILTER_FIELDS.items():
+        if key == "tutor_sex_estimate" and not tutor_sex.enabled():
+            continue                                    # recurso experimental desligado: o filtro nem aparece
         meta = FIELD_META[key]
         out.append({"field": key, "label": spec["label"], "group": meta["group"], "scope": spec["scope"], "ops": list(spec["ops"]),
                     "values": list(spec["values"]) if spec.get("values") is not None else None,
@@ -1009,6 +1095,53 @@ def audience_expired_feeding_plans(current=Depends(get_current_admin)):
     db = _read_only_session()
     try:
         return expired_feeding_plans(db)
+    finally:
+        db.rollback()
+        db.close()
+
+
+def location_options(db, now: Optional[datetime] = None) -> dict:
+    """Listas de estado/cidade para o painel — SÓ opções que existem nos dados do PETMOL, entre os tutores alcançáveis (push ativo, sem opt-out),
+    cada tutor contado UMA vez. Nomes oficiais do IBGE; cidade sempre dentro da UF; cidade não reconhecida não vira opção (mas conta no estado).
+    Região fora do Brasil não entra nas opções de estado: aparece só em `foreign_tutors`."""
+    ctx = AudienceContext(db, now)
+    reach = ctx.reachable_universe
+    places = _place_by_user(ctx)
+    states: dict[str, dict] = {}
+    foreign = unknown = 0
+    for uid in reach:
+        uf, ck, is_foreign = places.get(uid, (None, None, False))
+        if is_foreign:
+            foreign += 1
+            continue
+        if not uf:
+            unknown += 1
+            continue
+        st = states.setdefault(uf, {"uf": uf, "name": geo_names.UF_NAMES[uf], "tutors": 0, "capital_tutors": 0, "cities": {}})
+        st["tutors"] += 1
+        if ck:
+            st["cities"][ck] = st["cities"].get(ck, 0) + 1
+            if ck == geo_names.capital_key(uf):
+                st["capital_tutors"] += 1
+    out_states = []
+    for uf, st in sorted(states.items(), key=lambda kv: geo_names.fold(kv[1]["name"])):
+        official = {geo_names.fold(n): n for n in geo_names._municipalities().get(uf, {}).values()}
+        cities = sorted(({"key": k, "name": official.get(k, k), "tutors": n, "capital": k == geo_names.capital_key(uf)} for k, n in st["cities"].items()),
+                        key=lambda c: geo_names.fold(c["name"]))
+        out_states.append({"uf": uf, "name": st["name"], "tutors": st["tutors"], "capital": {"name": geo_names.CAPITALS[uf], "tutors": st["capital_tutors"]},
+                           "cities": cities})
+    in_brazil = sum(s["tutors"] for s in out_states)
+    return {"reachable": len(reach), "brazil_tutors": len(reach) - foreign, "known_state_tutors": in_brazil, "unknown_location_tutors": unknown,
+            "foreign_tutors": foreign, "states": out_states,
+            "note": "Brasil inteiro inclui quem ainda não tem estado conhecido; quem só tem localização fora do Brasil fica de fora. Localização é aproximada."}
+
+
+@router.get("/audience/location-options")
+def audience_location_options(current=Depends(get_current_admin)):
+    """Estados e cidades reais (nomes IBGE) com contagem de tutores alcançáveis, para os seletores sem digitação."""
+    db = _read_only_session()
+    try:
+        return location_options(db)
     finally:
         db.rollback()
         db.close()
