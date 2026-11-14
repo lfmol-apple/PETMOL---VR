@@ -11,7 +11,7 @@ import { DateField } from '@/components/ui/DateField';
 import { Card, adminApi } from '@/components/admin/AdminUi';
 import { ErrorBox, Loading, numberFmt, useAsync } from '@/components/admin/sections/sections';
 
-type Key = 'downloads' | 'cadastros' | 'pets' | 'alimentacao';
+type Key = 'downloads' | 'cadastros' | 'pets' | 'alimentacao' | 'notificacoes';
 interface Block { totals: Record<Key, number>; series: ({ date: string } & Record<Key, number>)[] }
 interface Perf extends Block { platforms?: { ios: Block; android: Block } }
 type View = 'all' | 'ios' | 'android';
@@ -32,6 +32,7 @@ const METRICS: { key: Key; label: string; hint: string }[] = [
   { key: 'cadastros', label: 'Se cadastrou', hint: 'Criou a conta' },
   { key: 'pets', label: 'Cadastrou o pet', hint: 'Cadastrou o primeiro pet' },
   { key: 'alimentacao', label: 'Cadastrou a alimentação', hint: 'Configurou a ração' },
+  { key: 'notificacoes', label: 'Notificações ativas', hint: 'Ativou as notificações' },
 ];
 
 type Preset = '7d' | '30d' | '90d' | 'all' | 'custom';
@@ -65,7 +66,7 @@ export function DesempenhoTab() {
     <div className="space-y-5">
       <Card title="Hoje × ontem" subtitle="Hoje ainda está em andamento; ontem já fechou.">
         {today.loading && !today.data ? <Loading /> : today.error || yesterday.error || !today.data ? <ErrorBox msg={today.error || yesterday.error} /> : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             {METRICS.map((m) => (
               <div key={m.key} className="rounded-xl border border-slate-200 p-4">
                 <p className="text-[12px] font-bold uppercase tracking-wide text-slate-400">{m.label}</p>
@@ -96,7 +97,7 @@ export function DesempenhoTab() {
         </div>
         {period.loading && !period.data ? <Loading /> : period.error || !period.data ? <ErrorBox msg={period.error} /> : (
           <>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               {METRICS.map((m) => (
                 <div key={m.key} className="rounded-xl bg-slate-50 p-4">
                   <p className="text-[12px] font-bold uppercase tracking-wide text-slate-400">{m.label}</p>

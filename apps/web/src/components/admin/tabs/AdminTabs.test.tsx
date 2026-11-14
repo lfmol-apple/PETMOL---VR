@@ -57,12 +57,13 @@ describe('abas do painel', () => {
     expect(screen.getByText(/ana@x.com/)).toBeTruthy();
   });
 
-  it('Desempenho: mostra os 4 números, hoje × ontem', async () => {
-    const totals = { downloads: 5, cadastros: 4, pets: 3, alimentacao: 2 };
+  it('Desempenho: mostra os 5 números (inclui notificações ativas), hoje × ontem', async () => {
+    const totals = { downloads: 5, cadastros: 4, pets: 3, alimentacao: 2, notificacoes: 1 };
     api.adminApi.mockResolvedValue({ totals, series: [{ date: '2026-11-08', ...totals }] });
     render(<DesempenhoTab />);
     await waitFor(() => expect(screen.getAllByText('Cadastrou a alimentação').length).toBeGreaterThan(0));
     expect(screen.getAllByText('Downloads').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Se cadastrou').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Notificações ativas').length).toBeGreaterThan(0);
   });
 });
