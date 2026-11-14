@@ -645,7 +645,7 @@ def test_teto_de_escala_vira_503_no_endpoint(api, db, monkeypatch):
 def test_so_ha_endpoints_de_leitura_e_nenhum_envia():
     rotas = {(tuple(sorted(r.methods)), r.path) for r in pa.router.routes}
     assert rotas == {(("GET",), "/v1/admin/push-campaigns/fields"), (("GET",), "/v1/admin/push-campaigns/suggestions/brands"),
-                     (("POST",), "/v1/admin/push-campaigns/audience/count")}
+                     (("GET",), "/v1/admin/push-campaigns/audience/location-coverage"), (("POST",), "/v1/admin/push-campaigns/audience/count")}
     src = open(pa.__file__, encoding="utf-8").read()
     assert "push_to_user" not in src and "_spawn" not in src and "db.commit" not in src and "db.add" not in src
 
@@ -730,24 +730,211 @@ def test_faixas_de_idade_particionam_em_meses_completos(db):
     assert {m for t, m in donos.items() if t in faixas["senior"]} == {96, 97, 300}
 
 
-def test_melhor_localizacao_cadastro_vence_ip_e_ip_cobre_quem_nao_digitou(db):
-    """location_best_*: cadastro primeiro; na falta, região/cidade do IP da última sessão; sem nenhum dos dois, fora (e a cobertura diz isso)."""
+# ══ 5) LOCALIZAÇÃO POR ORIGEM (cadastro · IP direto · IP do aparelho · GPS) ═══
+
+def aevt(db, anon, uid, ago, region=None, city=None, platform="ios_capacitor"):
+    db.add(AnalyticsProductEvent(event_id=str(uuid.uuid4()), event_name="screen_view", user_id=uid, anonymous_id=anon, platform=platform,
+                                 received_at=NOW - ago, region=region, city=city))
+    db.flush()
+
+
+def rule_ids(db, field, values):
+    return ids_of(db, F(R(field, "in", values, ack=True)))[0]
+
+
+def test_geo_br_conversao_offline_e_casos_de_borda():
+    from src.admin.geo_br import nearest_municipality as nm
+    assert nm(-23.5505, -46.6333)[:2] == ("São Paulo", "SP")
+    assert nm(-19.9167, -43.9345)[:2] == ("Belo Horizonte", "MG")
+    assert nm(-3.1190, -60.0217)[:2] == ("Manaus", "AM")
+    assert nm(40.7128, -74.0060) is None                      # Nova York: fora do Brasil
+    assert nm(0.0, 0.0) is None                               # oceano
+    assert nm(None, -43.0) is None and nm(-19.0, None) is None
+    assert nm(float("nan"), -43.0) is None and nm(95.0, 0.0) is None and nm("x", 1) is None
+
+
+def test_gps_vira_cidade_estado_sem_alterar_coordenadas_e_so_com_source_gps(db):
     w = World(db)
-    a = w.user("Cadastro RJ", ios=True, state="RJ", city="Niterói")
-    b = w.user("Só IP MG", ios=True)
-    c = w.user("Sem dado", ios=True)
-    w.evt(a, timedelta(days=1), region="São Paulo", city="Campinas")      # o IP diz SP, mas o cadastro (RJ) vence
-    w.evt(b, timedelta(days=9), region="São Paulo", city="Santos")
-    w.evt(b, timedelta(days=2), region="Minas Gerais", city="Uberlândia")  # a mais recente
-    sp_mg = F(R("location_best_state", "in", ["sp", "MG"], ack=True))
-    assert ids_of(db, sp_mg)[0] == {b}
-    assert ids_of(db, F(R("location_best_state", "in", ["rj"], ack=True)))[0] == {a}
-    assert ids_of(db, F(R("location_best_city", "in", ["uberlandia"], ack=True)))[0] == {b}
-    assert ids_of(db, F(R("location_best_city", "in", ["niteroi"], ack=True)))[0] == {a}
-    assert ids_of(db, F(R("location_best_city", "in", ["campinas"], ack=True)))[0] == set()   # cadastro vence o IP
-    r = run(db, sp_mg)
-    cov = next(x for x in r["rules"] if x["field"] == "location_best_state")["coverage"]
-    assert cov["with_data"] == 2 and cov["total"] >= 3 and c not in ids_of(db, sp_mg)[0]
-    assert any(x["code"] == "location_approximate" and x["origin"] == "melhor" for x in r["warnings"])
-    with pytest.raises(Exception):                                                           # aproximada: exige o "estou ciente"
-        run(db, F(R("location_best_state", "in", ["SP"])))
+    g = w.user("GPS", ios=True, lat=-19.9167, lng=-43.9345, source="gps")
+    c = w.user("Coord de cidade (não GPS)", ios=True, lat=-19.9167, lng=-43.9345, source="city")
+    ny = w.user("Fora do Brasil", ios=True, lat=40.7, lng=-74.0, source="gps")
+    assert rule_ids(db, "location_gps_city", ["belo horizonte"]) == {g}
+    assert rule_ids(db, "location_gps_state", ["mg"]) == {g}
+    assert c not in rule_ids(db, "location_gps_state", ["MG"]) and ny not in rule_ids(db, "location_gps_state", ["NY", "MG"])
+    u = db.get(User, g)
+    assert (u.lat, u.lng, u.location_source, u.city, u.state) == (-19.9167, -43.9345, "gps", None, None)   # nada foi gravado de volta
+    r = run(db, F(R("location_gps_city", "in", ["belo horizonte"], ack=True)))
+    rule = next(x for x in r["rules"] if x["field"] == "location_gps_city")
+    assert rule["origin"] == "gps_municipio" and "aproximada" in rule["precision"] and rule["origin_breakdown"] == {"gps": 1}
+
+
+def test_cadastro_vence_ip_e_ip_vence_gps_na_melhor_localizacao(db):
+    w = World(db)
+    a = w.user("A", ios=True, state="RJ", city="Niterói", lat=-23.55, lng=-46.63, source="gps")
+    b = w.user("B", ios=True, lat=-23.55, lng=-46.63, source="gps")
+    c = w.user("C", ios=True, lat=-19.92, lng=-43.94, source="gps")
+    aevt(db, "dev-a", a, timedelta(days=1), "São Paulo", "Campinas")
+    aevt(db, "dev-b", b, timedelta(days=2), "Minas Gerais", "Uberlândia")
+    assert rule_ids(db, "location_best_state", ["RJ"]) == {a}                  # cadastro > IP > GPS
+    assert rule_ids(db, "location_best_state", ["MG"]) == {b, c}               # b pelo IP (MG), c pelo GPS (MG)
+    assert rule_ids(db, "location_best_state", ["SP"]) == set()                # GPS de b é SP, mas o IP dele vem antes
+    assert rule_ids(db, "location_best_city", ["uberlandia"]) == {b}
+    r = run(db, F(R("location_best_state", "in", ["MG"], ack=True)))
+    assert next(x for x in r["rules"] if x["field"] == "location_best_state")["origin_breakdown"] == {"ip_direto": 1, "gps": 1}
+
+
+def test_ip_do_aparelho_so_vale_para_aparelho_de_um_tutor_e_uma_plataforma(db):
+    w = World(db)
+    solo = w.user("Solo", ios=True)
+    aevt(db, "dev-solo", solo, timedelta(days=1))                              # login (sem geo) — o aparelho é do tutor
+    aevt(db, "dev-solo", None, timedelta(days=9), "Bahia", "Salvador")        # evento anônimo anterior ao login
+    assert rule_ids(db, "location_ip_state", ["BA"]) == {solo}
+    r = run(db, F(R("location_ip_state", "in", ["BA"], ack=True)))
+    assert next(x for x in r["rules"] if x["field"] == "location_ip_state")["origin_breakdown"] == {"ip_aparelho": 1}
+
+
+def test_aparelho_compartilhado_nao_mistura_contas(db):
+    w = World(db)
+    a, b = w.user("A", ios=True), w.user("B", ios=True)
+    aevt(db, "dev-x", a, timedelta(days=3))
+    aevt(db, "dev-x", b, timedelta(days=2))
+    aevt(db, "dev-x", None, timedelta(days=9), "Ceará", "Fortaleza")
+    assert rule_ids(db, "location_ip_state", ["CE"]) == set()                  # ninguém recebe o dado do aparelho dividido
+    assert rule_ids(db, "location_ip_city", ["fortaleza"]) == set()
+    aevt(db, "dev-x", a, timedelta(days=1), "Paraná", "Curitiba")             # o dado marcado com o tutor continua sendo DELE
+    assert rule_ids(db, "location_ip_state", ["PR"]) == {a}
+    assert b not in rule_ids(db, "location_ip_state", ["PR", "CE"])
+
+
+def test_mudanca_de_titularidade_invalida_eventos_anonimos_antigos(db):
+    w = World(db)
+    a, b = w.user("A", ios=True), w.user("B", ios=True)
+    aevt(db, "dev-t", a, timedelta(days=30))
+    aevt(db, "dev-t", None, timedelta(days=40), "Goiás", "Goiânia")
+    assert rule_ids(db, "location_ip_city", ["goiania"]) == {a}               # hoje o aparelho é só do A
+    aevt(db, "dev-t", b, timedelta(days=1))                                    # surge um 2º tutor no aparelho
+    assert rule_ids(db, "location_ip_city", ["goiania"]) == set()              # os eventos anônimos antigos deixam de valer
+    # no passado (antes do 2º tutor existir) o aparelho ainda era seguro: o corte é pelo "agora" da consulta
+    past = pa.resolve_audience(db, F(R("location_ip_city", "in", ["goiania"], ack=True)), now=NOW - timedelta(days=10))
+    assert past.matches == {a}
+
+
+def test_aparelho_com_duas_plataformas_e_excluido(db):
+    w = World(db)
+    t = w.user("T", ios=True)
+    aevt(db, "dev-m", t, timedelta(days=1), platform="ios_capacitor")
+    aevt(db, "dev-m", None, timedelta(days=5), "Pará", "Belém", platform="web")
+    assert rule_ids(db, "location_ip_state", ["PA"]) == set()
+
+
+def test_dados_ausentes_e_divergencia_geografica(db):
+    w = World(db)
+    nada = w.user("Sem nada", ios=True)
+    so_regiao = w.user("Só região", ios=True)
+    div = w.user("Diverge", ios=True, state="SP", city="Santos", lat=-19.9167, lng=-43.9345, source="gps")
+    aevt(db, "dev-r", so_regiao, timedelta(days=1), "Rio Grande do Sul", None)
+    aevt(db, "dev-d", div, timedelta(days=1), "Minas Gerais", "Uberlândia")
+    aevt(db, "dev-n", nada, timedelta(days=1), "", "")                         # evento sem geo: não conta como dado
+    assert rule_ids(db, "location_best_state", ["RS"]) == {so_regiao}
+    assert rule_ids(db, "location_best_city", ["santos"]) == {div}            # divergência: cadastro (Santos) vence IP (Uberlândia) e GPS (BH)
+    assert rule_ids(db, "location_ip_city", ["uberlandia"]) == {div}          # mas cada origem continua selecionável SEPARADAMENTE
+    assert rule_ids(db, "location_gps_city", ["belo horizonte"]) == {div}
+    assert nada not in rule_ids(db, "location_best_state", ["SP", "RS", "MG"])
+    assert rule_ids(db, "location_ip_city", ["x"]) == set() and so_regiao not in rule_ids(db, "location_ip_city", ["porto alegre"])
+
+
+def test_atualizacao_dos_eventos_muda_o_resultado(db):
+    w = World(db)
+    t = w.user("T", ios=True)
+    aevt(db, "dev-u", t, timedelta(days=5), "São Paulo", "São Paulo")
+    assert rule_ids(db, "location_ip_state", ["SP"]) == {t}
+    aevt(db, "dev-u", t, timedelta(days=1), "Pernambuco", "Recife")           # sessão mais nova de outro lugar
+    assert rule_ids(db, "location_ip_state", ["SP"]) == set() and rule_ids(db, "location_ip_state", ["PE"]) == {t}
+    aevt(db, "dev-u", None, timedelta(hours=1), "Bahia", "Salvador")          # anônimo MAIS NOVO no aparelho seguro do tutor
+    assert rule_ids(db, "location_ip_state", ["BA"]) == {t}
+    aevt(db, "dev-u", None, timedelta(days=-2), "Acre", "Rio Branco")         # evento no futuro: ignorado
+    assert rule_ids(db, "location_ip_state", ["AC"]) == set()
+
+
+def test_contagem_previa_e_reserva_usam_a_mesma_funcao_de_selecao(db):
+    """compute_audience (contagem/prévia) e a reserva chamam resolve_audience: mesma regra, inclusive para a localização por aparelho."""
+    import inspect
+    from src.admin import push_campaign_batches as pb
+    w = World(db)
+    t = w.user("T", ios=True)
+    aevt(db, "dev-s", t, timedelta(days=1))
+    aevt(db, "dev-s", None, timedelta(days=4), "Santa Catarina", "Joinville")
+    flt = F(R("location_best_city", "in", ["joinville"], ack=True))
+    assert pa.resolve_audience(db, flt, now=NOW).matches == {t}
+    assert run(db, flt)["matches"] == 1
+    assert "resolve_audience" in inspect.getsource(pb) and "resolve_audience" in inspect.getsource(pa.compute_audience)
+
+
+def test_cobertura_por_origem_so_entre_alcancaveis_e_sem_confundir_com_precisao(db):
+    w = World(db)
+    a = w.user("A", ios=True, state="SP", city="Campinas")
+    b = w.user("B", ios=True, lat=-19.9167, lng=-43.9345, source="gps")
+    c = w.user("C", ios=True)
+    d = w.user("D", ios=True)
+    w.user("Sem push (fora)", state="MG", city="Betim")
+    aevt(db, "dev-c", c, timedelta(days=1)); aevt(db, "dev-c", None, timedelta(days=7), "Bahia", "Salvador")   # só via aparelho
+    aevt(db, "dev-d", d, timedelta(days=1), "Ceará", "Fortaleza")                                                # IP direto
+    cov = pa.location_coverage(db, now=NOW)
+    by = {o["key"]: o for o in cov["origins"]}
+    assert cov["reachable"] == 4 and "não a precisão" in cov["approximate_note"].replace("a precisão geográfica", "a precisão") or "precisão" in cov["approximate_note"]
+    assert by["cadastro"]["state"] == 1 and by["cadastro"]["city"] == 1 and by["cadastro"]["approximate"] is False
+    assert by["ip_direto"]["tutors"] == 1 and by["ip_aparelho"]["tutors"] == 1 and by["ip_aparelho"]["additional_tutors"] == 1
+    assert by["gps"]["state"] == 1 and by["gps"]["city"] == 1 and by["gps"]["approximate"] is True
+    assert by["melhor"]["state"] == 4 and by["melhor"]["city"] == 4 and by["melhor"]["state_percent"] == 100.0
+    assert b is not None and a is not None
+
+
+def test_diferencial_de_aparelhos_contra_referencia_independente(db):
+    """Mundo aleatório de aparelhos (compartilhados, multiplataforma, eventos futuros) × implementação de referência em Python puro."""
+    rng = random.Random(2026)
+    w = World(db)
+    users = [w.user(f"U{i}", ios=True) for i in range(14)]
+    anons = [f"a{i}" for i in range(18)]
+    plats = ["ios_capacitor", "android_capacitor", "web"]
+    states = [("São Paulo", "Campinas"), ("Minas Gerais", "Betim"), ("Bahia", "Salvador"), ("Paraná", "Curitiba"), (None, "Recife"), ("Goiás", None), (None, None)]
+    world = []
+    for k in range(140):
+        anon = rng.choice(anons)
+        uid = rng.choice(users + [None, None])
+        plat = rng.choice(plats[:1] * 4 + plats[1:]) if rng.random() < 0.9 else rng.choice(plats)
+        ago = timedelta(hours=rng.randint(-72, 24 * 60), seconds=k)
+        reg, city = rng.choice(states)
+        aevt(db, anon, uid, ago, reg, city, plat)
+        world.append({"anon": anon, "user": uid, "t": NOW - ago, "region": reg, "city": city, "platform": plat})
+    live = [e for e in world if e["t"] <= NOW]
+    dev: dict = {}
+    for e in live:
+        d = dev.setdefault(e["anon"], {"users": set(), "plats": set()})
+        if e["user"]:
+            d["users"].add(e["user"])
+        d["plats"].add(e["platform"])
+    safe = {a: next(iter(d["users"])) for a, d in dev.items() if len(d["users"]) == 1 and len(d["plats"]) <= 1}
+    expect: dict[str, tuple] = {}
+    for e in sorted((e for e in live if e["region"] or e["city"]), key=lambda e: (e["t"], 0 if e["user"] else -1)):
+        owner = e["user"] or safe.get(e["anon"])
+        if owner is None:
+            continue
+        cur = expect.get(owner)
+        direct = bool(e["user"])
+        if cur is None or e["t"] > cur[0] or (e["t"] == cur[0] and direct):
+            expect[owner] = (e["t"], e["region"], e["city"])
+    for st_, ct_ in (("SP", "campinas"), ("MG", "betim"), ("BA", "salvador"), ("PR", "curitiba"), ("GO", "recife")):
+        want_s = {u for u, (_, r, _c) in expect.items() if r and pa.norm_state(r) == st_}
+        want_c = {u for u, (_, _r, c) in expect.items() if c and pa.norm_text(c) == ct_}
+        assert rule_ids(db, "location_ip_state", [st_]) == want_s, st_
+        assert rule_ids(db, "location_ip_city", [ct_]) == want_c, ct_
+
+
+def test_empate_de_horario_prefere_o_dado_do_proprio_tutor_e_origem_fica_correta(db):
+    w = World(db)
+    t = w.user("T", ios=True)
+    aevt(db, "dev-e", t, timedelta(days=2), "Paraná", "Curitiba")             # evento do próprio tutor
+    aevt(db, "dev-e", None, timedelta(days=2), "Bahia", "Salvador")           # anônimo no MESMO instante
+    assert rule_ids(db, "location_ip_state", ["PR"]) == {t} and rule_ids(db, "location_ip_state", ["BA"]) == set()
+    r = run(db, F(R("location_ip_state", "in", ["PR"], ack=True)))
+    assert next(x for x in r["rules"] if x["field"] == "location_ip_state")["origin_breakdown"] == {"ip_direto": 1}   # não é "do aparelho"

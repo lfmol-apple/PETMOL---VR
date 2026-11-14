@@ -11,6 +11,7 @@ import unicodedata
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
+from src.admin.geo_br import nearest_municipality
 NOW = datetime(2026, 11, 12, 4, 15, tzinfo=timezone.utc)
 
 # ── normalização independente ────────────────────────────────────────────────
@@ -60,23 +61,35 @@ def latest_region(u):
     return max(rs)[1] if rs else None
 
 
-def latest_city(u):
-    cs = [(t, c) for t, c in u["rcities"] if t <= NOW and c]
-    return max(cs)[1] if cs else None
+def ip_geo(u):
+    """(estado, cidade) do evento mais recente do PRÓPRIO tutor que tem região ou cidade (IP direto)."""
+    cities = dict(u["rcities"])
+    evs = [(t, r, cities.get(t)) for t, r in u["regions"] if t <= NOW and (n(r) or n(cities.get(t)))]
+    if not evs:
+        return None
+    t, r, c = max(evs, key=lambda e: e[0])
+    return (st(r) if n(r) else None, n(c) or None)
 
 
-def best_state(u):
-    if n(u["state"]):
-        return st(u["state"])
-    reg = latest_region(u)
-    return None if reg is None else st(reg)
+def gps_geo(u):
+    if u["loc_source"] != "gps" or u["lat"] is None or u["lng"] is None:
+        return None
+    m = nearest_municipality(u["lat"], u["lng"])
+    return None if m is None else (m[1], n(m[0]))
 
 
-def best_city(u):
-    if n(u["city"]):
-        return n(u["city"])
-    c = latest_city(u)
-    return n(c) if c and n(c) else None
+def cad_geo(u):
+    if not (n(u["city"]) or n(u["state"])):
+        return None
+    return (st(u["state"]) if n(u["state"]) else None, n(u["city"]) or None)
+
+
+def geo_value(u, idx, sources):
+    for src in sources:
+        g = {"cad": cad_geo, "ip": ip_geo, "gps": gps_geo}[src](u)
+        if g and g[idx]:
+            return g[idx]
+    return None
 
 
 def configured(plan):
@@ -137,12 +150,12 @@ def rule_tutor(u, r):
     if f == "location_geoip_region":
         reg = latest_region(u)
         return reg is not None and st(reg) in {st(x) for x in v}
-    if f == "location_best_state":
-        bs = best_state(u)
-        return bs is not None and bs in {st(x) for x in v}
-    if f == "location_best_city":
-        bc = best_city(u)
-        return bc is not None and bc in {n(x) for x in v}
+    for fld, idx, srcs in (("location_best_state", 0, ("cad", "ip", "gps")), ("location_best_city", 1, ("cad", "ip", "gps")),
+                           ("location_ip_state", 0, ("ip",)), ("location_ip_city", 1, ("ip",)),
+                           ("location_gps_state", 0, ("gps",)), ("location_gps_city", 1, ("gps",))):
+        if f == fld:
+            val = geo_value(u, idx, srcs)
+            return val is not None and val in {(st(x) if idx == 0 else n(x)) for x in v}
     if f == "care_medication":
         return u["medication"]
     raise AssertionError(f)
@@ -293,10 +306,10 @@ def gen_rule(rng: random.Random, field: str) -> dict:
         return {"kind": "rule", "field": field, "op": "within_km", "value": {"lat": -19.92 + rng.uniform(-0.5, 0.5), "lng": -43.94 + rng.uniform(-0.5, 0.5), "km": rng.choice([5, 50, 120, 300])}, **ack}
     if field == "location_geoip_region":
         return {"kind": "rule", "field": field, "op": "in", "value": rng.sample(["São Paulo", "minas gerais", "RJ", "Ontario", "Paraná"], rng.randint(1, 2)), **ack}
-    if field == "location_best_state":
+    if field in ("location_best_state", "location_ip_state", "location_gps_state"):
         return {"kind": "rule", "field": field, "op": "in", "value": rng.sample(["SP", "sao paulo", "Minas Gerais", "rj", "Paraná"], rng.randint(1, 3)), **ack}
-    if field == "location_best_city":
-        return {"kind": "rule", "field": field, "op": "in", "value": rng.sample(["Sao Paulo", "campinas", "BELO HORIZONTE", "Curitiba", "Niterói"], rng.randint(1, 3)), **ack}
+    if field in ("location_best_city", "location_ip_city", "location_gps_city"):
+        return {"kind": "rule", "field": field, "op": "in", "value": rng.sample(["Sao Paulo", "campinas", "BELO HORIZONTE", "Curitiba", "Niterói", "Betim"], rng.randint(1, 3)), **ack}
     if field == "care_medication":
         return {"kind": "rule", "field": field, "op": "eq", "value": True}
     if field == "pet_species":
@@ -323,7 +336,8 @@ def gen_rule(rng: random.Random, field: str) -> dict:
 
 
 ALL_FIELDS = sorted(PET_FIELDS | {"tutor_created_at", "tutor_pet_count", "tutor_species_mix", "tutor_activity", "platform", "location_registered_state",
-                                  "location_registered_city", "location_gps_radius", "location_geoip_region", "location_best_state", "location_best_city", "care_medication"})
+                                  "location_registered_city", "location_gps_radius", "location_geoip_region", "location_best_state", "location_best_city", "location_ip_state", "location_ip_city",
+                                  "location_gps_state", "location_gps_city", "care_medication"})
 
 
 def gen_group(rng: random.Random, depth=1) -> dict:

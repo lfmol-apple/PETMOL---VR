@@ -256,6 +256,58 @@ const fixture = {
    "precision": "aproximada (cadastro; na falta, IP da última sessão)"
   },
   {
+   "field": "location_ip_state",
+   "label": "Estado pelo IP (aproximado)",
+   "group": "Localização",
+   "scope": "tutor",
+   "ops": [
+    "in"
+   ],
+   "values": null,
+   "approximate": true,
+   "origin": "ip",
+   "precision": "aproximada (IP do tutor ou do aparelho dele; não é residência)"
+  },
+  {
+   "field": "location_ip_city",
+   "label": "Cidade pelo IP (aproximada)",
+   "group": "Localização",
+   "scope": "tutor",
+   "ops": [
+    "in"
+   ],
+   "values": null,
+   "approximate": true,
+   "origin": "ip",
+   "precision": "aproximada (IP do tutor ou do aparelho dele; não é residência)"
+  },
+  {
+   "field": "location_gps_state",
+   "label": "Estado pelo GPS (aproximado)",
+   "group": "Localização",
+   "scope": "tutor",
+   "ops": [
+    "in"
+   ],
+   "values": null,
+   "approximate": true,
+   "origin": "gps_municipio",
+   "precision": "aproximada (GPS → município de referência mais próximo)"
+  },
+  {
+   "field": "location_gps_city",
+   "label": "Cidade pelo GPS (aproximada)",
+   "group": "Localização",
+   "scope": "tutor",
+   "ops": [
+    "in"
+   ],
+   "values": null,
+   "approximate": true,
+   "origin": "gps_municipio",
+   "precision": "aproximada (GPS → município de referência mais próximo)"
+  },
+  {
    "field": "feeding_registered",
    "label": "Ração cadastrada",
    "group": "Alimentação",

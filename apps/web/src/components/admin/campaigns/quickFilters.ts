@@ -74,3 +74,31 @@ export function removeCond(s: FilterState, condId: string): FilterState {
   const blocks = s.blocks.map((b) => ({ ...b, conds: b.conds.filter((c) => c.id !== condId) })).filter((b) => b.conds.length > 0);
   return { ...s, blocks };
 }
+
+// ── Localização do tutor: a ORIGEM do dado é parte do filtro (e é sempre mostrada) ──────────────────────────────
+export type LocOrigin = 'melhor' | 'cadastro' | 'ip' | 'gps';
+export const LOC_ORIGINS: { key: LocOrigin; label: string; approx: boolean; hint: string }[] = [
+  { key: 'melhor', label: 'Melhor disponível', approx: true, hint: 'cadastro; na falta, IP; na falta, GPS' },
+  { key: 'cadastro', label: 'Cadastro', approx: false, hint: 'o que o tutor digitou' },
+  { key: 'ip', label: 'IP', approx: true, hint: 'IP do tutor ou do aparelho dele (1 tutor, 1 plataforma)' },
+  { key: 'gps', label: 'GPS', approx: true, hint: 'GPS → município de referência mais próximo' },
+];
+export const locField = (o: LocOrigin, kind: 'state' | 'city'): string =>
+  o === 'melhor' ? `location_best_${kind}` : o === 'cadastro' ? `location_registered_${kind}` : o === 'ip' ? `location_ip_${kind}` : `location_gps_${kind}`;
+export const locOriginOf = (s: FilterState): LocOrigin | null => {
+  for (const o of LOC_ORIGINS) if (quickCond(s, locField(o.key, 'state')) || quickCond(s, locField(o.key, 'city'))) return o.key;
+  return null;
+};
+/** Troca a origem mantendo os valores escolhidos (estados e cidades). Só o bloco rápido muda; nada mais é tocado. */
+export function moveLocOrigin(s: FilterState, from: LocOrigin, to: LocOrigin): FilterState {
+  if (from === to) return s;
+  let out = s;
+  const ack = LOC_ORIGINS.find((o) => o.key === to)!.approx;
+  for (const kind of ['state', 'city'] as const) {
+    const cur = quickCond(out, locField(from, kind));
+    if (!cur) continue;
+    out = setQuick(out, locField(from, kind), null);
+    out = setQuick(out, locField(to, kind), { op: 'in', value: cur.value, ack });
+  }
+  return out;
+}

@@ -51,6 +51,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, text
 
 from ..db import SessionLocal
+from .geo_br import nearest_municipality
 from ..events.models import Event
 from ..health.models import FeedingPlan
 from ..notifications import NativePushToken, PushSubscription
@@ -157,6 +158,10 @@ FIELD_META: dict[str, dict] = {
     "location_registered_city": {"group": "Localização", "origin": "cadastro", "precision": "declarada pelo tutor"},
     "location_gps_radius": {"group": "Localização", "origin": "gps", "precision": "aproximada (última posição do GPS)"},
     "location_geoip_region": {"group": "Localização", "origin": "geoip", "precision": "aproximada (IP, não é residência)"},
+    "location_ip_state": {"group": "Localização", "origin": "ip", "precision": "aproximada (IP do tutor ou do aparelho dele; não é residência)"},
+    "location_ip_city": {"group": "Localização", "origin": "ip", "precision": "aproximada (IP do tutor ou do aparelho dele; não é residência)"},
+    "location_gps_state": {"group": "Localização", "origin": "gps_municipio", "precision": "aproximada (GPS → município de referência mais próximo)"},
+    "location_gps_city": {"group": "Localização", "origin": "gps_municipio", "precision": "aproximada (GPS → município de referência mais próximo)"},
     "location_best_state": {"group": "Localização", "origin": "melhor", "precision": "aproximada (cadastro; na falta, IP da última sessão)"},
     "location_best_city": {"group": "Localização", "origin": "melhor", "precision": "aproximada (cadastro; na falta, IP da última sessão)"},
     "feeding_registered": {"group": "Alimentação", "origin": "Ração cadastrada (definição do produto)", "precision": "declarada"},
@@ -168,9 +173,12 @@ FIELD_META: dict[str, dict] = {
 }
 _LOCATION_ORIGINS = {"location_registered_state": "cadastro", "location_registered_city": "cadastro",
                      "location_gps_radius": "gps", "location_geoip_region": "geoip",
-                     "location_best_state": "melhor", "location_best_city": "melhor"}
+                     "location_best_state": "melhor", "location_best_city": "melhor",
+                     "location_ip_state": "ip", "location_ip_city": "ip", "location_gps_state": "gps_municipio", "location_gps_city": "gps_municipio"}
 _ORIGIN_LABEL = {"cadastro": "cidade/estado digitados pelo tutor", "gps": "GPS do aparelho (última posição enviada)",
                  "geoip": "região aproximada pelo IP da última sessão",
+                 "ip": "IP do próprio tutor ou de eventos anteriores ao login do mesmo aparelho (aparelho com 1 tutor e 1 plataforma); aproximada",
+                 "gps_municipio": "GPS convertido, offline, no município de referência mais próximo (aproximada; as coordenadas não são alteradas)",
                  "melhor": "melhor localização disponível: a digitada pelo tutor e, na falta dela, a aproximada pelo IP da última sessão"}
 assert set(FIELD_META) == set(FILTER_FIELDS), "FIELD_META precisa cobrir exatamente os filtros disponíveis"
 
@@ -208,7 +216,8 @@ def validate_filter_values(flt: AudienceFilter) -> None:
         elif rule.field in ("pet_age_months", "pet_weight_kg"):
             for v in (rule.value if isinstance(rule.value, list) else [rule.value]):
                 _num(v, label)
-        elif rule.field in ("location_registered_state", "location_registered_city", "location_geoip_region", "location_best_state", "location_best_city"):
+        elif rule.field in ("location_registered_state", "location_registered_city", "location_geoip_region", "location_best_state", "location_best_city",
+                            "location_ip_state", "location_ip_city", "location_gps_state", "location_gps_city"):
             vals = rule.value if isinstance(rule.value, list) else []
             if not vals or len(vals) > 30 or any(not isinstance(v, str) or not norm_text(v) or len(v) > 80 for v in vals):
                 raise FilterError(f"{label}: informe de 1 a 30 valores de texto.")
@@ -443,35 +452,159 @@ def _r_geoip(ctx: AudienceContext, rule: FilterRule) -> _Outcome:
     return _Outcome("tutor", ids, _Cov(len(latest), len(ctx.all_users), "tutores"))
 
 
-def _best_state_by_user(ctx: AudienceContext) -> dict[str, str]:
-    """Estado por tutor: o digitado no cadastro; na falta dele, a região do IP da última sessão. Quem não tem nenhum fica de fora."""
-    out = {str(u[0]): norm_state(u[3]) for u in ctx.users if norm_text(u[3])}
-    for uid, region in _latest_region_by_user(ctx).items():
-        if uid in ctx.all_users and uid not in out:
-            out[uid] = norm_state(region)
+# ── Localização por origem (cadastro · IP · GPS) ─────────────────────────────
+# Origens (sempre identificadas; só "cadastro" é declarada pelo tutor, as demais são APROXIMADAS):
+#   cadastro    — estado/cidade digitados pelo tutor.
+#   ip_direto   — geo-IP do evento MAIS RECENTE do próprio tutor (user_id gravado no evento).
+#   ip_aparelho — geo-IP de eventos ANTERIORES AO LOGIN do mesmo aparelho (anonymous_id), SOMENTE se o aparelho é "seguro":
+#                 exatamente 1 tutor e no máximo 1 plataforma em TODO o histórico. Calculado a cada consulta: se surgir um 2º tutor
+#                 (ou outra plataforma) no aparelho, os eventos anônimos dele deixam de valer na mesma hora. Nunca é gravado.
+#   gps         — última posição de GPS (location_source='gps') convertida OFFLINE no município de referência mais próximo.
+# As coordenadas guardadas nunca são alteradas. Nada disso é residência confirmada.
+ORIGIN_KEYS = ("cadastro", "ip_direto", "ip_aparelho", "gps")
+
+
+@dataclass
+class _Geo:
+    state: Optional[str]
+    city: Optional[str]
+    origin: str
+    at: Optional[datetime] = None
+
+
+def _geo_of_event(region, city) -> tuple[Optional[str], Optional[str]]:
+    return (norm_state(region) if norm_text(region) else None, norm_text(city) or None)
+
+
+def _latest_geo_events(db, key_col, extra_filters, now, join=None) -> list:
+    """Evento mais recente (com região ou cidade) por `key_col`; empate de horário: escolha determinística."""
+    E = AnalyticsProductEvent
+    has_geo = (E.region.is_not(None) & (E.region != "")) | (E.city.is_not(None) & (E.city != ""))
+    base = [has_geo, E.received_at <= now, *extra_filters]
+    q = db.query(key_col.label("k"), func.max(E.received_at).label("m")).select_from(E)
+    if join is not None:
+        q = q.join(*join)
+    sub = q.filter(*base).group_by(key_col).subquery()
+    q2 = db.query(sub.c.k, E.received_at, E.region, E.city).select_from(E)
+    if join is not None:
+        q2 = q2.join(*join)
+    q2 = q2.join(sub, (key_col == sub.c.k) & (E.received_at == sub.c.m))
+    rows = q2.filter(*base).all()
+    return sorted(rows, key=lambda r: (str(r[0]), norm_text(r[2]), norm_text(r[3])))
+
+
+def _safe_devices_subquery(db, now):
+    E = AnalyticsProductEvent
+    return (db.query(E.anonymous_id.label("aid"), func.min(E.user_id).label("uid"))
+            .filter(E.anonymous_id.is_not(None), E.received_at <= now)
+            .group_by(E.anonymous_id)
+            .having((func.count(func.distinct(E.user_id)) == 1) & (func.count(func.distinct(E.platform)) <= 1)).subquery())
+
+
+def _ip_geo_by_user(ctx: AudienceContext) -> dict[str, _Geo]:
+    db, now, E = ctx.db, ctx.now, AnalyticsProductEvent
+    out: dict[str, _Geo] = {}
+    for uid, at, region, city in _latest_geo_events(db, E.user_id, [E.user_id.is_not(None)], now):
+        st, ct = _geo_of_event(region, city)
+        out.setdefault(str(uid), _Geo(st, ct, "ip_direto", _aware(at)))
+    safe = _safe_devices_subquery(db, now)
+    for uid, at, region, city in _latest_geo_events(db, safe.c.uid, [E.user_id.is_(None)], now, join=(safe, E.anonymous_id == safe.c.aid)):
+        st, ct = _geo_of_event(region, city)
+        cur = out.get(str(uid))
+        if cur is None or _aware(at) > cur.at:          # empate → o dado do próprio tutor
+            out[str(uid)] = _Geo(st, ct, "ip_aparelho", _aware(at))
     return out
 
 
-def _best_city_by_user(ctx: AudienceContext) -> dict[str, str]:
-    out = {str(u[0]): norm_text(u[2]) for u in ctx.users if norm_text(u[2])}
-    for uid, city in _latest_geo_by_user(ctx, AnalyticsProductEvent.city).items():
-        if uid in ctx.all_users and uid not in out and norm_text(city):
-            out[uid] = norm_text(city)
+def _gps_geo_by_user(ctx: AudienceContext) -> dict[str, _Geo]:
+    out: dict[str, _Geo] = {}
+    for r in ctx.users:
+        if r[6] != "gps" or r[4] is None or r[5] is None:
+            continue
+        m = nearest_municipality(float(r[4]), float(r[5]))
+        if m:
+            out[str(r[0])] = _Geo(m[1], norm_text(m[0]), "gps")
     return out
 
 
-def _r_best_state(ctx: AudienceContext, rule: FilterRule) -> _Outcome:
-    wanted = {norm_state(v) for v in rule.value}
-    best = _best_state_by_user(ctx)
-    ids = {u for u, st in best.items() if st in wanted} & ctx.all_users
-    return _Outcome("tutor", ids, _Cov(len(set(best) & ctx.all_users), len(ctx.all_users), "tutores"))
+def _cadastro_geo_by_user(ctx: AudienceContext) -> dict[str, _Geo]:
+    return {str(r[0]): _Geo(norm_state(r[3]) if norm_text(r[3]) else None, norm_text(r[2]) or None, "cadastro")
+            for r in ctx.users if norm_text(r[2]) or norm_text(r[3])}
 
 
-def _r_best_city(ctx: AudienceContext, rule: FilterRule) -> _Outcome:
-    wanted = {norm_text(v) for v in rule.value}
-    best = _best_city_by_user(ctx)
-    ids = {u for u, c in best.items() if c in wanted} & ctx.all_users
-    return _Outcome("tutor", ids, _Cov(len(set(best) & ctx.all_users), len(ctx.all_users), "tutores"))
+def _geo_sources(ctx: AudienceContext) -> dict[str, dict[str, _Geo]]:
+    cache = getattr(ctx, "_geo_cache", None)
+    if cache is None:
+        cache = {"cadastro": _cadastro_geo_by_user(ctx), "ip": _ip_geo_by_user(ctx), "gps": _gps_geo_by_user(ctx)}
+        ctx._geo_cache = cache  # type: ignore[attr-defined]
+    return cache
+
+
+def _geo_values(ctx: AudienceContext, kind: str, sources: tuple[str, ...]) -> dict[str, tuple[str, str]]:
+    """tutor → (valor, origem) do campo (`state`|`city`), pela PRIMEIRA origem da lista que tiver o dado."""
+    src = _geo_sources(ctx)
+    out: dict[str, tuple[str, str]] = {}
+    for name in sources:
+        for uid, g in src[name].items():
+            v = getattr(g, kind)
+            if v and uid not in out and uid in ctx.all_users:
+                out[uid] = (v, g.origin)
+    return out
+
+
+def _r_geo(kind: str, sources: tuple[str, ...]):
+    def resolver(ctx: AudienceContext, rule: FilterRule) -> _Outcome:
+        wanted = {norm_state(v) for v in rule.value} if kind == "state" else {norm_text(v) for v in rule.value}
+        vals = _geo_values(ctx, kind, sources)
+        ids = {u for u, (v, _) in vals.items() if v in wanted}
+        breakdown: dict[str, int] = {}
+        for u in ids:
+            breakdown[vals[u][1]] = breakdown.get(vals[u][1], 0) + 1
+        out = _Outcome("tutor", ids, _Cov(len(vals), len(ctx.all_users), "tutores"))
+        out.extra["origin_breakdown"] = breakdown
+        return out
+    return resolver
+
+
+def location_coverage(db, now: Optional[datetime] = None) -> dict:
+    """Cobertura REAL por origem entre os tutores alcançáveis (com push ativo e sem opt-out). Cobertura ≠ precisão geográfica."""
+    ctx = AudienceContext(db, now)
+    reach = ctx.reachable_universe
+    src = _geo_sources(ctx)
+
+    def n(d: dict[str, _Geo], kind: str, origin: Optional[str] = None) -> int:
+        return sum(1 for u, g in d.items() if u in reach and getattr(g, kind) and (origin is None or g.origin == origin))
+
+    direct_ids = {u for u, g in _direct_ip_ids(ctx).items() if u in reach}
+    dev_ids = {u for u in _device_ip_ids(ctx) if u in reach}
+    best_state = {u for u in _geo_values(ctx, "state", ("cadastro", "ip", "gps")) if u in reach}
+    best_city = {u for u in _geo_values(ctx, "city", ("cadastro", "ip", "gps")) if u in reach}
+    total = len(reach)
+    pct = lambda x: round(100.0 * x / total, 1) if total else 0.0  # noqa: E731
+    return {
+        "reachable": total, "approximate_note": "Cobertura é quantos tutores têm o dado, não a precisão geográfica: IP e GPS indicam cidade/estado APROXIMADOS, nunca a residência.",
+        "origins": [
+            {"key": "cadastro", "label": "Cadastro (digitado pelo tutor)", "approximate": False, "state": n(src["cadastro"], "state"), "city": n(src["cadastro"], "city")},
+            {"key": "ip_direto", "label": "IP do próprio tutor (última sessão)", "approximate": True, "tutors": len(direct_ids), "percent": pct(len(direct_ids))},
+            {"key": "ip_aparelho", "label": "IP de eventos anteriores ao login do mesmo aparelho (aparelho com 1 tutor e 1 plataforma)", "approximate": True,
+             "tutors": len(dev_ids), "additional_tutors": len(dev_ids - direct_ids), "percent": pct(len(dev_ids))},
+            {"key": "gps", "label": "GPS convertido em cidade/estado (município de referência mais próximo)", "approximate": True,
+             "state": n(src["gps"], "state"), "city": n(src["gps"], "city")},
+            {"key": "melhor", "label": "Melhor disponível (cadastro, senão IP, senão GPS)", "approximate": True, "state": len(best_state), "city": len(best_city),
+             "state_percent": pct(len(best_state)), "city_percent": pct(len(best_city))},
+        ],
+    }
+
+
+def _direct_ip_ids(ctx: AudienceContext) -> dict[str, bool]:
+    E = AnalyticsProductEvent
+    return {str(u): True for u, *_ in _latest_geo_events(ctx.db, E.user_id, [E.user_id.is_not(None)], ctx.now)}
+
+
+def _device_ip_ids(ctx: AudienceContext) -> set[str]:
+    E = AnalyticsProductEvent
+    safe = _safe_devices_subquery(ctx.db, ctx.now)
+    return {str(u) for u, *_ in _latest_geo_events(ctx.db, safe.c.uid, [E.user_id.is_(None)], ctx.now, join=(safe, E.anonymous_id == safe.c.aid))}
 
 
 def _r_care_medication(ctx: AudienceContext, rule: FilterRule) -> _Outcome:
@@ -578,7 +711,9 @@ _RULES: dict[str, Callable[[AudienceContext, FilterRule], _Outcome]] = {
     "pet_species": _r_pet_species, "pet_sex": _r_pet_sex, "pet_breed_contains": _r_pet_breed, "pet_age_months": _r_pet_age,
     "pet_weight_kg": _r_pet_weight, "pet_neutered_yes": _r_pet_neutered,
     "location_registered_state": _r_state, "location_registered_city": _r_city, "location_gps_radius": _r_gps, "location_geoip_region": _r_geoip,
-    "location_best_state": _r_best_state, "location_best_city": _r_best_city,
+    "location_ip_state": _r_geo("state", ("ip",)), "location_ip_city": _r_geo("city", ("ip",)),
+    "location_gps_state": _r_geo("state", ("gps",)), "location_gps_city": _r_geo("city", ("gps",)),
+    "location_best_state": _r_geo("state", ("cadastro", "ip", "gps")), "location_best_city": _r_geo("city", ("cadastro", "ip", "gps")),
     "feeding_registered": _r_feeding_registered, "feeding_brand_contains": _r_feeding_brand,
     "care_vaccine": _r_care(VaccineRecord), "care_parasite": _r_care(ParasiteControlRecord), "care_grooming": _r_care(GroomingRecord),
     "care_medication": _r_care_medication,
@@ -668,7 +803,8 @@ def compute_audience(db, flt: AudienceFilter, *, campaign_id: Optional[str] = No
         cov = out.cov
         rules.append({"field": rule.field, "label": FILTER_FIELDS[rule.field]["label"], "group": meta["group"], "origin": meta["origin"],
                       "precision": meta["precision"], "coverage": None if cov is None else
-                      {"with_data": cov.with_data, "total": cov.total, "unit": cov.unit, "percent": _pct(cov)}})
+                      {"with_data": cov.with_data, "total": cov.total, "unit": cov.unit, "percent": _pct(cov)},
+                      **({"origin_breakdown": out.extra["origin_breakdown"]} if out.extra.get("origin_breakdown") else {})})
         if rule.field in _LOCATION_ORIGINS:
             origins.append(_LOCATION_ORIGINS[rule.field])
         if cov is not None and cov.total and cov.with_data / cov.total < 0.5 and rule.field not in ("pet_neutered_yes", "feeding_registered"):
@@ -774,6 +910,17 @@ def list_fields(current=Depends(get_current_admin)):
     return {"fields": describe_fields(),
             "activity_note": "Atividade = eventos registrados no app, não necessariamente login.",
             "location_origins": _ORIGIN_LABEL}
+
+
+@router.get("/audience/location-coverage")
+def audience_location_coverage(current=Depends(get_current_admin)):
+    """Cobertura REAL de localização por origem entre os alcançáveis (somente leitura)."""
+    db = _read_only_session()
+    try:
+        return location_coverage(db)
+    finally:
+        db.rollback()
+        db.close()
 
 
 @router.get("/suggestions/brands")

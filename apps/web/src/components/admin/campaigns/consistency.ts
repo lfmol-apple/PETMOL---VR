@@ -11,7 +11,7 @@ import { describeCond, type Block, type Cond, type FilterState } from './filters
 import type { FieldInfo } from './api';
 import { QUICK_BLOCK_ID } from './quickFilters';
 
-export const QUICK_FIELDS = ['pet_species', 'pet_sex', 'pet_neutered_yes', 'pet_age_months', 'pet_weight_kg', 'platform', 'tutor_activity', 'location_best_state', 'location_best_city', 'feeding_registered', 'care_vaccine', 'care_parasite', 'care_grooming'];
+export const QUICK_FIELDS = ['pet_species', 'pet_sex', 'pet_neutered_yes', 'pet_age_months', 'pet_weight_kg', 'platform', 'tutor_activity', 'location_best_state', 'location_best_city', 'location_registered_state', 'location_registered_city', 'location_ip_state', 'location_ip_city', 'location_gps_state', 'location_gps_city', 'feeding_registered', 'care_vaccine', 'care_parasite', 'care_grooming'];
 
 export interface ChipLock { all: string | null; byField: Map<string, string> }
 

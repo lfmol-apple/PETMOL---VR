@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- servidor falso de teste */
+ 
 /**
  * Tela de segmentação: texto do número, limite por lote, coerência chips × filtros avançados (E/OU) e preservação integral dos
  * filtros ao criar a campanha (sem nenhum envio automático).
@@ -227,21 +227,43 @@ describe('"Criar campanha com este público" leva TODOS os filtros e nunca envia
   });
 });
 
-describe('Localização do tutor (melhor dado disponível, aproximada)', () => {
-  it('estado e cidade viram filtros aproximados já com o "estou ciente" e a contagem usa os dois', async () => {
+describe('Localização do tutor: origem sempre visível, aproximação identificada e cobertura real', () => {
+  const origin = (n: RegExp) => within(section()).getByRole('radio', { name: n });
+  it('padrão "Melhor disponível": filtros aproximados com ciência, origem e cobertura aparecem na tela', async () => {
     await open();
+    await waitFor(() => expect(screen.getByTestId('cobertura-origem').textContent).toMatch(/estado 197 \(98,5%\)|estado 197 \(98.5%\)/));
+    expect(screen.getByTestId('origem-localizacao').textContent).toMatch(/APROXIMADOS \(não é a residência/);
     const uf = within(section()).getByLabelText('Adicionar estado') as HTMLSelectElement;
-    fireEvent.change(uf, { target: { value: 'SP' } });
-    fireEvent.change(uf, { target: { value: 'MG' } });
+    fireEvent.change(uf, { target: { value: 'SP' } }); fireEvent.change(uf, { target: { value: 'MG' } });
     fireEvent.change(within(section()).getByLabelText('Cidade'), { target: { value: 'Campinas' } });
     fireEvent.click(within(section()).getByRole('button', { name: 'Adicionar cidade' }));
     await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/location_best_city/), { timeout: 3000 });
     const rules = JSON.stringify(lastBody().filter);
     expect(rules).toMatch(/"field":"location_best_state"[^}]*"value":\["SP","MG"\]/);
-    expect(rules).toMatch(/"field":"location_best_city"[^}]*"value":\["Campinas"\]/);
     expect(rules.match(/"approximate_ack":true/g)?.length).toBe(2);
-    expect(within(section()).getByText('Localização do tutor')).toBeTruthy();
-    fireEvent.click(within(section()).getAllByRole('checkbox', { name: /SP/ })[0]);                        // remove SP
-    await waitFor(() => expect(lastBody().filter.root.items[0].items.some((r: any) => r.field === 'location_best_state' && r.value.join() === 'MG')).toBe(true), { timeout: 3000 });
+  });
+
+  it('trocar a origem mantém os valores, troca o campo e a nota de cobertura; "Cadastro" é declarada (sem ciência)', async () => {
+    await open();
+    fireEvent.change(within(section()).getByLabelText('Adicionar estado'), { target: { value: 'RJ' } });
+    await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/location_best_state/), { timeout: 3000 });
+    fireEvent.click(origin(/^IP/));
+    await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/location_ip_state[^}]*"value":\["RJ"\]/), { timeout: 3000 });
+    expect(screen.getByTestId('cobertura-origem').textContent).toMatch(/196 de 200 alcançáveis \(98%\): 130 pelo IP do próprio tutor \+ 66 só pelo aparelho/);
+    fireEvent.click(origin(/^GPS/));
+    await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/location_gps_state/), { timeout: 3000 });
+    expect(screen.getByTestId('origem-localizacao').textContent).toMatch(/município de referência mais próximo/);
+    fireEvent.click(origin(/^Cadastro/));
+    await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/location_registered_state[^}]*"value":\["RJ"\][^}]*"approximate_ack":false/), { timeout: 3000 });
+    expect(screen.getByTestId('origem-localizacao').textContent).not.toMatch(/APROXIMADOS/);
+    expect(screen.getByTestId('cobertura-origem').textContent).toMatch(/16 têm estado e 18 têm cidade/);
+  });
+
+  it('sem filtro de localização, só a origem mostrada muda (nada é enviado ao motor)', async () => {
+    await open();
+    await waitFor(() => expect(screen.getByTestId('cobertura-origem')).toBeTruthy());
+    fireEvent.click(origin(/^GPS/));
+    expect(origin(/^GPS/).getAttribute('aria-checked')).toBe('true');
+    expect(be.calls.filter((c) => c.method === 'POST' && /audience\/count/.test(c.path)).every((c) => !/location_/.test(JSON.stringify(c.body)))).toBe(true);
   });
 });

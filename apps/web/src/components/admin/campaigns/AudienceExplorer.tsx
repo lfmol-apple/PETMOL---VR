@@ -6,11 +6,11 @@
  * (usa apenas POST /audience/count, somente leitura). O botão "Criar campanha com este público" leva os filtros para a campanha.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { call, explainError, type AudienceCount, type FieldInfo } from './api';
+import { call, explainError, type AudienceCount, type FieldInfo, type LocationCoverage } from './api';
 import { FilterBuilder } from './FilterBuilder';
 import { buildFilter, conditionCount, describeCond, emptyFilter, type FilterState } from './filters';
 import { chipLocks, findConflicts } from './consistency';
-import { AGE_BANDS, WEIGHT_BANDS, bandKey, pickBand, pickOne, quickCond, removeCond, toggleFlag, toggleIn } from './quickFilters';
+import { AGE_BANDS, LOC_ORIGINS, WEIGHT_BANDS, bandKey, locField, locOriginOf, moveLocOrigin, pickBand, pickOne, quickCond, removeCond, toggleFlag, toggleIn, type LocOrigin } from './quickFilters';
 import { numberFmt } from '@/components/admin/sections/sections';
 
 const UFS = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
@@ -57,6 +57,21 @@ export function AudienceExplorer({ fields, state, onChange, onUse, locationNote,
   const [res, setRes] = useState<{ data: AudienceCount | null; sig: string | null; error: string | null }>({ data: null, sig: null, error: null });
   const [advanced, setAdvanced] = useState(false);
   const [cityText, setCityText] = useState('');
+  const [origin, setOrigin] = useState<LocOrigin>('melhor');
+  const [cov, setCov] = useState<LocationCoverage | null>(null);
+  useEffect(() => { let alive = true; call<LocationCoverage>('/audience/location-coverage').then((c) => { if (alive) setCov(c); }).catch(() => undefined); return () => { alive = false; }; }, []);
+  const usedOrigin = locOriginOf(state) ?? origin;               // a origem dos filtros já escolhidos manda; sem filtro, vale a selecionada
+  const oMeta = LOC_ORIGINS.find((o) => o.key === usedOrigin)!;
+  const ackLoc = oMeta.approx;
+  const covBy = (k: string) => cov?.origins.find((o) => o.key === k);
+  const covLine = (() => {
+    if (!cov) return null;
+    const c = covBy(usedOrigin === 'ip' ? 'ip_direto' : usedOrigin);
+    if (usedOrigin === 'cadastro') return `${c?.state ?? 0} têm estado e ${c?.city ?? 0} têm cidade, de ${cov.reachable} alcançáveis`;
+    if (usedOrigin === 'ip') { const a = covBy('ip_aparelho'); return `${a?.tutors ?? 0} de ${cov.reachable} alcançáveis (${a?.percent ?? 0}%): ${covBy('ip_direto')?.tutors ?? 0} pelo IP do próprio tutor + ${a?.additional_tutors ?? 0} só pelo aparelho`; }
+    if (usedOrigin === 'gps') return `${c?.state ?? 0} têm estado e ${c?.city ?? 0} têm cidade, de ${cov.reachable} alcançáveis`;
+    return `estado ${c?.state ?? 0} (${c?.state_percent ?? 0}%) e cidade ${c?.city ?? 0} (${c?.city_percent ?? 0}%), de ${cov.reachable} alcançáveis`;
+  })();
   const seq = useRef(0);
 
   useEffect(() => {
@@ -116,24 +131,37 @@ export function AudienceExplorer({ fields, state, onChange, onUse, locationNote,
           <Chip on={eq('tutor_activity', 'd8_30')} onClick={() => onChange(pickOne(state, 'tutor_activity', 'd8_30'))}>Ativo há 8 a 30 dias</Chip>
           <Chip on={eq('tutor_activity', 'over_30d')} onClick={() => onChange(pickOne(state, 'tutor_activity', 'over_30d'))}>Sumido há +30 dias</Chip>
         </Group>
-        <Group title="Localização do tutor" hint="aproximada: o que o tutor digitou; na falta, a região/cidade pelo IP da última sessão (não é residência)">
+        <Group title="Localização do tutor" hint="sempre aproximada, exceto o que o tutor digitou — nunca é residência confirmada">
+          <div role="radiogroup" aria-label="Origem da localização" className="flex w-full flex-wrap gap-1.5">
+            {LOC_ORIGINS.map((o) => (
+              <button key={o.key} type="button" role="radio" aria-checked={usedOrigin === o.key} title={o.hint}
+                onClick={() => { const from = usedOrigin; setOrigin(o.key); onChange(moveLocOrigin(state, from, o.key)); }}
+                className={`rounded-lg border px-2.5 py-1.5 text-[12.5px] font-semibold ${usedOrigin === o.key ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-indigo-400'}`}>
+                {o.label}{o.approx ? ' ≈' : ''}
+              </button>
+            ))}
+          </div>
+          <p className="w-full text-[11.5px] leading-snug text-slate-600" data-testid="origem-localizacao">
+            Origem: <strong>{oMeta.label}</strong> — {oMeta.hint}. {oMeta.approx ? 'Cidade/estado APROXIMADOS (não é a residência do tutor).' : 'Declarada pelo tutor; só 8% preenchem.'}
+            {covLine ? <> Cobertura: <strong data-testid="cobertura-origem">{covLine}</strong>.</> : null}
+          </p>
           <label className="sr-only" htmlFor="loc-uf">Adicionar estado</label>
-          <select id="loc-uf" value="" onChange={(e) => { if (e.target.value) onChange(toggleIn(state, 'location_best_state', e.target.value, true)); }}
+          <select id="loc-uf" value="" onChange={(e) => { if (e.target.value) onChange(toggleIn(state, locField(usedOrigin, 'state'), e.target.value, ackLoc)); }}
             className="rounded-full border border-slate-300 bg-white px-3 py-2 text-[13.5px] font-semibold text-slate-700">
             <option value="">+ Estado…</option>
             {UFS.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
-          {((quickCond(state, 'location_best_state')?.value as string[] | undefined) ?? []).map((u) => (
-            <Chip key={u} on onClick={() => onChange(toggleIn(state, 'location_best_state', u, true))} title="Clique para remover">{u} ✕</Chip>
+          {((quickCond(state, locField(usedOrigin, 'state'))?.value as string[] | undefined) ?? []).map((u) => (
+            <Chip key={u} on onClick={() => onChange(toggleIn(state, locField(usedOrigin, 'state'), u, ackLoc))} title="Clique para remover">{u} ✕</Chip>
           ))}
           <span className="mx-1 hidden w-px self-stretch bg-slate-200 sm:block" aria-hidden />
-          <form className="flex gap-1.5" onSubmit={(e) => { e.preventDefault(); const t = cityText.trim(); if (t) { onChange(toggleIn(state, 'location_best_city', t, true)); setCityText(''); } }}>
+          <form className="flex gap-1.5" onSubmit={(e) => { e.preventDefault(); const t = cityText.trim(); if (t) { onChange(toggleIn(state, locField(usedOrigin, 'city'), t, ackLoc)); setCityText(''); } }}>
             <input aria-label="Cidade" value={cityText} onChange={(e) => setCityText(e.target.value)} placeholder="Cidade (ex.: Campinas)" maxLength={80}
               className="w-44 rounded-full border border-slate-300 bg-white px-3 py-2 text-[13.5px]" />
             <button type="submit" className="rounded-full border border-slate-300 bg-white px-3 py-2 text-[13.5px] font-semibold text-slate-700 hover:border-sky-400">Adicionar cidade</button>
           </form>
-          {((quickCond(state, 'location_best_city')?.value as string[] | undefined) ?? []).map((c) => (
-            <Chip key={c} on onClick={() => onChange(toggleIn(state, 'location_best_city', c, true))} title="Clique para remover">{c} ✕</Chip>
+          {((quickCond(state, locField(usedOrigin, 'city'))?.value as string[] | undefined) ?? []).map((c) => (
+            <Chip key={c} on onClick={() => onChange(toggleIn(state, locField(usedOrigin, 'city'), c, ackLoc))} title="Clique para remover">{c} ✕</Chip>
           ))}
         </Group>
         <Group title="Cuidados e ração" note={lock('feeding_registered', 'care_vaccine', 'care_parasite', 'care_grooming')}>

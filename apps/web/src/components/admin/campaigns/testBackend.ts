@@ -83,6 +83,12 @@ export class Backend {
   routes: Record<string, Handler> = {
     'GET /config': (_b, s) => ({ json: { enabled: s.enabled } }),
     'GET /fields': () => ({ json: fields }),
+    'GET /audience/location-coverage': () => ({ json: { reachable: 200, approximate_note: 'Cobertura é quantos tutores têm o dado, não a precisão geográfica: IP e GPS indicam cidade/estado APROXIMADOS, nunca a residência.', origins: [
+      { key: 'cadastro', label: 'Cadastro (digitado pelo tutor)', approximate: false, state: 16, city: 18 },
+      { key: 'ip_direto', label: 'IP do próprio tutor (última sessão)', approximate: true, tutors: 130, percent: 65 },
+      { key: 'ip_aparelho', label: 'IP de eventos anteriores ao login do mesmo aparelho', approximate: true, tutors: 196, additional_tutors: 66, percent: 98 },
+      { key: 'gps', label: 'GPS convertido em cidade/estado', approximate: true, state: 110, city: 110 },
+      { key: 'melhor', label: 'Melhor disponível', approximate: true, state: 197, city: 197, state_percent: 98.5, city_percent: 98.5 }] } }),
     'GET /suggestions/brands': () => ({ json: { suggestions: [{ text: 'Golden', search: 'golden', plans: 40, tutors: 31 }] } }),
     'GET /segments': () => ({ json: { goals: [{ key: 'racao', group: 'Alimentação', label: 'Cadastrar a ração', title: '{tutor}, a ração de {pets}?', open: 'food', message: 'Cadastre a ração.' }], destinations: { home: 'Tela inicial', food: 'Ração', produto: 'O produto do link (direto na loja)' } } }),
     'GET /campaigns': (_b, s) => ({ json: { ...(s.maxBatch !== null ? { max_batch: s.maxBatch } : {}), campaigns: s.campaigns.map((c) => ({ id: c.id, name: c.name, status: c.status, content_locked: c.content_locked, created_at: c.created_at, counts: c.counts })) } }),
