@@ -984,3 +984,25 @@ def test_racao_acabando_informa_cobertura_e_a_origem_da_data_sem_alterar_planos(
     assert "1 calculadas pelo sistema" in w_["text"] and "1 informadas pelo tutor" in w_["text"] and "não uma medição" in w_["text"]
     after = db.query(FeedingPlan.pet_id, FeedingPlan.estimated_end_date, FeedingPlan.next_reminder_date, FeedingPlan.reminder_source, FeedingPlan.last_food_push_date).order_by(FeedingPlan.pet_id).all()
     assert before == after and pa_                                            # nenhum dado do plano foi tocado
+
+
+def test_racao_mesma_conta_e_mesmo_dia_do_aplicativo(db):
+    """O app calcula `estimated_days_left = calculate_days_until_out(fim, date.today())` só se plano `enabled` e não apagado; o servidor roda em UTC.
+    O filtro usa a MESMA função, a data UTC do 'agora' da consulta e as mesmas condições de plano ativo."""
+    from datetime import date as _date
+    from src.health.services import calculate_days_until_out
+    w = World(db)
+    t = w.user("T", ios=True)
+    end = _date(2026, 11, 14)
+    _plano_fixo = w.pet(t)
+    db.add(FeedingPlan(pet_id=_plano_fixo, species="dog", country_code="BR", estimated_end_date=end, reminder_source="manual", enabled=True, food_brand="X"))
+    db.flush()
+    flt = F(R("feeding_days_left", "between", [0, 0]), scope="any")                 # "acaba hoje"
+    for now, today in ((datetime(2026, 11, 14, 23, 59, tzinfo=timezone.utc), _date(2026, 11, 14)), (datetime(2026, 11, 15, 0, 1, tzinfo=timezone.utc), _date(2026, 11, 15))):
+        app_days = calculate_days_until_out(end, today)                              # o que o app mostraria nesse instante (servidor em UTC)
+        got = pa.resolve_audience(db, flt, now=now).matches
+        assert (got == {t}) == (app_days == 0), (now, app_days)
+    exp = pa.resolve_audience(db, F(R("feeding_expired", "eq", True), scope="any"), now=datetime(2026, 11, 15, 0, 1, tzinfo=timezone.utc)).matches
+    assert exp == {t}                                                               # no dia seguinte (UTC) a previsão passa a vencida
+    db.query(FeedingPlan).update({"enabled": False})                                # pausado: o app nem calcula os dias → o filtro também não
+    assert pa.resolve_audience(db, F(R("feeding_expired", "eq", True), scope="any"), now=datetime(2026, 11, 15, 0, 1, tzinfo=timezone.utc)).matches == set()
