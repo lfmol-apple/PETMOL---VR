@@ -32,7 +32,7 @@ beforeEach(() => {
     calls.push({ url, body });
     const json = (d: unknown) => ({ ok: true, status: 200, json: async () => d });
     if (url.endsWith('/segments')) return json(segments);
-    if (url.endsWith('/history')) return json(history);
+    if (url.includes('/history?')) return json({ ...history, hidden_count: 0 });
     if (url.endsWith('/link-preview')) {
       if (String(body?.url).includes('evil')) return { ok: false, status: 422, json: async () => ({ detail: 'Este endereço não é de uma loja parceira (Amazon, Cobasi, Shopee…).' }) };
       if (String(body?.url).includes('shopee')) return json({ url: body.url, store: 'Shopee', host: 's.shopee.com.br', final_host: 'shopee.com.br', title: null, image: null, readable: false, reason: 'A loja não deixa ler o nome automaticamente. Digite o nome do produto.' });

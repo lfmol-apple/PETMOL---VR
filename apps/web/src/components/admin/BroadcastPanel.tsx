@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth-token';
 import { useAsync, Loading, ErrorBox, numberFmt } from '@/components/admin/sections/sections';
+import { SendHistory } from '@/components/admin/SendHistory';
 
 const API = '/api/v1/admin/broadcast';
 
@@ -22,12 +23,6 @@ interface Preview {
 }
 /** Resposta da conferência do link de produto: loja, nome lido do próprio link (quando a loja deixa) e imagem. */
 interface LinkInfo { url: string; store: string; host: string; final_host: string | null; title: string | null; image: string | null; readable: boolean; reason: string | null }
-interface Metrics { delivered: number; tapped: number; opened: number; acted: number; goal_hit: number | null; goal_label: string | null; window_closed: boolean }
-interface HistoryItem {
-  id: string; created_at: string; message: string; segment: string; audience_kind: 'all' | 'count' | 'test';
-  audience_requested: number | null; goal: string | null; recipients_total: number; delivered_total: number;
-  phase: 'sending' | 'done' | 'error'; metrics: Metrics; product?: { title: string; url: string } | null;
-}
 
 async function call<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API}${path}`, {
@@ -47,17 +42,12 @@ async function call<T>(path: string, body?: unknown): Promise<T> {
   return data as T;
 }
 
-const pctOf = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` : '–');
-const audienceLabel = (h: HistoryItem) =>
-  h.audience_kind === 'test' ? 'teste (contas de admin)' : h.audience_kind === 'count' ? `${numberFmt(h.audience_requested ?? 0)} sorteadas` : 'todos';
-
 /** Preenchimento vindo do Radar de promoções: o dono revisa e envia (começa em "Teste" para conferir). */
 export interface BroadcastPrefill { key: string; goal: string; title: string; message: string; destination: string; note: string }
 
 export function BroadcastPanel({ prefill }: { prefill?: BroadcastPrefill | null }) {
   const segs = useAsync<SegmentsResponse>(() => call('/segments'), [], { live: false });
   const [tick, setTick] = useState(0);
-  const history = useAsync<{ items: HistoryItem[] }>(() => call('/history'), [tick], { intervalMs: 20000 });
 
   const [goalKey, setGoalKey] = useState('');
   const [title, setTitle] = useState('');
@@ -328,43 +318,7 @@ export function BroadcastPanel({ prefill }: { prefill?: BroadcastPrefill | null 
         </>
       )}
 
-      <div>
-        <p className="mb-2 text-[12px] font-bold uppercase tracking-wide text-slate-500">Envios e resultado (24h depois de cada envio)</p>
-        {history.loading && !history.data ? <Loading /> : history.error || !history.data ? <ErrorBox msg={history.error} /> : (
-          history.data.items.length === 0 ? <p className="text-[13px] text-slate-500">Nenhum envio ainda.</p> : (
-            <ul className="space-y-3">
-              {history.data.items.map((h) => {
-                const m = h.metrics;
-                const rows: [string, number][] = [['Receberam', m.delivered], ['Tocaram na notificação', m.tapped], ['Abriram o app', m.opened], ['Fizeram algo no app', m.acted]];
-                return (
-                  <li key={h.id} className="rounded-xl border border-slate-200 p-3">
-                    <p className="text-[13px] font-bold text-slate-900">{h.message}</p>
-                    {h.product && <p className="text-[12px] text-slate-600">Produto: {h.product.title}</p>}
-                    <p className="text-[11px] text-slate-500">
-                      {new Date(h.created_at).toLocaleString('pt-BR')} · {audienceLabel(h)} · {h.phase === 'sending' ? 'enviando…' : h.phase === 'error' ? 'erro no envio' : `${numberFmt(h.delivered_total)} de ${numberFmt(h.recipients_total)} entregues`}
-                      {m.goal_label ? ` · meta: ${m.goal_label}` : ''}{!m.window_closed ? ' · ainda contando' : ''}
-                    </p>
-                    <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
-                      {rows.map(([t, n]) => (
-                        <div key={t} className="rounded-lg bg-slate-50 p-2 text-center">
-                          <p className="text-[18px] font-extrabold text-slate-900">{numberFmt(n)}</p>
-                          <p className="text-[10px] text-slate-500">{t}{t !== 'Receberam' ? ` · ${pctOf(n, m.delivered)}` : ''}</p>
-                        </div>
-                      ))}
-                      {m.goal_label && m.goal_hit !== null && (
-                        <div className="rounded-lg bg-emerald-50 p-2 text-center">
-                          <p className="text-[18px] font-extrabold text-emerald-700">{numberFmt(m.goal_hit)}</p>
-                          <p className="text-[10px] text-emerald-700">Meta atingida · {pctOf(m.goal_hit, m.delivered)}</p>
-                        </div>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )
-        )}
-      </div>
+      <SendHistory refreshKey={tick} />
     </div>
   );
 }
