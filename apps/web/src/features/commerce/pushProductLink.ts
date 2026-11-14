@@ -13,7 +13,7 @@ import { navigateToPartnerUrl } from './homeShoppingPartners';
 import { isStoreNativeOpenUser } from './storeNativeOpen';
 
 export const PUSH_PRODUCT_HOSTS = [
-  'www.amazon.com.br', 'amazon.com.br', 'amzn.to', 'www.amazon.com', 'amazon.com',
+  'www.amazon.com.br', 'amazon.com.br', 'amzn.to', 'link.amazon', 'www.amazon.com', 'amazon.com',
   'shopee.com.br', 'www.shopee.com.br', 's.shopee.com.br',
   'www.mercadolivre.com.br', 'mercadolivre.com.br', 'lista.mercadolivre.com.br', 'produto.mercadolivre.com.br', 'meli.la',
   'www.cobasi.com.br', 'cobasi.com.br', 'minhaloja.cobasi.com.br', 'mais.app',

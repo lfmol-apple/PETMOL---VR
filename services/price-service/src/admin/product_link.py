@@ -27,8 +27,8 @@ import httpx
 
 # host → nome da loja (para o painel mostrar "Amazon", "Cobasi"…)
 STORE_HOSTS: dict[str, str] = {
-    # Amazon (amzn.to é o encurtador; os produtos do PETMOL também resolvem para amazon.com)
-    "www.amazon.com.br": "Amazon", "amazon.com.br": "Amazon", "amzn.to": "Amazon", "www.amazon.com": "Amazon", "amazon.com": "Amazon",
+    # Amazon (amzn.to e link.amazon são os encurtadores do Associados; os produtos do PETMOL também resolvem para amazon.com)
+    "www.amazon.com.br": "Amazon", "amazon.com.br": "Amazon", "amzn.to": "Amazon", "link.amazon": "Amazon", "www.amazon.com": "Amazon", "amazon.com": "Amazon",
     # Shopee
     "shopee.com.br": "Shopee", "www.shopee.com.br": "Shopee", "s.shopee.com.br": "Shopee",
     # Mercado Livre
