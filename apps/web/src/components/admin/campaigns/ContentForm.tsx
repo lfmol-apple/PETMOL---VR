@@ -67,9 +67,14 @@ export function ContentForm({ goals, destinations, initial, onCreated }: {
   };
 
   const hasLink = d.productUrl.trim() !== '';
+  const goalObj = goals.find((x) => x.key === d.goal);
+  const suggested = goalObj?.open || 'home';                                  // para onde o objetivo escolhido costuma levar
+  const needsLink = !hasLink && d.destination === 'produto';                  // destino "produto" sem link: não há o que abrir
+  const dest = (k: string) => destinations[k] ?? k;
   const missing = d.name.trim().length < 3 ? 'Dê um nome à campanha (mínimo 3 letras).'
     : !d.message.trim() ? 'Escreva a mensagem principal.'
     : hasLink && !link && !initial.productUrl ? 'Confira o link do produto antes de continuar.'
+    : needsLink ? 'Este objetivo abre o link do produto: cole o link acima (ou escolha outro objetivo / “Escrever livremente”).'
     : hasLink && d.productTitle.trim().length < 2 ? 'Informe o nome do produto.' : null;
 
   const save = async () => {
@@ -119,7 +124,12 @@ export function ContentForm({ goals, destinations, initial, onCreated }: {
         <label className={label} htmlFor="cp-link">Link do produto (opcional): você cola o link monetizado, o PETMOL não altera nada nele</label>
         <div className="flex gap-2">
           <input id="cp-link" className={input} inputMode="url" autoComplete="off" value={d.productUrl} placeholder="Cole o link (Amazon, Cobasi, Shopee, Mercado Livre…)"
-            onChange={(e) => { set({ productUrl: e.target.value }); setLink(null); setLinkErr(null); }} />
+            onChange={(e) => {
+              const v = e.target.value;
+              // tirou o link: o toque deixa de abrir "o produto" e volta ao destino do objetivo (nunca fica um destino sem link)
+              set({ productUrl: v, ...(v.trim() === '' && d.destination === 'produto' ? { destination: suggested === 'produto' ? 'produto' : suggested } : {}) });
+              setLink(null); setLinkErr(null);
+            }} />
           <button type="button" disabled={checking || !hasLink} onClick={checkLink} className="shrink-0 rounded-lg bg-slate-800 px-3 text-[13px] font-bold text-white disabled:opacity-40">{checking ? 'Conferindo…' : 'Conferir'}</button>
         </div>
         {linkErr && <p role="alert" className="mt-2 text-[12.5px] text-rose-700">{linkErr}</p>}
@@ -137,14 +147,30 @@ export function ContentForm({ goals, destinations, initial, onCreated }: {
           </div>
         )}
       </div>
-      {!hasLink && (
-        <div>
-          <label className={label} htmlFor="cp-dest">Ao tocar, abrir:</label>
-          <select id="cp-dest" className={input} value={d.destination} onChange={(e) => set({ destination: e.target.value })}>
+      <div data-testid="ao-tocar">
+        <label className={label} htmlFor="cp-dest">Ao tocar na notificação, abrir:</label>
+        {hasLink ? (
+          <p id="cp-dest" className="rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-[13px] leading-snug text-emerald-900">
+            <strong>O link do produto</strong>, direto na loja{link ? <> ({link.store})</> : null}. O PETMOL abre exatamente o link colado acima; não abre a tela do objetivo.
+          </p>
+        ) : (
+          <select id="cp-dest" className={input} value={d.destination === 'produto' ? '' : d.destination} onChange={(e) => set({ destination: e.target.value })}>
+            {d.destination === 'produto' && <option value="" disabled>— cole o link acima —</option>}
             {Object.entries(destinations).filter(([k]) => k !== 'produto').map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
-        </div>
-      )}
+        )}
+        {!hasLink && goalObj && !needsLink && d.destination !== suggested && suggested !== 'produto' && (
+          <p role="note" className="mt-1.5 rounded-lg bg-amber-50 p-2 text-[12.5px] leading-snug text-amber-900">
+            Atenção: o objetivo “{goalObj.label}” costuma abrir <strong>{dest(suggested)}</strong>, e você escolheu <strong>{dest(d.destination)}</strong>. Confira se coincide com o que a mensagem promete.{' '}
+            <button type="button" className="font-bold underline" onClick={() => set({ destination: suggested })}>Usar {dest(suggested)}</button>
+          </p>
+        )}
+        {hasLink && goalObj && suggested !== 'produto' && (
+          <p role="note" className="mt-1.5 rounded-lg bg-amber-50 p-2 text-[12.5px] leading-snug text-amber-900">
+            Atenção: o objetivo “{goalObj.label}” abriria {dest(suggested)}, mas como há um link, o toque abre <strong>o link do produto</strong>. Confira se a mensagem combina com o link.
+          </p>
+        )}
+      </div>
       {err && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-[13px] text-rose-800">{err}</p>}
       {missing && <p className="text-[12.5px] text-amber-800">{missing}</p>}
       <button type="submit" disabled={busy || !!missing} className="rounded-lg bg-sky-700 px-4 py-2.5 text-[14px] font-bold text-white disabled:opacity-40">{busy ? 'Salvando…' : 'Salvar campanha e continuar'}</button>
