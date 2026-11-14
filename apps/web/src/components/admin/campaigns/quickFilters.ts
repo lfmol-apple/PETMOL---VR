@@ -7,16 +7,18 @@ import { uid, type Block, type Cond, type FilterState } from './filters';
 export const QUICK_BLOCK_ID = 'quick-block';
 
 export interface Band { key: string; label: string; hint: string; lo: number; hi: number }
+// Faixas SEM sobreposição nem lacuna: a idade é em meses COMPLETOS (inteiro) e o peso vale com 2 casas (0,01 kg; o motor arredonda),
+// então cada valor pertence a UMA só faixa. Limites inclusivos nos dois lados: 11|12, 35|36, 95|96 meses e 9,99|10, 24,99|25 kg.
 export const AGE_BANDS: Band[] = [
-  { key: 'filhote', label: 'Filhote', hint: 'até 12 meses', lo: 0, hi: 12 },
-  { key: 'jovem', label: 'Jovem', hint: '1 a 3 anos', lo: 12, hi: 36 },
-  { key: 'adulto', label: 'Adulto', hint: '3 a 8 anos', lo: 36, hi: 96 },
-  { key: 'senior', label: 'Sênior', hint: '8+ anos', lo: 96, hi: 360 },
+  { key: 'filhote', label: 'Filhote', hint: 'menos de 1 ano', lo: 0, hi: 11 },
+  { key: 'jovem', label: 'Jovem', hint: '1 a menos de 3 anos', lo: 12, hi: 35 },
+  { key: 'adulto', label: 'Adulto', hint: '3 a menos de 8 anos', lo: 36, hi: 95 },
+  { key: 'senior', label: 'Sênior', hint: '8 anos ou mais', lo: 96, hi: 600 },
 ];
 export const WEIGHT_BANDS: Band[] = [
-  { key: 'pequeno', label: 'Pequeno', hint: 'até 10 kg', lo: 0, hi: 10 },
-  { key: 'medio', label: 'Médio', hint: '10 a 25 kg', lo: 10, hi: 25 },
-  { key: 'grande', label: 'Grande', hint: '25+ kg', lo: 25, hi: 200 },
+  { key: 'pequeno', label: 'Pequeno', hint: 'menos de 10 kg', lo: 0, hi: 9.99 },
+  { key: 'medio', label: 'Médio', hint: '10 a menos de 25 kg', lo: 10, hi: 24.99 },
+  { key: 'grande', label: 'Grande', hint: '25 kg ou mais', lo: 25, hi: 500 },
 ];
 
 const quickOf = (s: FilterState): Block | undefined => s.blocks.find((b) => b.id === QUICK_BLOCK_ID);
@@ -31,7 +33,7 @@ export function setQuick(s: FilterState, field: string, next: Omit<Cond, 'id' | 
   if (!conds.length && exists) return { ...s, blocks: s.blocks.filter((b) => b.id !== QUICK_BLOCK_ID) };
   if (!exists) {
     if (!conds.length) return s;
-    return { ...s, op: 'and', blocks: [{ id: QUICK_BLOCK_ID, op: 'and', petScope: 'same', conds }, ...s.blocks] };
+    return { ...s, op: s.blocks.length ? s.op : 'and', blocks: [{ id: QUICK_BLOCK_ID, op: 'and', petScope: 'same', conds }, ...s.blocks] };
   }
   return { ...s, blocks: s.blocks.map((b) => (b.id === QUICK_BLOCK_ID ? { ...b, conds } : b)) };
 }

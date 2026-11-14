@@ -351,6 +351,7 @@ def test_api_teto_vale_para_chamada_direta_e_para_todos(api):
     r = api.c.post(f"{_P}/campaigns/{cid}/batches/preview", json={"filter": _FLT, "batch_size": 2})
     assert r.status_code == 200 and r.json()["max_batch"] == 2
     assert api.c.get(f"{_P}/campaigns/{cid}").json()["max_batch"] == 2
+    assert api.c.get(f"{_P}/campaigns").json()["max_batch"] == 2                  # a lista também informa o teto (a tela de segmentação mostra o limite)
 
 
 def test_api_parar_exige_confirmacao_e_e_idempotente(api):

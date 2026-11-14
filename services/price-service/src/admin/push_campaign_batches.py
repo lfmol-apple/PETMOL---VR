@@ -768,7 +768,7 @@ def api_create_campaign(payload: CampaignIn, current=Depends(get_current_admin))
 def api_list_campaigns(current=Depends(get_current_admin)):
     with SessionLocal() as db:
         rows = db.query(PushCampaign).order_by(PushCampaign.created_at.desc()).limit(100).all()
-        return {"campaigns": [{"id": c.id, "name": c.name, "status": c.status, "content_locked": c.content_locked_at is not None,
+        return {"max_batch": max_batch_limit(), "campaigns": [{"id": c.id, "name": c.name, "status": c.status, "content_locked": c.content_locked_at is not None,
                                "created_at": _aware(c.created_at).isoformat() if c.created_at else None,
                                "counts": _state_counts(db, campaign_id=c.id)} for c in rows]}
 

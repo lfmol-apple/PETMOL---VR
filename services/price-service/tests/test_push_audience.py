@@ -681,3 +681,49 @@ def test_desempenho_com_a_escala_atual(db):
     out = pa.compute_audience(db, flt, now=NOW)
     elapsed = time.perf_counter() - t0
     assert out["matches"] >= 0 and elapsed < 3.0, f"contagem complexa levou {elapsed:.2f}s"
+
+
+# ── Faixas de idade/peso da tela de segmentação: cada valor pertence a UMA faixa (sem lacuna nem sobreposição) ──────────────────
+
+AGE_BANDS = {"filhote": (0, 11), "jovem": (12, 35), "adulto": (36, 95), "senior": (96, 600)}
+WEIGHT_BANDS = {"pequeno": (0, 9.99), "medio": (10, 24.99), "grande": (25, 500)}
+
+
+def _band_members(db, field, bands):
+    return {k: ids_of(db, F(R(field, "between", [lo, hi]), scope="any"))[0] for k, (lo, hi) in bands.items()}
+
+
+def test_faixas_de_peso_particionam_sem_lacuna_nem_sobreposicao_inclusive_com_libras(db):
+    w = World(db)
+    pesos = [("kg", v) for v in (0.5, 9.99, 10.0, 10.01, 24.99, 25.0, 25.01, 40.0, 9.994, 9.996, 24.994, 24.996)] + \
+            [("lb", v) for v in (22.0, 22.04623, 22.0462, 22.1, 55.0, 55.115, 55.12)]          # 22,04623 lb ≈ 9,999999… kg (cairia numa lacuna sem o arredondamento)
+    donos = {}
+    for unit, v in pesos:
+        t = w.user(f"t{unit}{v}", ios=True)
+        w.pet(t, "dog", weight_value=v, weight_unit=unit)
+        donos[t] = (unit, v)
+    faixas = _band_members(db, "pet_weight_kg", WEIGHT_BANDS)
+    for t, (unit, v) in donos.items():
+        em = [k for k, ids in faixas.items() if t in ids]
+        assert len(em) == 1, (unit, v, em)                      # exatamente UMA faixa para cada peso
+    assert set().union(*faixas.values()) == set(donos)           # nenhum peso ficou de fora
+    assert faixas["pequeno"] & faixas["medio"] == set() and faixas["medio"] & faixas["grande"] == set()
+
+
+def test_faixas_de_idade_particionam_em_meses_completos(db):
+    w = World(db)
+    hoje = NOW.date()
+    donos = {}
+    for meses in (0, 1, 11, 12, 13, 35, 36, 37, 95, 96, 97, 300):
+        t = w.user(f"m{meses}", ios=True)
+        ano, mes = divmod(hoje.year * 12 + hoje.month - 1 - meses, 12)
+        w.pet(t, "dog", birth_date=date(ano, mes + 1, 1))
+        donos[t] = meses
+    faixas = _band_members(db, "pet_age_months", AGE_BANDS)
+    for t, meses in donos.items():
+        em = [k for k, ids in faixas.items() if t in ids]
+        assert len(em) == 1, (meses, em)
+    assert {m for t, m in donos.items() if t in faixas["filhote"]} == {0, 1, 11}
+    assert {m for t, m in donos.items() if t in faixas["jovem"]} == {12, 13, 35}
+    assert {m for t, m in donos.items() if t in faixas["adulto"]} == {36, 37, 95}
+    assert {m for t, m in donos.items() if t in faixas["senior"]} == {96, 97, 300}

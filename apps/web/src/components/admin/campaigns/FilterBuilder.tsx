@@ -6,6 +6,7 @@
  */
 import { useState } from 'react';
 import type { FieldInfo } from './api';
+import { QUICK_BLOCK_ID } from './quickFilters';
 import { GROUPS, PET_SCOPE_LABEL, VALUE_LABEL, defaultCond, condError, kindOf, uid, type Block, type Cond, type FilterState, type Op, type PetScope } from './filters';
 
 const input = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[14px] text-slate-900';
@@ -173,7 +174,7 @@ export function FilterBuilder({ fields, state, onChange, brandHints, locationNot
         return (
           <section key={b.id} aria-label={`Bloco ${i + 1}`} className="rounded-xl border border-slate-200 bg-white p-3">
             <header className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h4 className="text-[13px] font-bold text-slate-800">Bloco {i + 1}</h4>
+              <h4 className="text-[13px] font-bold text-slate-800">Bloco {i + 1}{b.id === QUICK_BLOCK_ID && <span className="ml-1.5 rounded-full bg-sky-100 px-2 py-0.5 text-[10.5px] font-bold text-sky-800">atalhos (chips)</span>}</h4>
               <div className="flex flex-wrap items-center gap-2">
                 {b.conds.length > 1 && (
                   <select aria-label={`Bloco ${i + 1}: combinar condições`} className={small} value={b.op} onChange={(e) => setBlock(b.id, { op: e.target.value as Op })}>

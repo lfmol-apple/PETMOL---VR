@@ -36,6 +36,7 @@ export function SegmentedCampaigns() {
   const [boot, setBoot] = useState<Boot | null>(null);
   const [bootErr, setBootErr] = useState<string | null>(null);
   const [list, setList] = useState<CampaignListItem[] | null>(null);
+  const [maxBatch, setMaxBatch] = useState<number | null>(null);
   const [view, setView] = useState<{ kind: 'list' } | { kind: 'new'; draft: Draft } | { kind: 'open'; id: string }>({ kind: 'list' });
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -67,7 +68,7 @@ export function SegmentedCampaigns() {
   }, []);
 
   const loadList = useCallback(async () => {
-    try { setList((await call<{ campaigns: CampaignListItem[] }>('/campaigns')).campaigns); } catch (e) { setLoadErr(explainError(e).text); }
+    try { const r = await call<{ campaigns: CampaignListItem[]; max_batch?: number }>('/campaigns'); setList(r.campaigns); if (typeof r.max_batch === 'number') setMaxBatch(r.max_batch); } catch (e) { setLoadErr(explainError(e).text); }
   }, []);
   useEffect(() => { if (enabled) void loadList(); }, [enabled, loadList]);
 
@@ -123,7 +124,7 @@ export function SegmentedCampaigns() {
             <h3 id="explorar" className="text-[19px] font-black tracking-tight text-slate-900">Explorar o público</h3>
             <p className="text-[13px] text-slate-600">Escolha quem você quer alcançar — cão, gato, sexo, idade, porte, aparelho, atividade e mais — e veja na hora quantos tutores são. Só contagem: nada é criado nem enviado.</p>
           </header>
-          <AudienceExplorer fields={fields} state={explore} onChange={setExplore} locationNote={boot.fields.location_origins} brandHints={boot.brands}
+          <AudienceExplorer maxBatch={maxBatch} fields={fields} state={explore} onChange={setExplore} locationNote={boot.fields.location_origins} brandHints={boot.brands}
             onUse={(st) => { carry.current = st; setView({ kind: 'new', draft: emptyDraft() }); }} />
         </section>
         <Step n={1} title="Criar ou continuar uma campanha" note="Cada campanha tem o seu conteúdo e a sua própria lista de quem já foi alcançado. Um tutor nunca recebe a mesma campanha duas vezes.">

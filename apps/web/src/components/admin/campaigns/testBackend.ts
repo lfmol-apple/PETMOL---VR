@@ -85,7 +85,7 @@ export class Backend {
     'GET /fields': () => ({ json: fields }),
     'GET /suggestions/brands': () => ({ json: { suggestions: [{ text: 'Golden', search: 'golden', plans: 40, tutors: 31 }] } }),
     'GET /segments': () => ({ json: { goals: [{ key: 'racao', group: 'Alimentação', label: 'Cadastrar a ração', title: '{tutor}, a ração de {pets}?', open: 'food', message: 'Cadastre a ração.' }], destinations: { home: 'Tela inicial', food: 'Ração', produto: 'O produto do link (direto na loja)' } } }),
-    'GET /campaigns': (_b, s) => ({ json: { campaigns: s.campaigns.map((c) => ({ id: c.id, name: c.name, status: c.status, content_locked: c.content_locked, created_at: c.created_at, counts: c.counts })) } }),
+    'GET /campaigns': (_b, s) => ({ json: { ...(s.maxBatch !== null ? { max_batch: s.maxBatch } : {}), campaigns: s.campaigns.map((c) => ({ id: c.id, name: c.name, status: c.status, content_locked: c.content_locked, created_at: c.created_at, counts: c.counts })) } }),
     'POST /campaigns': (b, s) => {
       const c = s.addCampaign({ name: b.name, status: 'draft', content: { title: b.title, message: b.message, goal: b.goal, destination: b.destination, product_url: b.product_url, product_title: b.product_title } });
       return { json: c };

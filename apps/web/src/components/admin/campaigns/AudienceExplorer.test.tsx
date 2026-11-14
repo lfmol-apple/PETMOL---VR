@@ -34,8 +34,8 @@ describe('Segmentação de público: chips + contagem ao vivo, sem criar campanh
     await waitFor(() => expect(be.count('POST', '/audience/count')).toBeGreaterThan(0), { timeout: 3000 });
     await waitFor(() => expect(lastFilter().items[0].items.length).toBe(5), { timeout: 3000 });
     const rules = Object.fromEntries(lastFilter().items[0].items.map((r: any) => [r.field, [r.op, r.value]]));
-    expect(rules.pet_age_months).toEqual(['between', [0, 12]]);
-    expect(rules.pet_weight_kg).toEqual(['between', [25, 200]]);
+    expect(rules.pet_age_months).toEqual(['between', [0, 11]]);
+    expect(rules.pet_weight_kg).toEqual(['between', [25, 500]]);
     expect(rules.platform).toEqual(['in', ['ios']]);
     expect(rules.tutor_activity).toEqual(['eq', 'last_7d']);
     expect(rules.pet_neutered_yes).toEqual(['eq', true]);
