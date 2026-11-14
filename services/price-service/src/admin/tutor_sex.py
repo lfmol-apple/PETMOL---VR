@@ -16,7 +16,12 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
+from datetime import datetime, timezone
+
+from sqlalchemy import Column, DateTime, String
+
 from ..config import get_settings
+from ..db import Base
 
 _FILE = Path(__file__).parent / "data" / "ibge_nomes_sexo.csv"
 MIN_OCCURRENCES = 2000
@@ -60,7 +65,48 @@ def first_name(full_name: Optional[str]) -> str:
     return token if re.fullmatch(r"[A-Za-zÀ-ÿ]{2,30}", token) else ""
 
 
-def estimate(full_name: Optional[str]) -> str:
-    """'male' | 'female' | 'unknown'. Em memória; não grava nada."""
-    fn = _fold(first_name(full_name))
-    return _table().get(fn, UNKNOWN) if fn else UNKNOWN
+class FirstNameSex(Base):
+    """Normalização MANUAL feita pelo dono na página temporária /admin/nomes: PRIMEIRO NOME → sexo provável. É um dicionário de nomes,
+    sem ligação com nenhum tutor (nem id, nem e-mail): vale para todos que tiverem aquele primeiro nome."""
+
+    __tablename__ = "first_name_sex"
+    name_key = Column(String(40), primary_key=True)          # primeiro nome sem acento, maiúsculo
+    sex = Column(String(8), nullable=False)                  # 'male' | 'female'
+    set_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
+def name_key(full_name: Optional[str]) -> str:
+    return _fold(first_name(full_name))
+
+
+def load_overrides(db) -> dict[str, str]:
+    return {k: v for k, v in db.query(FirstNameSex.name_key, FirstNameSex.sex).all()}
+
+
+def email_first_name(email: Optional[str]) -> str:
+    """Primeiro nome provável tirado do começo do e-mail (antes do @), SÓ quando o campo nome é inutilizável. Calculado na hora, nunca
+    gravado, e só vale se casar com um nome da base pública: 'mariana.silva@' → MARIANA; 'joaosilva@' → JOAO (prefixo de 4+ letras)."""
+    local = str(email or "").split("@", 1)[0].lower()
+    seg = re.split(r"[._\-+0-9]+", local)[0]
+    seg = _fold(seg)
+    if len(seg) < 3 or not seg.isalpha():
+        return ""
+    t = _table()
+    if seg in t:
+        return seg
+    for n in range(min(len(seg) - 1, 8), 3, -1):
+        if seg[:n] in t:
+            return seg[:n]
+    return ""
+
+
+def estimate(full_name: Optional[str], email: Optional[str] = None, overrides: Optional[dict[str, str]] = None) -> str:
+    """'male' | 'female' | 'unknown'. Em memória; não grava nada. Ordem: normalização manual do dono (por primeiro nome) → base do IBGE →
+    (só se o campo nome for inutilizável) começo do e-mail contra a mesma base."""
+    fn = name_key(full_name)
+    if fn:
+        if overrides and fn in overrides:
+            return overrides[fn]
+        return _table().get(fn, UNKNOWN)
+    ef = email_first_name(email)
+    return _table().get(ef, UNKNOWN) if ef else UNKNOWN

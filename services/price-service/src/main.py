@@ -48,6 +48,7 @@ from .admin.email_campaigns import EmailCampaign as _ec, router as email_campaig
 from .admin.missing_pets_admin import router as missing_pets_admin_router
 from .admin.performance_router import router as performance_admin_router
 from .admin.search_demand_admin import router as search_demand_admin_router
+from .admin.tutor_names_admin import router as tutor_names_admin_router
 from . import search_demand as _search_demand  # register with Base
 from .admin.push_campaigns import PushCampaign as _pc, PushCampaignRecipient as _pcr, router as push_campaigns_admin_router  # register with Base
 from .admin.push_audience import router as push_audience_admin_router
@@ -306,6 +307,7 @@ app.include_router(push_campaign_batches_admin_router)
 app.include_router(missing_pets_admin_router)
 app.include_router(performance_admin_router)
 app.include_router(search_demand_admin_router)
+app.include_router(tutor_names_admin_router)
 app.include_router(store_promos_public_router)
 app.include_router(moderation_admin_router)
 app.include_router(vaccine_date_notice_router)
@@ -332,6 +334,7 @@ app.include_router(push_campaign_batches_admin_router, prefix="/api")
 app.include_router(missing_pets_admin_router, prefix="/api")
 app.include_router(performance_admin_router, prefix="/api")
 app.include_router(search_demand_admin_router, prefix="/api")
+app.include_router(tutor_names_admin_router, prefix="/api")
 app.include_router(moderation_admin_router, prefix="/api")
 app.include_router(vaccine_date_notice_router, prefix="/api")
 
