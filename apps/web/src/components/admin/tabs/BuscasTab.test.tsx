@@ -31,6 +31,8 @@ describe('aba Buscas', () => {
     render(<BuscasTab />);
     expect((await screen.findAllByText('golden adulto')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('scalibor').length).toBeGreaterThan(0);
+    expect(screen.getByText('Produtos mais pesquisados')).toBeTruthy();
+    expect(screen.getByText('Oportunidades comerciais por demanda')).toBeTruthy();
     expect(screen.getByText('Buscas sem resultado')).toBeTruthy();
     expect(screen.getByText('Com resultado, sem link comissionável')).toBeTruthy();
     expect(screen.getByText(/Coleta ligada/)).toBeTruthy();
