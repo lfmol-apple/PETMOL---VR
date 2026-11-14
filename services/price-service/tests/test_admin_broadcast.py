@@ -359,3 +359,79 @@ def test_exito_mede_entregue_tocou_abriu_agiu_e_meta(adm):
     assert m["acted"] == 1             # só quem cadastrou a vacina "fez algo"; tocar/abrir não contam como ação
     assert m["goal_hit"] == 1 and m["goal_label"] == "Cadastrar a vacina / carteirinha"
     assert m["window_closed"] is False
+
+
+# ── histórico: ocultar por data (reversível) e excluir só testes avulsos ──────
+
+def _bc(db, ago_days, kind="all", phase="done", campaign=None, delivered=3):
+    b = br.AdminBroadcast(message=f"msg {ago_days}d {kind}", audience_kind=kind, phase=phase, recipients_total=delivered, delivered_total=delivered,
+                          created_at=datetime.now(timezone.utc) - timedelta(days=ago_days, hours=1), campaign_id=campaign)
+    db.add(b); db.commit()
+    return b.id
+
+
+def _day(days_ago):
+    return (datetime.now(timezone(timedelta(hours=-3))) - timedelta(days=days_ago)).strftime("%Y-%m-%d")
+
+
+def test_historico_oculta_por_data_sem_apagar_e_reverte(adm):
+    with SessionLocal() as db:
+        old_real, old_test, new_real = _bc(db, 10), _bc(db, 9, "test"), _bc(db, 1)
+        sending = _bc(db, 8, phase="sending")
+        db.add(br.AdminBroadcastRecipient(broadcast_id=old_real, user_id=adm.admin_id, delivered=True)); db.commit()
+    c = adm.client
+    pre = c.post("/v1/admin/broadcast/history/hide", json={"before": _day(5)}).json()
+    assert pre == {"would_hide": 2, "hidden": 0}                                      # só contou; o em andamento nunca é ocultado
+    assert c.get("/v1/admin/broadcast/history").json()["hidden_count"] == 0
+    assert c.post("/v1/admin/broadcast/history/hide", json={"before": _day(5), "confirm_count": 5}).status_code == 409      # confirmação errada
+    ok = c.post("/v1/admin/broadcast/history/hide", json={"before": _day(5), "confirm_count": 2}).json()
+    assert ok["hidden"] == 2
+    h = c.get("/v1/admin/broadcast/history").json()
+    assert {i["id"] for i in h["items"]} == {new_real, sending} and h["hidden_count"] == 2
+    allh = c.get("/v1/admin/broadcast/history?include_hidden=true").json()
+    assert {i["id"] for i in allh["items"]} == {old_real, old_test, new_real, sending}
+    assert {i["id"]: i["hidden"] for i in allh["items"]}[old_real] is True
+    with SessionLocal() as db:                                                         # nada foi apagado e a cota semanal segue contando o envio real oculto
+        assert db.query(br.AdminBroadcast).count() == 4 and db.query(br.AdminBroadcastRecipient).count() == 1
+        assert adm.admin_id in br._recent_contacted(db)
+    assert c.post(f"/v1/admin/broadcast/history/{old_real}/unhide").json() == {"hidden": False}
+    assert old_real in {i["id"] for i in c.get("/v1/admin/broadcast/history").json()["items"]}
+    assert c.post("/v1/admin/broadcast/history/unhide-all").json() == {"unhidden": 1}
+    assert c.get("/v1/admin/broadcast/history").json()["hidden_count"] == 0
+
+
+def test_historico_oculta_so_testes_e_um_a_um(adm):
+    with SessionLocal() as db:
+        real, test, run = _bc(db, 10), _bc(db, 10, "test"), _bc(db, 3, phase="sending")
+    c = adm.client
+    r = c.post("/v1/admin/broadcast/history/hide", json={"before": _day(5), "only_tests": True, "confirm_count": 1}).json()
+    assert r["hidden"] == 1
+    ids = {i["id"] for i in c.get("/v1/admin/broadcast/history").json()["items"]}
+    assert ids == {real, run}
+    assert c.post(f"/v1/admin/broadcast/history/{real}/hide").json() == {"hidden": True}
+    assert c.post(f"/v1/admin/broadcast/history/{run}/hide").status_code == 409        # em andamento não oculta
+    assert c.post("/v1/admin/broadcast/history/nao-existe/hide").status_code == 404
+    assert c.post("/v1/admin/broadcast/history/hide", json={"before": "ontem"}).status_code == 422
+
+
+def test_data_do_calendario_vale_no_horario_de_brasilia():
+    d = br._start_of_day_utc("2026-11-14")
+    assert d == datetime(2026, 11, 14, 3, 0, tzinfo=timezone.utc)                      # 00:00 BRT = 03:00 UTC
+
+
+def test_historico_exclui_so_testes_avulsos_terminados_e_nunca_envio_real_ou_lote(adm):
+    with SessionLocal() as db:
+        t_old, t_new = _bc(db, 10, "test"), _bc(db, 1, "test")
+        real, batch, t_run = _bc(db, 10), _bc(db, 10, "test", campaign="camp-1"), _bc(db, 10, "test", phase="sending")
+        db.add(br.AdminBroadcastRecipient(broadcast_id=t_old, user_id=adm.admin_id, delivered=True))
+        db.add(br.AdminBroadcastRecipient(broadcast_id=real, user_id=adm.admin_id, delivered=True)); db.commit()
+    c = adm.client
+    assert c.post("/v1/admin/broadcast/history/delete-tests", json={"before": _day(5)}).json() == {"would_delete": 1, "deleted": 0}
+    assert c.post("/v1/admin/broadcast/history/delete-tests", json={"before": _day(5), "confirm_count": 3}).status_code == 409
+    assert c.post("/v1/admin/broadcast/history/delete-tests", json={"before": _day(5), "confirm_count": 1}).json()["deleted"] == 1
+    with SessionLocal() as db:
+        left = {b.id for b in db.query(br.AdminBroadcast).all()}
+        assert left == {t_new, real, batch, t_run}                                      # envio real, lote de campanha, teste novo e em andamento intactos
+        rec = {r.broadcast_id for r in db.query(br.AdminBroadcastRecipient).all()}
+        assert rec == {real}                                                            # destinatários do teste apagado foram junto; os do real ficam
+        assert adm.admin_id in br._recent_contacted(db)                                 # cota semanal preservada pelo envio real

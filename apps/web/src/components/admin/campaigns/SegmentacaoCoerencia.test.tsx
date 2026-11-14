@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- servidor falso de teste */
+ 
 /**
  * Tela de segmentação: texto do número, limite por lote, coerência chips × filtros avançados (E/OU) e preservação integral dos
  * filtros ao criar a campanha (sem nenhum envio automático).

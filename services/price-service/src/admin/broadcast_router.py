@@ -198,6 +198,7 @@ class AdminBroadcast(Base):
     # Pedido de PARADA do lote (persistido: a thread de envio consulta entre os destinatários; sobrevive a reinício da API).
     # Parada pendente = stop_requested_at preenchido e (stop_ack_at vazio ou anterior ao pedido).
     stop_requested_at = Column(DateTime(timezone=True), nullable=True)
+    hidden_at = Column(DateTime(timezone=True), nullable=True)   # ocultado da lista de histórico (reversível; o registro e as métricas continuam)
     stop_requested_by = Column(String(36), nullable=True)
     stop_ack_at = Column(DateTime(timezone=True), nullable=True)   # quando o executor (ou a recuperação) reconheceu a parada
 
@@ -563,6 +564,8 @@ def _serialize(db, b: AdminBroadcast) -> dict:
         "recipients_total": b.recipients_total,
         "delivered_total": b.delivered_total,
         "phase": b.phase,
+        "hidden": b.hidden_at is not None,
+        "campaign_id": b.campaign_id,
         "product": {"title": b.link_title, "url": b.link_url} if b.link_url else None,
         "metrics": broadcast_metrics(db, b),
     }
@@ -732,10 +735,128 @@ def send(payload: SendIn, current=Depends(get_current_admin)):
 
 
 @router.get("/history")
-def history(limit: int = 20, current=Depends(get_current_admin)):
+def history(limit: int = 20, include_hidden: bool = False, current=Depends(get_current_admin)):
+    """Lista de envios. Ocultos ficam de fora (a menos que `include_hidden`); `hidden_count` diz quantos existem."""
     db = SessionLocal()
     try:
-        rows = db.query(AdminBroadcast).order_by(AdminBroadcast.created_at.desc()).limit(max(1, min(limit, 100))).all()
-        return {"items": [_serialize(db, b) for b in rows]}
+        q = db.query(AdminBroadcast)
+        if not include_hidden:
+            q = q.filter(AdminBroadcast.hidden_at.is_(None))
+        rows = q.order_by(AdminBroadcast.created_at.desc()).limit(max(1, min(limit, 200))).all()
+        hidden = db.query(func.count(AdminBroadcast.id)).filter(AdminBroadcast.hidden_at.is_not(None)).scalar() or 0
+        return {"items": [_serialize(db, b) for b in rows], "hidden_count": int(hidden)}
+    finally:
+        db.close()
+
+
+# ── Organizar o histórico: ocultar (reversível) e excluir só TESTES avulsos ───────────────
+_BRT = timezone(timedelta(hours=-3))
+
+
+def _start_of_day_utc(d: str) -> datetime:
+    """'AAAA-MM-DD' (dia do calendário no horário de Brasília) → 00:00 desse dia em UTC."""
+    try:
+        y, m, dd = (int(x) for x in d.split("-"))
+        return datetime(y, m, dd, tzinfo=_BRT).astimezone(timezone.utc)
+    except Exception:
+        raise HTTPException(status_code=422, detail="Informe a data no formato AAAA-MM-DD.")
+
+
+class HideIn(BaseModel):
+    before: str = Field(min_length=10, max_length=10)       # oculta envios criados ANTES deste dia (00:00, Brasília)
+    only_tests: bool = False                                  # só os testes "só eu"
+    confirm_count: Optional[int] = Field(default=None, ge=0)   # None = só contar (prévia); número = confirma exatamente essa quantidade
+
+
+def _hide_query(db, payload: "HideIn"):
+    q = db.query(AdminBroadcast).filter(AdminBroadcast.created_at < _start_of_day_utc(payload.before),
+                                        AdminBroadcast.hidden_at.is_(None), AdminBroadcast.phase != "sending")
+    if payload.only_tests:
+        q = q.filter(AdminBroadcast.audience_kind == "test")
+    return q
+
+
+@router.post("/history/hide")
+def history_hide(payload: HideIn, current=Depends(get_current_admin)):
+    """Oculta da lista os envios anteriores a uma data. NÃO apaga nada: cota semanal, métricas e campanhas seguem iguais. Reversível."""
+    db = SessionLocal()
+    try:
+        rows = _hide_query(db, payload).all()
+        if payload.confirm_count is None:
+            return {"would_hide": len(rows), "hidden": 0}
+        if payload.confirm_count != len(rows):
+            raise HTTPException(status_code=409, detail=f"A lista mudou: agora são {len(rows)} envios (você confirmou {payload.confirm_count}). Confira de novo.")
+        now = datetime.now(timezone.utc)
+        for b in rows:
+            b.hidden_at = now
+        db.commit()
+        return {"would_hide": len(rows), "hidden": len(rows)}
+    finally:
+        db.close()
+
+
+@router.post("/history/unhide-all")
+def history_unhide_all(current=Depends(get_current_admin)):
+    db = SessionLocal()
+    try:
+        n = db.query(AdminBroadcast).filter(AdminBroadcast.hidden_at.is_not(None)).update({AdminBroadcast.hidden_at: None}, synchronize_session=False)
+        db.commit()
+        return {"unhidden": int(n)}
+    finally:
+        db.close()
+
+
+@router.post("/history/{broadcast_id}/hide")
+def history_hide_one(broadcast_id: str, current=Depends(get_current_admin)):
+    db = SessionLocal()
+    try:
+        b = db.get(AdminBroadcast, broadcast_id)
+        if b is None:
+            raise HTTPException(status_code=404, detail="Envio não encontrado.")
+        if b.phase == "sending":
+            raise HTTPException(status_code=409, detail="Este envio ainda está em andamento.")
+        b.hidden_at = datetime.now(timezone.utc)
+        db.commit()
+        return {"hidden": True}
+    finally:
+        db.close()
+
+
+@router.post("/history/{broadcast_id}/unhide")
+def history_unhide_one(broadcast_id: str, current=Depends(get_current_admin)):
+    db = SessionLocal()
+    try:
+        b = db.get(AdminBroadcast, broadcast_id)
+        if b is None:
+            raise HTTPException(status_code=404, detail="Envio não encontrado.")
+        b.hidden_at = None
+        db.commit()
+        return {"hidden": False}
+    finally:
+        db.close()
+
+
+def _deletable_tests(db, before: str):
+    """Só TESTES avulsos ("só eu"), fora de campanhas, já terminados. Testes não gastam a cota semanal, então apagá-los não reabre envio a ninguém."""
+    return db.query(AdminBroadcast).filter(AdminBroadcast.audience_kind == "test", AdminBroadcast.campaign_id.is_(None),
+                                           AdminBroadcast.phase.in_(("done", "error")), AdminBroadcast.created_at < _start_of_day_utc(before))
+
+
+@router.post("/history/delete-tests")
+def history_delete_tests(payload: HideIn, current=Depends(get_current_admin)):
+    """EXCLUI de vez os testes avulsos anteriores a uma data (e seus destinatários). Nunca toca envios reais nem lotes de campanha."""
+    db = SessionLocal()
+    try:
+        rows = _deletable_tests(db, payload.before).all()
+        if payload.confirm_count is None:
+            return {"would_delete": len(rows), "deleted": 0}
+        if payload.confirm_count != len(rows):
+            raise HTTPException(status_code=409, detail=f"A lista mudou: agora são {len(rows)} testes (você confirmou {payload.confirm_count}). Confira de novo.")
+        ids = [b.id for b in rows]
+        if ids:
+            db.query(AdminBroadcastRecipient).filter(AdminBroadcastRecipient.broadcast_id.in_(ids)).delete(synchronize_session=False)
+            db.query(AdminBroadcast).filter(AdminBroadcast.id.in_(ids), AdminBroadcast.audience_kind == "test", AdminBroadcast.campaign_id.is_(None)).delete(synchronize_session=False)
+        db.commit()
+        return {"would_delete": len(ids), "deleted": len(ids)}
     finally:
         db.close()
