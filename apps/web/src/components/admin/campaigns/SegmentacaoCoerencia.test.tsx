@@ -287,3 +287,12 @@ describe('Ração acabando: segue a data do plano do tutor; vencida é um filtro
     expect(JSON.stringify(lastBody().filter)).not.toMatch(/feeding_days_left/);
   });
 });
+
+describe('rótulos legíveis no resumo do filtro', () => {
+  it('"Origem da data de fim" aparece em português (nunca "calculated"/"manual")', async () => {
+    await open();
+    fireEvent.click(chip('Data calculada pelo sistema'));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Remover Origem da data de fim da ração: calculada pelo sistema/ })).toBeTruthy(), { timeout: 3000 });
+    expect(document.body.textContent).not.toMatch(/calculated|: manual/);
+  });
+});

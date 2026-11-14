@@ -885,6 +885,7 @@ def test_cobertura_por_origem_so_entre_alcancaveis_e_sem_confundir_com_precisao(
     assert cov["reachable"] == 4 and "não a precisão" in cov["approximate_note"].replace("a precisão geográfica", "a precisão") or "precisão" in cov["approximate_note"]
     assert by["cadastro"]["state"] == 1 and by["cadastro"]["city"] == 1 and by["cadastro"]["approximate"] is False
     assert by["ip_direto"]["tutors"] == 1 and by["ip_aparelho"]["tutors"] == 1 and by["ip_aparelho"]["additional_tutors"] == 1
+    assert by["ip_aparelho"]["union_tutors"] == 2 and by["ip_aparelho"]["union_percent"] == 50.0       # direto (d) + só aparelho (c), sem duplicar
     assert by["gps"]["state"] == 1 and by["gps"]["city"] == 1 and by["gps"]["approximate"] is True
     assert by["melhor"]["state"] == 4 and by["melhor"]["city"] == 4 and by["melhor"]["state_percent"] == 100.0
     assert b is not None and a is not None
@@ -1054,3 +1055,11 @@ def test_painel_vencidos_e_somente_leitura_e_nao_toca_planos(db):
     src = open(pa.__file__, encoding="utf-8").read()
     fn = src[src.index("def expired_feeding_plans"):src.index("@router.get(\"/audience/expired-feeding-plans\")")]
     assert "commit" not in fn and ".add(" not in fn and "delete(" not in fn and "update(" not in fn
+
+def test_aviso_de_dados_incompletos_diz_qual_filtro(db):
+    w = World(db)
+    a = w.user("A", ios=True); w.user("B", ios=True)
+    w.pet(a, birth_date=date(2020, 1, 1))
+    w.pet(w.user("C", ios=True)); w.pet(w.user("D", ios=True))   # pets sem nascimento: cobertura de idade < 50%
+    txt = next(x["text"] for x in run(db, F(R("pet_age_months", "gte", 1), scope="any"))["warnings"] if x["code"] == "low_coverage")
+    assert "Dados incompletos (Idade do pet (meses))" in txt
