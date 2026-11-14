@@ -83,7 +83,8 @@ def weight_kg(p):
     w, unit = p["weight"], n(p["unit"])
     if not w or w <= 0:
         return None
-    return float(w) if unit in ("kg", "kgs") else float(w) * 0.45359237 if unit in ("lb", "lbs") else None
+    kg = float(w) if unit in ("kg", "kgs") else float(w) * 0.45359237 if unit in ("lb", "lbs") else None
+    return None if kg is None else round(kg, 2)          # o peso vale com 2 casas (0,01 kg)
 
 
 def cmp(op, v, x):

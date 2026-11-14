@@ -479,10 +479,12 @@ def _weight_kg(p) -> Optional[float]:
         return None
     unit = norm_text(p.weight_unit)
     if unit in ("kg", "kgs"):
-        return float(p.weight_value)
-    if unit in ("lb", "lbs"):
-        return float(p.weight_value) * LB_TO_KG
-    return None            # sem unidade (ou desconhecida): ausente, não casa
+        kg = float(p.weight_value)
+    elif unit in ("lb", "lbs"):
+        kg = float(p.weight_value) * LB_TO_KG
+    else:
+        return None        # sem unidade (ou desconhecida): ausente, não casa
+    return round(kg, 2)    # o peso vale com 2 casas (0,01 kg): as faixas da tela (…9,99 | 10…24,99 | 25…) nunca deixam lacuna nem se sobrepõem
 
 
 def _r_pet_weight(ctx, rule):

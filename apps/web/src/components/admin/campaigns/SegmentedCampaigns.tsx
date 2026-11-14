@@ -12,7 +12,7 @@ import { FilterBuilder } from './FilterBuilder';
 import { AudienceExplorer } from './AudienceExplorer';
 import { BatchComposer } from './BatchComposer';
 import { BatchHistory, CountChips } from './BatchHistory';
-import { buildFilter, describeCond, emptyFilter, filterToState, type FilterState, type StoredFilter } from './filters';
+import { buildFilter, conditionCount, describeCond, emptyFilter, filterToState, type FilterState, type StoredFilter } from './filters';
 import { Loading } from '@/components/admin/sections/sections';
 
 interface Boot { fields: FieldsResponse; brands: { text: string; tutors: number }[]; goals: Goal[]; destinations: Record<string, string> }
@@ -36,6 +36,7 @@ export function SegmentedCampaigns() {
   const [boot, setBoot] = useState<Boot | null>(null);
   const [bootErr, setBootErr] = useState<string | null>(null);
   const [list, setList] = useState<CampaignListItem[] | null>(null);
+  const [maxBatch, setMaxBatch] = useState<number | null>(null);
   const [view, setView] = useState<{ kind: 'list' } | { kind: 'new'; draft: Draft } | { kind: 'open'; id: string }>({ kind: 'list' });
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -44,6 +45,8 @@ export function SegmentedCampaigns() {
   const [closeErr, setCloseErr] = useState<string | null>(null);
   const [seedNote, setSeedNote] = useState<string | null>(null);
   const seededFor = useRef<string | null>(null);
+  const [explore, setExplore] = useState<FilterState>(emptyFilter());      // público montado na tela de segmentação
+  const carry = useRef<FilterState | null>(null);                          // levado para a campanha que for criada a seguir
 
   useEffect(() => {
     let alive = true;
@@ -65,7 +68,7 @@ export function SegmentedCampaigns() {
   }, []);
 
   const loadList = useCallback(async () => {
-    try { setList((await call<{ campaigns: CampaignListItem[] }>('/campaigns')).campaigns); } catch (e) { setLoadErr(explainError(e).text); }
+    try { const r = await call<{ campaigns: CampaignListItem[]; max_batch?: number }>('/campaigns'); setList(r.campaigns); if (typeof r.max_batch === 'number') setMaxBatch(r.max_batch); } catch (e) { setLoadErr(explainError(e).text); }
   }, []);
   useEffect(() => { if (enabled) void loadList(); }, [enabled, loadList]);
 
@@ -93,6 +96,7 @@ export function SegmentedCampaigns() {
     seededFor.current = campaign.id;
     const last = [...campaign.batches].sort((a, b) => b.batch_no - a.batch_no).find((b) => b.filters);
     if (last) { setFilter(filterToState(last.filters as StoredFilter, boot.fields.fields)); setSeedNote(`Filtros do lote ${last.batch_no} carregados como ponto de partida. Você pode alterá-los livremente: isso não muda o que já foi enviado.`); }
+    else if (carry.current) { setFilter(carry.current); setSeedNote('Os filtros que você montou na segmentação foram trazidos para esta campanha. Pode ajustar à vontade.'); carry.current = null; }
     else { setFilter(emptyFilter()); setSeedNote(null); }
   }, [campaign, boot]);
   const built = useMemo(() => buildFilter(filter, fields), [filter, fields]);
@@ -115,9 +119,13 @@ export function SegmentedCampaigns() {
   if (view.kind === 'list') {
     return (
       <div className="space-y-4">
-        <section aria-labelledby="explorar" className="rounded-2xl border-2 border-sky-300 bg-white p-4">
-          <h3 id="explorar" className="mb-3 text-[15px] font-extrabold text-slate-900">Explorar o público (só contagem, sem criar campanha)</h3>
-          <AudienceExplorer fields={fields} locationNote={boot.fields.location_origins} brandHints={boot.brands} />
+        <section aria-labelledby="explorar" className="rounded-3xl bg-gradient-to-b from-slate-50 to-white p-4 ring-1 ring-slate-200 sm:p-5">
+          <header className="mb-4">
+            <h3 id="explorar" className="text-[19px] font-black tracking-tight text-slate-900">Explorar o público</h3>
+            <p className="text-[13px] text-slate-600">Escolha quem você quer alcançar — cão, gato, sexo, idade, porte, aparelho, atividade e mais — e veja na hora quantos tutores são. Só contagem: nada é criado nem enviado.</p>
+          </header>
+          <AudienceExplorer maxBatch={maxBatch} fields={fields} state={explore} onChange={setExplore} locationNote={boot.fields.location_origins} brandHints={boot.brands}
+            onUse={(st) => { carry.current = st; setView({ kind: 'new', draft: emptyDraft() }); }} />
         </section>
         <Step n={1} title="Criar ou continuar uma campanha" note="Cada campanha tem o seu conteúdo e a sua própria lista de quem já foi alcançado. Um tutor nunca recebe a mesma campanha duas vezes.">
           <button type="button" className="mb-3 rounded-lg bg-sky-700 px-4 py-2.5 text-[14px] font-bold text-white" onClick={() => setView({ kind: 'new', draft: emptyDraft() })}>+ Nova campanha</button>
@@ -145,7 +153,8 @@ export function SegmentedCampaigns() {
   if (view.kind === 'new') {
     return (
       <div className="space-y-4">
-        <button type="button" className="text-[13px] font-semibold text-slate-600 underline" onClick={() => setView({ kind: 'list' })}>← Voltar às campanhas</button>
+        <button type="button" className="text-[13px] font-semibold text-slate-600 underline" onClick={() => { carry.current = null; setView({ kind: 'list' }); }}>← Voltar às campanhas</button>
+        {carry.current && conditionCount(carry.current) > 0 && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-[13px] leading-snug text-emerald-900">Esta campanha vai usar o <strong>público que você montou</strong> ({conditionCount(carry.current)} filtro{conditionCount(carry.current) === 1 ? '' : 's'}). Você confere de novo na contagem e na prévia antes de qualquer envio.</p>}
         <Step n={2} title="Conteúdo da campanha" note="Título, mensagem, produto e link comercial. Você cola o link monetizado; ele é guardado exatamente como colado.">
           <ContentForm goals={boot.goals} destinations={boot.destinations} initial={view.draft}
             onCreated={(c) => { setCampaign(c); setFilter(emptyFilter()); void loadList(); setView({ kind: 'open', id: c.id }); }} />
