@@ -7,7 +7,7 @@ import hashlib
 import os
 from typing import Optional, List, Dict
 from datetime import datetime, timedelta
-from fastapi import FastAPI, HTTPException, Query, Request, File, UploadFile, Form, Depends
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request, File, UploadFile, Form, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -47,6 +47,8 @@ from .pets.heat_models import HeatCycle as _hc, HeatSettings as _hs  # register 
 from .admin.email_campaigns import EmailCampaign as _ec, router as email_campaigns_admin_router  # register with Base
 from .admin.missing_pets_admin import router as missing_pets_admin_router
 from .admin.performance_router import router as performance_admin_router
+from .admin.search_demand_admin import router as search_demand_admin_router
+from . import search_demand as _search_demand  # register with Base
 from .admin.push_campaigns import PushCampaign as _pc, PushCampaignRecipient as _pcr, router as push_campaigns_admin_router  # register with Base
 from .admin.push_audience import router as push_audience_admin_router
 from .admin.push_campaign_batches import router as push_campaign_batches_admin_router
@@ -303,6 +305,7 @@ app.include_router(push_audience_admin_router)
 app.include_router(push_campaign_batches_admin_router)
 app.include_router(missing_pets_admin_router)
 app.include_router(performance_admin_router)
+app.include_router(search_demand_admin_router)
 app.include_router(store_promos_public_router)
 app.include_router(moderation_admin_router)
 app.include_router(vaccine_date_notice_router)
@@ -328,6 +331,7 @@ app.include_router(push_audience_admin_router, prefix="/api")
 app.include_router(push_campaign_batches_admin_router, prefix="/api")
 app.include_router(missing_pets_admin_router, prefix="/api")
 app.include_router(performance_admin_router, prefix="/api")
+app.include_router(search_demand_admin_router, prefix="/api")
 app.include_router(moderation_admin_router, prefix="/api")
 app.include_router(vaccine_date_notice_router, prefix="/api")
 
@@ -1652,6 +1656,7 @@ async def commerce_product_offer(
 
 @app.get("/commerce/offers", tags=["Catalog"])
 async def commerce_offers(
+    background_tasks: BackgroundTasks,
     q: Optional[str] = Query(default=None, min_length=2, max_length=150, description="Product search query"),
     weight_kg: Optional[float] = Query(default=None, description="Peso real do pacote, quando aplicável"),
     gtin: Optional[str] = Query(default=None, description="GTIN do produto, quando já conhecido (ex: escaneado) — preferido para providers estruturados"),
@@ -1681,6 +1686,8 @@ async def commerce_offers(
         raise HTTPException(status_code=400, detail="informe ao menos q ou gtin")
     from .commerce_offers import CommerceOfferOut, get_commerce_offers_with_status
     offers, status = await get_commerce_offers_with_status(db, q, target_weight_kg=weight_kg, gtin=gtin)
+    # Registro agregado de demanda (ver /commerce/awin-search). GTIN válido vira o produto; "pendente" não conta como sem resultado.
+    background_tasks.add_task(_search_demand.record_search, q, gtin, None if status != "ready" else len(offers))
     return {"offers": [CommerceOfferOut(**vars(o)) for o in offers], "status": status}
 
 
@@ -1985,10 +1992,24 @@ async def commerce_product_candidates(
 
 @app.get("/commerce/awin-search", tags=["Catalog"])
 async def commerce_awin_search(
+    background_tasks: BackgroundTasks,
     q: str = Query(..., min_length=2, max_length=150, description="Busca por nome/marca no catálogo sincronizado"),
     merchant: Optional[str] = Query(None, description="Filtra por um merchant específico — por padrão busca em todos os merchants Awin habilitados"),
     limit: int = Query(50, ge=1, le=60),
     db: Session = Depends(get_db),
+):
+    result = await _commerce_awin_search_impl(q=q, merchant=merchant, limit=limit, db=db)
+    # Registro agregado de demanda (search_demand.py): DEPOIS da resposta pronta, em segundo plano, atrás de flag desligada
+    # por padrão, e nunca levanta — não altera o resultado da busca nem as lojas.
+    background_tasks.add_task(_search_demand.record_search, q, None, len(result.get("results") or []))
+    return result
+
+
+async def _commerce_awin_search_impl(
+    q: str,
+    merchant: Optional[str],
+    limit: int,
+    db: Session,
 ):
     """
     Busca textual dentro do catálogo já sincronizado da Awin
