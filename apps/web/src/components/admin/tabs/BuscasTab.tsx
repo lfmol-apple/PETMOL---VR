@@ -75,7 +75,11 @@ export function BuscasTab() {
             <div className="rounded-xl border border-slate-200 p-4"><p className="text-[12px] font-bold uppercase tracking-wide text-slate-400">Não reconhecidas</p><p className="mt-1 text-[32px] font-black leading-none text-slate-900">{numberFmt(d.unrecognized_searches + d.rejected_total)}</p><p className="mt-1 text-[12px] text-slate-500">contadas sem guardar o texto</p></div>
           </div>
 
-          <Card title="Oportunidades por demanda" subtitle="Buscas frequentes em que ainda falta resultado ou link comissionável no Mercado Livre, da maior demanda para a menor.">
+          <Card title="Produtos mais pesquisados" subtitle="Tudo o que as pessoas procuraram no período (3+ buscas), da maior demanda para a menor — com ou sem resultado, com ou sem link.">
+            <Table rows={d.items} empty="Nenhum termo com 3 ou mais buscas no período." />
+          </Card>
+
+          <Card title="Oportunidades comerciais por demanda" subtitle="Soma das duas listas abaixo mais produtos que têm link na Cobasi mas ainda não no Mercado Livre — ordenadas por número de buscas.">
             <Table rows={d.opportunities} empty="Nenhum termo com 3 ou mais buscas no período." />
           </Card>
 
