@@ -4,6 +4,7 @@
 - Se cadastrou: a conta foi criada.
 - Cadastrou o pet: a pessoa cadastrou o PRIMEIRO pet.
 - Cadastrou a alimentação: a pessoa configurou a ração do primeiro pet.
+- Notificações ativas: a pessoa ativou as notificações (primeiro aparelho que segue ativo).
 Nada de funil de coorte: se alguém criou a conta ontem e cadastrou o pet hoje, o pet conta hoje.
 """
 from __future__ import annotations
@@ -18,6 +19,7 @@ from sqlalchemy import func
 
 from ..db import SessionLocal
 from ..health.models import FeedingPlan
+from ..notifications import NativePushToken, PushSubscription
 from ..pets.models import Pet
 from ..user_auth.models import User
 from ..analytics.models import AnalyticsProductEvent
@@ -61,12 +63,23 @@ def _compute(db, since, until, platform: Optional[str], user_ids: Optional[set[s
                 first_food[uid] = c
     foods = [c for c in first_food.values() if _inside(c, since, until)]
 
-    days: dict[str, dict[str, int]] = defaultdict(lambda: {"downloads": 0, "cadastros": 0, "pets": 0, "alimentacao": 0})
-    for key, items in (("downloads", installs), ("cadastros", signups), ("pets", pets), ("alimentacao", foods)):
+    # Notificações ativas: o tutor conta UMA vez, na data em que ativou o primeiro aparelho que segue ativo (não desligado).
+    first_push: dict[str, datetime] = {}
+    for model in (PushSubscription, NativePushToken):
+        for uid, c in (db.query(model.user_id, model.created_at).join(User, User.id == model.user_id)
+                       .filter(real, model.disabled_at.is_(None), model.created_at.isnot(None)).all()):
+            if user_ids is not None and str(uid) not in user_ids:
+                continue
+            if uid not in first_push or _aware(c) < _aware(first_push[uid]):
+                first_push[uid] = c
+    pushes = [c for c in first_push.values() if _inside(c, since, until)]
+
+    days: dict[str, dict[str, int]] = defaultdict(lambda: {"downloads": 0, "cadastros": 0, "pets": 0, "alimentacao": 0, "notificacoes": 0})
+    for key, items in (("downloads", installs), ("cadastros", signups), ("pets", pets), ("alimentacao", foods), ("notificacoes", pushes)):
         for c in items:
             days[_aware(c).astimezone(_BR).date().isoformat()][key] += 1
     return {
-        "totals": {"downloads": len(installs), "cadastros": len(signups), "pets": len(pets), "alimentacao": len(foods)},
+        "totals": {"downloads": len(installs), "cadastros": len(signups), "pets": len(pets), "alimentacao": len(foods), "notificacoes": len(pushes)},
         "series": [{"date": d, **v} for d, v in sorted(days.items())],
     }
 
