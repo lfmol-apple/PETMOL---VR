@@ -261,6 +261,20 @@ describe('Onde: Brasil inteiro, estado, capital ou cidade — sem digitar, só o
   });
 });
 
+describe('simples + avançado juntos', () => {
+  it('lugar e tutor/tutora escolhidos na tela principal aparecem em português (só leitura) nos filtros avançados', async () => {
+    be.sexEnabled = true;
+    await open();
+    await waitFor(() => expect(within(section()).getByRole('option', { name: 'São Paulo (100)' })).toBeTruthy());
+    fireEvent.change(within(section()).getByLabelText('Estado'), { target: { value: 'SP' } });
+    fireEvent.click(within(await screen.findByTestId('tutor-sexo')).getByRole('radio', { name: 'Tutora (mulher)' }));
+    advanced();
+    const txt = within(section()).getAllByTestId('cond-gerenciada').map((e) => e.textContent).join(' | ');
+    expect(txt).toMatch(/Estado inteiro: São Paulo/); expect(txt).toMatch(/Tutora \(mulher\)/);
+    expect(txt).not.toMatch(/UF:SP|female|unknown/);
+  });
+});
+
 describe('Tutor ou tutora (experimental, provável pelo primeiro nome)', () => {
   it('desligado por padrão: o seletor nem aparece', async () => {
     await open();
