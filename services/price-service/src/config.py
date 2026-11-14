@@ -107,6 +107,9 @@ class Settings(BaseSettings):
     # sem persistência, sem personalizar mensagem. DESLIGADO por padrão; ligar = env PUSH_TUTOR_SEX_ESTIMATE_ENABLED=true + restart,
     # só com autorização específica do dono depois da revisão de privacidade.
     push_tutor_sex_estimate_enabled: bool = False
+    # Registro agregado de demanda de busca (search_demand.py). DESLIGADO por padrão: ligar = env SEARCH_DEMAND_ENABLED=true + restart.
+    # Nunca guarda tutor, IP, sessão, aparelho nem texto bruto; só contagem por dia + termo filtrado/GTIN. Desligada, nada é gravado.
+    search_demand_enabled: bool = False
 
     # Preço real da Cobasi (API pública de catálogo VTEX) para a Loja do Baby.
     # Cache longo de propósito — reduz volume de chamadas à Cobasi (evitar

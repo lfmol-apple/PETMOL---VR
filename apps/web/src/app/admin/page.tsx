@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Painel do dono — simples, 5 abas: Todos (tudo do sistema), Desempenho, E-mails, Push e Pets sumidos.
+ * Painel do dono — simples, 6 abas: Todos (tudo do sistema), Desempenho, E-mails, Push, Pets sumidos e Buscas.
  * Só dados administrativos e comunicação com os tutores; nada aqui altera as contas em produção.
  */
 import { Suspense, useEffect, useState } from 'react';
@@ -13,6 +13,7 @@ import { DesempenhoTab } from '@/components/admin/tabs/DesempenhoTab';
 import { EmailsTab } from '@/components/admin/tabs/EmailsTab';
 import { PushTab } from '@/components/admin/tabs/PushTab';
 import { PetsSumidosTab } from '@/components/admin/tabs/PetsSumidosTab';
+import { BuscasTab } from '@/components/admin/tabs/BuscasTab';
 
 const TABS = [
   { key: 'todos', label: 'Todos' },
@@ -20,6 +21,7 @@ const TABS = [
   { key: 'emails', label: 'E-mails' },
   { key: 'push', label: 'Push' },
   { key: 'sumidos', label: 'Pets sumidos' },
+  { key: 'buscas', label: 'Buscas' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
 
@@ -57,6 +59,7 @@ function AdminPanel() {
         {tab === 'emails' && <EmailsTab />}
         {tab === 'push' && <PushTab />}
         {tab === 'sumidos' && <PetsSumidosTab />}
+        {tab === 'buscas' && <BuscasTab />}
       </div>
     </PremiumScreenShell>
   );
