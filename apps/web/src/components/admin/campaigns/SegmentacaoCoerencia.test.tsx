@@ -226,3 +226,22 @@ describe('"Criar campanha com este público" leva TODOS os filtros e nunca envia
     expect(be.calls.filter((c) => c.method === 'POST' && !/audience\/count/.test(c.path))).toHaveLength(0);
   });
 });
+
+describe('Localização do tutor (melhor dado disponível, aproximada)', () => {
+  it('estado e cidade viram filtros aproximados já com o "estou ciente" e a contagem usa os dois', async () => {
+    await open();
+    const uf = within(section()).getByLabelText('Adicionar estado') as HTMLSelectElement;
+    fireEvent.change(uf, { target: { value: 'SP' } });
+    fireEvent.change(uf, { target: { value: 'MG' } });
+    fireEvent.change(within(section()).getByLabelText('Cidade'), { target: { value: 'Campinas' } });
+    fireEvent.click(within(section()).getByRole('button', { name: 'Adicionar cidade' }));
+    await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/location_best_city/), { timeout: 3000 });
+    const rules = JSON.stringify(lastBody().filter);
+    expect(rules).toMatch(/"field":"location_best_state"[^}]*"value":\["SP","MG"\]/);
+    expect(rules).toMatch(/"field":"location_best_city"[^}]*"value":\["Campinas"\]/);
+    expect(rules.match(/"approximate_ack":true/g)?.length).toBe(2);
+    expect(within(section()).getByText('Localização do tutor')).toBeTruthy();
+    fireEvent.click(within(section()).getAllByRole('checkbox', { name: /SP/ })[0]);                        // remove SP
+    await waitFor(() => expect(lastBody().filter.root.items[0].items.some((r: any) => r.field === 'location_best_state' && r.value.join() === 'MG')).toBe(true), { timeout: 3000 });
+  });
+});

@@ -39,11 +39,11 @@ export function setQuick(s: FilterState, field: string, next: Omit<Cond, 'id' | 
 }
 
 /** Liga/desliga um valor em um campo de múltipla escolha (`in`). */
-export function toggleIn(s: FilterState, field: string, value: string): FilterState {
+export function toggleIn(s: FilterState, field: string, value: string, ack = false): FilterState {
   const cur = ((quickCond(s, field)?.value as string[]) ?? []).slice();
   const i = cur.indexOf(value);
   if (i >= 0) cur.splice(i, 1); else cur.push(value);
-  return setQuick(s, field, cur.length ? { op: 'in', value: cur, ack: false } : null);
+  return setQuick(s, field, cur.length ? { op: 'in', value: cur, ack } : null);
 }
 
 /** Escolha única (clicar no selecionado limpa). */

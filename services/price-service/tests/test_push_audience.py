@@ -91,8 +91,8 @@ class World:
         self.db.add(VaccineRecord(pet_id=pid, vaccine_name="V10", applied_date=NOW, next_dose_date=NOW, deleted_at=NOW if deleted else None))
         self.db.flush()
 
-    def evt(self, uid, ago, region=None):
-        self.db.add(AnalyticsProductEvent(event_id=str(uuid.uuid4()), event_name="screen_view", user_id=uid, received_at=NOW - ago, region=region))
+    def evt(self, uid, ago, region=None, city=None):
+        self.db.add(AnalyticsProductEvent(event_id=str(uuid.uuid4()), event_name="screen_view", user_id=uid, received_at=NOW - ago, region=region, city=city))
         self.db.flush()
 
 
@@ -146,8 +146,9 @@ def _seed_synthetic(db, users):
         for t in u["events"]:
             if t not in [rt for rt, _ in u["regions"]]:
                 db.add(AnalyticsProductEvent(event_id=str(uuid.uuid4()), event_name="screen_view", user_id=u["id"], received_at=t))
+        rc = dict(u["rcities"])
         for t, r in u["regions"]:
-            db.add(AnalyticsProductEvent(event_id=str(uuid.uuid4()), event_name="screen_view", user_id=u["id"], received_at=t, region=r))
+            db.add(AnalyticsProductEvent(event_id=str(uuid.uuid4()), event_name="screen_view", user_id=u["id"], received_at=t, region=r, city=rc.get(t)))
         for p in u["pets"]:
             db.add(Pet(id=p["id"], user_id=u["id"], name="P", species=p["species"], sex=p["sex"], breed=p["breed"], birth_date=p["birth"],
                        weight_value=p["weight"], weight_unit=p["unit"], neutered=p["neutered"]))
@@ -727,3 +728,26 @@ def test_faixas_de_idade_particionam_em_meses_completos(db):
     assert {m for t, m in donos.items() if t in faixas["jovem"]} == {12, 13, 35}
     assert {m for t, m in donos.items() if t in faixas["adulto"]} == {36, 37, 95}
     assert {m for t, m in donos.items() if t in faixas["senior"]} == {96, 97, 300}
+
+
+def test_melhor_localizacao_cadastro_vence_ip_e_ip_cobre_quem_nao_digitou(db):
+    """location_best_*: cadastro primeiro; na falta, região/cidade do IP da última sessão; sem nenhum dos dois, fora (e a cobertura diz isso)."""
+    w = World(db)
+    a = w.user("Cadastro RJ", ios=True, state="RJ", city="Niterói")
+    b = w.user("Só IP MG", ios=True)
+    c = w.user("Sem dado", ios=True)
+    w.evt(a, timedelta(days=1), region="São Paulo", city="Campinas")      # o IP diz SP, mas o cadastro (RJ) vence
+    w.evt(b, timedelta(days=9), region="São Paulo", city="Santos")
+    w.evt(b, timedelta(days=2), region="Minas Gerais", city="Uberlândia")  # a mais recente
+    sp_mg = F(R("location_best_state", "in", ["sp", "MG"], ack=True))
+    assert ids_of(db, sp_mg)[0] == {b}
+    assert ids_of(db, F(R("location_best_state", "in", ["rj"], ack=True)))[0] == {a}
+    assert ids_of(db, F(R("location_best_city", "in", ["uberlandia"], ack=True)))[0] == {b}
+    assert ids_of(db, F(R("location_best_city", "in", ["niteroi"], ack=True)))[0] == {a}
+    assert ids_of(db, F(R("location_best_city", "in", ["campinas"], ack=True)))[0] == set()   # cadastro vence o IP
+    r = run(db, sp_mg)
+    cov = next(x for x in r["rules"] if x["field"] == "location_best_state")["coverage"]
+    assert cov["with_data"] == 2 and cov["total"] >= 3 and c not in ids_of(db, sp_mg)[0]
+    assert any(x["code"] == "location_approximate" and x["origin"] == "melhor" for x in r["warnings"])
+    with pytest.raises(Exception):                                                           # aproximada: exige o "estou ciente"
+        run(db, F(R("location_best_state", "in", ["SP"])))

@@ -157,6 +157,8 @@ FIELD_META: dict[str, dict] = {
     "location_registered_city": {"group": "Localização", "origin": "cadastro", "precision": "declarada pelo tutor"},
     "location_gps_radius": {"group": "Localização", "origin": "gps", "precision": "aproximada (última posição do GPS)"},
     "location_geoip_region": {"group": "Localização", "origin": "geoip", "precision": "aproximada (IP, não é residência)"},
+    "location_best_state": {"group": "Localização", "origin": "melhor", "precision": "aproximada (cadastro; na falta, IP da última sessão)"},
+    "location_best_city": {"group": "Localização", "origin": "melhor", "precision": "aproximada (cadastro; na falta, IP da última sessão)"},
     "feeding_registered": {"group": "Alimentação", "origin": "Ração cadastrada (definição do produto)", "precision": "declarada"},
     "feeding_brand_contains": {"group": "Alimentação", "origin": "Campo 'marca' da ração (texto livre: marca + produto)", "precision": "declarada"},
     "care_vaccine": {"group": "Cuidados", "origin": "Registros de vacina", "precision": "declarada"},
@@ -165,9 +167,11 @@ FIELD_META: dict[str, dict] = {
     "care_medication": {"group": "Cuidados", "origin": "Medicações cadastradas", "precision": "declarada"},
 }
 _LOCATION_ORIGINS = {"location_registered_state": "cadastro", "location_registered_city": "cadastro",
-                     "location_gps_radius": "gps", "location_geoip_region": "geoip"}
+                     "location_gps_radius": "gps", "location_geoip_region": "geoip",
+                     "location_best_state": "melhor", "location_best_city": "melhor"}
 _ORIGIN_LABEL = {"cadastro": "cidade/estado digitados pelo tutor", "gps": "GPS do aparelho (última posição enviada)",
-                 "geoip": "região aproximada pelo IP da última sessão"}
+                 "geoip": "região aproximada pelo IP da última sessão",
+                 "melhor": "melhor localização disponível: a digitada pelo tutor e, na falta dela, a aproximada pelo IP da última sessão"}
 assert set(FIELD_META) == set(FILTER_FIELDS), "FIELD_META precisa cobrir exatamente os filtros disponíveis"
 
 
@@ -204,7 +208,7 @@ def validate_filter_values(flt: AudienceFilter) -> None:
         elif rule.field in ("pet_age_months", "pet_weight_kg"):
             for v in (rule.value if isinstance(rule.value, list) else [rule.value]):
                 _num(v, label)
-        elif rule.field in ("location_registered_state", "location_registered_city", "location_geoip_region"):
+        elif rule.field in ("location_registered_state", "location_registered_city", "location_geoip_region", "location_best_state", "location_best_city"):
             vals = rule.value if isinstance(rule.value, list) else []
             if not vals or len(vals) > 30 or any(not isinstance(v, str) or not norm_text(v) or len(v) > 80 for v in vals):
                 raise FilterError(f"{label}: informe de 1 a 30 valores de texto.")
@@ -413,14 +417,19 @@ def _r_gps(ctx: AudienceContext, rule: FilterRule) -> _Outcome:
 
 
 def _latest_region_by_user(ctx: AudienceContext) -> dict[str, str]:
+    return _latest_geo_by_user(ctx, AnalyticsProductEvent.region)
+
+
+def _latest_geo_by_user(ctx: AudienceContext, col) -> dict[str, str]:
+    """Valor (região ou cidade pelo IP) do evento MAIS RECENTE do tutor que tem esse dado."""
     db = ctx.db
     sub = (db.query(AnalyticsProductEvent.user_id.label("uid"), func.max(AnalyticsProductEvent.received_at).label("m"))
-           .filter(AnalyticsProductEvent.user_id.is_not(None), AnalyticsProductEvent.region.is_not(None),
-                   AnalyticsProductEvent.region != "", AnalyticsProductEvent.received_at <= ctx.now)
+           .filter(AnalyticsProductEvent.user_id.is_not(None), col.is_not(None),
+                   col != "", AnalyticsProductEvent.received_at <= ctx.now)
            .group_by(AnalyticsProductEvent.user_id).subquery())
-    rows = (db.query(AnalyticsProductEvent.user_id, AnalyticsProductEvent.region)
+    rows = (db.query(AnalyticsProductEvent.user_id, col)
             .join(sub, (AnalyticsProductEvent.user_id == sub.c.uid) & (AnalyticsProductEvent.received_at == sub.c.m))
-            .filter(AnalyticsProductEvent.region.is_not(None), AnalyticsProductEvent.region != "").all())
+            .filter(col.is_not(None), col != "").all())
     out: dict[str, str] = {}
     for uid, region in sorted(rows, key=lambda r: (str(r[0]), norm_text(r[1]))):   # empate de horário: escolha determinística
         out.setdefault(str(uid), region)
@@ -432,6 +441,37 @@ def _r_geoip(ctx: AudienceContext, rule: FilterRule) -> _Outcome:
     latest = _latest_region_by_user(ctx)
     ids = {u for u, region in latest.items() if norm_state(region) in wanted} & ctx.all_users
     return _Outcome("tutor", ids, _Cov(len(latest), len(ctx.all_users), "tutores"))
+
+
+def _best_state_by_user(ctx: AudienceContext) -> dict[str, str]:
+    """Estado por tutor: o digitado no cadastro; na falta dele, a região do IP da última sessão. Quem não tem nenhum fica de fora."""
+    out = {str(u[0]): norm_state(u[3]) for u in ctx.users if norm_text(u[3])}
+    for uid, region in _latest_region_by_user(ctx).items():
+        if uid in ctx.all_users and uid not in out:
+            out[uid] = norm_state(region)
+    return out
+
+
+def _best_city_by_user(ctx: AudienceContext) -> dict[str, str]:
+    out = {str(u[0]): norm_text(u[2]) for u in ctx.users if norm_text(u[2])}
+    for uid, city in _latest_geo_by_user(ctx, AnalyticsProductEvent.city).items():
+        if uid in ctx.all_users and uid not in out and norm_text(city):
+            out[uid] = norm_text(city)
+    return out
+
+
+def _r_best_state(ctx: AudienceContext, rule: FilterRule) -> _Outcome:
+    wanted = {norm_state(v) for v in rule.value}
+    best = _best_state_by_user(ctx)
+    ids = {u for u, st in best.items() if st in wanted} & ctx.all_users
+    return _Outcome("tutor", ids, _Cov(len(set(best) & ctx.all_users), len(ctx.all_users), "tutores"))
+
+
+def _r_best_city(ctx: AudienceContext, rule: FilterRule) -> _Outcome:
+    wanted = {norm_text(v) for v in rule.value}
+    best = _best_city_by_user(ctx)
+    ids = {u for u, c in best.items() if c in wanted} & ctx.all_users
+    return _Outcome("tutor", ids, _Cov(len(set(best) & ctx.all_users), len(ctx.all_users), "tutores"))
 
 
 def _r_care_medication(ctx: AudienceContext, rule: FilterRule) -> _Outcome:
@@ -538,6 +578,7 @@ _RULES: dict[str, Callable[[AudienceContext, FilterRule], _Outcome]] = {
     "pet_species": _r_pet_species, "pet_sex": _r_pet_sex, "pet_breed_contains": _r_pet_breed, "pet_age_months": _r_pet_age,
     "pet_weight_kg": _r_pet_weight, "pet_neutered_yes": _r_pet_neutered,
     "location_registered_state": _r_state, "location_registered_city": _r_city, "location_gps_radius": _r_gps, "location_geoip_region": _r_geoip,
+    "location_best_state": _r_best_state, "location_best_city": _r_best_city,
     "feeding_registered": _r_feeding_registered, "feeding_brand_contains": _r_feeding_brand,
     "care_vaccine": _r_care(VaccineRecord), "care_parasite": _r_care(ParasiteControlRecord), "care_grooming": _r_care(GroomingRecord),
     "care_medication": _r_care_medication,

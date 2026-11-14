@@ -230,6 +230,32 @@ const fixture = {
    "precision": "aproximada (IP, não é residência)"
   },
   {
+   "field": "location_best_state",
+   "label": "Estado (melhor dado disponível, aproximado)",
+   "group": "Localização",
+   "scope": "tutor",
+   "ops": [
+    "in"
+   ],
+   "values": null,
+   "approximate": true,
+   "origin": "melhor",
+   "precision": "aproximada (cadastro; na falta, IP da última sessão)"
+  },
+  {
+   "field": "location_best_city",
+   "label": "Cidade (melhor dado disponível, aproximada)",
+   "group": "Localização",
+   "scope": "tutor",
+   "ops": [
+    "in"
+   ],
+   "values": null,
+   "approximate": true,
+   "origin": "melhor",
+   "precision": "aproximada (cadastro; na falta, IP da última sessão)"
+  },
+  {
    "field": "feeding_registered",
    "label": "Ração cadastrada",
    "group": "Alimentação",

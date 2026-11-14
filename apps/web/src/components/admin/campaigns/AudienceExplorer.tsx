@@ -13,6 +13,8 @@ import { chipLocks, findConflicts } from './consistency';
 import { AGE_BANDS, WEIGHT_BANDS, bandKey, pickBand, pickOne, quickCond, removeCond, toggleFlag, toggleIn } from './quickFilters';
 import { numberFmt } from '@/components/admin/sections/sections';
 
+const UFS = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
+
 function Chip({ on, onClick, children, hint, title }: { on: boolean; onClick: () => void; children: React.ReactNode; hint?: string; title?: string }) {
   return (
     <button type="button" role="checkbox" aria-checked={on} title={title} onClick={onClick}
@@ -54,6 +56,7 @@ export function AudienceExplorer({ fields, state, onChange, onUse, locationNote,
   const sig = useMemo(() => JSON.stringify(built.filter), [built]);
   const [res, setRes] = useState<{ data: AudienceCount | null; sig: string | null; error: string | null }>({ data: null, sig: null, error: null });
   const [advanced, setAdvanced] = useState(false);
+  const [cityText, setCityText] = useState('');
   const seq = useRef(0);
 
   useEffect(() => {
@@ -112,6 +115,26 @@ export function AudienceExplorer({ fields, state, onChange, onUse, locationNote,
           <Chip on={eq('tutor_activity', 'last_7d')} onClick={() => onChange(pickOne(state, 'tutor_activity', 'last_7d'))}>Ativo nos últimos 7 dias</Chip>
           <Chip on={eq('tutor_activity', 'd8_30')} onClick={() => onChange(pickOne(state, 'tutor_activity', 'd8_30'))}>Ativo há 8 a 30 dias</Chip>
           <Chip on={eq('tutor_activity', 'over_30d')} onClick={() => onChange(pickOne(state, 'tutor_activity', 'over_30d'))}>Sumido há +30 dias</Chip>
+        </Group>
+        <Group title="Localização do tutor" hint="aproximada: o que o tutor digitou; na falta, a região/cidade pelo IP da última sessão (não é residência)">
+          <label className="sr-only" htmlFor="loc-uf">Adicionar estado</label>
+          <select id="loc-uf" value="" onChange={(e) => { if (e.target.value) onChange(toggleIn(state, 'location_best_state', e.target.value, true)); }}
+            className="rounded-full border border-slate-300 bg-white px-3 py-2 text-[13.5px] font-semibold text-slate-700">
+            <option value="">+ Estado…</option>
+            {UFS.map((u) => <option key={u} value={u}>{u}</option>)}
+          </select>
+          {((quickCond(state, 'location_best_state')?.value as string[] | undefined) ?? []).map((u) => (
+            <Chip key={u} on onClick={() => onChange(toggleIn(state, 'location_best_state', u, true))} title="Clique para remover">{u} ✕</Chip>
+          ))}
+          <span className="mx-1 hidden w-px self-stretch bg-slate-200 sm:block" aria-hidden />
+          <form className="flex gap-1.5" onSubmit={(e) => { e.preventDefault(); const t = cityText.trim(); if (t) { onChange(toggleIn(state, 'location_best_city', t, true)); setCityText(''); } }}>
+            <input aria-label="Cidade" value={cityText} onChange={(e) => setCityText(e.target.value)} placeholder="Cidade (ex.: Campinas)" maxLength={80}
+              className="w-44 rounded-full border border-slate-300 bg-white px-3 py-2 text-[13.5px]" />
+            <button type="submit" className="rounded-full border border-slate-300 bg-white px-3 py-2 text-[13.5px] font-semibold text-slate-700 hover:border-sky-400">Adicionar cidade</button>
+          </form>
+          {((quickCond(state, 'location_best_city')?.value as string[] | undefined) ?? []).map((c) => (
+            <Chip key={c} on onClick={() => onChange(toggleIn(state, 'location_best_city', c, true))} title="Clique para remover">{c} ✕</Chip>
+          ))}
         </Group>
         <Group title="Cuidados e ração" note={lock('feeding_registered', 'care_vaccine', 'care_parasite', 'care_grooming')}>
           <Chip on={!!quickCond(state, 'feeding_registered')} onClick={() => onChange(toggleFlag(state, 'feeding_registered'))}>Tem ração cadastrada</Chip>

@@ -60,6 +60,25 @@ def latest_region(u):
     return max(rs)[1] if rs else None
 
 
+def latest_city(u):
+    cs = [(t, c) for t, c in u["rcities"] if t <= NOW and c]
+    return max(cs)[1] if cs else None
+
+
+def best_state(u):
+    if n(u["state"]):
+        return st(u["state"])
+    reg = latest_region(u)
+    return None if reg is None else st(reg)
+
+
+def best_city(u):
+    if n(u["city"]):
+        return n(u["city"])
+    c = latest_city(u)
+    return n(c) if c and n(c) else None
+
+
 def configured(plan):
     if not plan or plan["deleted"]:
         return False
@@ -118,6 +137,12 @@ def rule_tutor(u, r):
     if f == "location_geoip_region":
         reg = latest_region(u)
         return reg is not None and st(reg) in {st(x) for x in v}
+    if f == "location_best_state":
+        bs = best_state(u)
+        return bs is not None and bs in {st(x) for x in v}
+    if f == "location_best_city":
+        bc = best_city(u)
+        return bc is not None and bc in {n(x) for x in v}
     if f == "care_medication":
         return u["medication"]
     raise AssertionError(f)
@@ -200,6 +225,7 @@ def evaluate(users, filt):
 CITIES = ["São Paulo", "sao paulo", "Belo Horizonte", "BELO HORIZONTE", "Curitiba", "Salvador", None, "", "  "]
 STATES = ["SP", "sp", "Minas Gerais", "MG", "Rio de Janeiro", "PR", "Bahia", None, ""]
 REGIONS = ["São Paulo", "Minas Gerais", "Rio de Janeiro", "Paraná", "Bahia", "Ontario", None]
+IP_CITIES = ["Campinas", "são paulo", "Belo Horizonte", "Niterói", "Curitiba", None, ""]
 SPECIES = ["dog", "Dog", "CAT", "cat", "hamster", "fish", "dog "]
 BREEDS = ["Shih-tzu", "Pinscher", "Siamês", "Sem raça definida", "Golden Retriever", "SRD", "", None, "Persa"]
 BRANDS = ["Premier Ração Cães", "Fórmula Natural Fresh", "golden gatos", "Ração Special Dog", "", None, "Quatree"]
@@ -240,6 +266,7 @@ def make_users(rng: random.Random, n_users=120):
         # eventos com a mesma data não podem empatar entre regiões (a escolha do "mais recente" precisa ser única)
         users[-1]["regions"] = [(t + timedelta(seconds=idx), r) for idx, (t, r) in enumerate(users[-1]["regions"])]
         users[-1]["events"] += [t for t, _ in users[-1]["regions"]]
+        users[-1]["rcities"] = [(t, rng.choice(IP_CITIES)) for t, _ in users[-1]["regions"]]
     return users
 
 
@@ -266,6 +293,10 @@ def gen_rule(rng: random.Random, field: str) -> dict:
         return {"kind": "rule", "field": field, "op": "within_km", "value": {"lat": -19.92 + rng.uniform(-0.5, 0.5), "lng": -43.94 + rng.uniform(-0.5, 0.5), "km": rng.choice([5, 50, 120, 300])}, **ack}
     if field == "location_geoip_region":
         return {"kind": "rule", "field": field, "op": "in", "value": rng.sample(["São Paulo", "minas gerais", "RJ", "Ontario", "Paraná"], rng.randint(1, 2)), **ack}
+    if field == "location_best_state":
+        return {"kind": "rule", "field": field, "op": "in", "value": rng.sample(["SP", "sao paulo", "Minas Gerais", "rj", "Paraná"], rng.randint(1, 3)), **ack}
+    if field == "location_best_city":
+        return {"kind": "rule", "field": field, "op": "in", "value": rng.sample(["Sao Paulo", "campinas", "BELO HORIZONTE", "Curitiba", "Niterói"], rng.randint(1, 3)), **ack}
     if field == "care_medication":
         return {"kind": "rule", "field": field, "op": "eq", "value": True}
     if field == "pet_species":
@@ -292,7 +323,7 @@ def gen_rule(rng: random.Random, field: str) -> dict:
 
 
 ALL_FIELDS = sorted(PET_FIELDS | {"tutor_created_at", "tutor_pet_count", "tutor_species_mix", "tutor_activity", "platform", "location_registered_state",
-                                  "location_registered_city", "location_gps_radius", "location_geoip_region", "care_medication"})
+                                  "location_registered_city", "location_gps_radius", "location_geoip_region", "location_best_state", "location_best_city", "care_medication"})
 
 
 def gen_group(rng: random.Random, depth=1) -> dict:

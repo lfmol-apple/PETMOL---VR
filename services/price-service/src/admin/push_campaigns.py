@@ -173,6 +173,9 @@ FILTER_FIELDS: dict[str, dict] = {
     "location_registered_city":  {"scope": "tutor", "ops": ("in",), "label": "Cidade cadastrada pelo tutor"},
     "location_gps_radius":    {"scope": "tutor", "ops": ("within_km",), "label": "Perto de um ponto (GPS do aparelho)", "approximate": True},
     "location_geoip_region":  {"scope": "tutor", "ops": ("in",), "label": "Região aproximada pelo IP (não é residência)", "approximate": True},
+    # "melhor localização": o dado mais confiável disponível por tutor (cadastro → senão IP da última sessão). Sempre aproximada.
+    "location_best_state":    {"scope": "tutor", "ops": ("in",), "label": "Estado (melhor dado disponível, aproximado)", "approximate": True},
+    "location_best_city":     {"scope": "tutor", "ops": ("in",), "label": "Cidade (melhor dado disponível, aproximada)", "approximate": True},
     # alimentação
     "feeding_registered":     {"scope": "pet", "ops": ("eq",), "label": "Ração cadastrada", "values": (True,)},
     "feeding_brand_contains": {"scope": "pet", "ops": ("contains",), "label": "Marca/produto da ração contém (texto)"},

@@ -8,8 +8,8 @@ const FIELDS = fixture.fields as unknown as FieldInfo[];
 const f = (name: string) => FIELDS.find((x) => x.field === name)!;
 
 describe('catálogo de filtros', () => {
-  it('são exatamente os 21 filtros da Etapa 2, sem campos inexistentes', () => {
-    expect(FIELDS).toHaveLength(21);
+  it('são exatamente os 23 filtros (21 da Etapa 2 + estado e cidade "melhor dado"), sem campos inexistentes', () => {
+    expect(FIELDS).toHaveLength(23);
     const names = FIELDS.map((x) => x.field).join(' ');
     for (const proibido of ['tutor_sex', 'sexo_tutor', 'litter', 'areia', 'days_remaining', 'dias_restantes']) expect(names).not.toContain(proibido);
   });
