@@ -159,7 +159,8 @@ def _seed_synthetic(db, users):
             if pl:
                 db.add(FeedingPlan(pet_id=p["id"], species="dog", country_code="BR", food_brand=pl["brand"], items_json=pl["items_json"],
                                    duration_days=pl["duration"], estimated_end_date=pl["end"], mode=pl["mode"] or "kibble",
-                                   no_consumption_control=pl["no_ctrl"], deleted_at=NOW if pl["deleted"] else None))
+                                   no_consumption_control=pl["no_ctrl"], deleted_at=NOW if pl["deleted"] else None,
+                                   enabled=pl["enabled"], reminder_source=pl["source"]))
             for dele in p["vaccines"]:
                 db.add(VaccineRecord(pet_id=p["id"], vaccine_name="V", applied_date=NOW, next_dose_date=NOW, deleted_at=NOW if dele else None))
             for _ in range(p["parasites"]):
@@ -618,7 +619,7 @@ def test_catalogo_de_campos_so_traz_o_que_funciona(api):
     body = api.get("/v1/admin/push-campaigns/fields").json()
     campos = {f["field"]: f for f in body["fields"]}
     assert set(campos) == set(pc.FILTER_FIELDS)
-    assert not {"tutor_sex", "tutor_age", "feeding_days_remaining", "pet_neutered_no", "litter"} & set(campos)
+    assert not {"tutor_sex", "tutor_age", "pet_neutered_no", "litter"} & set(campos)
     assert campos["pet_neutered_yes"]["values"] == [True]                                  # só a opção afirmativa
     assert campos["tutor_activity"]["values"] == ["last_7d", "d8_30", "over_30d", "no_events"]
     assert campos["location_gps_radius"]["approximate"] and campos["location_geoip_region"]["approximate"]
@@ -938,3 +939,48 @@ def test_empate_de_horario_prefere_o_dado_do_proprio_tutor_e_origem_fica_correta
     assert rule_ids(db, "location_ip_state", ["PR"]) == {t} and rule_ids(db, "location_ip_state", ["BA"]) == set()
     r = run(db, F(R("location_ip_state", "in", ["PR"], ack=True)))
     assert next(x for x in r["rules"] if x["field"] == "location_ip_state")["origin_breakdown"] == {"ip_direto": 1}   # não é "do aparelho"
+
+
+# ══ 6) RAÇÃO ACABANDO — segue a data de fim do plano do tutor ═════════════════
+
+def _plano(w, uid, ago_days=None, ends_in=None, source="manual", enabled=True, deleted=False):
+    pid = w.pet(uid)
+    end = None if ends_in is None else (NOW + timedelta(days=ends_in)).date()
+    w.db.add(FeedingPlan(pet_id=pid, species="dog", country_code="BR", estimated_end_date=end, reminder_source=source, enabled=enabled,
+                         deleted_at=NOW if deleted else None, food_brand="X"))
+    w.db.flush()
+    return pid
+
+
+def test_racao_acabando_respeita_a_data_do_tutor_e_separa_as_vencidas(db):
+    w = World(db)
+    u = {k: w.user(k, ios=True) for k in ("hoje", "em7", "em8", "em30", "ontem", "semdata", "pausado", "apagado")}
+    p = {"hoje": _plano(w, u["hoje"], ends_in=0), "em7": _plano(w, u["em7"], ends_in=7), "em8": _plano(w, u["em8"], ends_in=8),
+         "em30": _plano(w, u["em30"], ends_in=30, source="calculated"), "ontem": _plano(w, u["ontem"], ends_in=-1),
+         "semdata": _plano(w, u["semdata"]), "pausado": _plano(w, u["pausado"], ends_in=3, enabled=False), "apagado": _plano(w, u["apagado"], ends_in=3, deleted=True)}
+    acaba7 = ids_of(db, F(R("feeding_days_left", "between", [0, 7]), scope="any"))[0]
+    assert acaba7 == {u["hoje"], u["em7"]}                                   # inclui hoje e o dia 7; NÃO inclui vencida, sem data, pausada, apagada
+    assert ids_of(db, F(R("feeding_days_left", "lte", 30), scope="any"))[0] == {u["hoje"], u["em7"], u["em8"], u["em30"]}
+    assert ids_of(db, F(R("feeding_days_left", "gte", 8), scope="any"))[0] == {u["em8"], u["em30"]}
+    assert ids_of(db, F(R("feeding_expired", "eq", True), scope="any"))[0] == {u["ontem"]}      # vencida é um filtro à parte
+    assert ids_of(db, F(R("feeding_date_source", "eq", "calculated"), scope="any"))[0] == {u["em30"]}
+    assert ids_of(db, F(R("feeding_date_source", "eq", "manual"), scope="any"))[0] == {u["hoje"], u["em7"], u["em8"], u["ontem"]}
+    # mesmo pet: "acaba em até 30 dias" E "calculada" → só o plano que cumpre os dois
+    assert ids_of(db, F(R("feeding_days_left", "lte", 30), R("feeding_date_source", "eq", "calculated"), scope="same"))[0] == {u["em30"]}
+    assert p  # (pets criados)
+
+
+def test_racao_acabando_informa_cobertura_e_a_origem_da_data_sem_alterar_planos(db):
+    w = World(db)
+    a, b, c = (w.user(n, ios=True) for n in "abc")
+    pa_ = _plano(w, a, ends_in=3, source="manual")
+    _plano(w, b, ends_in=5, source="calculated")
+    _plano(w, c)                                                              # plano sem data de fim
+    before = db.query(FeedingPlan.pet_id, FeedingPlan.estimated_end_date, FeedingPlan.next_reminder_date, FeedingPlan.reminder_source, FeedingPlan.last_food_push_date).order_by(FeedingPlan.pet_id).all()
+    r = run(db, F(R("feeding_days_left", "lte", 7), scope="any"))
+    rule = next(x for x in r["rules"] if x["field"] == "feeding_days_left")
+    assert rule["coverage"]["with_data"] == 2 and rule["coverage"]["total"] == 3 and rule["coverage"]["unit"] == "planos de ração"
+    w_ = next(x for x in r["warnings"] if x["code"] == "feeding_date_source")
+    assert "1 calculadas pelo sistema" in w_["text"] and "1 informadas pelo tutor" in w_["text"] and "não uma medição" in w_["text"]
+    after = db.query(FeedingPlan.pet_id, FeedingPlan.estimated_end_date, FeedingPlan.next_reminder_date, FeedingPlan.reminder_source, FeedingPlan.last_food_push_date).order_by(FeedingPlan.pet_id).all()
+    assert before == after and pa_                                            # nenhum dado do plano foi tocado

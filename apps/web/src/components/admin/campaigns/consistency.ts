@@ -11,7 +11,7 @@ import { describeCond, type Block, type Cond, type FilterState } from './filters
 import type { FieldInfo } from './api';
 import { QUICK_BLOCK_ID } from './quickFilters';
 
-export const QUICK_FIELDS = ['pet_species', 'pet_sex', 'pet_neutered_yes', 'pet_age_months', 'pet_weight_kg', 'platform', 'tutor_activity', 'location_best_state', 'location_best_city', 'location_registered_state', 'location_registered_city', 'location_ip_state', 'location_ip_city', 'location_gps_state', 'location_gps_city', 'feeding_registered', 'care_vaccine', 'care_parasite', 'care_grooming'];
+export const QUICK_FIELDS = ['pet_species', 'pet_sex', 'pet_neutered_yes', 'pet_age_months', 'pet_weight_kg', 'platform', 'tutor_activity', 'location_best_state', 'location_best_city', 'location_registered_state', 'location_registered_city', 'location_ip_state', 'location_ip_city', 'location_gps_state', 'location_gps_city', 'feeding_registered', 'care_vaccine', 'care_parasite', 'care_grooming', 'feeding_days_left', 'feeding_expired', 'feeding_date_source'];
 
 export interface ChipLock { all: string | null; byField: Map<string, string> }
 
@@ -31,10 +31,10 @@ export function chipLocks(state: FilterState): ChipLock {
 // ── contradições ─────────────────────────────────────────────────────────────
 
 type Interval = [number, number];
-const NUM_FIELDS = new Set(['pet_age_months', 'pet_weight_kg', 'tutor_pet_count']);
+const NUM_FIELDS = new Set(['pet_age_months', 'pet_weight_kg', 'tutor_pet_count', 'feeding_days_left']);
 const SET_FIELDS = new Set(['pet_species', 'location_registered_state']);
-const EQ_FIELDS = new Set(['pet_sex', 'tutor_activity']);
-const PET_FIELDS_SET = new Set(['pet_species', 'pet_sex', 'pet_age_months', 'pet_weight_kg']);
+const EQ_FIELDS = new Set(['pet_sex', 'tutor_activity', 'feeding_date_source']);
+const PET_FIELDS_SET = new Set(['pet_species', 'pet_sex', 'pet_age_months', 'pet_weight_kg', 'feeding_days_left', 'feeding_date_source']);
 
 function interval(c: Cond): Interval | null {
   const v = c.value;

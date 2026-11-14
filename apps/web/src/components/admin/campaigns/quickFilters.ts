@@ -21,6 +21,13 @@ export const WEIGHT_BANDS: Band[] = [
   { key: 'grande', label: 'Grande', hint: '25 kg ou mais', lo: 25, hi: 500 },
 ];
 
+// Ração acabando = data de fim do PLANO do tutor (calculada pelo sistema ou informada por ele), ainda não vencida: de hoje até N dias.
+export const FEED_BANDS: Band[] = [
+  { key: 'd7', label: 'Acaba em até 7 dias', hint: '', lo: 0, hi: 7 },
+  { key: 'd15', label: 'Acaba em até 15 dias', hint: '', lo: 0, hi: 15 },
+  { key: 'd30', label: 'Acaba em até 30 dias', hint: '', lo: 0, hi: 30 },
+];
+
 const quickOf = (s: FilterState): Block | undefined => s.blocks.find((b) => b.id === QUICK_BLOCK_ID);
 export const quickConds = (s: FilterState): Cond[] => quickOf(s)?.conds ?? [];
 export const quickCond = (s: FilterState, field: string): Cond | undefined => quickConds(s).find((c) => c.field === field);

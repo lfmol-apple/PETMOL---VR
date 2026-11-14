@@ -179,6 +179,16 @@ def rule_pet(p, r):
         return p["neutered"] is True
     if f == "feeding_registered":
         return configured(p["plan"])
+    if f in ("feeding_days_left", "feeding_expired", "feeding_date_source"):
+        pl = p["plan"]
+        if not pl or pl["deleted"] or not pl["enabled"] or pl["end"] is None:
+            return False
+        d = (pl["end"] - NOW.date()).days
+        if f == "feeding_days_left":
+            return d >= 0 and cmp(op, v, d)
+        if f == "feeding_expired":
+            return d < 0
+        return pl["source"] == v
     if f == "feeding_brand_contains":
         pl = p["plan"]
         return bool(pl) and not pl["deleted"] and bool(n(pl["brand"])) and n(v) in n(pl["brand"])
@@ -192,7 +202,7 @@ def rule_pet(p, r):
 
 
 PET_FIELDS = {"pet_species", "pet_sex", "pet_breed_contains", "pet_age_months", "pet_weight_kg", "pet_neutered_yes", "feeding_registered",
-              "feeding_brand_contains", "care_vaccine", "care_parasite", "care_grooming"}
+              "feeding_brand_contains", "feeding_days_left", "feeding_expired", "feeding_date_source", "care_vaccine", "care_parasite", "care_grooming"}
 
 
 def holds(u, g):
@@ -257,7 +267,8 @@ def make_users(rng: random.Random, n_users=120):
                 "weight": rng.choice([None, 0, 2.5, 7.0, 12.3, 30, 45]), "unit": rng.choice(["kg", "KG", "lb", None, "", "stone"]),
                 "neutered": rng.choice([True, False, False, None]),
                 "plan": ({"brand": rng.choice(BRANDS), "items_json": rng.choice(["[]", "[]", '[{"a":1}]', None, "null"]),
-                          "duration": rng.choice([None, None, 30]), "end": rng.choice([None, date(2026, 12, 1)]),
+                          "duration": rng.choice([None, None, 30]), "end": rng.choice([None, date(2026, 12, 1), date(2026, 11, 5), date(2026, 11, 11), date(2026, 11, 12), date(2026, 11, 13), date(2026, 11, 19), date(2027, 3, 1)]),
+                          "enabled": rng.random() > 0.12, "source": rng.choice(["manual", "calculated"]),
                           "mode": rng.choice(["kibble", "natural", None]), "no_ctrl": rng.random() < 0.4, "deleted": rng.random() < 0.2}
                          if has_plan else None),
                 "vaccines": [rng.random() < 0.3 for _ in range(rng.choice([0, 0, 1, 2]))],
@@ -328,6 +339,13 @@ def gen_rule(rng: random.Random, field: str) -> dict:
         return {"kind": "rule", "field": field, "op": "eq", "value": True}
     if field == "feeding_registered":
         return {"kind": "rule", "field": field, "op": "eq", "value": True}
+    if field == "feeding_days_left":
+        op = rng.choice(["gte", "lte", "between"])
+        return {"kind": "rule", "field": field, "op": op, "value": rng.choice([0, 1, 7, 15, 30]) if op != "between" else sorted([rng.randint(0, 5), rng.randint(5, 40)])}
+    if field == "feeding_expired":
+        return {"kind": "rule", "field": field, "op": "eq", "value": True}
+    if field == "feeding_date_source":
+        return {"kind": "rule", "field": field, "op": "eq", "value": rng.choice(["manual", "calculated"])}
     if field == "feeding_brand_contains":
         return {"kind": "rule", "field": field, "op": "contains", "value": rng.choice(["premier", "FORMULA", "golden", "racao", "quatree", "zzzz"])}
     if field in ("care_vaccine", "care_parasite", "care_grooming"):

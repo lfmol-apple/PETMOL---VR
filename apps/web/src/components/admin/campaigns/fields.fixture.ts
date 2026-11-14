@@ -323,6 +323,52 @@ const fixture = {
    "precision": "declarada"
   },
   {
+   "field": "feeding_days_left",
+   "label": "Dias até a ração acabar (data do plano, ainda não vencida)",
+   "group": "Alimentação",
+   "scope": "pet",
+   "ops": [
+    "gte",
+    "lte",
+    "between"
+   ],
+   "values": null,
+   "approximate": false,
+   "origin": "Plano de ração: data de fim (calculada pelo sistema ou informada pelo tutor)",
+   "precision": "estimada pelo plano do tutor"
+  },
+  {
+   "field": "feeding_expired",
+   "label": "Data de fim da ração já passou (plano sem atualização)",
+   "group": "Alimentação",
+   "scope": "pet",
+   "ops": [
+    "eq"
+   ],
+   "values": [
+    true
+   ],
+   "approximate": false,
+   "origin": "Plano de ração: data de fim já passou",
+   "precision": "estimada pelo plano do tutor"
+  },
+  {
+   "field": "feeding_date_source",
+   "label": "Origem da data de fim da ração",
+   "group": "Alimentação",
+   "scope": "pet",
+   "ops": [
+    "eq"
+   ],
+   "values": [
+    "calculated",
+    "manual"
+   ],
+   "approximate": false,
+   "origin": "Plano de ração: quem definiu a data de fim",
+   "precision": "declarada ou calculada"
+  },
+  {
    "field": "feeding_brand_contains",
    "label": "Marca/produto da ração contém (texto)",
    "group": "Alimentação",

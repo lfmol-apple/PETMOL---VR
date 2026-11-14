@@ -10,7 +10,7 @@ import { call, explainError, type AudienceCount, type FieldInfo, type LocationCo
 import { FilterBuilder } from './FilterBuilder';
 import { buildFilter, conditionCount, describeCond, emptyFilter, type FilterState } from './filters';
 import { chipLocks, findConflicts } from './consistency';
-import { AGE_BANDS, LOC_ORIGINS, WEIGHT_BANDS, bandKey, locField, locOriginOf, moveLocOrigin, pickBand, pickOne, quickCond, removeCond, toggleFlag, toggleIn, type LocOrigin } from './quickFilters';
+import { AGE_BANDS, FEED_BANDS, LOC_ORIGINS, WEIGHT_BANDS, bandKey, locField, locOriginOf, moveLocOrigin, pickBand, pickOne, quickCond, removeCond, toggleFlag, toggleIn, type LocOrigin } from './quickFilters';
 import { numberFmt } from '@/components/admin/sections/sections';
 
 const UFS = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
@@ -164,8 +164,12 @@ export function AudienceExplorer({ fields, state, onChange, onUse, locationNote,
             <Chip key={c} on onClick={() => onChange(toggleIn(state, locField(usedOrigin, 'city'), c, ackLoc))} title="Clique para remover">{c} ✕</Chip>
           ))}
         </Group>
-        <Group title="Cuidados e ração" note={lock('feeding_registered', 'care_vaccine', 'care_parasite', 'care_grooming')}>
+        <Group title="Cuidados e ração" note={lock('feeding_registered', 'feeding_days_left', 'feeding_expired', 'feeding_date_source', 'care_vaccine', 'care_parasite', 'care_grooming')}>
           <Chip on={!!quickCond(state, 'feeding_registered')} onClick={() => onChange(toggleFlag(state, 'feeding_registered'))}>Tem ração cadastrada</Chip>
+          {FEED_BANDS.map((b) => <Chip key={b.key} on={bandKey(state, 'feeding_days_left', FEED_BANDS) === b.key} onClick={() => onChange(pickBand(state, 'feeding_days_left', b))}>{b.label}</Chip>)}
+          <Chip on={!!quickCond(state, 'feeding_expired')} onClick={() => onChange(toggleFlag(state, 'feeding_expired'))} title="A data de fim do plano passou e o tutor não atualizou">Data de fim já passou</Chip>
+          <Chip on={eq('feeding_date_source', 'calculated')} onClick={() => onChange(pickOne(state, 'feeding_date_source', 'calculated'))} title="O sistema calculou a partir de pacote, consumo e última compra">Data calculada pelo sistema</Chip>
+          <Chip on={eq('feeding_date_source', 'manual')} onClick={() => onChange(pickOne(state, 'feeding_date_source', 'manual'))} title="O tutor informou a data da próxima compra">Data informada pelo tutor</Chip>
           <Chip on={!!quickCond(state, 'care_vaccine')} onClick={() => onChange(toggleFlag(state, 'care_vaccine'))}>Tem vacina registrada</Chip>
           <Chip on={!!quickCond(state, 'care_parasite')} onClick={() => onChange(toggleFlag(state, 'care_parasite'))}>Tem antipulgas/vermífugo</Chip>
           <Chip on={!!quickCond(state, 'care_grooming')} onClick={() => onChange(toggleFlag(state, 'care_grooming'))}>Tem banho e tosa</Chip>

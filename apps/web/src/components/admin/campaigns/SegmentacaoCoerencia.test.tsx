@@ -267,3 +267,23 @@ describe('Localização do tutor: origem sempre visível, aproximação identifi
     expect(be.calls.filter((c) => c.method === 'POST' && /audience\/count/.test(c.path)).every((c) => !/location_/.test(JSON.stringify(c.body)))).toBe(true);
   });
 });
+
+describe('Ração acabando: segue a data do plano do tutor; vencida é um filtro à parte', () => {
+  it('"Acaba em até N dias" vira intervalo de hoje até N (não inclui vencidas) e combina com origem da data no mesmo pet', async () => {
+    await open();
+    fireEvent.click(chip('Acaba em até 7 dias'));
+    await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/"field":"feeding_days_left","op":"between","value":\["0","7"\]|"field":"feeding_days_left"[^}]*"value":\[0,7\]/), { timeout: 3000 });
+    fireEvent.click(chip('Acaba em até 30 dias'));                                       // escolha única: troca a faixa
+    await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/\[0,30\]|\["0","30"\]/), { timeout: 3000 });
+    expect(JSON.stringify(lastBody().filter)).not.toMatch(/\[0,7\]|\["0","7"\]/);
+    fireEvent.click(chip('Data calculada pelo sistema'));
+    await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/feeding_date_source[^}]*calculated/), { timeout: 3000 });
+    expect(lastBody().filter.root.items[0].pet_scope).toBe('same');                      // mesmo pet
+  });
+  it('"Data de fim já passou" é um chip próprio e não mistura com "acaba em"', async () => {
+    await open();
+    fireEvent.click(chip('Data de fim já passou'));
+    await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/feeding_expired/), { timeout: 3000 });
+    expect(JSON.stringify(lastBody().filter)).not.toMatch(/feeding_days_left/);
+  });
+});

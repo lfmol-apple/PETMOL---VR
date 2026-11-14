@@ -164,6 +164,9 @@ FIELD_META: dict[str, dict] = {
     "location_gps_city": {"group": "Localização", "origin": "gps_municipio", "precision": "aproximada (GPS → município de referência mais próximo)"},
     "location_best_state": {"group": "Localização", "origin": "melhor", "precision": "aproximada (cadastro; na falta, IP da última sessão)"},
     "location_best_city": {"group": "Localização", "origin": "melhor", "precision": "aproximada (cadastro; na falta, IP da última sessão)"},
+    "feeding_days_left": {"group": "Alimentação", "origin": "Plano de ração: data de fim (calculada pelo sistema ou informada pelo tutor)", "precision": "estimada pelo plano do tutor"},
+    "feeding_expired": {"group": "Alimentação", "origin": "Plano de ração: data de fim já passou", "precision": "estimada pelo plano do tutor"},
+    "feeding_date_source": {"group": "Alimentação", "origin": "Plano de ração: quem definiu a data de fim", "precision": "declarada ou calculada"},
     "feeding_registered": {"group": "Alimentação", "origin": "Ração cadastrada (definição do produto)", "precision": "declarada"},
     "feeding_brand_contains": {"group": "Alimentação", "origin": "Campo 'marca' da ração (texto livre: marca + produto)", "precision": "declarada"},
     "care_vaccine": {"group": "Cuidados", "origin": "Registros de vacina", "precision": "declarada"},
@@ -213,7 +216,7 @@ def validate_filter_values(flt: AudienceFilter) -> None:
         elif rule.field in ("tutor_pet_count",):
             for v in (rule.value if isinstance(rule.value, list) else [rule.value]):
                 _num(v, label, integer=True)
-        elif rule.field in ("pet_age_months", "pet_weight_kg"):
+        elif rule.field in ("pet_age_months", "pet_weight_kg", "feeding_days_left"):
             for v in (rule.value if isinstance(rule.value, list) else [rule.value]):
                 _num(v, label)
         elif rule.field in ("location_registered_state", "location_registered_city", "location_geoip_region", "location_best_state", "location_best_city",
@@ -684,6 +687,49 @@ def _r_feeding_registered(ctx, rule):
     return _Outcome("pet", ids, _pet_cov(ctx, len(ids)))
 
 
+def _plan_days_left(ctx) -> dict[str, tuple[int, str]]:
+    """pet → (dias até acabar, origem da data) dos planos ATIVOS (não apagados, `enabled`) com data de fim. Mesma conta do app
+    (`calculate_days_until_out`, hoje = data UTC do servidor). Negativo = a data do plano já passou."""
+    from ..health.services import calculate_days_until_out
+    today = ctx.now.date()
+    rows = (ctx.db.query(FeedingPlan.pet_id, FeedingPlan.estimated_end_date, FeedingPlan.reminder_source)
+            .filter(FeedingPlan.deleted_at.is_(None), FeedingPlan.enabled.is_(True)).all())
+    return {str(pid): (calculate_days_until_out(end, today), src or "calculated") for pid, end, src in rows if end is not None}
+
+
+def _feeding_cov(ctx) -> _Cov:
+    active = ctx.db.query(func.count(FeedingPlan.id)).filter(FeedingPlan.deleted_at.is_(None), FeedingPlan.enabled.is_(True)).scalar() or 0
+    return _Cov(len(_plan_days_left(ctx)), int(active), "planos de ração")
+
+
+def _with_source_breakdown(out: _Outcome, days: dict[str, tuple[int, str]]) -> _Outcome:
+    b: dict[str, int] = {}
+    for pid in out.ids:
+        src = days[pid][1]
+        b[src] = b.get(src, 0) + 1
+    out.extra["source_breakdown"] = b
+    return out
+
+
+def _r_feeding_days_left(ctx, rule):
+    v = _scalar_bounds(rule, float)
+    days = _plan_days_left(ctx)
+    ids = {p for p, (d, _) in days.items() if d >= 0 and _cmp(rule.op, v, d)} & set(ctx.pet_owner)
+    return _with_source_breakdown(_Outcome("pet", ids, _feeding_cov(ctx)), days)
+
+
+def _r_feeding_expired(ctx, rule):
+    days = _plan_days_left(ctx)
+    ids = {p for p, (d, _) in days.items() if d < 0} & set(ctx.pet_owner)
+    return _with_source_breakdown(_Outcome("pet", ids, _feeding_cov(ctx)), days)
+
+
+def _r_feeding_date_source(ctx, rule):
+    days = _plan_days_left(ctx)
+    ids = {p for p, (_, src) in days.items() if src == rule.value} & set(ctx.pet_owner)
+    return _Outcome("pet", ids, _feeding_cov(ctx))
+
+
 def _r_feeding_brand(ctx, rule):
     needle = norm_text(rule.value)
     plans = ctx.db.query(FeedingPlan.pet_id, FeedingPlan.food_brand).filter(FeedingPlan.deleted_at.is_(None)).all()
@@ -714,6 +760,7 @@ _RULES: dict[str, Callable[[AudienceContext, FilterRule], _Outcome]] = {
     "location_ip_state": _r_geo("state", ("ip",)), "location_ip_city": _r_geo("city", ("ip",)),
     "location_gps_state": _r_geo("state", ("gps",)), "location_gps_city": _r_geo("city", ("gps",)),
     "location_best_state": _r_geo("state", ("cadastro", "ip", "gps")), "location_best_city": _r_geo("city", ("cadastro", "ip", "gps")),
+    "feeding_days_left": _r_feeding_days_left, "feeding_expired": _r_feeding_expired, "feeding_date_source": _r_feeding_date_source,
     "feeding_registered": _r_feeding_registered, "feeding_brand_contains": _r_feeding_brand,
     "care_vaccine": _r_care(VaccineRecord), "care_parasite": _r_care(ParasiteControlRecord), "care_grooming": _r_care(GroomingRecord),
     "care_medication": _r_care_medication,
@@ -811,6 +858,11 @@ def compute_audience(db, flt: AudienceFilter, *, campaign_id: Optional[str] = No
             warnings.append({"code": "low_coverage", "level": "attention", "field": rule.field,
                              "text": f"Dados incompletos: só {_pct(cov)}% dos {cov.unit} têm esse dado ({cov.with_data} de {cov.total}). "
                                      f"Quem não preencheu fica de fora do filtro."})
+        if out.extra.get("source_breakdown") is not None:
+            sb = out.extra["source_breakdown"]
+            warnings.append({"code": "feeding_date_source", "level": "info", "field": rule.field,
+                             "text": f"Data de fim da ração: {sb.get('calculated', 0)} calculadas pelo sistema (pacote, consumo e última compra) e "
+                                     f"{sb.get('manual', 0)} informadas pelo tutor. É a previsão do plano dele, não uma medição de consumo."})
         if rule.field == "pet_weight_kg" and out.extra.get("weight_without_unit"):
             warnings.append({"code": "weight_without_unit", "level": "info", "field": rule.field,
                              "text": f"{out.extra['weight_without_unit']} pets têm peso sem unidade e não entram neste filtro."})
