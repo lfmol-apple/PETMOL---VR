@@ -230,6 +230,84 @@ const fixture = {
    "precision": "aproximada (IP, não é residência)"
   },
   {
+   "field": "location_best_state",
+   "label": "Estado (melhor dado disponível, aproximado)",
+   "group": "Localização",
+   "scope": "tutor",
+   "ops": [
+    "in"
+   ],
+   "values": null,
+   "approximate": true,
+   "origin": "melhor",
+   "precision": "aproximada (cadastro; na falta, IP da última sessão)"
+  },
+  {
+   "field": "location_best_city",
+   "label": "Cidade (melhor dado disponível, aproximada)",
+   "group": "Localização",
+   "scope": "tutor",
+   "ops": [
+    "in"
+   ],
+   "values": null,
+   "approximate": true,
+   "origin": "melhor",
+   "precision": "aproximada (cadastro; na falta, IP da última sessão)"
+  },
+  {
+   "field": "location_ip_state",
+   "label": "Estado pelo IP (aproximado)",
+   "group": "Localização",
+   "scope": "tutor",
+   "ops": [
+    "in"
+   ],
+   "values": null,
+   "approximate": true,
+   "origin": "ip",
+   "precision": "aproximada (IP do tutor ou do aparelho dele; não é residência)"
+  },
+  {
+   "field": "location_ip_city",
+   "label": "Cidade pelo IP (aproximada)",
+   "group": "Localização",
+   "scope": "tutor",
+   "ops": [
+    "in"
+   ],
+   "values": null,
+   "approximate": true,
+   "origin": "ip",
+   "precision": "aproximada (IP do tutor ou do aparelho dele; não é residência)"
+  },
+  {
+   "field": "location_gps_state",
+   "label": "Estado pelo GPS (aproximado)",
+   "group": "Localização",
+   "scope": "tutor",
+   "ops": [
+    "in"
+   ],
+   "values": null,
+   "approximate": true,
+   "origin": "gps_municipio",
+   "precision": "aproximada (GPS → município de referência mais próximo)"
+  },
+  {
+   "field": "location_gps_city",
+   "label": "Cidade pelo GPS (aproximada)",
+   "group": "Localização",
+   "scope": "tutor",
+   "ops": [
+    "in"
+   ],
+   "values": null,
+   "approximate": true,
+   "origin": "gps_municipio",
+   "precision": "aproximada (GPS → município de referência mais próximo)"
+  },
+  {
    "field": "feeding_registered",
    "label": "Ração cadastrada",
    "group": "Alimentação",
@@ -243,6 +321,67 @@ const fixture = {
    "approximate": false,
    "origin": "Ração cadastrada (definição do produto)",
    "precision": "declarada"
+  },
+  {
+   "field": "feeding_days_left",
+   "label": "Dias até a ração acabar (data do plano, ainda não vencida)",
+   "group": "Alimentação",
+   "scope": "pet",
+   "ops": [
+    "gte",
+    "lte",
+    "between"
+   ],
+   "values": null,
+   "approximate": false,
+   "origin": "Plano de ração: data de fim (calculada pelo sistema ou informada pelo tutor)",
+   "precision": "estimada pelo plano do tutor"
+  },
+  {
+   "field": "feeding_overdue_days",
+   "label": "Dias desde a data de fim prevista do plano (só vencidos)",
+   "group": "Alimentação",
+   "scope": "pet",
+   "ops": [
+    "gte",
+    "lte",
+    "between"
+   ],
+   "values": null,
+   "approximate": false,
+   "origin": "Plano de ração: dias desde a data de fim prevista",
+   "precision": "estimada pelo plano do tutor"
+  },
+  {
+   "field": "feeding_expired",
+   "label": "Data de fim da ração já passou (plano sem atualização)",
+   "group": "Alimentação",
+   "scope": "pet",
+   "ops": [
+    "eq"
+   ],
+   "values": [
+    true
+   ],
+   "approximate": false,
+   "origin": "Plano de ração: data de fim já passou",
+   "precision": "estimada pelo plano do tutor"
+  },
+  {
+   "field": "feeding_date_source",
+   "label": "Origem da data de fim da ração",
+   "group": "Alimentação",
+   "scope": "pet",
+   "ops": [
+    "eq"
+   ],
+   "values": [
+    "calculated",
+    "manual"
+   ],
+   "approximate": false,
+   "origin": "Plano de ração: quem definiu a data de fim",
+   "precision": "declarada ou calculada"
   },
   {
    "field": "feeding_brand_contains",

@@ -173,8 +173,20 @@ FILTER_FIELDS: dict[str, dict] = {
     "location_registered_city":  {"scope": "tutor", "ops": ("in",), "label": "Cidade cadastrada pelo tutor"},
     "location_gps_radius":    {"scope": "tutor", "ops": ("within_km",), "label": "Perto de um ponto (GPS do aparelho)", "approximate": True},
     "location_geoip_region":  {"scope": "tutor", "ops": ("in",), "label": "Região aproximada pelo IP (não é residência)", "approximate": True},
+    # "melhor localização": o dado mais confiável disponível por tutor (cadastro → senão IP da última sessão). Sempre aproximada.
+    "location_best_state":    {"scope": "tutor", "ops": ("in",), "label": "Estado (melhor dado disponível, aproximado)", "approximate": True},
+    "location_best_city":     {"scope": "tutor", "ops": ("in",), "label": "Cidade (melhor dado disponível, aproximada)", "approximate": True},
+    "location_ip_state":      {"scope": "tutor", "ops": ("in",), "label": "Estado pelo IP (aproximado)", "approximate": True},
+    "location_ip_city":       {"scope": "tutor", "ops": ("in",), "label": "Cidade pelo IP (aproximada)", "approximate": True},
+    "location_gps_state":     {"scope": "tutor", "ops": ("in",), "label": "Estado pelo GPS (aproximado)", "approximate": True},
+    "location_gps_city":      {"scope": "tutor", "ops": ("in",), "label": "Cidade pelo GPS (aproximada)", "approximate": True},
     # alimentação
     "feeding_registered":     {"scope": "pet", "ops": ("eq",), "label": "Ração cadastrada", "values": (True,)},
+    # ração acabando: segue a data de fim do PLANO do tutor (calculada pelo sistema ou informada por ele); vencida é um filtro à parte
+    "feeding_days_left":      {"scope": "pet", "ops": ("gte", "lte", "between"), "label": "Dias até a ração acabar (data do plano, ainda não vencida)"},
+    "feeding_overdue_days":   {"scope": "pet", "ops": ("gte", "lte", "between"), "label": "Dias desde a data de fim prevista do plano (só vencidos)"},
+    "feeding_expired":        {"scope": "pet", "ops": ("eq",), "label": "Data de fim da ração já passou (plano sem atualização)", "values": (True,)},
+    "feeding_date_source":    {"scope": "pet", "ops": ("eq",), "label": "Origem da data de fim da ração", "values": ("calculated", "manual")},
     "feeding_brand_contains": {"scope": "pet", "ops": ("contains",), "label": "Marca/produto da ração contém (texto)"},
     # saúde e cuidados
     "care_vaccine":           {"scope": "pet", "ops": ("eq",), "label": "Tem registro de vacina", "values": (True,)},

@@ -6,17 +6,19 @@
  * (usa apenas POST /audience/count, somente leitura). O botão "Criar campanha com este público" leva os filtros para a campanha.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { call, explainError, type AudienceCount, type FieldInfo } from './api';
+import { call, explainError, type AudienceCount, type FieldInfo, type LocationCoverage } from './api';
 import { FilterBuilder } from './FilterBuilder';
 import { buildFilter, conditionCount, describeCond, emptyFilter, type FilterState } from './filters';
 import { chipLocks, findConflicts } from './consistency';
-import { AGE_BANDS, WEIGHT_BANDS, bandKey, pickBand, pickOne, quickCond, removeCond, toggleFlag, toggleIn } from './quickFilters';
+import { AGE_BANDS, FEED_BANDS, LOC_ORIGINS, WEIGHT_BANDS, bandKey, locField, locOriginOf, moveLocOrigin, pickBand, pickOne, quickCond, removeCond, toggleFlag, toggleIn, type LocOrigin } from './quickFilters';
 import { numberFmt } from '@/components/admin/sections/sections';
 
-function Chip({ on, onClick, children, hint, locked, title }: { on: boolean; onClick: () => void; children: React.ReactNode; hint?: string; locked?: string | null; title?: string }) {
+const UFS = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
+
+function Chip({ on, onClick, children, hint, title }: { on: boolean; onClick: () => void; children: React.ReactNode; hint?: string; title?: string }) {
   return (
-    <button type="button" role="checkbox" aria-checked={on} aria-disabled={!!locked} title={locked ?? title} onClick={() => { if (!locked) onClick(); }}
-      className={`rounded-full border px-3.5 py-2 text-left text-[13.5px] font-semibold transition ${locked ? 'cursor-not-allowed opacity-50' : ''} ${on ? 'border-sky-600 bg-sky-600 text-white shadow-sm' : `border-slate-300 bg-white text-slate-700 ${locked ? '' : 'hover:border-sky-400 hover:bg-sky-50'}`}`}>
+    <button type="button" role="checkbox" aria-checked={on} title={title} onClick={onClick}
+      className={`rounded-full border px-3.5 py-2 text-left text-[13.5px] font-semibold transition ${on ? 'border-sky-600 bg-sky-600 text-white shadow-sm' : `border-slate-300 bg-white text-slate-700 hover:border-sky-400 hover:bg-sky-50`}`}>
       {children}
       {hint && <span className={`ml-1.5 text-[11px] font-medium ${on ? 'text-sky-100' : 'text-slate-500'}`}>{hint}</span>}
     </button>
@@ -54,6 +56,22 @@ export function AudienceExplorer({ fields, state, onChange, onUse, locationNote,
   const sig = useMemo(() => JSON.stringify(built.filter), [built]);
   const [res, setRes] = useState<{ data: AudienceCount | null; sig: string | null; error: string | null }>({ data: null, sig: null, error: null });
   const [advanced, setAdvanced] = useState(false);
+  const [cityText, setCityText] = useState('');
+  const [origin, setOrigin] = useState<LocOrigin>('melhor');
+  const [cov, setCov] = useState<LocationCoverage | null>(null);
+  useEffect(() => { let alive = true; call<LocationCoverage>('/audience/location-coverage').then((c) => { if (alive) setCov(c); }).catch(() => undefined); return () => { alive = false; }; }, []);
+  const usedOrigin = locOriginOf(state) ?? origin;               // a origem dos filtros já escolhidos manda; sem filtro, vale a selecionada
+  const oMeta = LOC_ORIGINS.find((o) => o.key === usedOrigin)!;
+  const ackLoc = oMeta.approx;
+  const covBy = (k: string) => cov?.origins.find((o) => o.key === k);
+  const covLine = (() => {
+    if (!cov) return null;
+    const c = covBy(usedOrigin === 'ip' ? 'ip_direto' : usedOrigin);
+    if (usedOrigin === 'cadastro') return `${c?.state ?? 0} têm estado e ${c?.city ?? 0} têm cidade, de ${cov.reachable} alcançáveis`;
+    if (usedOrigin === 'ip') { const a = covBy('ip_aparelho'); return `${a?.tutors ?? 0} de ${cov.reachable} alcançáveis (${a?.percent ?? 0}%): ${covBy('ip_direto')?.tutors ?? 0} pelo IP do próprio tutor + ${a?.additional_tutors ?? 0} só pelo aparelho`; }
+    if (usedOrigin === 'gps') return `${c?.state ?? 0} têm estado e ${c?.city ?? 0} têm cidade, de ${cov.reachable} alcançáveis`;
+    return `estado ${c?.state ?? 0} (${c?.state_percent ?? 0}%) e cidade ${c?.city ?? 0} (${c?.city_percent ?? 0}%), de ${cov.reachable} alcançáveis`;
+  })();
   const seq = useRef(0);
 
   useEffect(() => {
@@ -77,7 +95,7 @@ export function AudienceExplorer({ fields, state, onChange, onUse, locationNote,
   const nothing = conditionCount(state) === 0;
   const locks = useMemo(() => chipLocks(state), [state]);
   const conflicts = useMemo(() => findConflicts(state, fields), [state, fields]);
-  const lock = (...fs: string[]) => locks.all ?? fs.map((f) => locks.byField.get(f)).find(Boolean) ?? null;   // trava de um campo (ou geral)
+  const lock = (...fs: string[]) => locks.all ?? fs.map((f) => locks.byField.get(f)).find(Boolean) ?? null;   // aviso (não bloqueia) de um campo ou geral
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -90,34 +108,71 @@ export function AudienceExplorer({ fields, state, onChange, onUse, locationNote,
           <span className="truncate text-[11.5px] text-sky-100">{nothing ? 'todos com push' : `${chips.length} filtro${chips.length === 1 ? '' : 's'}`}</span>
         </div>
         <Group title="Pet" hint="Os chips combinam no MESMO pet (ex.: gato + fêmea = gata)" note={locks.all ?? ['pet_species', 'pet_sex', 'pet_neutered_yes'].map((f) => locks.byField.get(f)).find(Boolean) ?? null}>
-          <Chip locked={lock('pet_species')} on={has('pet_species', 'dog')} onClick={() => onChange(toggleIn(state, 'pet_species', 'dog'))}>Cão</Chip>
-          <Chip locked={lock('pet_species')} on={has('pet_species', 'cat')} onClick={() => onChange(toggleIn(state, 'pet_species', 'cat'))}>Gato</Chip>
-          <Chip locked={lock('pet_species')} on={has('pet_species', 'other')} onClick={() => onChange(toggleIn(state, 'pet_species', 'other'))}>Outro</Chip>
+          <Chip on={has('pet_species', 'dog')} onClick={() => onChange(toggleIn(state, 'pet_species', 'dog'))}>Cão</Chip>
+          <Chip on={has('pet_species', 'cat')} onClick={() => onChange(toggleIn(state, 'pet_species', 'cat'))}>Gato</Chip>
+          <Chip on={has('pet_species', 'other')} onClick={() => onChange(toggleIn(state, 'pet_species', 'other'))}>Outro</Chip>
           <span className="mx-1 hidden w-px self-stretch bg-slate-200 sm:block" aria-hidden />
-          <Chip locked={lock('pet_sex')} on={eq('pet_sex', 'male')} onClick={() => onChange(pickOne(state, 'pet_sex', 'male'))}>Macho</Chip>
-          <Chip locked={lock('pet_sex')} on={eq('pet_sex', 'female')} onClick={() => onChange(pickOne(state, 'pet_sex', 'female'))}>Fêmea</Chip>
-          <Chip locked={lock('pet_neutered_yes')} on={!!quickCond(state, 'pet_neutered_yes')} onClick={() => onChange(toggleFlag(state, 'pet_neutered_yes'))}>Castrado</Chip>
+          <Chip on={eq('pet_sex', 'male')} onClick={() => onChange(pickOne(state, 'pet_sex', 'male'))}>Macho</Chip>
+          <Chip on={eq('pet_sex', 'female')} onClick={() => onChange(pickOne(state, 'pet_sex', 'female'))}>Fêmea</Chip>
+          <Chip on={!!quickCond(state, 'pet_neutered_yes')} onClick={() => onChange(toggleFlag(state, 'pet_neutered_yes'))}>Castrado</Chip>
         </Group>
         <Group title="Idade do pet" hint="em meses completos; cada idade pertence a uma única faixa" note={lock('pet_age_months')}>
-          {AGE_BANDS.map((b) => <Chip locked={lock('pet_age_months')} key={b.key} on={bandKey(state, 'pet_age_months', AGE_BANDS) === b.key} hint={b.hint} onClick={() => onChange(pickBand(state, 'pet_age_months', b))}>{b.label}</Chip>)}
+          {AGE_BANDS.map((b) => <Chip key={b.key} on={bandKey(state, 'pet_age_months', AGE_BANDS) === b.key} hint={b.hint} onClick={() => onChange(pickBand(state, 'pet_age_months', b))}>{b.label}</Chip>)}
         </Group>
         <Group title="Porte (peso)" hint="cada peso pertence a uma única faixa (peso com 2 casas, 0,01 kg)" note={lock('pet_weight_kg')}>
-          {WEIGHT_BANDS.map((b) => <Chip locked={lock('pet_weight_kg')} key={b.key} on={bandKey(state, 'pet_weight_kg', WEIGHT_BANDS) === b.key} hint={b.hint} onClick={() => onChange(pickBand(state, 'pet_weight_kg', b))}>{b.label}</Chip>)}
+          {WEIGHT_BANDS.map((b) => <Chip key={b.key} on={bandKey(state, 'pet_weight_kg', WEIGHT_BANDS) === b.key} hint={b.hint} onClick={() => onChange(pickBand(state, 'pet_weight_kg', b))}>{b.label}</Chip>)}
         </Group>
         <Group title="Tutor" hint="Aparelho com push e atividade no app" note={lock('platform', 'tutor_activity')}>
-          <Chip locked={lock('platform')} on={has('platform', 'ios')} onClick={() => onChange(toggleIn(state, 'platform', 'ios'))}>iPhone</Chip>
-          <Chip locked={lock('platform')} on={has('platform', 'android')} onClick={() => onChange(toggleIn(state, 'platform', 'android'))}>Android</Chip>
-          <Chip locked={lock('platform')} on={has('platform', 'web')} onClick={() => onChange(toggleIn(state, 'platform', 'web'))}>Navegador</Chip>
+          <Chip on={has('platform', 'ios')} onClick={() => onChange(toggleIn(state, 'platform', 'ios'))}>iPhone</Chip>
+          <Chip on={has('platform', 'android')} onClick={() => onChange(toggleIn(state, 'platform', 'android'))}>Android</Chip>
+          <Chip on={has('platform', 'web')} onClick={() => onChange(toggleIn(state, 'platform', 'web'))}>Navegador</Chip>
           <span className="mx-1 hidden w-px self-stretch bg-slate-200 sm:block" aria-hidden />
-          <Chip locked={lock('tutor_activity')} on={eq('tutor_activity', 'last_7d')} onClick={() => onChange(pickOne(state, 'tutor_activity', 'last_7d'))}>Ativo nos últimos 7 dias</Chip>
-          <Chip locked={lock('tutor_activity')} on={eq('tutor_activity', 'd8_30')} onClick={() => onChange(pickOne(state, 'tutor_activity', 'd8_30'))}>Ativo há 8 a 30 dias</Chip>
-          <Chip locked={lock('tutor_activity')} on={eq('tutor_activity', 'over_30d')} onClick={() => onChange(pickOne(state, 'tutor_activity', 'over_30d'))}>Sumido há +30 dias</Chip>
+          <Chip on={eq('tutor_activity', 'last_7d')} onClick={() => onChange(pickOne(state, 'tutor_activity', 'last_7d'))}>Ativo nos últimos 7 dias</Chip>
+          <Chip on={eq('tutor_activity', 'd8_30')} onClick={() => onChange(pickOne(state, 'tutor_activity', 'd8_30'))}>Ativo há 8 a 30 dias</Chip>
+          <Chip on={eq('tutor_activity', 'over_30d')} onClick={() => onChange(pickOne(state, 'tutor_activity', 'over_30d'))}>Sumido há +30 dias</Chip>
         </Group>
-        <Group title="Cuidados e ração" note={lock('feeding_registered', 'care_vaccine', 'care_parasite', 'care_grooming')}>
-          <Chip locked={lock('feeding_registered')} on={!!quickCond(state, 'feeding_registered')} onClick={() => onChange(toggleFlag(state, 'feeding_registered'))}>Tem ração cadastrada</Chip>
-          <Chip locked={lock('care_vaccine')} on={!!quickCond(state, 'care_vaccine')} onClick={() => onChange(toggleFlag(state, 'care_vaccine'))}>Tem vacina registrada</Chip>
-          <Chip locked={lock('care_parasite')} on={!!quickCond(state, 'care_parasite')} onClick={() => onChange(toggleFlag(state, 'care_parasite'))}>Tem antipulgas/vermífugo</Chip>
-          <Chip locked={lock('care_grooming')} on={!!quickCond(state, 'care_grooming')} onClick={() => onChange(toggleFlag(state, 'care_grooming'))}>Tem banho e tosa</Chip>
+        <Group title="Localização do tutor" hint="sempre aproximada, exceto o que o tutor digitou — nunca é residência confirmada">
+          <div role="radiogroup" aria-label="Origem da localização" className="flex w-full flex-wrap gap-1.5">
+            {LOC_ORIGINS.map((o) => (
+              <button key={o.key} type="button" role="radio" aria-checked={usedOrigin === o.key} title={o.hint}
+                onClick={() => { const from = usedOrigin; setOrigin(o.key); onChange(moveLocOrigin(state, from, o.key)); }}
+                className={`rounded-lg border px-2.5 py-1.5 text-[12.5px] font-semibold ${usedOrigin === o.key ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-indigo-400'}`}>
+                {o.label}{o.approx ? ' ≈' : ''}
+              </button>
+            ))}
+          </div>
+          <p className="w-full text-[11.5px] leading-snug text-slate-600" data-testid="origem-localizacao">
+            Origem: <strong>{oMeta.label}</strong> — {oMeta.hint}. {oMeta.approx ? 'Cidade/estado APROXIMADOS (não é a residência do tutor).' : 'Declarada pelo tutor; só 8% preenchem.'}
+            {covLine ? <> Cobertura: <strong data-testid="cobertura-origem">{covLine}</strong>.</> : null}
+          </p>
+          <label className="sr-only" htmlFor="loc-uf">Adicionar estado</label>
+          <select id="loc-uf" value="" onChange={(e) => { if (e.target.value) onChange(toggleIn(state, locField(usedOrigin, 'state'), e.target.value, ackLoc)); }}
+            className="rounded-full border border-slate-300 bg-white px-3 py-2 text-[13.5px] font-semibold text-slate-700">
+            <option value="">+ Estado…</option>
+            {UFS.map((u) => <option key={u} value={u}>{u}</option>)}
+          </select>
+          {((quickCond(state, locField(usedOrigin, 'state'))?.value as string[] | undefined) ?? []).map((u) => (
+            <Chip key={u} on onClick={() => onChange(toggleIn(state, locField(usedOrigin, 'state'), u, ackLoc))} title="Clique para remover">{u} ✕</Chip>
+          ))}
+          <span className="mx-1 hidden w-px self-stretch bg-slate-200 sm:block" aria-hidden />
+          <form className="flex gap-1.5" onSubmit={(e) => { e.preventDefault(); const t = cityText.trim(); if (t) { onChange(toggleIn(state, locField(usedOrigin, 'city'), t, ackLoc)); setCityText(''); } }}>
+            <input aria-label="Cidade" value={cityText} onChange={(e) => setCityText(e.target.value)} placeholder="Cidade (ex.: Campinas)" maxLength={80}
+              className="w-44 rounded-full border border-slate-300 bg-white px-3 py-2 text-[13.5px]" />
+            <button type="submit" className="rounded-full border border-slate-300 bg-white px-3 py-2 text-[13.5px] font-semibold text-slate-700 hover:border-sky-400">Adicionar cidade</button>
+          </form>
+          {((quickCond(state, locField(usedOrigin, 'city'))?.value as string[] | undefined) ?? []).map((c) => (
+            <Chip key={c} on onClick={() => onChange(toggleIn(state, locField(usedOrigin, 'city'), c, ackLoc))} title="Clique para remover">{c} ✕</Chip>
+          ))}
+        </Group>
+        <Group title="Cuidados e ração" note={lock('feeding_registered', 'feeding_days_left', 'feeding_expired', 'feeding_date_source', 'care_vaccine', 'care_parasite', 'care_grooming')}>
+          <Chip on={!!quickCond(state, 'feeding_registered')} onClick={() => onChange(toggleFlag(state, 'feeding_registered'))}>Tem ração cadastrada</Chip>
+          {FEED_BANDS.map((b) => <Chip key={b.key} on={bandKey(state, 'feeding_days_left', FEED_BANDS) === b.key} onClick={() => onChange(pickBand(state, 'feeding_days_left', b))}>{b.label}</Chip>)}
+          <Chip on={!!quickCond(state, 'feeding_expired')} onClick={() => onChange(toggleFlag(state, 'feeding_expired'))} title="A data de fim do plano passou e o tutor não atualizou">Data de fim já passou</Chip>
+          <Chip on={eq('feeding_date_source', 'calculated')} onClick={() => onChange(pickOne(state, 'feeding_date_source', 'calculated'))} title="O sistema calculou a partir de pacote, consumo e última compra">Data calculada pelo sistema</Chip>
+          <Chip on={eq('feeding_date_source', 'manual')} onClick={() => onChange(pickOne(state, 'feeding_date_source', 'manual'))} title="O tutor informou a data da próxima compra">Data informada pelo tutor</Chip>
+          <Chip on={!!quickCond(state, 'care_vaccine')} onClick={() => onChange(toggleFlag(state, 'care_vaccine'))}>Tem vacina registrada</Chip>
+          <Chip on={!!quickCond(state, 'care_parasite')} onClick={() => onChange(toggleFlag(state, 'care_parasite'))}>Tem antipulgas/vermífugo</Chip>
+          <Chip on={!!quickCond(state, 'care_grooming')} onClick={() => onChange(toggleFlag(state, 'care_grooming'))}>Tem banho e tosa</Chip>
         </Group>
 
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white">
@@ -147,7 +202,7 @@ export function AudienceExplorer({ fields, state, onChange, onUse, locationNote,
             </p>
             {conflicts.length > 0 && (
               <div role="alert" className="rounded-lg border border-rose-300 bg-rose-50 p-2.5 text-[12.5px] leading-snug text-rose-900" data-testid="conflitos">
-                <p className="font-bold">Filtros que se contradizem — ninguém será selecionado:</p>
+                <p className="font-bold">Atenção: estes filtros se contradizem e, assim, ninguém será selecionado (você ainda pode criar a campanha):</p>
                 <ul className="mt-1 list-disc space-y-1 pl-4">{conflicts.map((c, i) => <li key={i}>{c.text}</li>)}</ul>
               </div>
             )}
@@ -180,7 +235,7 @@ export function AudienceExplorer({ fields, state, onChange, onUse, locationNote,
               </ul>
             ) : null}
             {onUse && (
-              <button type="button" disabled={!built.ready || !d || d.reachable === 0 || conflicts.length > 0} onClick={() => onUse(state)}
+              <button type="button" disabled={!built.ready || !d || d.reachable === 0 } onClick={() => onUse(state)}
                 className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-[14.5px] font-extrabold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40">
                 Criar campanha com este público →
               </button>

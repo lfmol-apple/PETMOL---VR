@@ -11,6 +11,7 @@ import unicodedata
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
+from src.admin.geo_br import nearest_municipality
 NOW = datetime(2026, 11, 12, 4, 15, tzinfo=timezone.utc)
 
 # ── normalização independente ────────────────────────────────────────────────
@@ -58,6 +59,37 @@ def activity_bucket(u):
 def latest_region(u):
     rs = [(t, r) for t, r in u["regions"] if t <= NOW and r]
     return max(rs)[1] if rs else None
+
+
+def ip_geo(u):
+    """(estado, cidade) do evento mais recente do PRÓPRIO tutor que tem região ou cidade (IP direto)."""
+    cities = dict(u["rcities"])
+    evs = [(t, r, cities.get(t)) for t, r in u["regions"] if t <= NOW and (n(r) or n(cities.get(t)))]
+    if not evs:
+        return None
+    t, r, c = max(evs, key=lambda e: e[0])
+    return (st(r) if n(r) else None, n(c) or None)
+
+
+def gps_geo(u):
+    if u["loc_source"] != "gps" or u["lat"] is None or u["lng"] is None:
+        return None
+    m = nearest_municipality(u["lat"], u["lng"])
+    return None if m is None else (m[1], n(m[0]))
+
+
+def cad_geo(u):
+    if not (n(u["city"]) or n(u["state"])):
+        return None
+    return (st(u["state"]) if n(u["state"]) else None, n(u["city"]) or None)
+
+
+def geo_value(u, idx, sources):
+    for src in sources:
+        g = {"cad": cad_geo, "ip": ip_geo, "gps": gps_geo}[src](u)
+        if g and g[idx]:
+            return g[idx]
+    return None
 
 
 def configured(plan):
@@ -118,6 +150,12 @@ def rule_tutor(u, r):
     if f == "location_geoip_region":
         reg = latest_region(u)
         return reg is not None and st(reg) in {st(x) for x in v}
+    for fld, idx, srcs in (("location_best_state", 0, ("cad", "ip", "gps")), ("location_best_city", 1, ("cad", "ip", "gps")),
+                           ("location_ip_state", 0, ("ip",)), ("location_ip_city", 1, ("ip",)),
+                           ("location_gps_state", 0, ("gps",)), ("location_gps_city", 1, ("gps",))):
+        if f == fld:
+            val = geo_value(u, idx, srcs)
+            return val is not None and val in {(st(x) if idx == 0 else n(x)) for x in v}
     if f == "care_medication":
         return u["medication"]
     raise AssertionError(f)
@@ -141,6 +179,18 @@ def rule_pet(p, r):
         return p["neutered"] is True
     if f == "feeding_registered":
         return configured(p["plan"])
+    if f in ("feeding_days_left", "feeding_expired", "feeding_date_source", "feeding_overdue_days"):
+        pl = p["plan"]
+        if not pl or pl["deleted"] or not pl["enabled"] or pl["end"] is None:
+            return False
+        d = (pl["end"] - NOW.date()).days
+        if f == "feeding_days_left":
+            return d >= 0 and cmp(op, v, d)
+        if f == "feeding_overdue_days":
+            return d < 0 and cmp(op, v, -d)
+        if f == "feeding_expired":
+            return d < 0
+        return pl["source"] == v
     if f == "feeding_brand_contains":
         pl = p["plan"]
         return bool(pl) and not pl["deleted"] and bool(n(pl["brand"])) and n(v) in n(pl["brand"])
@@ -154,7 +204,7 @@ def rule_pet(p, r):
 
 
 PET_FIELDS = {"pet_species", "pet_sex", "pet_breed_contains", "pet_age_months", "pet_weight_kg", "pet_neutered_yes", "feeding_registered",
-              "feeding_brand_contains", "care_vaccine", "care_parasite", "care_grooming"}
+              "feeding_brand_contains", "feeding_days_left", "feeding_overdue_days", "feeding_expired", "feeding_date_source", "care_vaccine", "care_parasite", "care_grooming"}
 
 
 def holds(u, g):
@@ -200,6 +250,7 @@ def evaluate(users, filt):
 CITIES = ["São Paulo", "sao paulo", "Belo Horizonte", "BELO HORIZONTE", "Curitiba", "Salvador", None, "", "  "]
 STATES = ["SP", "sp", "Minas Gerais", "MG", "Rio de Janeiro", "PR", "Bahia", None, ""]
 REGIONS = ["São Paulo", "Minas Gerais", "Rio de Janeiro", "Paraná", "Bahia", "Ontario", None]
+IP_CITIES = ["Campinas", "são paulo", "Belo Horizonte", "Niterói", "Curitiba", None, ""]
 SPECIES = ["dog", "Dog", "CAT", "cat", "hamster", "fish", "dog "]
 BREEDS = ["Shih-tzu", "Pinscher", "Siamês", "Sem raça definida", "Golden Retriever", "SRD", "", None, "Persa"]
 BRANDS = ["Premier Ração Cães", "Fórmula Natural Fresh", "golden gatos", "Ração Special Dog", "", None, "Quatree"]
@@ -218,7 +269,8 @@ def make_users(rng: random.Random, n_users=120):
                 "weight": rng.choice([None, 0, 2.5, 7.0, 12.3, 30, 45]), "unit": rng.choice(["kg", "KG", "lb", None, "", "stone"]),
                 "neutered": rng.choice([True, False, False, None]),
                 "plan": ({"brand": rng.choice(BRANDS), "items_json": rng.choice(["[]", "[]", '[{"a":1}]', None, "null"]),
-                          "duration": rng.choice([None, None, 30]), "end": rng.choice([None, date(2026, 12, 1)]),
+                          "duration": rng.choice([None, None, 30]), "end": rng.choice([None, date(2026, 12, 1), date(2026, 11, 5), date(2026, 11, 11), date(2026, 11, 12), date(2026, 11, 13), date(2026, 11, 19), date(2027, 3, 1)]),
+                          "enabled": rng.random() > 0.12, "source": rng.choice(["manual", "calculated"]),
                           "mode": rng.choice(["kibble", "natural", None]), "no_ctrl": rng.random() < 0.4, "deleted": rng.random() < 0.2}
                          if has_plan else None),
                 "vaccines": [rng.random() < 0.3 for _ in range(rng.choice([0, 0, 1, 2]))],
@@ -240,6 +292,7 @@ def make_users(rng: random.Random, n_users=120):
         # eventos com a mesma data não podem empatar entre regiões (a escolha do "mais recente" precisa ser única)
         users[-1]["regions"] = [(t + timedelta(seconds=idx), r) for idx, (t, r) in enumerate(users[-1]["regions"])]
         users[-1]["events"] += [t for t, _ in users[-1]["regions"]]
+        users[-1]["rcities"] = [(t, rng.choice(IP_CITIES)) for t, _ in users[-1]["regions"]]
     return users
 
 
@@ -266,6 +319,10 @@ def gen_rule(rng: random.Random, field: str) -> dict:
         return {"kind": "rule", "field": field, "op": "within_km", "value": {"lat": -19.92 + rng.uniform(-0.5, 0.5), "lng": -43.94 + rng.uniform(-0.5, 0.5), "km": rng.choice([5, 50, 120, 300])}, **ack}
     if field == "location_geoip_region":
         return {"kind": "rule", "field": field, "op": "in", "value": rng.sample(["São Paulo", "minas gerais", "RJ", "Ontario", "Paraná"], rng.randint(1, 2)), **ack}
+    if field in ("location_best_state", "location_ip_state", "location_gps_state"):
+        return {"kind": "rule", "field": field, "op": "in", "value": rng.sample(["SP", "sao paulo", "Minas Gerais", "rj", "Paraná"], rng.randint(1, 3)), **ack}
+    if field in ("location_best_city", "location_ip_city", "location_gps_city"):
+        return {"kind": "rule", "field": field, "op": "in", "value": rng.sample(["Sao Paulo", "campinas", "BELO HORIZONTE", "Curitiba", "Niterói", "Betim"], rng.randint(1, 3)), **ack}
     if field == "care_medication":
         return {"kind": "rule", "field": field, "op": "eq", "value": True}
     if field == "pet_species":
@@ -284,6 +341,16 @@ def gen_rule(rng: random.Random, field: str) -> dict:
         return {"kind": "rule", "field": field, "op": "eq", "value": True}
     if field == "feeding_registered":
         return {"kind": "rule", "field": field, "op": "eq", "value": True}
+    if field == "feeding_days_left":
+        op = rng.choice(["gte", "lte", "between"])
+        return {"kind": "rule", "field": field, "op": op, "value": rng.choice([0, 1, 7, 15, 30]) if op != "between" else sorted([rng.randint(0, 5), rng.randint(5, 40)])}
+    if field == "feeding_overdue_days":
+        op = rng.choice(["gte", "lte", "between"])
+        return {"kind": "rule", "field": field, "op": op, "value": rng.choice([1, 2, 7, 30]) if op != "between" else sorted([rng.randint(1, 3), rng.randint(3, 20)])}
+    if field == "feeding_expired":
+        return {"kind": "rule", "field": field, "op": "eq", "value": True}
+    if field == "feeding_date_source":
+        return {"kind": "rule", "field": field, "op": "eq", "value": rng.choice(["manual", "calculated"])}
     if field == "feeding_brand_contains":
         return {"kind": "rule", "field": field, "op": "contains", "value": rng.choice(["premier", "FORMULA", "golden", "racao", "quatree", "zzzz"])}
     if field in ("care_vaccine", "care_parasite", "care_grooming"):
@@ -292,7 +359,8 @@ def gen_rule(rng: random.Random, field: str) -> dict:
 
 
 ALL_FIELDS = sorted(PET_FIELDS | {"tutor_created_at", "tutor_pet_count", "tutor_species_mix", "tutor_activity", "platform", "location_registered_state",
-                                  "location_registered_city", "location_gps_radius", "location_geoip_region", "care_medication"})
+                                  "location_registered_city", "location_gps_radius", "location_geoip_region", "location_best_state", "location_best_city", "location_ip_state", "location_ip_city",
+                                  "location_gps_state", "location_gps_city", "care_medication"})
 
 
 def gen_group(rng: random.Random, depth=1) -> dict:
