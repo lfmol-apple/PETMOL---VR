@@ -43,3 +43,34 @@ def test_notificacoes_ativas_contam_tutor_uma_vez_e_ignoram_desligados():
             db.query(NativePushToken).filter(NativePushToken.user_id == uid).delete()
             db.query(User).filter(User.id == uid).delete()
         db.commit()
+
+
+def test_pets_sumidos_quem_encontrou_inferido_pelos_relatos():
+    from src.admin import missing_pets_admin as mp
+    from src.missing_pets import FoundReport, MissingPet
+    owner = str(uuid.uuid4())
+    ids = {}
+    with SessionLocal() as db:
+        db.add(User(id=owner, email=f"{owner[:8]}@t.example", name="Dono", password_hash="x"))
+        db.flush()
+        for tag, st in (("terceiro", "found"), ("proprio", "found"), ("nenhum", "found"), ("aberto", "active")):
+            p = MissingPet(id=str(uuid.uuid4()), user_id=owner, pet_name=tag, species="dog", contact="x", status=st)
+            db.add(p); ids[tag] = p.id
+        db.flush()
+        db.add(FoundReport(missing_pet_id=ids["terceiro"], finder_contact="x", finder_user_id=None))
+        db.add(FoundReport(missing_pet_id=ids["proprio"], finder_contact="y", finder_user_id=owner))
+        db.commit()
+    try:
+        class _A:  # chama a função do endpoint direto (a dependência de admin é só autenticação)
+            pass
+        out = {i["pet_name"]: i for i in mp.list_missing_pets(status="all", limit=500, current=_A())["items"] if i["pet_name"] in ids}
+        assert out["terceiro"]["found_by"] == "terceiro" and out["terceiro"]["third_party_reports"] == 1
+        assert out["proprio"]["found_by"] == "proprio_relato" and out["proprio"]["third_party_reports"] == 0
+        assert out["nenhum"]["found_by"] == "sem_relato"
+        assert out["aberto"]["found_by"] is None
+    finally:
+        with SessionLocal() as db:
+            db.query(FoundReport).filter(FoundReport.missing_pet_id.in_(list(ids.values()))).delete(synchronize_session=False)
+            db.query(MissingPet).filter(MissingPet.id.in_(list(ids.values()))).delete(synchronize_session=False)
+            db.query(User).filter(User.id == owner).delete()
+            db.commit()
