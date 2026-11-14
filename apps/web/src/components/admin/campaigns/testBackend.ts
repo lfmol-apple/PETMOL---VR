@@ -86,7 +86,7 @@ export class Backend {
     'GET /audience/location-coverage': () => ({ json: { reachable: 200, approximate_note: 'Cobertura é quantos tutores têm o dado, não a precisão geográfica: IP e GPS indicam cidade/estado APROXIMADOS, nunca a residência.', origins: [
       { key: 'cadastro', label: 'Cadastro (digitado pelo tutor)', approximate: false, state: 16, city: 18 },
       { key: 'ip_direto', label: 'IP do próprio tutor (última sessão)', approximate: true, tutors: 130, percent: 65 },
-      { key: 'ip_aparelho', label: 'IP de eventos anteriores ao login do mesmo aparelho', approximate: true, tutors: 196, additional_tutors: 66, percent: 98 },
+      { key: 'ip_aparelho', label: 'IP de eventos anteriores ao login do mesmo aparelho', approximate: true, tutors: 196, additional_tutors: 66, percent: 98, union_tutors: 196, union_percent: 98 },
       { key: 'gps', label: 'GPS convertido em cidade/estado', approximate: true, state: 110, city: 110 },
       { key: 'melhor', label: 'Melhor disponível', approximate: true, state: 197, city: 197, state_percent: 98.5, city_percent: 98.5 }] } }),
     'GET /suggestions/brands': () => ({ json: { suggestions: [{ text: 'Golden', search: 'golden', plans: 40, tutors: 31 }] } }),

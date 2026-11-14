@@ -590,7 +590,9 @@ def location_coverage(db, now: Optional[datetime] = None) -> dict:
             {"key": "cadastro", "label": "Cadastro (digitado pelo tutor)", "approximate": False, "state": n(src["cadastro"], "state"), "city": n(src["cadastro"], "city")},
             {"key": "ip_direto", "label": "IP do próprio tutor (última sessão)", "approximate": True, "tutors": len(direct_ids), "percent": pct(len(direct_ids))},
             {"key": "ip_aparelho", "label": "IP de eventos anteriores ao login do mesmo aparelho (aparelho com 1 tutor e 1 plataforma)", "approximate": True,
-             "tutors": len(dev_ids), "additional_tutors": len(dev_ids - direct_ids), "percent": pct(len(dev_ids))},
+             "tutors": len(dev_ids), "additional_tutors": len(dev_ids - direct_ids), "percent": pct(len(dev_ids)),
+             # cobertura TOTAL por IP = quem tem dado pelo próprio IP OU pelo aparelho seguro (sem contar ninguém duas vezes)
+             "union_tutors": len(direct_ids | dev_ids), "union_percent": pct(len(direct_ids | dev_ids))},
             {"key": "gps", "label": "GPS convertido em cidade/estado (município de referência mais próximo)", "approximate": True,
              "state": n(src["gps"], "state"), "city": n(src["gps"], "city")},
             {"key": "melhor", "label": "Melhor disponível (cadastro, senão IP, senão GPS)", "approximate": True, "state": len(best_state), "city": len(best_city),
