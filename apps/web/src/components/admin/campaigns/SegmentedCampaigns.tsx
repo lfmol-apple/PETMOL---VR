@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { call, explainError, type Campaign, type CampaignListItem, type FieldInfo, type FieldsResponse } from './api';
 import { ContentForm, ContentReadOnly, draftFrom, emptyDraft, type Draft, type Goal } from './ContentForm';
 import { FilterBuilder } from './FilterBuilder';
+import { ExpiredFeedingPlansPanel } from './ExpiredFeedingPlans';
 import { AudienceExplorer } from './AudienceExplorer';
 import { BatchComposer } from './BatchComposer';
 import { BatchHistory, CountChips } from './BatchHistory';
@@ -127,6 +128,7 @@ export function SegmentedCampaigns() {
           <AudienceExplorer maxBatch={maxBatch} fields={fields} state={explore} onChange={setExplore} locationNote={boot.fields.location_origins} brandHints={boot.brands}
             onUse={(st) => { carry.current = st; setView({ kind: 'new', draft: emptyDraft() }); }} />
         </section>
+        <ExpiredFeedingPlansPanel onPrepare={(st) => { carry.current = st; setView({ kind: 'new', draft: emptyDraft() }); }} />
         <Step n={1} title="Criar ou continuar uma campanha" note="Cada campanha tem o seu conteúdo e a sua própria lista de quem já foi alcançado. Um tutor nunca recebe a mesma campanha duas vezes.">
           <button type="button" className="mb-3 rounded-lg bg-sky-700 px-4 py-2.5 text-[14px] font-bold text-white" onClick={() => setView({ kind: 'new', draft: emptyDraft() })}>+ Nova campanha</button>
           {loadErr && <p role="alert" className="mb-2 text-[13px] text-rose-800">{loadErr}</p>}

@@ -21,6 +21,13 @@ export const WEIGHT_BANDS: Band[] = [
   { key: 'grande', label: 'Grande', hint: '25 kg ou mais', lo: 25, hi: 500 },
 ];
 
+// Ração acabando = data de fim do PLANO do tutor (calculada pelo sistema ou informada por ele), ainda não vencida: de hoje até N dias.
+export const FEED_BANDS: Band[] = [
+  { key: 'd7', label: 'Acaba em até 7 dias', hint: '', lo: 0, hi: 7 },
+  { key: 'd15', label: 'Acaba em até 15 dias', hint: '', lo: 0, hi: 15 },
+  { key: 'd30', label: 'Acaba em até 30 dias', hint: '', lo: 0, hi: 30 },
+];
+
 const quickOf = (s: FilterState): Block | undefined => s.blocks.find((b) => b.id === QUICK_BLOCK_ID);
 export const quickConds = (s: FilterState): Cond[] => quickOf(s)?.conds ?? [];
 export const quickCond = (s: FilterState, field: string): Cond | undefined => quickConds(s).find((c) => c.field === field);
@@ -39,11 +46,11 @@ export function setQuick(s: FilterState, field: string, next: Omit<Cond, 'id' | 
 }
 
 /** Liga/desliga um valor em um campo de múltipla escolha (`in`). */
-export function toggleIn(s: FilterState, field: string, value: string): FilterState {
+export function toggleIn(s: FilterState, field: string, value: string, ack = false): FilterState {
   const cur = ((quickCond(s, field)?.value as string[]) ?? []).slice();
   const i = cur.indexOf(value);
   if (i >= 0) cur.splice(i, 1); else cur.push(value);
-  return setQuick(s, field, cur.length ? { op: 'in', value: cur, ack: false } : null);
+  return setQuick(s, field, cur.length ? { op: 'in', value: cur, ack } : null);
 }
 
 /** Escolha única (clicar no selecionado limpa). */
@@ -74,3 +81,40 @@ export function removeCond(s: FilterState, condId: string): FilterState {
   const blocks = s.blocks.map((b) => ({ ...b, conds: b.conds.filter((c) => c.id !== condId) })).filter((b) => b.conds.length > 0);
   return { ...s, blocks };
 }
+
+// ── Localização do tutor: a ORIGEM do dado é parte do filtro (e é sempre mostrada) ──────────────────────────────
+export type LocOrigin = 'melhor' | 'cadastro' | 'ip' | 'gps';
+export const LOC_ORIGINS: { key: LocOrigin; label: string; approx: boolean; hint: string }[] = [
+  { key: 'melhor', label: 'Melhor disponível', approx: true, hint: 'cadastro; na falta, IP; na falta, GPS' },
+  { key: 'cadastro', label: 'Cadastro', approx: false, hint: 'o que o tutor digitou' },
+  { key: 'ip', label: 'IP', approx: true, hint: 'IP do tutor ou do aparelho dele (1 tutor, 1 plataforma)' },
+  { key: 'gps', label: 'GPS', approx: true, hint: 'GPS → município de referência mais próximo' },
+];
+export const locField = (o: LocOrigin, kind: 'state' | 'city'): string =>
+  o === 'melhor' ? `location_best_${kind}` : o === 'cadastro' ? `location_registered_${kind}` : o === 'ip' ? `location_ip_${kind}` : `location_gps_${kind}`;
+export const locOriginOf = (s: FilterState): LocOrigin | null => {
+  for (const o of LOC_ORIGINS) if (quickCond(s, locField(o.key, 'state')) || quickCond(s, locField(o.key, 'city'))) return o.key;
+  return null;
+};
+/** Troca a origem mantendo os valores escolhidos (estados e cidades). Só o bloco rápido muda; nada mais é tocado. */
+export function moveLocOrigin(s: FilterState, from: LocOrigin, to: LocOrigin): FilterState {
+  if (from === to) return s;
+  let out = s;
+  const ack = LOC_ORIGINS.find((o) => o.key === to)!.approx;
+  for (const kind of ['state', 'city'] as const) {
+    const cur = quickCond(out, locField(from, kind));
+    if (!cur) continue;
+    out = setQuick(out, locField(from, kind), null);
+    out = setQuick(out, locField(to, kind), { op: 'in', value: cur.value, ack });
+  }
+  return out;
+}
+
+/** Escolha única em campo de lista (`in`): clicar no mesmo valor limpa. Usado pelos seletores de lugar e de tutor/tutora. */
+export function pickIn(s: FilterState, field: string, value: string, ack = false): FilterState {
+  const cur = quickCond(s, field)?.value as string[] | undefined;
+  return setQuick(s, field, cur && cur.length === 1 && cur[0] === value ? null : { op: 'in', value: [value], ack });
+}
+
+/** Remove a condição rápida de um campo (qualquer valor). */
+export const removeField = (s: FilterState, field: string): FilterState => setQuick(s, field, null);

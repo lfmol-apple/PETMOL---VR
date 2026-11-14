@@ -7,7 +7,7 @@
 import { useState } from 'react';
 import type { FieldInfo } from './api';
 import { QUICK_BLOCK_ID } from './quickFilters';
-import { GROUPS, PET_SCOPE_LABEL, VALUE_LABEL, defaultCond, condError, kindOf, uid, type Block, type Cond, type FilterState, type Op, type PetScope } from './filters';
+import { GROUPS, describeCond, PET_SCOPE_LABEL, VALUE_LABEL, defaultCond, condError, kindOf, uid, type Block, type Cond, type FilterState, type Op, type PetScope } from './filters';
 
 const input = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[14px] text-slate-900';
 const small = 'rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-[13px] text-slate-900';
@@ -36,6 +36,9 @@ function Multi({ id, f, c, onChange }: { id: string; f: FieldInfo; c: Cond; onCh
 function CondEditor({ f, c, onChange, brandHints }: { f: FieldInfo; c: Cond; onChange: (patch: Partial<Cond>) => void; brandHints: { text: string; tutors: number }[] }) {
   const k = kindOf(f);
   const id = `cond-${c.id}`;
+  if (f.field === 'location_place' || f.field === 'tutor_sex_estimate') {      // escolhidos nos seletores da tela principal: aqui só leitura (mesmo estado, sem editar o código interno)
+    return <p className="text-[13px] font-semibold text-slate-700" data-testid="cond-gerenciada">{describeCond(c, f)} <span className="font-normal text-slate-500">— altere nos seletores acima (Onde / Tutor ou tutora).</span></p>;
+  }
   if (k === 'flag') return <p className="text-[13px] text-slate-600">Quem tem este dado cadastrado.</p>;
   if (k === 'multi') return <Multi id={id} f={f} c={c} onChange={(value) => onChange({ value })} />;
   if (k === 'single') {
@@ -113,7 +116,7 @@ function FieldPicker({ fields, onPick, onClose }: { fields: FieldInfo[]; onPick:
   return (
     <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-2" role="group" aria-label="Escolha um filtro">
       {GROUPS.map((g) => {
-        const list = fields.filter((f) => f.group === g.key);
+        const list = fields.filter((f) => f.group === g.key && f.field !== 'location_place' && f.field !== 'tutor_sex_estimate');   // estes dois têm seletor próprio na tela principal
         if (!list.length) return null;
         const isOpen = open === g.key;
         return (

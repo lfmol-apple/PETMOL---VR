@@ -11,19 +11,19 @@ import { describeCond, type Block, type Cond, type FilterState } from './filters
 import type { FieldInfo } from './api';
 import { QUICK_BLOCK_ID } from './quickFilters';
 
-export const QUICK_FIELDS = ['pet_species', 'pet_sex', 'pet_neutered_yes', 'pet_age_months', 'pet_weight_kg', 'platform', 'tutor_activity', 'feeding_registered', 'care_vaccine', 'care_parasite', 'care_grooming'];
+export const QUICK_FIELDS = ['pet_species', 'pet_sex', 'pet_neutered_yes', 'pet_age_months', 'pet_weight_kg', 'platform', 'tutor_activity', 'location_best_state', 'location_best_city', 'location_registered_state', 'location_registered_city', 'location_ip_state', 'location_ip_city', 'location_gps_state', 'location_gps_city', 'feeding_registered', 'care_vaccine', 'care_parasite', 'care_grooming', 'feeding_days_left', 'feeding_expired', 'feeding_date_source'];
 
 export interface ChipLock { all: string | null; byField: Map<string, string> }
 
 export function chipLocks(state: FilterState): ChipLock {
   const quick = state.blocks.find((b) => b.id === QUICK_BLOCK_ID);
   let all: string | null = null;
-  if (state.blocks.length > 1 && state.op === 'or') all = 'Os blocos estão combinados com OU: os atalhos só valem com E. Mude para E nos filtros avançados.';
-  else if (quick && (quick.op !== 'and' || quick.petScope !== 'same')) all = 'O bloco dos atalhos foi alterado nos filtros avançados (OU ou “algum pet”). Volte para “todas as condições (E)” e “o mesmo pet” para usar os atalhos.';
+  if (state.blocks.length > 1 && state.op === 'or') all = 'Os blocos estão combinados com OU: os atalhos só valem com E. Os atalhos continuam funcionando, mas a leitura “E, no mesmo pet” não vale mais; confira o número.';
+  else if (quick && (quick.op !== 'and' || quick.petScope !== 'same')) all = 'O bloco dos atalhos foi alterado nos filtros avançados (OU ou “algum pet”). Os atalhos continuam funcionando, mas a leitura “E, no mesmo pet” não vale mais; confira o número.';
   const byField = new Map<string, string>();
   state.blocks.forEach((b, i) => {
     if (b.id === QUICK_BLOCK_ID) return;
-    for (const c of b.conds) if (QUICK_FIELDS.includes(c.field) && !byField.has(c.field)) byField.set(c.field, `Já está nos filtros avançados (Bloco ${i + 1}). Edite lá ou remova para usar o atalho.`);
+    for (const c of b.conds) if (QUICK_FIELDS.includes(c.field) && !byField.has(c.field)) byField.set(c.field, `Já está nos filtros avançados (Bloco ${i + 1}). O atalho também age sobre este campo: confira se é o que você quer.`);
   });
   return { all, byField };
 }
@@ -31,10 +31,10 @@ export function chipLocks(state: FilterState): ChipLock {
 // ── contradições ─────────────────────────────────────────────────────────────
 
 type Interval = [number, number];
-const NUM_FIELDS = new Set(['pet_age_months', 'pet_weight_kg', 'tutor_pet_count']);
+const NUM_FIELDS = new Set(['pet_age_months', 'pet_weight_kg', 'tutor_pet_count', 'feeding_days_left']);
 const SET_FIELDS = new Set(['pet_species', 'location_registered_state']);
-const EQ_FIELDS = new Set(['pet_sex', 'tutor_activity']);
-const PET_FIELDS_SET = new Set(['pet_species', 'pet_sex', 'pet_age_months', 'pet_weight_kg']);
+const EQ_FIELDS = new Set(['pet_sex', 'tutor_activity', 'feeding_date_source']);
+const PET_FIELDS_SET = new Set(['pet_species', 'pet_sex', 'pet_age_months', 'pet_weight_kg', 'feeding_days_left', 'feeding_date_source']);
 
 function interval(c: Cond): Interval | null {
   const v = c.value;

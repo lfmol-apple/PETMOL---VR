@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- servidor falso de teste */
+ 
 /**
  * Tela de segmentação: texto do número, limite por lote, coerência chips × filtros avançados (E/OU) e preservação integral dos
  * filtros ao criar a campanha (sem nenhum envio automático).
@@ -45,32 +45,32 @@ describe('número: "alcançáveis por push" = público elegível, não o que ser
 });
 
 describe('chips × filtros avançados: nunca estados contraditórios', () => {
-  it('campo que também está num bloco avançado trava o atalho e explica onde está', async () => {
+  it('campo que também está num bloco avançado NÃO trava o atalho: só avisa onde está', async () => {
     await open();
     fireEvent.click(chip('Gato'));
     advanced(); addBlock(); pick(/^Pet/, /^Espécie/);
     const caoInput = within(section()).getAllByLabelText('Cão').filter((e) => e.tagName === 'INPUT').at(-1) as HTMLInputElement;   // o do Bloco 2
     fireEvent.click(caoInput);
-    await waitFor(() => expect(disabled(chip('Gato'))).toBe(true));
-    expect(disabled(chip('Cão'))).toBe(true);
+    await waitFor(() => expect(within(section()).getAllByRole('note').length).toBeGreaterThan(0));
+    expect(disabled(chip('Gato'))).toBe(false);
+    expect(disabled(chip('Cão'))).toBe(false);
     expect(within(section()).getAllByRole('note').some((n) => /Já está nos filtros avançados \(Bloco 2\)/.test(n.textContent ?? ''))).toBe(true);
-    expect(disabled(chip('Macho'))).toBe(false);                                   // outros grupos seguem livres
+    expect(disabled(chip('Macho'))).toBe(false);
     expect(chip('Gato').getAttribute('aria-checked')).toBe('true');                // o que está ligado continua visível
   });
 
-  it('OU entre blocos trava TODOS os atalhos; voltar para E libera', async () => {
+  it('OU entre blocos só AVISA (atalhos seguem clicáveis); voltar para E tira o aviso', async () => {
     await open();
     fireEvent.click(chip('Gato'));
     advanced(); addBlock(); pick(/^Localização/, /^Estado cadastrado/);
     fireEvent.change(within(section()).getByLabelText('Estado cadastrado pelo tutor'), { target: { value: 'SP' } });
     fireEvent.change(within(section()).getByLabelText('Como combinar os blocos'), { target: { value: 'or' } });
-    await waitFor(() => expect(disabled(chip('Gato'))).toBe(true));
-    for (const n of ['Cão', 'Macho', 'iPhone', 'Castrado']) expect(disabled(chip(n))).toBe(true);
-    expect(within(section()).getAllByRole('note')[0].textContent).toMatch(/combinados com OU/);
-    fireEvent.click(chip('Cão'));                                                    // clicar travado não muda nada
-    expect(chip('Cão').getAttribute('aria-checked')).toBe('false');
+    await waitFor(() => expect(within(section()).getAllByRole('note')[0].textContent).toMatch(/combinados com OU/));
+    for (const n of ['Gato', 'Cão', 'Macho', 'iPhone', 'Castrado']) expect(disabled(chip(n))).toBe(false);
+    fireEvent.click(chip('Cão'));                                                    // sem trava: o clique vale
+    expect(chip('Cão').getAttribute('aria-checked')).toBe('true');
     fireEvent.change(within(section()).getByLabelText('Como combinar os blocos'), { target: { value: 'and' } });
-    await waitFor(() => expect(disabled(chip('Gato'))).toBe(false));
+    await waitFor(() => expect(within(section()).queryAllByRole('note').length).toBe(0));
   });
 
   it('alterar o bloco dos atalhos para OU nos avançados trava os atalhos (a leitura "E, mesmo pet" deixaria de valer)', async () => {
@@ -78,13 +78,13 @@ describe('chips × filtros avançados: nunca estados contraditórios', () => {
     fireEvent.click(chip('Gato')); fireEvent.click(chip('Fêmea'));
     advanced();
     fireEvent.change(within(section()).getByLabelText(/Bloco 1: combinar condições/), { target: { value: 'or' } });
-    await waitFor(() => expect(disabled(chip('Macho'))).toBe(true));
-    expect(within(section()).getAllByRole('note')[0].textContent).toMatch(/foi alterado nos filtros avançados/);
+    await waitFor(() => expect(within(section()).getAllByRole('note')[0].textContent).toMatch(/foi alterado nos filtros avançados/));
+    expect(disabled(chip('Macho'))).toBe(false);
     fireEvent.change(within(section()).getByLabelText(/Bloco 1: combinar condições/), { target: { value: 'and' } });
-    await waitFor(() => expect(disabled(chip('Macho'))).toBe(false));
+    await waitFor(() => expect(within(section()).queryAllByRole('note').length).toBe(0));
   });
 
-  it('contradição no mesmo pet é avisada e bloqueia "Criar campanha"; em "algum pet" ou com OU não há aviso', async () => {
+  it('contradição no mesmo pet é avisada mas NÃO bloqueia "Criar campanha"; em "algum pet" ou com OU não há aviso', async () => {
     await open();
     fireEvent.click(chip('Gato'));
     advanced(); addBlock(); pick(/^Pet/, /^Espécie/);
@@ -95,7 +95,7 @@ describe('chips × filtros avançados: nunca estados contraditórios', () => {
     fireEvent.change(scope, { target: { value: 'all' } });                              // bloco 2: TODOS os pets são cães → gato no mesmo pet é impossível
     const box = await screen.findByTestId('conflitos');
     expect(box.textContent).toMatch(/Espécie: Gato/); expect(box.textContent).toMatch(/Espécie: Cão/); expect(box.textContent).toMatch(/nenhum pet/);
-    expect((aside().getByRole('button', { name: /Criar campanha com este público/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect(box.textContent).toMatch(/você ainda pode criar a campanha/);
     fireEvent.change(within(section()).getByLabelText('Como combinar os blocos'), { target: { value: 'or' } });
     await waitFor(() => expect(screen.queryByTestId('conflitos')).toBeNull());         // OU: nunca é contradição
   });
@@ -128,12 +128,10 @@ describe('chips × filtros avançados: nunca estados contraditórios', () => {
     addBlock(); pick(/^Localização/, /^Estado cadastrado/);
     fireEvent.change(within(section()).getAllByLabelText('Estado cadastrado pelo tutor')[1], { target: { value: 'RJ' } });
     fireEvent.change(within(section()).getByLabelText('Como combinar os blocos'), { target: { value: 'or' } });
-    // com OU entre blocos os atalhos já nascem travados: nenhum chip consegue virar um bloco E por baixo
-    for (const n of ['Cão', 'Gato']) expect(disabled(chip(n))).toBe(true);
+    // sem trava: o chip é aceito, mas o OU escolhido nunca é trocado por E
     fireEvent.click(chip('Gato'));
     await new Promise((r) => setTimeout(r, 500));
     expect(lastBody().filter.root.op).toBe('or');
-    expect(JSON.stringify(lastBody().filter)).not.toMatch(/pet_species/);
   });
 });
 
@@ -224,7 +222,110 @@ describe('"Criar campanha com este público" leva TODOS os filtros e nunca envia
     await waitFor(() => expect(be.count('POST', '/audience/count')).toBeGreaterThan(0), { timeout: 3000 });
     fireEvent.click(chip('Gato'));
     await new Promise((r) => setTimeout(r, 700));
-    expect((aside().getByRole('button', { name: /Criar campanha com este público/ }) as HTMLButtonElement).disabled).toBe(true);
+    await waitFor(() => expect((aside().getByRole('button', { name: /Criar campanha com este público/ }) as HTMLButtonElement).disabled).toBe(true));
     expect(be.calls.filter((c) => c.method === 'POST' && !/audience\/count/.test(c.path))).toHaveLength(0);
+  });
+});
+
+describe('Onde: Brasil inteiro, estado, capital ou cidade — sem digitar, só o que existe nos dados', () => {
+  const sel = (id: string) => within(section()).getByLabelText(id) as HTMLSelectElement;
+  const place = () => JSON.stringify(lastBody().filter);
+  it('lista estados com nome completo e contagem; estado inteiro, capital e cidade falam com o motor com ciência de "aproximado"', async () => {
+    await open();
+    await waitFor(() => expect(within(section()).getByRole('option', { name: 'São Paulo (100)' })).toBeTruthy());
+    expect(within(section()).queryByLabelText('Cidade (digitar)')).toBeNull();                   // nada de campo de texto
+    expect(within(section()).queryByRole('radio', { name: /^IP/ })).toBeNull();                  // origem interna não aparece
+    fireEvent.change(sel('Estado'), { target: { value: 'SP' } });
+    await waitFor(() => expect(place()).toMatch(/"field":"location_place"[^}]*"value":\["UF:SP"\][^}]*"approximate_ack":true/), { timeout: 3000 });
+    fireEvent.click(within(section()).getByRole('radio', { name: /Só a capital — São Paulo \(50\)/ }));
+    await waitFor(() => expect(place()).toMatch(/\["CAP:SP"\]/), { timeout: 3000 });
+    fireEvent.change(sel('Cidade'), { target: { value: 'campinas' } });
+    await waitFor(() => expect(place()).toMatch(/\["CITY:SP:campinas"\]/), { timeout: 3000 });
+    expect(place()).not.toMatch(/UF:SP|CAP:SP/);                                                 // um lugar por vez (sem dupla contagem)
+    await waitFor(() => expect(screen.getByRole('button', { name: /Remover Cidade: Campinas \(SP\)/ })).toBeTruthy());
+  });
+  it('Brasil inteiro, voltar ao estado inteiro e limpar o estado', async () => {
+    await open();
+    await waitFor(() => expect(within(section()).getByRole('option', { name: 'Minas Gerais (40)' })).toBeTruthy());
+    fireEvent.change(sel('Estado'), { target: { value: 'MG' } });
+    await waitFor(() => expect(place()).toMatch(/UF:MG/), { timeout: 3000 });
+    fireEvent.click(within(section()).getByRole('radio', { name: 'Brasil inteiro' }));
+    await waitFor(() => expect(place()).toMatch(/\["BR"\]/), { timeout: 3000 });
+    fireEvent.change(sel('Estado'), { target: { value: '' } });
+    await waitFor(() => expect(be.calls.filter((c) => /audience\/count/.test(c.path)).at(-1)!.body.filter.root.items.length).toBe(0), { timeout: 3000 });
+  });
+  it('explica quem fica de fora: estrangeiros e quem ainda não tem estado entra em "Brasil inteiro"', async () => {
+    await open();
+    await waitFor(() => expect(screen.getByTestId('onde').textContent).toMatch(/2 fora do Brasil não entram nas listas de estado/));
+    expect(screen.getByTestId('onde').textContent).toMatch(/\(8\) entra em “Brasil inteiro”/);
+  });
+});
+
+describe('simples + avançado juntos', () => {
+  it('lugar e tutor/tutora escolhidos na tela principal aparecem em português (só leitura) nos filtros avançados', async () => {
+    be.sexEnabled = true;
+    await open();
+    await waitFor(() => expect(within(section()).getByRole('option', { name: 'São Paulo (100)' })).toBeTruthy());
+    fireEvent.change(within(section()).getByLabelText('Estado'), { target: { value: 'SP' } });
+    fireEvent.click(within(await screen.findByTestId('tutor-sexo')).getByRole('radio', { name: 'Tutora (mulher)' }));
+    advanced();
+    const txt = within(section()).getAllByTestId('cond-gerenciada').map((e) => e.textContent).join(' | ');
+    expect(txt).toMatch(/Estado inteiro: São Paulo/); expect(txt).toMatch(/Tutora \(mulher\)/);
+    expect(txt).not.toMatch(/UF:SP|female|unknown/);
+  });
+});
+
+describe('Tutor ou tutora (experimental, provável pelo primeiro nome)', () => {
+  it('desligado por padrão: o seletor nem aparece', async () => {
+    await open();
+    await waitFor(() => expect(within(section()).getByRole('option', { name: 'São Paulo (100)' })).toBeTruthy());
+    expect(screen.queryByTestId('tutor-sexo')).toBeNull();
+  });
+  it('ligado: Todos / Tutor / Tutora / Sem identificação, escolha única, sem mudar texto', async () => {
+    be.sexEnabled = true;
+    await open();
+    const g = await screen.findByTestId('tutor-sexo');
+    expect(within(g).getAllByRole('radio').map((r) => r.textContent)).toEqual(['Todos', 'Tutor (homem)', 'Tutora (mulher)', 'Sem identificação']);
+    fireEvent.click(within(g).getByRole('radio', { name: 'Tutora (mulher)' }));
+    await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/"field":"tutor_sex_estimate","op":"in","value":\["female"\]/), { timeout: 3000 });
+    fireEvent.click(within(g).getByRole('radio', { name: 'Sem identificação' }));
+    await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/\["unknown"\]/), { timeout: 3000 });
+    expect(JSON.stringify(lastBody().filter)).not.toMatch(/female/);
+    fireEvent.click(within(g).getByRole('radio', { name: 'Todos' }));
+    await waitFor(() => expect(be.calls.filter((c) => /audience\/count/.test(c.path)).at(-1)!.body.filter.root.items.length).toBe(0), { timeout: 3000 });
+    expect(g.textContent).toMatch(/sem guardar nada e sem mudar o texto enviado/);
+  });
+});
+
+describe('Ração acabando: segue a data do plano do tutor; vencida é um filtro à parte', () => {
+  const feed = (n: string | RegExp) => within(section()).getByRole('radio', { name: n });
+  it('Qualquer / 7 / 15 / 30 dias: vira intervalo de hoje até N (não inclui vencidas) e combina com origem da data no mesmo pet', async () => {
+    await open();
+    expect(feed('Qualquer').getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(feed('7 dias'));
+    await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/"field":"feeding_days_left","op":"between","value":\["0","7"\]|"field":"feeding_days_left"[^}]*"value":\[0,7\]/), { timeout: 3000 });
+    fireEvent.click(feed('30 dias'));                                                         // escolha única: troca a faixa
+    await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/\[0,30\]|\["0","30"\]/), { timeout: 3000 });
+    expect(JSON.stringify(lastBody().filter)).not.toMatch(/\[0,7\]|\["0","7"\]/);
+    fireEvent.click(chip('Data calculada pelo sistema'));
+    await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/feeding_date_source[^}]*calculated/), { timeout: 3000 });
+    expect(lastBody().filter.root.items[0].pet_scope).toBe('same');                      // mesmo pet
+    fireEvent.click(feed('Qualquer'));
+    await waitFor(() => expect(JSON.stringify(lastBody().filter)).not.toMatch(/feeding_days_left/), { timeout: 3000 });
+  });
+  it('"Data de fim já passou" é um chip próprio e não mistura com "acaba em"', async () => {
+    await open();
+    fireEvent.click(chip('Data de fim já passou'));
+    await waitFor(() => expect(JSON.stringify(lastBody().filter)).toMatch(/feeding_expired/), { timeout: 3000 });
+    expect(JSON.stringify(lastBody().filter)).not.toMatch(/feeding_days_left/);
+  });
+});
+
+describe('rótulos legíveis no resumo do filtro', () => {
+  it('"Origem da data de fim" aparece em português (nunca "calculated"/"manual")', async () => {
+    await open();
+    fireEvent.click(chip('Data calculada pelo sistema'));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Remover Origem da data de fim da ração: calculada pelo sistema/ })).toBeTruthy(), { timeout: 3000 });
+    expect(document.body.textContent).not.toMatch(/calculated|: manual/);
   });
 });

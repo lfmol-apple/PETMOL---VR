@@ -3,6 +3,7 @@
  * o backend continua sendo a validação definitiva (a tela só evita pedir contagens inválidas).
  */
 import type { FieldInfo } from './api';
+import { placeLabel, sexLabel } from './places';
 
 export type Op = 'and' | 'or';
 export type PetScope = 'any' | 'all' | 'same';
@@ -26,6 +27,7 @@ export const VALUE_LABEL: Record<string, string> = {
   last_7d: 'Atividade nos últimos 7 dias', d8_30: 'Atividade entre 8 e 30 dias atrás', over_30d: 'Última atividade há mais de 30 dias', no_events: 'Sem atividade registrada',
   ios: 'iPhone (iOS)', android: 'Android', web: 'Navegador (web)',
   dog: 'Cão', cat: 'Gato', other: 'Outro', male: 'Macho', female: 'Fêmea',
+  calculated: 'calculada pelo sistema', manual: 'informada pelo tutor',
 };
 
 export const OP_LABEL: Record<string, string> = { eq: 'é igual a', gte: 'é no mínimo', lte: 'é no máximo', between: 'está entre', in: 'é um de', contains: 'contém', within_km: 'a até' };
@@ -139,6 +141,8 @@ export function buildFilter(state: FilterState, fields: FieldInfo[]): Built {
 /** Texto legível de uma condição (resumo e conferência na prévia). */
 export function describeCond(c: Cond, f: FieldInfo | undefined): string {
   if (!f) return c.field;
+  if (c.field === 'location_place') return (Array.isArray(c.value) ? c.value : []).map((x) => placeLabel(String(x))).join(' ou ');
+  if (c.field === 'tutor_sex_estimate') return `Tutor ou tutora: ${(Array.isArray(c.value) ? c.value : []).map((x) => sexLabel(String(x))).join(' ou ')} (provável)`;
   const k = kindOf(f);
   const v = c.value;
   const lbl = (x: unknown) => VALUE_LABEL[String(x)] ?? String(x);

@@ -50,6 +50,7 @@ analysis/
 uploads/
 **/moderation_review/
 *.csv
+!services/price-service/src/admin/data/municipios_br.csv
 *.json
 *.sql
 *.sqlite
@@ -83,3 +84,5 @@ deploy.log
 Captura de Tela*.png
 IMG_*.jpeg
 IMG_*.jpg
+!services/price-service/src/admin/data/municipios_ibge.csv
+!services/price-service/src/admin/data/ibge_nomes_sexo.csv
