@@ -77,3 +77,13 @@ def test_validacoes_e_isolamento():
     assert c.post(f"/pets/{pid}/cabinet", headers=hdr, json={"name": "Escova", "category": "nada"}).status_code == 422
     assert c.get(f"/pets/{pid}/cabinet", headers=other).status_code in (403, 404)
     assert c.post(f"/pets/{pid}/cabinet", json={"name": "Escova"}).status_code in (401, 403)
+
+
+def test_dura_muito_tempo_aceita_prazo_gigante():
+    from fastapi.testclient import TestClient
+    from src.main import app
+    c = TestClient(app)
+    pid, hdr = _setup()
+    r = c.post(f"/pets/{pid}/cabinet", headers=hdr, json={"name": "Comedouro inox", "duration_days": 36500})
+    assert r.status_code == 201 and r.json()["duration_days"] == 36500 and r.json()["days_left"] > 30000
+    assert c.post(f"/pets/{pid}/cabinet", headers=hdr, json={"name": "Outro", "duration_days": 36501}).status_code == 422
