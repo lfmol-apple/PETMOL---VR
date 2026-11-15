@@ -21,7 +21,7 @@ import {
   type CabinetItem, type CabinetItemInput,
 } from '@/lib/cabinetApi';
 import {
-  CABINET_DURATIONS, cabinetStatusText, cabinetUrgency, sortCabinet,
+  CABINET_DURABLE_DAYS, CABINET_DURATIONS, cabinetSearchTerm, cabinetStatusText, isDurable, cabinetUrgency, sortCabinet,
 } from '@/lib/cabinet';
 import { petSpeciesEmoji } from '@/lib/petTaxonomy';
 
@@ -240,7 +240,7 @@ export function CabinetSheet({ open, onClose, petId, petName, species, photoSrc,
                   <div>
                     <p className="mb-1.5 text-[12px] font-bold text-slate-500">Dura cerca de (opcional)</p>
                     <DurationPicker value={duration} onPick={setDuration} toggle />
-                    <p className="mt-1.5 text-[11px] text-slate-500">Com o prazo, o app avisa quando estiver acabando.</p>
+                    <p className="mt-1.5 text-[11px] text-slate-500">Com o prazo, o app avisa quando estiver acabando. Comedouro, bebedouro e itens que duram muito: escolha Dura muito tempo.</p>
                   </div>
                 </>
               )}
@@ -268,7 +268,7 @@ export function CabinetSheet({ open, onClose, petId, petName, species, photoSrc,
             <div className="space-y-2">
               <SheetSectionLabel>Acabando</SheetSectionLabel>
               {groups.attention.map((i) => (
-                <CabinetRow key={i.id} item={i} busy={busy} onBuy={() => setBuyFor({ name: i.name, query: i.gtin || i.name })} onPatch={patch} onRemove={remove} />
+                <CabinetRow key={i.id} item={i} busy={busy} onBuy={() => setBuyFor({ name: i.name, query: cabinetSearchTerm(i) })} onPatch={patch} onRemove={remove} />
               ))}
             </div>
           )}
@@ -282,7 +282,7 @@ export function CabinetSheet({ open, onClose, petId, petName, species, photoSrc,
                   <article key={st.key} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm" data-testid="essencial-vazio">
                     <p className="text-[14px] font-bold text-slate-900">{st.name}</p>
                     <p className="mt-0.5 text-[12px] text-slate-500">Diga quanto dura e o app avisa quando estiver acabando.</p>
-                    <div className="mt-2"><DurationPicker value={null} disabled={busy} onPick={(d) => { if (d) void saveStaple(st, d); }} /></div>
+                    <div className="mt-2"><DurationPicker value={null} disabled={busy} allowDurable={false} onPick={(d) => { if (d) void saveStaple(st, d); }} /></div>
                     <button type="button" onClick={() => setBuyFor({ name: st.name, query: st.query })} className="mt-2.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-[13px] font-bold text-slate-700 active:scale-95">
                       Ver onde comprar
                     </button>
@@ -295,7 +295,7 @@ export function CabinetSheet({ open, onClose, petId, petName, species, photoSrc,
             <div className="space-y-2">
               {(groups.attention.length > 0 || staples.length > 0) && <SheetSectionLabel>Seus produtos</SheetSectionLabel>}
               {groups.rest.map((i) => (
-                <CabinetRow key={i.id} item={i} busy={busy} onBuy={() => setBuyFor({ name: i.name, query: i.gtin || i.name })} onPatch={patch} onRemove={remove} />
+                <CabinetRow key={i.id} item={i} busy={busy} onBuy={() => setBuyFor({ name: i.name, query: cabinetSearchTerm(i) })} onPatch={patch} onRemove={remove} />
               ))}
             </div>
           )}
@@ -351,7 +351,7 @@ function CabinetRow({
         >
           Ver onde comprar
         </button>
-        {item.duration_days ? (
+        {item.duration_days && !isDurable(item.duration_days) ? (
           <button
             type="button"
             disabled={busy}
@@ -392,14 +392,14 @@ function CabinetRow({
 const UNITS = [{ id: 'dias', mult: 1 }, { id: 'semanas', mult: 7 }, { id: 'meses', mult: 30 }] as const;
 
 /** Atalhos (15 dias, 1 mês…) + campo livre: o tutor coloca o tempo que quiser (1 a 730 dias). */
-function DurationPicker({ value, onPick, disabled = false, toggle = false }: { value: number | null; onPick: (days: number | null) => void; disabled?: boolean; toggle?: boolean }) {
+function DurationPicker({ value, onPick, disabled = false, toggle = false, allowDurable = true }: { value: number | null; onPick: (days: number | null) => void; disabled?: boolean; toggle?: boolean; allowDurable?: boolean }) {
   const [amount, setAmount] = useState('');
   const [unit, setUnit] = useState<(typeof UNITS)[number]['id']>('dias');
   const mult = UNITS.find((u) => u.id === unit)!.mult;
   const n = Number(amount);
   const days = Math.round(n * mult);
   const valid = amount !== '' && Number.isFinite(n) && n > 0 && days >= 1 && days <= 730;
-  const isPreset = value != null && CABINET_DURATIONS.some((d) => d.days === value);
+  const isPreset = value != null && (isDurable(value) || CABINET_DURATIONS.some((d) => d.days === value));
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Dura cerca de">
@@ -416,6 +416,18 @@ function DurationPicker({ value, onPick, disabled = false, toggle = false }: { v
             {d.label}
           </button>
         ))}
+        {allowDurable && (
+          <button
+            type="button"
+            role="radio"
+            aria-checked={isDurable(value)}
+            disabled={disabled}
+            onClick={() => onPick(toggle && isDurable(value) ? null : CABINET_DURABLE_DAYS)}
+            className={`rounded-full border px-3 py-1.5 text-[13px] font-semibold ${isDurable(value) ? 'border-[#0056D2] bg-[#0056D2] text-white' : 'border-slate-300 bg-white text-slate-700'}`}
+          >
+            Dura muito tempo
+          </button>
+        )}
       </div>
       <div className="flex items-center gap-2">
         <span className="text-[12px] font-semibold text-slate-500">Outro:</span>

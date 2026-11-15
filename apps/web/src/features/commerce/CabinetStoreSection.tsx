@@ -1,6 +1,6 @@
 'use client';
 
-import { cabinetStatusText, cabinetUrgency, sortCabinet } from '@/lib/cabinet';
+import { cabinetSearchTerm, cabinetStatusText, cabinetUrgency, sortCabinet } from '@/lib/cabinet';
 import type { CabinetItem } from '@/lib/cabinetApi';
 
 /**
@@ -35,7 +35,7 @@ export function CabinetStoreSection({
             </div>
             <button
               type="button"
-              onClick={() => onBuy(i.gtin || i.name, i)}
+              onClick={() => onBuy(cabinetSearchTerm(i), i)}
               className={`flex-shrink-0 rounded-xl px-3 py-2 text-[13px] font-bold active:scale-95 ${hot ? 'bg-[#0056D2] text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
             >
               Comprar

@@ -6,16 +6,19 @@ import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import { createPortal } from 'react-dom';
 import { X, Zap } from 'lucide-react';
 import { useBackHandler } from '@/lib/backStack';
+import { gtinFromQr } from '@/lib/productCode';
 
 // Só formatos de varejo com dígito verificador: é o que vem na embalagem de ração/petisco/antipulgas e evita
 // "leitura fantasma" em arte da embalagem (CODE_128/CODE_39/ITF ficam de fora de propósito).
 const RETAIL_FORMATS = [BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E];
+// QR code: só vale se levar um GTIN válido (link GS1 etc.); QR de site/WhatsApp/cupom é ignorado (ver lib/productCode.ts).
+const SCAN_FORMATS = [...RETAIL_FORMATS, BarcodeFormat.QR_CODE];
 
 type CameraState = 'starting' | 'scanning' | 'denied' | 'unavailable';
 
 /**
  * Leitor de código de barras da Loja — para quem está numa loja física e quer comparar/comprar o produto
- * na hora. Abre a câmera traseira em tela cheia, lê o primeiro código EAN/UPC e devolve os dígitos.
+ * na hora. Abre a câmera traseira em tela cheia, lê o primeiro código EAN/UPC (ou QR de produto com GTIN) e devolve os dígitos.
  * Sem digitação manual de propósito (decisão de produto): ou lê, ou volta para a busca por nome.
  */
 export function StoreBarcodeScanner({ onDetected, onClose }: { onDetected: (code: string) => void; onClose: () => void }) {
@@ -64,15 +67,16 @@ export function StoreBarcodeScanner({ onDetected, onClose }: { onDetected: (code
         await video.play();
 
         const hints = new Map<DecodeHintType, unknown>([
-          [DecodeHintType.POSSIBLE_FORMATS, RETAIL_FORMATS],
+          [DecodeHintType.POSSIBLE_FORMATS, SCAN_FORMATS],
           [DecodeHintType.TRY_HARDER, true],
         ]);
         const reader = new BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 80, delayBetweenScanSuccess: 300 });
         setState('scanning');
         controlsRef.current = await reader.decodeFromVideoElement(video, (result) => {
           if (!result || doneRef.current) return;
-          const code = result.getText().replace(/\D/g, '');
-          if (!/^\d{8,14}$/.test(code)) return;
+          const isQr = result.getBarcodeFormat() === BarcodeFormat.QR_CODE;
+          const code = isQr ? gtinFromQr(result.getText()) : result.getText().replace(/\D/g, '');
+          if (!code || !/^\d{8,14}$/.test(code)) return;
           doneRef.current = true;
           try { navigator.vibrate?.(60); } catch { /* sem vibração */ }
           stop();
@@ -124,7 +128,7 @@ export function StoreBarcodeScanner({ onDetected, onClose }: { onDetected: (code
             </div>
           </div>
           <p className="absolute inset-x-0 bottom-0 z-10 px-6 pb-[max(env(safe-area-inset-bottom),28px)] text-center text-[15px] font-bold text-white">
-            {state === 'starting' ? 'Abrindo a câmera…' : 'Aponte para o código de barras do produto'}
+            {state === 'starting' ? 'Abrindo a câmera…' : 'Aponte para o código de barras ou QR code do produto'}
           </p>
         </>
       )}

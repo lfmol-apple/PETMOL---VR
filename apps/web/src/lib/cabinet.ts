@@ -20,17 +20,24 @@ export const CABINET_DURATIONS: { days: number; label: string }[] = [
   { days: 180, label: '6 meses' },
 ];
 
+/** "Dura praticamente a vida toda" (comedouro, bebedouro…): prazo enorme, sem aviso de "acabando". */
+export const CABINET_DURABLE_DAYS = 36500;
+export function isDurable(days?: number | null): boolean {
+  return typeof days === 'number' && days >= 3650;
+}
+
 export type CabinetUrgency = 'none' | 'ok' | 'soon' | 'out';
 
 /** 'soon' = faltam 7 dias ou menos; 'out' = o prazo já passou. Sem prazo informado = 'none'. */
-export function cabinetUrgency(item: Pick<CabinetItem, 'days_left'>): CabinetUrgency {
-  if (item.days_left == null) return 'none';
+export function cabinetUrgency(item: Pick<CabinetItem, 'days_left'> & { duration_days?: number | null }): CabinetUrgency {
+  if (item.days_left == null || isDurable(item.duration_days)) return 'none';
   if (item.days_left < 0) return 'out';
   if (item.days_left <= 7) return 'soon';
   return 'ok';
 }
 
-export function cabinetStatusText(item: Pick<CabinetItem, 'days_left'>): string | null {
+export function cabinetStatusText(item: Pick<CabinetItem, 'days_left'> & { duration_days?: number | null }): string | null {
+  if (isDurable(item.duration_days)) return 'Dura muito tempo';
   const d = item.days_left;
   if (d == null) return null;
   if (d < 0) return `Acabou há ${-d} dia${d === -1 ? '' : 's'}`;
@@ -40,6 +47,17 @@ export function cabinetStatusText(item: Pick<CabinetItem, 'days_left'>): string 
 
 /** Itens que pedem atenção primeiro (prazo vencido ou perto), depois o resto. */
 export function sortCabinet(items: CabinetItem[]): CabinetItem[] {
-  const rank = (i: CabinetItem) => (i.days_left == null ? 1e6 : i.days_left);
+  const rank = (i: CabinetItem) => (i.days_left == null || isDurable(i.duration_days) ? 1e6 : i.days_left);
   return [...items].sort((a, b) => rank(a) - rank(b));
+}
+
+/**
+ * O que vai para a busca das lojas ao tocar em Comprar: o NOME do produto (com a marca, se ela não estiver no nome).
+ * As lojas buscam por texto — o código de barras não acha nada na busca delas.
+ */
+export function cabinetSearchTerm(item: Pick<CabinetItem, 'name' | 'brand'>): string {
+  const name = (item.name || '').trim();
+  const brand = (item.brand || '').trim();
+  if (brand && !name.toLowerCase().includes(brand.toLowerCase())) return `${brand} ${name}`.trim();
+  return name;
 }

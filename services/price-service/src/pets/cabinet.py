@@ -71,7 +71,7 @@ class CabinetItemIn(BaseModel):
     category: Optional[str] = None   # se vazio, é inferida do nome
     gtin: Optional[str] = Field(default=None, pattern=r"^\d{8,14}$")
     image_url: Optional[str] = Field(default=None, max_length=500)
-    duration_days: Optional[int] = Field(default=None, ge=1, le=730)
+    duration_days: Optional[int] = Field(default=None, ge=1, le=36500)   # 36500 = 'dura muito tempo' (sem aviso)
     started_on: Optional[date] = None
     notes: Optional[str] = Field(default=None, max_length=300)
 
@@ -79,7 +79,7 @@ class CabinetItemIn(BaseModel):
 class CabinetItemUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=2, max_length=160)
     category: Optional[str] = None
-    duration_days: Optional[int] = Field(default=None, ge=1, le=730)
+    duration_days: Optional[int] = Field(default=None, ge=1, le=36500)   # 36500 = 'dura muito tempo' (sem aviso)
     started_on: Optional[date] = None
     notes: Optional[str] = Field(default=None, max_length=300)
     clear_duration: bool = False   # "não sei quanto dura": apaga o prazo

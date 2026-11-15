@@ -100,4 +100,19 @@ describe('CabinetSheet', () => {
     expect((screen.getByRole('button', { name: 'Usar' }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText('Use entre 1 dia e 2 anos.')).toBeTruthy();
   });
+
+  it('comedouro: "Dura muito tempo" guarda sem aviso de acabando e sem botão de trocar', async () => {
+    api.fetchCabinet.mockResolvedValue([]);
+    api.addCabinetItem.mockResolvedValue({ ok: true, data: item({ name: 'Comedouro inox', duration_days: 36500, days_left: 36500 }) });
+    render(<CabinetSheet {...props} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Guardar um produto' }));
+    fireEvent.change(screen.getByLabelText('Nome do produto'), { target: { value: 'Comedouro inox' } });
+    fireEvent.click(screen.getByRole('button', { name: /Guardar “Comedouro inox”/ }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Dura muito tempo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await waitFor(() => expect(api.addCabinetItem).toHaveBeenCalledWith('p1', expect.objectContaining({ name: 'Comedouro inox', duration_days: 36500 })));
+    expect(await screen.findByText('Dura muito tempo')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Troquei por uma nova' })).toBeNull();
+    expect(screen.queryByText('Acabando')).toBeNull();
+  });
 });
