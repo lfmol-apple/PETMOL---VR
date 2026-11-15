@@ -44,6 +44,7 @@ from .pets.vaccine_models import VaccineRecord as _  # Import to register with B
 from .pets.parasite_models import ParasiteControlRecord as _pcr  # register with Base
 from .pets.grooming_models import GroomingRecord as _gr  # register with Base
 from .pets.heat_models import HeatCycle as _hc, HeatSettings as _hs  # register with Base
+from .pets.cabinet import CabinetItem as _ci  # register with Base
 from .admin.email_campaigns import EmailCampaign as _ec, router as email_campaigns_admin_router  # register with Base
 from .admin.missing_pets_admin import router as missing_pets_admin_router
 from .admin.performance_router import router as performance_admin_router
@@ -633,6 +634,8 @@ from .pets.grooming_routine import router as grooming_routine_router
 app.include_router(parasite_router)
 app.include_router(grooming_router)
 app.include_router(heat_router)
+from .pets.cabinet import router as cabinet_router
+app.include_router(cabinet_router)
 app.include_router(grooming_routine_router)
 
 # Include vaccine suggestions router (global vaccine database)

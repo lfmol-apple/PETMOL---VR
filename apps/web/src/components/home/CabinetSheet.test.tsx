@@ -1,0 +1,103 @@
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const api = vi.hoisted(() => ({
+  fetchCabinet: vi.fn(), addCabinetItem: vi.fn(), updateCabinetItem: vi.fn(), deleteCabinetItem: vi.fn(),
+}));
+vi.mock('@/lib/cabinetApi', () => api);
+vi.mock('@/features/commerce/productPricing', () => ({ searchAwinCatalog: vi.fn().mockResolvedValue([]) }));
+vi.mock('@/features/commerce/AffiliateCatalogSearch', () => ({
+  AffiliateCatalogSearch: ({ initialQuery }: { initialQuery: string }) => <div data-testid="loja">{initialQuery}</div>,
+}));
+vi.mock('@/features/commerce/StoreBarcodeScanner', () => ({ StoreBarcodeScanner: () => null }));
+vi.mock('@/lib/productScanner', () => ({ identifyProductByBarcode: vi.fn() }));
+vi.mock('@/features/interactions/userPromptChannel', () => ({ showAppToast: vi.fn() }));
+
+import { CabinetSheet } from './CabinetSheet';
+
+const item = (o: Record<string, unknown>) => ({ id: 'i1', pet_id: 'p1', name: 'Gel dental', category: 'higiene', ...o });
+const props = { open: true, onClose: () => {}, petId: 'p1', petName: 'Mel', species: 'dog' };
+
+describe('CabinetSheet', () => {
+  afterEach(() => cleanup());
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('lista vazia convida a guardar o primeiro produto', async () => {
+    api.fetchCabinet.mockResolvedValue([]);
+    render(<CabinetSheet {...props} />);
+    expect(await screen.findByText(/Guarde aqui o que Mel usa/)).toBeTruthy();
+  });
+
+  it('guarda um produto digitado (nome livre) com prazo', async () => {
+    api.fetchCabinet.mockResolvedValue([]);
+    api.addCabinetItem.mockResolvedValue({ ok: true, data: item({ name: 'Hidratante de patinhas' }) });
+    render(<CabinetSheet {...props} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Guardar um produto' }));
+    fireEvent.change(screen.getByLabelText('Nome do produto'), { target: { value: 'Hidratante de patinhas' } });
+    fireEvent.click(screen.getByRole('button', { name: /Guardar “Hidratante de patinhas”/ }));
+    fireEvent.click(screen.getByRole('radio', { name: '1 mês' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await waitFor(() => expect(api.addCabinetItem).toHaveBeenCalledWith('p1', expect.objectContaining({ name: 'Hidratante de patinhas', duration_days: 30 })));
+    expect(await screen.findByText('Hidratante de patinhas')).toBeTruthy();
+  });
+
+  it('item acabando sobe para "Acabando" e "Ver onde comprar" abre a busca da Loja', async () => {
+    api.fetchCabinet.mockResolvedValue([
+      item({ id: 'a', name: 'Shampoo', days_left: 40, duration_days: 60 }),
+      item({ id: 'b', name: 'Gel dental', days_left: 3, duration_days: 30 }),
+    ]);
+    render(<CabinetSheet {...props} />);
+    expect(await screen.findByText('Acabando')).toBeTruthy();
+    expect(screen.getByText('Acaba em 3 dias')).toBeTruthy();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Ver onde comprar' })[0]);
+    expect((await screen.findByTestId('loja')).textContent).toBe('Gel dental');
+  });
+
+  it('"Troquei por uma nova" reinicia a contagem', async () => {
+    api.fetchCabinet.mockResolvedValue([item({ days_left: -2, duration_days: 30 })]);
+    api.updateCabinetItem.mockResolvedValue({ ok: true, data: item({ days_left: 30, duration_days: 30 }) });
+    render(<CabinetSheet {...props} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Troquei por uma nova' }));
+    await waitFor(() => expect(api.updateCabinetItem).toHaveBeenCalledWith('p1', 'i1', { restarted_today: true }));
+    expect(await screen.findByText('Acaba em 30 dias')).toBeTruthy();
+  });
+
+  it('gato: areia fixa em Essenciais; escolher o prazo cria o item com contagem', async () => {
+    api.fetchCabinet.mockResolvedValue([]);
+    api.addCabinetItem.mockResolvedValue({ ok: true, data: item({ id: 'areia', name: 'Areia higiênica', days_left: 30, duration_days: 30 }) });
+    render(<CabinetSheet {...props} species="cat" staples={[{ key: 'litter', name: 'Areia higiênica', query: 'areia higiênica gatos' }]} />);
+    expect(await screen.findByTestId('essencial-vazio')).toBeTruthy();
+    fireEvent.click(screen.getByRole('radio', { name: '1 mês' }));
+    await waitFor(() => expect(api.addCabinetItem).toHaveBeenCalledWith('p1', { name: 'Areia higiênica', duration_days: 30 }));
+    expect(await screen.findByText('Acaba em 30 dias')).toBeTruthy();
+    expect(screen.queryByTestId('essencial-vazio')).toBeNull();
+  });
+
+  it('tempo livre: o tutor digita quanto dura (ex.: 6 semanas = 42 dias)', async () => {
+    api.fetchCabinet.mockResolvedValue([]);
+    api.addCabinetItem.mockResolvedValue({ ok: true, data: item({ name: 'Shampoo', duration_days: 42, days_left: 42 }) });
+    render(<CabinetSheet {...props} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Guardar um produto' }));
+    fireEvent.change(screen.getByLabelText('Nome do produto'), { target: { value: 'Shampoo' } });
+    fireEvent.click(screen.getByRole('button', { name: /Guardar “Shampoo”/ }));
+    fireEvent.change(screen.getByLabelText('Tempo que dura'), { target: { value: '6' } });
+    fireEvent.change(screen.getByLabelText('Unidade'), { target: { value: 'semanas' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Usar' }));
+    expect(await screen.findByText('Prazo atual: 42 dias')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await waitFor(() => expect(api.addCabinetItem).toHaveBeenCalledWith('p1', expect.objectContaining({ name: 'Shampoo', duration_days: 42 })));
+  });
+
+  it('recusa tempo fora de 1 dia a 2 anos', async () => {
+    api.fetchCabinet.mockResolvedValue([]);
+    render(<CabinetSheet {...props} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Guardar um produto' }));
+    fireEvent.change(screen.getByLabelText('Nome do produto'), { target: { value: 'Shampoo' } });
+    fireEvent.click(screen.getByRole('button', { name: /Guardar “Shampoo”/ }));
+    fireEvent.change(screen.getByLabelText('Tempo que dura'), { target: { value: '5' } });
+    fireEvent.change(screen.getByLabelText('Unidade'), { target: { value: 'meses' } });
+    fireEvent.change(screen.getByLabelText('Tempo que dura'), { target: { value: '40' } });
+    expect((screen.getByRole('button', { name: 'Usar' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText('Use entre 1 dia e 2 anos.')).toBeTruthy();
+  });
+});

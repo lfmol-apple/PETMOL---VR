@@ -3,12 +3,12 @@ import { hasDogCatCare, speciesCare, speciesLabel, speciesNoun, speciesPosterEmo
 
 describe('speciesCare', () => {
   it('cão: tudo; ausente também (pets antigos)', () => {
-    expect(speciesCare('dog')).toEqual({ vaccines: true, dewormer: true, fleaTick: true, collar: true, walk: true, grooming: true });
+    expect(speciesCare('dog')).toEqual({ vaccines: true, dewormer: true, fleaTick: true, collar: true, walk: true, grooming: true, litter: false });
     expect(speciesCare(undefined)).toEqual(speciesCare('dog'));
     expect(speciesCare('')).toEqual(speciesCare('dog'));
   });
   it('gato: vacina e antiparasitários, sem coleira', () => {
-    expect(speciesCare('cat')).toEqual({ vaccines: true, dewormer: true, fleaTick: true, collar: false, walk: true, grooming: true });
+    expect(speciesCare('cat')).toEqual({ vaccines: true, dewormer: true, fleaTick: true, collar: false, walk: true, grooming: true, litter: true });
   });
   it('coelho, pássaro, cavalo, texto livre e "other": nada de vacina/parasita', () => {
     for (const s of ['rabbit', 'bird', 'hamster', 'fish', 'other', 'cavalo', 'jacaré']) {

@@ -60,3 +60,7 @@ export const HEALTH_PLAN_CARD_ENABLED = false;
 // Mesmo achado de padrão do Plano de Saúde: fricção logo nos primeiros
 // minutos do app. Implementação preservada; reativar quando o vídeo existir.
 export const WELCOME_VIDEO_ENABLED = false;
+
+// Produtos (protótipo, antes "Armário do Pet", nov/2026): lista de produtos que o tutor usa (qualquer tipo) com "Ver onde comprar".
+// Desligado por padrão — só liga com NEXT_PUBLIC_ENABLE_ARMARIO=1 (prévia local) até o dono autorizar.
+export const ARMARIO_ENABLED = process.env.NEXT_PUBLIC_ENABLE_ARMARIO === '1';
