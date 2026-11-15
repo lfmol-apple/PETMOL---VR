@@ -8,9 +8,10 @@ import { useI18n } from '@/lib/I18nContext';
 import { ModalPortal } from '@/components/ModalPortal';
 import { PETMOL_HEADER_BG } from '@/components/ui/sheet';
 import { PetShopsNearbySheet } from '@/components/home/PetShopsNearbySheet';
-import { speciesCare } from '@/lib/speciesCare';
+import { speciesCare, speciesNoun } from '@/lib/speciesCare';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
-import { MEDICATIONS_ENABLED } from '@/lib/featureFlags';
+import { ARMARIO_ENABLED, MEDICATIONS_ENABLED } from '@/lib/featureFlags';
+import { CabinetSheet } from '@/components/home/CabinetSheet';
 import type { PetHealthProfile } from '@/lib/petHealth';
 
 type ControlTone = 'neutral' | 'ok' | 'warning' | 'critical';
@@ -93,6 +94,8 @@ export function HomeNavigationModals({
   const petPhotoSrc = resolvePetPhotoUrl(currentPet?.photo);
   // "PetShops perto de você" saiu da Home e agora vive aqui dentro de Cuidados.
   const [showPetShopsNearby, setShowPetShopsNearby] = useState(false);
+  const [showCabinet, setShowCabinet] = useState(false);
+  const petSpeciesWord = speciesNoun(currentPet?.species);
   useBackHandler(showHealthOptionsModal, onCloseHealthOptionsModal);
 
   return (
@@ -116,8 +119,8 @@ export function HomeNavigationModals({
                   )}
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-[17px] font-black text-white leading-tight tracking-[-0.01em]">Cuidados</h3>
-                  <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-white/75 leading-tight truncate">{currentPet?.pet_name ? `Cuidando de ${currentPet.pet_name}` : 'Cuidados preventivos'}</p>
+                  <h3 className="text-[17px] font-black text-white leading-tight tracking-[-0.01em]">Cuidados/Higiene</h3>
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-white/75 leading-tight truncate">{currentPet?.pet_name ? `Cuidando de ${currentPet.pet_name}` : 'Cuidados e higiene'}</p>
                 </div>
               </div>
               <button
@@ -134,6 +137,21 @@ export function HomeNavigationModals({
               className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50"
               style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}
             >
+              {ARMARIO_ENABLED && (
+                <button
+                  type="button"
+                  onClick={() => { onCloseHealthOptionsModal(); setShowCabinet(true); }}
+                  className="group relative mb-2 flex w-full items-center overflow-hidden rounded-2xl border border-[#9DBBE6] bg-gradient-to-br from-white to-[#D9E6F7] p-3.5 text-left shadow-[0_2px_10px_-2px_rgba(0,86,210,0.14)] transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.98]"
+                >
+                  <div className="min-w-0 flex-1">
+                    <span className="block text-[17px] font-bold leading-tight text-[#0B1E36]">Produtos</span>
+                    <span className="mt-1 block text-[12px] font-semibold text-[#5B6B82]">
+                      Tudo que {currentPet?.pet_name || 'o pet'} usa, num só lugar: higiene, brinquedos e mais
+                    </span>
+                  </div>
+                  <ChevronRight className="h-4 w-4 flex-shrink-0 text-[#8EA9C9] transition-transform group-hover:translate-x-0.5" strokeWidth={2.5} />
+                </button>
+              )}
               <div className="grid grid-cols-2 items-stretch gap-2 mb-1">
                 {[
                   // Reviravolta 11/10/2026 (pedido do dono): sem emoji/arte
@@ -229,6 +247,17 @@ export function HomeNavigationModals({
         </div>
       )}
 
+      {currentPet?.pet_id && (
+        <CabinetSheet
+          open={showCabinet}
+          onClose={() => setShowCabinet(false)}
+          petId={currentPet.pet_id}
+          petName={currentPet.pet_name}
+          species={currentPet.species}
+          photoSrc={petPhotoSrc}
+          staples={care.litter ? [{ key: 'litter', name: 'Areia higiênica', query: `areia higiênica ${petSpeciesWord}` }] : []}
+        />
+      )}
       <PetShopsNearbySheet open={showPetShopsNearby} onClose={() => setShowPetShopsNearby(false)} />
 
     </>

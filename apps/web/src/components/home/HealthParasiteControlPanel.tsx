@@ -1,5 +1,6 @@
 'use client';
 
+import { ReminderPicker } from '@/components/ReminderPicker';
 import type { Dispatch, SetStateAction } from 'react';
 import { MapPin, Shield } from 'lucide-react';
 import { useI18n } from '@/lib/I18nContext';
@@ -265,27 +266,12 @@ export function HealthParasiteControlPanel({
                 </div>
               </div>
               {parasiteFormData.reminder_enabled && (
-                <div className="grid grid-cols-2 gap-2">
-                  <select
-                    value={parasiteFormData.alert_days_before || 7}
-                    onChange={(e) => setParasiteFormData((prev) => ({ ...prev, alert_days_before: parseInt(e.target.value, 10) }))}
-                    className="w-full p-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-[#0056D2] bg-white text-sm"
-                  >
-                    <option value={3}>3 dias antes</option>
-                    <option value={5}>5 dias antes</option>
-                    <option value={7}>7 dias antes</option>
-                    <option value={10}>10 dias antes</option>
-                    <option value={15}>15 dias antes</option>
-                    <option value={20}>20 dias antes</option>
-                    <option value={30}>30 dias antes</option>
-                  </select>
-                  <input
-                    type="time"
-                    value={parasiteFormData.reminder_time || '09:00'}
-                    onChange={(e) => setParasiteFormData((prev) => ({ ...prev, reminder_time: e.target.value }))}
-                    className="w-full p-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-[#0056D2] bg-white text-sm"
-                  />
-                </div>
+                <ReminderPicker
+                  days={String(parasiteFormData.alert_days_before ?? 7)}
+                  time={parasiteFormData.reminder_time || '09:00'}
+                  onDaysChange={(v) => setParasiteFormData((prev) => ({ ...prev, alert_days_before: parseInt(v, 10) }))}
+                  onTimeChange={(v) => setParasiteFormData((prev) => ({ ...prev, reminder_time: v }))}
+                />
               )}
             </div>
 

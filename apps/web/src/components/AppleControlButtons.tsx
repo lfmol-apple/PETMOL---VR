@@ -199,7 +199,7 @@ export function AppleControlButtons({
             {shouldShowAlert(colorHealth, alertHealth) && <AlertDot tone={colorHealth} />}
             <div className="relative z-10 flex h-full items-start gap-1 text-left">
               <div className="min-w-0 flex-1">
-                <h3 className="line-clamp-1 break-words text-[13px] font-bold leading-tight tracking-tight text-[#0B1E36] min-[390px]:text-[14px] sm:text-sm">Cuidados</h3>
+                <h3 className="line-clamp-2 break-normal text-[13px] font-bold leading-tight tracking-tight text-[#0B1E36] min-[390px]:text-[14px] sm:text-sm">Cuidados/<wbr />Higiene</h3>
                 <p className="mt-1 line-clamp-2 break-words text-[10px] leading-snug text-[#5B6B82] min-[390px]:text-[11px] sm:text-xs">{healthHeadlineText}</p>
               </div>
               <ChevronRight className="h-4 w-4 flex-shrink-0 self-center text-[#8EA9C9] transition-transform group-hover:translate-x-0.5" strokeWidth={2.5} />

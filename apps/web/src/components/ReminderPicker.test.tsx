@@ -11,13 +11,13 @@ function Host({ start = '3', onDays = vi.fn(), onTime = vi.fn(), time = '09:00',
 }
 const slider = () => screen.getByRole('slider', { name: /Antecedência do lembrete/ });
 
-describe('ReminderPicker (régua rolável)', () => {
+describe('ReminderPicker (roleta vertical)', () => {
   it('mostra o valor atual por extenso e como controle deslizante acessível (0 a 30)', () => {
     render(<Host start="3" />);
     const s = slider();
     expect(s.getAttribute('aria-valuemin')).toBe('0'); expect(s.getAttribute('aria-valuemax')).toBe('30');
     expect(s.getAttribute('aria-valuenow')).toBe('3'); expect(s.getAttribute('aria-valuetext')).toBe('3 dias antes');
-    expect(screen.getByText('3 dias antes')).toBeTruthy();
+    expect(screen.getByText('3 dias antes')).toBeTruthy();   // frase ao lado da roleta
     expect(document.querySelectorAll('[data-day]').length).toBe(31);
     expect(document.querySelector('[data-selected]')?.getAttribute('data-day')).toBe('3');
   });
@@ -26,16 +26,16 @@ describe('ReminderPicker (régua rolável)', () => {
     expect(daysPhrase(0)).toBe('no próprio dia'); expect(daysPhrase(1)).toBe('1 dia antes'); expect(daysPhrase(7)).toBe('7 dias antes'); expect(daysPhrase(null)).toBe('não definido');
   });
 
-  it('teclado: setas ±1, PageUp/PageDown ±5, Home/End; respeita os limites e entrega TEXTO (contrato antigo)', () => {
+  it('teclado: ↑↓ ±1, PageDown/PageUp ±5, Home/End; respeita os limites e entrega TEXTO (contrato antigo)', () => {
     const onDays = vi.fn();
     render(<Host start="3" onDays={onDays} />);
     const s = slider();
-    fireEvent.keyDown(s, { key: 'ArrowRight' }); expect(onDays).toHaveBeenLastCalledWith('4');
-    fireEvent.keyDown(s, { key: 'ArrowLeft' }); fireEvent.keyDown(s, { key: 'ArrowLeft' }); expect(onDays).toHaveBeenLastCalledWith('2');
-    fireEvent.keyDown(s, { key: 'PageUp' }); expect(onDays).toHaveBeenLastCalledWith('7');
-    fireEvent.keyDown(s, { key: 'PageDown' }); expect(onDays).toHaveBeenLastCalledWith('2');
+    fireEvent.keyDown(s, { key: 'ArrowDown' }); expect(onDays).toHaveBeenLastCalledWith('4');
+    fireEvent.keyDown(s, { key: 'ArrowUp' }); fireEvent.keyDown(s, { key: 'ArrowUp' }); expect(onDays).toHaveBeenLastCalledWith('2');
+    fireEvent.keyDown(s, { key: 'PageDown' }); expect(onDays).toHaveBeenLastCalledWith('7');
+    fireEvent.keyDown(s, { key: 'PageUp' }); expect(onDays).toHaveBeenLastCalledWith('2');
     fireEvent.keyDown(s, { key: 'End' }); expect(onDays).toHaveBeenLastCalledWith('30');
-    fireEvent.keyDown(s, { key: 'ArrowRight' }); expect(onDays.mock.calls.at(-1)![0]).toBe('30');    // não passa do fim
+    fireEvent.keyDown(s, { key: 'ArrowDown' }); expect(onDays.mock.calls.at(-1)![0]).toBe('30');    // não passa do fim
     fireEvent.keyDown(s, { key: 'Home' }); expect(onDays).toHaveBeenLastCalledWith('0');
     expect(slider().getAttribute('aria-valuetext')).toBe('no próprio dia');
     expect(typeof onDays.mock.calls[0][0]).toBe('string');
@@ -68,7 +68,7 @@ describe('ReminderPicker (régua rolável)', () => {
   it('sem valor definido, a 1ª seta parte de 3 (o padrão) e não de 0', () => {
     const onDays = vi.fn();
     render(<Host start="" onDays={onDays} />);
-    fireEvent.keyDown(slider(), { key: 'ArrowRight' });
+    fireEvent.keyDown(slider(), { key: 'ArrowDown' });
     expect(onDays).toHaveBeenCalledWith('4');
   });
 
@@ -81,18 +81,18 @@ describe('ReminderPicker (régua rolável)', () => {
     expect(onTime).toHaveBeenCalledWith('07:45');
   });
 
-  it('rolagem: o dia do centro (índice = scrollLeft ÷ passo) vale ao parar; limites e entradas ruins são seguros', () => {
-    expect(indexFromScroll(0, 52, 31)).toBe(0);
-    expect(indexFromScroll(52 * 7 + 10, 52, 31)).toBe(7);
-    expect(indexFromScroll(52 * 7 + 30, 52, 31)).toBe(8);
-    expect(indexFromScroll(99999, 52, 31)).toBe(30);
-    expect(indexFromScroll(-40, 52, 31)).toBe(0);
-    expect(indexFromScroll(NaN, 52, 31)).toBe(0);
+  it('rolagem: o dia do centro (índice = scrollTop ÷ passo) vale ao parar; limites e entradas ruins são seguros', () => {
+    expect(indexFromScroll(0, 30, 31)).toBe(0);
+    expect(indexFromScroll(30 * 7 + 10, 30, 31)).toBe(7);
+    expect(indexFromScroll(30 * 7 + 20, 30, 31)).toBe(8);
+    expect(indexFromScroll(99999, 30, 31)).toBe(30);
+    expect(indexFromScroll(-40, 30, 31)).toBe(0);
+    expect(indexFromScroll(NaN, 30, 31)).toBe(0);
     vi.useFakeTimers();
     const onDays = vi.fn();
     render(<Host start="3" onDays={onDays} />);
-    const strip = screen.getByTestId('reminder-strip');
-    Object.defineProperty(strip, 'scrollLeft', { value: 52 * 9, configurable: true, writable: true });
+    const strip = screen.getByTestId('reminder-wheel');
+    Object.defineProperty(strip, 'scrollTop', { value: 30 * 9, configurable: true, writable: true });
     vi.advanceTimersByTime(500);                                                           // fim do "scroll programático" da abertura
     fireEvent.scroll(strip);
     vi.advanceTimersByTime(200);

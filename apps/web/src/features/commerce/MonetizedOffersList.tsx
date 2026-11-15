@@ -22,6 +22,7 @@ import {
 } from './homeShoppingPartners';
 import { useCommerceOffers } from './useCommerceOffers';
 import { trackClick } from '@/lib/analytics/click';
+import { MoreStoresRow } from './MoreStoresRow';
 import { trackPartnerClicked } from '@/lib/v1Metrics';
 
 export interface MonetizedOffersListProps {
@@ -167,6 +168,7 @@ export function MonetizedOffersList({
           <p className="mt-1 text-[12px] text-gray-500">{emptyStateSubtitle}</p>
         </div>
         <PetzStorefrontCard petzLink={petzLink} productLabel={productLabel} onClick={handleVerNaPetz} />
+        <MoreStoresRow term={query || productLabel} label={productLabel} petId={petId} source={source} />
       </div>
     );
   }
@@ -231,6 +233,7 @@ export function MonetizedOffersList({
         {offers.some((offer) => offer.price_is_stale) ? ' *Preço confirmado ao abrir a loja.' : ''}
       </p>
       <PetzStorefrontCard petzLink={petzLink} productLabel={productLabel} onClick={handleVerNaPetz} />
+      <MoreStoresRow term={query || productLabel} label={productLabel} petId={petId} source={source} />
     </div>
   );
 }

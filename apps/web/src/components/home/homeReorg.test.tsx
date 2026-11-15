@@ -56,7 +56,7 @@ describe('Home — reorganização (Plano de Saúde / PetShops / Fale com o PETM
         onStartEventRegistration={() => {}}
       />,
     );
-    expect(screen.getByText('Cuidados')).toBeTruthy();
+    expect(screen.getByText('Cuidados/Higiene')).toBeTruthy();
     // "PetShops" agora é mais um card dentro do grid de Cuidados
     expect(screen.getByText('PetShops')).toBeTruthy();
     expect(screen.getByText('Perto de você')).toBeTruthy();

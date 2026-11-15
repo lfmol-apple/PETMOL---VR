@@ -14,6 +14,8 @@ export interface SpeciesCare {
   walk: boolean;
   /** Banho e Tosa (banheirinha na foto e card em Cuidados): não faz sentido para peixe, pássaro e hamster. */
   grooming: boolean;
+  /** Areia higiênica (item fixo em Produtos): só gato. */
+  litter: boolean;
 }
 
 import { petSpeciesEmoji } from '@/lib/petTaxonomy';
@@ -22,12 +24,12 @@ const NO_BATH = new Set(['fish', 'bird', 'hamster']);
 
 export function speciesCare(species?: string | null): SpeciesCare {
   if (!species || species === 'dog') {
-    return { vaccines: true, dewormer: true, fleaTick: true, collar: true, walk: true, grooming: true };
+    return { vaccines: true, dewormer: true, fleaTick: true, collar: true, walk: true, grooming: true, litter: false };
   }
   if (species === 'cat') {
-    return { vaccines: true, dewormer: true, fleaTick: true, collar: false, walk: true, grooming: true };
+    return { vaccines: true, dewormer: true, fleaTick: true, collar: false, walk: true, grooming: true, litter: true };
   }
-  return { vaccines: false, dewormer: false, fleaTick: false, collar: false, walk: false, grooming: !NO_BATH.has(species) };
+  return { vaccines: false, dewormer: false, fleaTick: false, collar: false, walk: false, grooming: !NO_BATH.has(species), litter: false };
 }
 
 /** Só cão e gato têm o protocolo completo de vacina/parasita. */

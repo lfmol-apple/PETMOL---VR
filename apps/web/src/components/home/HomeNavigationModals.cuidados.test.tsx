@@ -4,8 +4,9 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 vi.mock('@/lib/backStack', () => ({ useBackHandler: () => undefined }));
 vi.mock('@/lib/I18nContext', () => ({ useI18n: () => ({ t: (k: string) => k }) }));
 vi.mock('@/components/ModalPortal', () => ({ ModalPortal: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
+vi.mock('@/components/home/CabinetSheet', () => ({ CabinetSheet: () => null }));
 vi.mock('@/components/home/PetShopsNearbySheet', () => ({ PetShopsNearbySheet: () => null }));
-vi.mock('@/lib/featureFlags', () => ({ MEDICATIONS_ENABLED: false }));
+vi.mock('@/lib/featureFlags', () => ({ MEDICATIONS_ENABLED: false, ARMARIO_ENABLED: false }));
 
 import { HomeNavigationModals } from './HomeNavigationModals';
 

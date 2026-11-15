@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { ScanBarcode, Search } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { trackClick } from '@/lib/analytics/click';
+import { MoreStoresRow } from './MoreStoresRow';
 import { identifyProductByBarcode, type ScannedProduct } from '@/lib/productScanner';
 import { formatBRLPrice, fetchCommerceOffers, fetchPetzDirectLink, merchantLabel, offerPriceLabel, searchAwinCatalog, type AwinSearchResult, type CommerceOffer, type PetzDirectLink } from './productPricing';
 
@@ -366,7 +367,10 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
       )}
 
       {!loading && trimmedQuery.length >= 2 && results.length === 0 && barcodeState === 'idle' && (
-        <p className="text-[12px] text-gray-400 mt-2 px-1">Nenhum produto encontrado para &quot;{query.trim()}&quot;.</p>
+        <>
+          <p className="text-[12px] text-gray-400 mt-2 px-1">Nenhum produto encontrado para &quot;{query.trim()}&quot;.</p>
+          <MoreStoresRow term={query.trim()} petId={petId} source="catalog_search_empty" />
+        </>
       )}
 
       {visibleResults.length > 0 && (
@@ -568,6 +572,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                         <span className="text-[12px] font-bold text-blue-700 flex-shrink-0">Cupom -10%</span>
                       </button>
                     )}
+                    <MoreStoresRow term={item.title || query.trim()} petId={petId} source="catalog_search" />
                   </div>
                 )}
               </div>

@@ -14,6 +14,7 @@ import {
   HOME_SHOPPING_PARTNERS,
   openHomeShoppingPartner,
   navigateToPartnerUrl,
+  openPartnerAffiliateLink,
   resolvePartnerUrl,
   openPetzPartnerStore,
   PETZ_COUPON_CODE,
@@ -24,6 +25,10 @@ import {
   type HomeShoppingPartnerId,
 } from './homeShoppingPartners';
 import { AffiliateCatalogSearch } from './AffiliateCatalogSearch';
+import { CabinetStoreSection } from './CabinetStoreSection';
+import { MoreStoresRow } from './MoreStoresRow';
+import { ARMARIO_ENABLED } from '@/lib/featureFlags';
+import { fetchCabinet, type CabinetItem } from '@/lib/cabinetApi';
 import { fetchPetzDirectLink, formatBRLPrice, hasReliablePrice, merchantLabel, offerOriginLabel, offerPriceLabel, preferCobasiOffer, type CommerceOffer, type PetzDirectLink } from './productPricing';
 import { useCommerceOffers } from './useCommerceOffers';
 import { FoodBridgeCard, dismissFoodBridge, isFoodBridgeDismissed } from './FoodBridgeCard';
@@ -84,9 +89,18 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders,
   }, [showFoodBridge, currentPet.pet_id]);
 
   useBackHandler(open, onClose);
+  useEffect(() => {
+    if (!open || !ARMARIO_ENABLED) return;
+    let alive = true;
+    void fetchCabinet(currentPet.pet_id).then((list) => { if (alive) setCabinetItems(list ?? []); });
+    return () => { alive = false; };
+  }, [open, currentPet.pet_id]);
   const [quickBuyFor, setQuickBuyFor] = useState<string | null>(null);
   const [view, setView] = useState<ShoppingView>('store');
   const [openScannerOnSearch, setOpenScannerOnSearch] = useState(false);
+  // Produtos guardados em Cuidados/Higiene → Produtos: aparecem aqui para comprar de novo.
+  const [cabinetItems, setCabinetItems] = useState<CabinetItem[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   // Mantém a sheet colada ao viewport visível quando o teclado abre (busca) —
   // sem isso o campo de busca fica atrás do teclado no iOS.
   const kbViewportRef = useKeyboardSheetViewport(open);
@@ -140,6 +154,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders,
     if (!open) {
       setQuickBuyFor(null);
       setView('store');
+      setSearchQuery('');
       return;
     }
     void trackClick({ source: 'home', cta_type: 'shop_sheet_view', pet_id: currentPet.pet_id });
@@ -249,23 +264,18 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders,
       return;
     }
 
-    void trackClick({
-      source: 'home',
-      cta_type: 'shop_partner_store_click',
-      target: partner.id,
-      link_type: partnerGenericLinkType(partner.id),
-      pet_id: currentPet.pet_id,
-      metadata: {
-        opened: Boolean(url),
-        surface: 'store_grid',
-        search_query: searchQuery,
-      },
-    });
-    if (!url) return;
-    navigateToPartnerUrl(url, { title: partner.name });
+    openPartnerAffiliateLink(partner, { petId: currentPet.pet_id, surface: 'store_grid' });
+  }
+
+  function handleCabinetBuy(query: string, item: CabinetItem) {
+    void trackClick({ source: 'home', cta_type: 'shop_cabinet_item_click', pet_id: currentPet.pet_id, metadata: { has_gtin: Boolean(item.gtin) } });
+    setSearchQuery(query);
+    setOpenScannerOnSearch(false);
+    setView('search');
   }
 
   function handleSearchEntry() {
+    setSearchQuery('');
     void trackClick({ source: 'home', cta_type: 'shop_search_entry_click', pet_id: currentPet.pet_id });
     setOpenScannerOnSearch(false);
     setView('search');
@@ -274,6 +284,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders,
   // Atalho do leitor de código de barras na tela principal da Loja (quem está numa loja física).
   function handleScanEntry() {
     void trackClick({ source: 'home', cta_type: 'shop_barcode_scan_open', pet_id: currentPet.pet_id, metadata: { surface: 'store_view' } });
+    setSearchQuery('');
     setOpenScannerOnSearch(true);
     setView('search');
   }
@@ -423,7 +434,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders,
         {/* Scrollable content */}
         <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
           {view === 'search' ? (
-            <AffiliateCatalogSearch petId={currentPet.pet_id} autoFocus={!openScannerOnSearch} autoOpenScanner={openScannerOnSearch} />
+            <AffiliateCatalogSearch key={searchQuery} petId={currentPet.pet_id} initialQuery={searchQuery} autoFocus={!openScannerOnSearch && !searchQuery} autoOpenScanner={openScannerOnSearch} />
           ) : (
             <>
               {/* Campo de busca — 1º item da tela (o dono preferiu a busca
@@ -492,6 +503,8 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders,
                   <div className="space-y-2.5">{renderReorderCards(sortedReorderCards)}</div>
                 </>
               )}
+
+              {ARMARIO_ENABLED && <CabinetStoreSection items={cabinetItems} petName={petName || 'seu pet'} onBuy={handleCabinetBuy} />}
 
               <PartnerStoreGrid partners={visibleStorePartners} onOpen={handleStorePartnerOpen} />
 
@@ -650,6 +663,7 @@ interface ReorderCardItemProps {
 // MedicationItemSheet.tsx "onde comprar") — mesma lógica de preço/picker já
 // validada aqui, sem duplicar useCommerceOffers numa segunda cópia.
 export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onTogglePicker, onQuickBuy, onDirectBuy, onPetzBuy, onResolvingChange }: ReorderCardItemProps) {
+  const [moreStoresOpen, setMoreStoresOpen] = useState(false);
   const { offers: offersByPrice, loading } = useCommerceOffers(card.searchQuery, card.packageSizeKg, card.gtin);
   // Loja preferida nos cards de "produtos cadastrados do pet": Cobasi
   // primeiro quando tiver preço confiável, mesmo que outra loja seja mais
@@ -854,6 +868,19 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
       )}
       {!hasMonetizedOffer && !hasPetz && isPickerOpen && visibleQuickBuyPartners.length > 0 && (
         <QuickBuyRow partners={visibleQuickBuyPartners} onPick={onQuickBuy} />
+      )}
+      {!stillResolving && (
+        <div className="mt-1.5">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setMoreStoresOpen((v) => !v); }}
+            aria-expanded={moreStoresOpen}
+            className="text-[12px] font-semibold text-slate-500 underline-offset-2 hover:underline"
+          >
+            {moreStoresOpen ? 'Ocultar outras lojas' : 'Ver em outras lojas'}
+          </button>
+          {moreStoresOpen && <MoreStoresRow term={card.searchQuery || card.label} label={card.label} source="store_sheet" />}
+        </div>
       )}
     </div>
   );

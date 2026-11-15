@@ -794,32 +794,26 @@ export function GroomingItemSheet({
                         {quickDate && <span data-testid="dia-da-semana" className="shrink-0 text-[14px] font-bold text-slate-700">{weekdayLabel(quickDate)}</span>}
                       </div>
 
-                      {/* Repetir · Lembrar · Hora — numa linha só */}
-                      <div className="mt-3 grid grid-cols-3 gap-2">
-                        <div>
-                          <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">Repetir a cada</p>
-                          <div className="flex items-center gap-1.5">
-                            <input type="number" inputMode="numeric" min={1} max={365} aria-label="Repetir a cada (dias)" value={quickFreq}
-                              onChange={(e) => setQuickFreq(e.target.value)}
-                              className="w-full min-w-0 rounded-xl border border-[#E5E5EA] bg-white px-2 py-2.5 text-center text-[15px] font-bold tabular-nums text-[#1C1C1E] focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30" />
-                            <span className="text-[12px] font-semibold text-slate-400">dias</span>
-                          </div>
+                      {/* Repetir a cada */}
+                      <div className="mt-3">
+                        <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">Repetir a cada</p>
+                        <div className="flex items-center gap-1.5">
+                          <input type="number" inputMode="numeric" min={1} max={365} aria-label="Repetir a cada (dias)" value={quickFreq}
+                            onChange={(e) => setQuickFreq(e.target.value)}
+                            className="w-24 min-w-0 rounded-xl border border-[#E5E5EA] bg-white px-2 py-2.5 text-center text-[15px] font-bold tabular-nums text-[#1C1C1E] focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30" />
+                          <span className="text-[12px] font-semibold text-slate-400">dias</span>
                         </div>
-                        <div>
-                          <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">Lembrar</p>
-                          <div className="flex items-center gap-1.5">
-                            <input type="number" inputMode="numeric" min={0} max={60} aria-label="Dias de antecedência do lembrete" value={quickDaysBefore}
-                              onChange={(e) => setQuickDaysBefore(e.target.value)}
-                              className="w-full min-w-0 rounded-xl border border-[#E5E5EA] bg-white px-2 py-2.5 text-center text-[15px] font-bold tabular-nums text-[#1C1C1E] focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30" />
-                            <span className="text-[12px] font-semibold text-slate-400">antes</span>
-                          </div>
-                        </div>
-                        <div>
-                          <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">Hora</p>
-                          <input type="time" step={60} aria-label="Hora do lembrete" value={quickTime}
-                            onChange={(e) => setQuickTime(e.target.value)}
-                            className="w-full min-w-0 rounded-xl border border-[#E5E5EA] bg-white px-2 py-2.5 text-[15px] font-bold tabular-nums text-[#1C1C1E] focus:outline-none focus:ring-2 focus:ring-[#0056D2]/30" />
-                        </div>
+                      </div>
+                      {/* Lembrar X dias antes, às HH:MM — roleta no estilo do iPhone */}
+                      <div className="mt-3">
+                        <ReminderPicker
+                          label="Lembrar"
+                          days={quickDaysBefore}
+                          time={quickTime}
+                          max={60}
+                          onDaysChange={setQuickDaysBefore}
+                          onTimeChange={setQuickTime}
+                        />
                       </div>
 
                       {/* Petshop: nome + WhatsApp (sempre ao alcance, já preenchidos se existirem) */}

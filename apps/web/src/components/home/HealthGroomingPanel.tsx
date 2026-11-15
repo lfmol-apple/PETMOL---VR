@@ -1,5 +1,6 @@
 'use client';
 
+import { ReminderPicker } from '@/components/ReminderPicker';
 import type { Dispatch, SetStateAction } from 'react';
 import { MapPin, Store } from 'lucide-react';
 import { useI18n } from '@/lib/I18nContext';
@@ -306,17 +307,13 @@ export function HealthGroomingPanel({
                 </div>
               </div>
               {groomingFormData.reminder_enabled && (
-                <select
-                  value={groomingFormData.alert_days_before}
-                  onChange={(e) => setGroomingFormData((prev) => ({ ...prev, alert_days_before: parseInt(e.target.value, 10) }))}
-                  className="w-full p-2 border border-[#D9E6F7] rounded-lg focus:ring-2 focus:ring-[#0056D2] bg-white text-sm"
-                >
-                  <option value={1}>1 dia antes</option>
-                  <option value={2}>2 dias antes</option>
-                  <option value={3}>3 dias antes (recomendado)</option>
-                  <option value={5}>5 dias antes</option>
-                  <option value={7}>7 dias antes</option>
-                </select>
+                <ReminderPicker
+                  hideTime
+                  days={String(groomingFormData.alert_days_before ?? 3)}
+                  time="09:00"
+                  onDaysChange={(v) => setGroomingFormData((prev) => ({ ...prev, alert_days_before: parseInt(v, 10) }))}
+                  onTimeChange={() => {}}
+                />
               )}
             </div>
 
