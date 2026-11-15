@@ -91,7 +91,7 @@ export function CabinetSheet({ open, onClose, petId, petName, species, photoSrc,
     setSuggestions([]);
   };
 
-  const useTyped = () => {
+  const keepTyped = () => {
     const q = query.trim();
     if (q.length < 2) return;
     setDraft({ name: q });
@@ -191,7 +191,7 @@ export function CabinetSheet({ open, onClose, petId, petName, species, photoSrc,
                         autoFocus
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') useTyped(); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') keepTyped(); }}
                         placeholder="Nome do produto (ex.: gel dental)"
                         aria-label="Nome do produto"
                         className={`${inputCls} pl-9`}
@@ -226,7 +226,7 @@ export function CabinetSheet({ open, onClose, petId, petName, species, photoSrc,
                     </ul>
                   )}
                   {query.trim().length >= 2 && (
-                    <button type="button" onClick={useTyped} className="w-full rounded-xl border border-dashed border-slate-300 px-3 py-2.5 text-left text-[13px] font-semibold text-slate-700 active:bg-slate-50">
+                    <button type="button" onClick={keepTyped} className="w-full rounded-xl border border-dashed border-slate-300 px-3 py-2.5 text-left text-[13px] font-semibold text-slate-700 active:bg-slate-50">
                       Guardar “{query.trim()}”
                     </button>
                   )}
