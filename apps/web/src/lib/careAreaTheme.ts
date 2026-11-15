@@ -58,7 +58,7 @@ export const CARE_AREA_THEME: Record<CareAreaKey, CareAreaTheme> = {
     focusRing: 'focus:ring-amber-400',
   },
   health: {
-    label: 'Cuidados', emoji: '🩺',
+    label: 'Cuidados/Higiene', emoji: '🩺',
     accentText: 'text-indigo-600', accentBg: 'bg-indigo-50', accentBorder: 'border-indigo-200',
     focusRing: 'focus:ring-indigo-400',
   },

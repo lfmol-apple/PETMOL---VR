@@ -49,7 +49,7 @@ describe('"Dei banho hoje" — formulário de registro', () => {
     expect(screen.getByTestId('form-registrar')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Banho', pressed: true })).toBeTruthy();   // tipo do último registro
     expect((screen.getByLabelText('Repetir a cada (dias)') as HTMLInputElement).value).toBe('45');
-    expect((screen.getByLabelText('Dias de antecedência do lembrete') as HTMLInputElement).value).toBe('3');
+    expect(screen.getByRole('slider', { name: /Antecedência do lembrete/ }).getAttribute('aria-valuenow')).toBe('3');
     await register();
     expect(post().body).toMatchObject({ type: 'bath', date: d(0), frequency_days: 45, alert_days_before: 3, location: 'Mundo dos Bichos' });
   });
@@ -93,7 +93,7 @@ describe('"Dei banho hoje" — formulário de registro', () => {
     expect(screen.queryByRole('button', { name: 'Semanalmente' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'A cada 15 dias' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'A cada mês' })).toBeNull();
-    fireEvent.change(screen.getByLabelText('Dias de antecedência do lembrete'), { target: { value: '5' } });
+    fireEvent.click(document.querySelector('[data-day="5"]')!);
     await register();
     expect(post().body).toMatchObject({ alert_days_before: 5 });
   });
@@ -109,7 +109,7 @@ describe('"Dei banho hoje" — formulário de registro', () => {
   it('hora e minuto do lembrete são escolhidos e gravados', async () => {
     open([rec()]);
     fireEvent.click(screen.getByText('✅ Dei banho hoje'));
-    fireEvent.change(screen.getByLabelText('Hora do lembrete'), { target: { value: '07:45' } });
+    fireEvent.change(screen.getByLabelText('Horário do lembrete'), { target: { value: '07:45' } });
     await register();
     expect(post().body).toMatchObject({ scheduled_time: '07:45' });
   });
