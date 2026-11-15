@@ -61,6 +61,6 @@ export const HEALTH_PLAN_CARD_ENABLED = false;
 // minutos do app. Implementação preservada; reativar quando o vídeo existir.
 export const WELCOME_VIDEO_ENABLED = false;
 
-// Produtos (protótipo, antes "Armário do Pet", nov/2026): lista de produtos que o tutor usa (qualquer tipo) com "Ver onde comprar".
-// Desligado por padrão — só liga com NEXT_PUBLIC_ENABLE_ARMARIO=1 (prévia local) até o dono autorizar.
-export const ARMARIO_ENABLED = process.env.NEXT_PUBLIC_ENABLE_ARMARIO === '1';
+// Produtos (antes "Armário do Pet"): lista de produtos que o tutor usa (qualquer tipo) com "Ver onde comprar".
+// LIGADO em 15/11/2026 por decisão do dono. Para desligar: nova build com NEXT_PUBLIC_ENABLE_ARMARIO=0 (ou reverter este commit).
+export const ARMARIO_ENABLED = process.env.NEXT_PUBLIC_ENABLE_ARMARIO !== '0';
