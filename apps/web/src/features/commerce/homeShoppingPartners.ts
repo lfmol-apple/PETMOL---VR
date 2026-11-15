@@ -848,3 +848,70 @@ export function isPartnerVisibleForSearch(partner: HomeShoppingPartner): boolean
   if (!AFFILIATE_ONLY_COMMERCE) return true;
   return partnerHasAffiliate(partner.id);
 }
+
+// ── "Ver em outras lojas" (Amazon · Mercado Livre · Shopee) ─────────────────────────────────────────────────────────
+// Regra de ouro (dono, 15/11/2026): toda abertura sai pelo link de afiliado do PETMOL.
+//  - Amazon: busca com o termo do produto; a etiqueta entra por navigateToPartnerUrl → withAmazonTag.
+//  - Mercado Livre e Shopee: a comissão só vale pelo link curto de afiliado que o dono já usa na Loja do pet (o link curto
+//    não carrega termo de busca). Abre o MESMO link da vitrine e copia o termo para o tutor colar na busca da loja.
+//    Nenhum link é montado por parâmetro.
+export type MoreStoreId = 'amazon' | 'mercadolivre' | 'shopee';
+export const MORE_STORE_IDS: MoreStoreId[] = ['amazon', 'mercadolivre', 'shopee'];
+
+export function moreStoreVisible(id: MoreStoreId): boolean {
+  const partner = HOME_SHOPPING_PARTNERS.find((p) => p.id === id);
+  if (!partner || !isPartnerVisibleInStoreArea(partner)) return false;
+  // mesma regra da vitrine: a Amazon pode ficar escondida no app nativo (política de aprovação do app)
+  if (id === 'amazon' && process.env.NEXT_PUBLIC_AMAZON_IN_APP === 'off' && Capacitor.isNativePlatform()) return false;
+  return true;
+}
+
+/**
+ * A MESMA abertura dos cartões de loja da Loja do pet (Cobasi/Mercado Livre/Shopee/Amazon): resolve o link de afiliado
+ * do parceiro (resolvePartnerUrl), registra o clique e navega por navigateToPartnerUrl (mesmo comportamento no app, no iPhone
+ * e no navegador). `term` só ajusta a BUSCA da Amazon (mesmo link, mesma etiqueta, só troca o `k`); Mercado Livre e Shopee
+ * abrem o link curto de afiliado como sempre. Retorna se abriu.
+ */
+export function openPartnerAffiliateLink(
+  partner: HomeShoppingPartner,
+  opts: { petId?: string; surface: string; term?: string } = { surface: 'store_grid' },
+): boolean {
+  const url = resolvePartnerUrl(partner, '', '');
+  const term = (opts.term ?? '').trim();
+  void trackClick({
+    source: 'home',
+    cta_type: 'shop_partner_store_click',
+    target: partner.id,
+    link_type: partnerGenericLinkType(partner.id),
+    pet_id: opts.petId,
+    metadata: { opened: Boolean(url), surface: opts.surface, search_query: term },
+  });
+  if (!url) return false;
+  let finalUrl = url;
+  if (partner.id === 'amazon' && term) {
+    try {
+      const u = new URL(url);
+      u.searchParams.set('k', term.slice(0, 120));   // mesmo link de afiliado (tag preservada), busca pelo produto
+      finalUrl = u.toString();
+    } catch { /* mantém o link original */ }
+  }
+  navigateToPartnerUrl(finalUrl, { title: partner.name });
+  return true;
+}
+
+/** Abre uma das "outras lojas" pelo link de afiliado; ML/Shopee também copiam o termo (o link curto não leva busca). */
+export async function openMoreStore(
+  id: MoreStoreId,
+  term: string,
+  copyTerm: (text: string) => Promise<boolean>,
+  opts: { petId?: string; surface?: string } = {},
+): Promise<{ opened: boolean; copied: boolean }> {
+  const partner = HOME_SHOPPING_PARTNERS.find((p) => p.id === id);
+  if (!partner) return { opened: false, copied: false };
+  const clean = term.trim();
+  // só copia o termo se o link de afiliado existe (senão nada abre e o tutor ficaria com o clipboard trocado à toa)
+  const copied = id !== 'amazon' && clean && resolvePartnerUrl(partner, '', '') ? await copyTerm(clean) : false;
+  const opened = openPartnerAffiliateLink(partner, { petId: opts.petId, surface: opts.surface ?? 'more_stores', term: clean });
+  return { opened, copied };
+}
+
