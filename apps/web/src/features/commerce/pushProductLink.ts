@@ -65,8 +65,13 @@ export async function openPushProductLink(raw: string): Promise<boolean> {
   const url = (raw ?? '').trim();
   if (!isPushProductUrl(url)) return false;
   if (Capacitor.isNativePlatform()) {
-    await primeStoreNativeOpen();
-    navigateToPartnerUrl(url);
+    try {
+      await primeStoreNativeOpen();
+      navigateToPartnerUrl(url);
+    } catch {
+      // Rede de segurança: se o caminho das lojas falhar, abre o link no navegador do sistema (nunca fica só no PETMOL).
+      void import('@capacitor/browser').then(({ Browser }) => Browser.open({ url })).catch(() => { window.location.assign(url); });
+    }
   } else {
     window.location.assign(url);
   }
