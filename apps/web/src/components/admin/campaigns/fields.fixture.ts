@@ -52,6 +52,19 @@ const fixture = {
    "precision": "exata"
   },
   {
+   "field": "tutor_selected",
+   "label": "Tutores escolhidos por mim (um a um)",
+   "group": "Tutor",
+   "scope": "tutor",
+   "ops": [
+    "in"
+   ],
+   "values": null,
+   "approximate": false,
+   "origin": "Escolha manual do administrador",
+   "precision": "exata"
+  },
+  {
    "field": "tutor_activity",
    "label": "Atividade registrada no app (não é login)",
    "group": "Engajamento",

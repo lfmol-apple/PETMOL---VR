@@ -14,6 +14,13 @@ const lastFilter = () => be.last('POST', '/audience/count')!.body.filter.root;
 const bigNumber = () => screen.getByLabelText('Resumo do público').querySelector('[aria-live]')!.textContent;
 
 describe('Segmentação de público: chips + contagem ao vivo, sem criar campanha', () => {
+  it('a escolha de tutores um a um aparece na tela principal (não só em "mais filtros")', async () => {
+    render(<SegmentedCampaigns />);
+    await screen.findByRole('heading', { name: 'Explorar o público' });
+    expect(screen.getByRole('heading', { name: 'Escolher tutores um a um' })).toBeTruthy();
+    expect(screen.getByLabelText(/Buscar tutor/)).toBeTruthy();
+  });
+
   it('gato + fêmea (mesmo pet) conta no servidor e mostra o número grande; nada é criado nem enviado', async () => {
     render(<SegmentedCampaigns />);
     await screen.findByRole('heading', { name: 'Explorar o público' });
