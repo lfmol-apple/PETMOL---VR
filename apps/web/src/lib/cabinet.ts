@@ -64,7 +64,20 @@ export function cabinetSearchTerm(item: Pick<CabinetItem, 'name' | 'brand'>): st
 
 const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 
-/** Escolhe, entre resultados do catálogo, a foto do MESMO produto (GTIN igual ou nome equivalente). Sem certeza, não devolve nada. */
+const STOP = new Set(['para', 'com', 'sem', 'de', 'da', 'do', 'das', 'dos', 'e', 'em', 'pet', 'cao', 'caes', 'gato', 'gatos']);
+const tokens = (t: string) => norm(t).split(' ').filter((w) => w.length >= 3 && !STOP.has(w));
+
+/** Consultas para achar a foto, da mais específica à mais curta (o catálogo falha com nomes muito longos). */
+export function imageSearchQueries(item: { name: string; gtin?: string | null }): string[] {
+  const out: string[] = [];
+  if (item.gtin) out.push(item.gtin);
+  const words = item.name.trim().split(/\s+/);
+  out.push(item.name.trim());
+  if (words.length > 3) out.push(words.slice(0, 3).join(' '));
+  return Array.from(new Set(out));
+}
+
+/** Escolhe, entre resultados do catálogo, a foto do MESMO produto: GTIN igual, ou título que contém a maior parte das palavras do nome. Sem certeza, nada. */
 export function pickProductImage(
   item: { name: string; gtin?: string | null },
   results: { gtin: string; title: string | null; image_url: string | null }[],
@@ -74,8 +87,14 @@ export function pickProductImage(
     const hit = withImage.find((r) => r.gtin === item.gtin);
     if (hit) return hit.image_url;
   }
-  const n = norm(item.name);
-  if (n.length < 4) return null;
-  const hit = withImage.find((r) => r.title && (norm(r.title) === n || norm(r.title).includes(n)));
-  return hit?.image_url ?? null;
+  const want = tokens(item.name);
+  if (want.length === 0) return null;
+  let best: { url: string; score: number } | null = null;
+  for (const r of withImage) {
+    if (!r.title) continue;
+    const have = new Set(tokens(r.title));
+    const score = want.filter((w) => have.has(w)).length / want.length;
+    if (score >= 0.6 && (!best || score > best.score)) best = { url: r.image_url as string, score };
+  }
+  return best?.url ?? null;
 }
