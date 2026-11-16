@@ -54,6 +54,10 @@ export interface FieldInfo {
   field: string; label: string; group: string; scope: 'tutor' | 'pet'; ops: string[]; values: (string | boolean)[] | null;
   approximate: boolean; origin: string; precision: string;
 }
+export interface TutorHit { id: string; name: string; email: string; pets: string[]; reachable: boolean }
+export const searchTutors = (q: string) => call<{ tutors: TutorHit[] }>(`/tutors?q=${encodeURIComponent(q)}`);
+export const lookupTutors = (ids: string[]) => call<{ tutors: TutorHit[] }>(`/tutors?ids=${encodeURIComponent(ids.join(','))}`);
+
 export interface FieldsResponse { fields: FieldInfo[]; activity_note: string; location_origins: Record<string, string> }
 
 export interface LocationOriginCov { key: string; label: string; approximate: boolean; state?: number; city?: number; tutors?: number; additional_tutors?: number; percent?: number; union_tutors?: number; union_percent?: number; state_percent?: number; city_percent?: number }

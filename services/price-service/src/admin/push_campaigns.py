@@ -158,6 +158,8 @@ FILTER_FIELDS: dict[str, dict] = {
     "tutor_created_at":       {"scope": "tutor", "ops": ("gte", "lte", "between"), "label": "Data de cadastro do tutor"},
     "tutor_pet_count":        {"scope": "tutor", "ops": ("eq", "gte", "lte", "between"), "label": "Quantidade de pets"},
     "tutor_species_mix":      {"scope": "tutor", "ops": ("in",), "label": "Tipos de pet do tutor", "values": ("dog_only", "cat_only", "dog_and_cat", "has_dog", "has_cat")},
+    # Escolha manual: o admin marca tutores um a um (busca por nome, e-mail ou nome do pet). O valor é a lista de ids.
+    "tutor_selected":         {"scope": "tutor", "ops": ("in",), "label": "Tutores escolhidos por mim (um a um)"},
     "tutor_activity":         {"scope": "tutor", "ops": ("eq",), "label": "Atividade registrada no app (não é login)", "values": ("last_7d", "d8_30", "over_30d", "no_events")},
     # engajamento / canal
     "platform":               {"scope": "tutor", "ops": ("in",), "label": "Aparelho com push ativo", "values": ("ios", "android", "web")},
