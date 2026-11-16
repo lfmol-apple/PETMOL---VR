@@ -271,7 +271,8 @@ def serialize_campaign(db, c: PushCampaign) -> dict:
         "id": c.id, "name": c.name, "status": c.status, "created_at": _aware(c.created_at).isoformat() if c.created_at else None,
         "content_locked": c.content_locked_at is not None, "content_hash": c.content_hash, "max_batch": max_batch_limit(),
         "content": {"title": c.title, "message": c.message, "goal": c.goal, "destination": c.destination,
-                    "product_url": c.product_url, "product_title": c.product_title},
+                    "product_url": c.product_url, "product_title": c.product_title,
+                    "open_url": br.admin_open_url(c.destination, c.product_url)},
         "used_total": sum(_state_counts(db, campaign_id=c.id).values()), "counts": _state_counts(db, campaign_id=c.id),
         "batches": [serialize_batch(db, b) for b in batches],
     }

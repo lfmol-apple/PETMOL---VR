@@ -83,7 +83,7 @@ export interface Batch {
   metrics?: BatchMetrics | null;
 }
 export interface StopInfo { state: 'none' | 'requested' | 'acknowledged' | 'finished_before_stop'; requested_at: string | null; acknowledged_at: string | null }
-export interface CampaignContent { title: string | null; message: string; goal: string | null; destination: string | null; product_url: string | null; product_title: string | null }
+export interface CampaignContent { title: string | null; message: string; goal: string | null; destination: string | null; product_url: string | null; product_title: string | null; open_url?: string | null }
 export interface Campaign {
   id: string; name: string; status: 'draft' | 'active' | 'closed' | string; created_at: string | null; content_locked: boolean;
   content: CampaignContent; used_total: number; counts: Counts; batches: Batch[]; max_batch?: number;

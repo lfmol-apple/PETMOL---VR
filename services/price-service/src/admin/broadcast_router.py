@@ -416,6 +416,15 @@ def _spawn(fn, *args) -> None:
     threading.Thread(target=fn, args=args, daemon=True).start()
 
 
+def admin_open_url(destination: Optional[str], product_url: Optional[str]) -> str:
+    """Para onde o toque leva, SEM o `b=` de medição: o admin clica para conferir sem contar como toque de tutor.
+    Produto = o link guardado exatamente como foi colado; senão, a tela do app (?modal=)."""
+    if destination == "produto" and product_url:
+        return product_url
+    modal = f"?modal={destination}" if destination and destination not in ("home", "produto") else ""
+    return f"/home{modal}"
+
+
 def _push_payload(broadcast_id: str, title: str, body: str, destination: str = "home", product_url: Optional[str] = None) -> dict:
     # O toque abre a tela escolhida (Lojas, Ração...) e o app avisa "tocou na notificação" (b=<id>)
     # para medirmos o êxito. Destino "produto": a Home abre o link do produto DIRETO na loja (?produto=<link>).

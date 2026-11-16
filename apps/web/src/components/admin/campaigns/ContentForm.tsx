@@ -19,19 +19,26 @@ export const draftFrom = (c: Campaign): Draft => ({
 });
 
 export function ContentReadOnly({ content, locked, destinations }: { content: CampaignContent; locked: boolean; destinations: Record<string, string> }) {
+  const openUrl = content.open_url || content.product_url || null;
   return (
     <dl className="grid gap-2 text-[13px] sm:grid-cols-2">
       <div><dt className="text-[11px] font-bold uppercase text-slate-500">Título</dt><dd className="text-slate-900">{content.title || '{tutor}, uma novidade para {pets}'}</dd></div>
       <div><dt className="text-[11px] font-bold uppercase text-slate-500">Ao tocar, abre</dt><dd className="text-slate-900">{destinationLabel(content.destination, destinations)}</dd></div>
       <div className="sm:col-span-2 rounded-lg bg-slate-50 p-2.5">
-        <dt className="text-[11px] font-bold uppercase text-slate-500">Como aparece no celular (exemplo)</dt>
-        <dd className="text-slate-900"><strong>{exampleOf(content.title || '{tutor}, uma novidade para {pets}')}</strong><br />{exampleOf(content.message)}</dd>
+        <dt className="text-[11px] font-bold uppercase text-slate-500">Como aparece no celular (exemplo){openUrl ? ' — toque para abrir o destino' : ''}</dt>
+        <dd className="text-slate-900">
+          {openUrl ? (
+            <a href={openUrl} target="_blank" rel="noopener noreferrer" data-testid="push-preview-link" className="block rounded-lg border border-slate-200 bg-white p-2 shadow-sm active:scale-[0.99]">
+              <strong>{exampleOf(content.title || '{tutor}, uma novidade para {pets}')}</strong><br />{exampleOf(content.message)}
+            </a>
+          ) : (<><strong>{exampleOf(content.title || '{tutor}, uma novidade para {pets}')}</strong><br />{exampleOf(content.message)}</>)}
+        </dd>
         <dd className="mt-1 text-[11.5px] text-slate-500">No envio, <strong>{'{tutor}'}</strong> vira o nome de cada tutor e <strong>{'{pets}'}</strong> o nome dos pets dele (aqui: “Ana” e “Thor”).</dd>
       </div>
       <div className="sm:col-span-2"><dt className="text-[11px] font-bold uppercase text-slate-500">Mensagem</dt><dd className="whitespace-pre-wrap text-slate-900">{content.message}</dd></div>
       {content.product_url && (
         <div className="sm:col-span-2"><dt className="text-[11px] font-bold uppercase text-slate-500">Produto e link monetizado (guardado exatamente como foi colado)</dt>
-          <dd className="break-all text-slate-900">{content.product_title} — <span className="text-slate-600">{content.product_url}</span></dd></div>
+          <dd className="break-all text-slate-900">{content.product_title} — <a href={content.product_url} target="_blank" rel="noopener noreferrer" className="font-semibold text-[#0056D2] underline">{content.product_url}</a></dd></div>
       )}
       <p className="text-[12px] text-slate-600 sm:col-span-2">
         {locked ? '🔒 Conteúdo travado: já existe lote desta campanha. Para mudar o texto ou o link, crie uma nova campanha (os filtros e quantidades continuam ajustáveis).'
