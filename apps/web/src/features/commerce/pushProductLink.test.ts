@@ -139,3 +139,17 @@ describe('lista de lojas', () => {
     expect(new Set(PUSH_PRODUCT_HOSTS as readonly string[])).toEqual(servidor);
   });
 });
+
+import { productFromPushUrl } from './pushProductLink';
+describe('productFromPushUrl', () => {
+  it('tira o link e o envio do toque', () => {
+    const link = 'https://www.cobasi.com.br/p/x?utm=1&a=b';
+    const r = productFromPushUrl(`/home?produto=${encodeURIComponent(link)}&b=abc`);
+    expect(r).toEqual({ raw: link, broadcast: 'abc' });
+  });
+  it('ignora toque sem produto ou com loja desconhecida', () => {
+    expect(productFromPushUrl('/home?b=abc')).toBeNull();
+    expect(productFromPushUrl(`/home?produto=${encodeURIComponent('https://evil.example/x')}`)).toBeNull();
+    expect(productFromPushUrl(null)).toBeNull();
+  });
+});

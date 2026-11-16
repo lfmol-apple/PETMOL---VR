@@ -65,10 +65,31 @@ export async function openPushProductLink(raw: string): Promise<boolean> {
   const url = (raw ?? '').trim();
   if (!isPushProductUrl(url)) return false;
   if (Capacitor.isNativePlatform()) {
-    await primeStoreNativeOpen();
-    navigateToPartnerUrl(url);
+    try {
+      await primeStoreNativeOpen();
+      navigateToPartnerUrl(url);
+    } catch {
+      // Rede de segurança: se o caminho das lojas falhar, abre o link no navegador do sistema (nunca fica só no PETMOL).
+      void import('@capacitor/browser').then(({ Browser }) => Browser.open({ url })).catch(() => { window.location.assign(url); });
+    }
   } else {
     window.location.assign(url);
   }
   return true;
+}
+
+/**
+ * Toque numa notificação de produto: tira o link e o id do envio da URL do toque (`/home?produto=<link>&b=<envio>`).
+ * Usado pelo app nativo para abrir a loja NO TOQUE, sem depender da Home montar e reler a URL (era aí que o link se perdia
+ * e o app só abria o PETMOL). Devolve null se não for push de produto ou se o link não for de loja conhecida.
+ */
+export function productFromPushUrl(url: string | null | undefined): { raw: string; broadcast: string | null } | null {
+  try {
+    const u = new URL(url ?? '', 'https://petmol.local');
+    const raw = u.searchParams.get('produto');
+    if (!raw || !isPushProductUrl(raw)) return null;
+    return { raw: raw.trim(), broadcast: u.searchParams.get('b') };
+  } catch {
+    return null;
+  }
 }
