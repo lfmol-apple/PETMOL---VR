@@ -306,7 +306,17 @@ export async function initNativePushDeepLink(): Promise<void> {
       if (!url && typeof data.url === 'string') url = data.url as string;
       if (!url) url = '/home';
       reportDiag('native tap → ' + url);
-      deliverNativeDeepLink(url);
+      // Push de produto: abre a loja direto no toque. Passar pela Home (ler ?produto= depois de montar) perdia o link
+      // e o tutor caía só no PETMOL.
+      void import('@/features/commerce/pushProductLink')
+        .then((m) => {
+          const product = m.productFromPushUrl(url);
+          if (!product) { deliverNativeDeepLink(url); return; }
+          if (product.broadcast) trackProductEvent('broadcast_opened', { broadcast: product.broadcast });
+          trackProductEvent('broadcast_product_opened', { broadcast: product.broadcast ?? undefined });
+          void m.openPushProductLink(product.raw);
+        })
+        .catch(() => deliverNativeDeepLink(url));
     });
     await PushNotifications.addListener('pushNotificationReceived', (evt: unknown) => {
       const e = (evt || {}) as { title?: string; body?: string };

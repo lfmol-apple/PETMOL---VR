@@ -72,3 +72,19 @@ export async function openPushProductLink(raw: string): Promise<boolean> {
   }
   return true;
 }
+
+/**
+ * Toque numa notificação de produto: tira o link e o id do envio da URL do toque (`/home?produto=<link>&b=<envio>`).
+ * Usado pelo app nativo para abrir a loja NO TOQUE, sem depender da Home montar e reler a URL (era aí que o link se perdia
+ * e o app só abria o PETMOL). Devolve null se não for push de produto ou se o link não for de loja conhecida.
+ */
+export function productFromPushUrl(url: string | null | undefined): { raw: string; broadcast: string | null } | null {
+  try {
+    const u = new URL(url ?? '', 'https://petmol.local');
+    const raw = u.searchParams.get('produto');
+    if (!raw || !isPushProductUrl(raw)) return null;
+    return { raw: raw.trim(), broadcast: u.searchParams.get('b') };
+  } catch {
+    return null;
+  }
+}
