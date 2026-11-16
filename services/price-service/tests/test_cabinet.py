@@ -87,3 +87,14 @@ def test_dura_muito_tempo_aceita_prazo_gigante():
     r = c.post(f"/pets/{pid}/cabinet", headers=hdr, json={"name": "Comedouro inox", "duration_days": 36500})
     assert r.status_code == 201 and r.json()["duration_days"] == 36500 and r.json()["days_left"] > 30000
     assert c.post(f"/pets/{pid}/cabinet", headers=hdr, json={"name": "Outro", "duration_days": 36501}).status_code == 422
+
+
+def test_patch_saves_image_found_later():
+    from fastapi.testclient import TestClient
+    from src.main import app
+    pid, h = _setup()
+    c = TestClient(app)
+    r = c.post(f"/pets/{pid}/cabinet", headers=h, json={"name": "Gel dental"})
+    assert r.status_code == 201
+    r2 = c.patch(f"/pets/{pid}/cabinet/{r.json()['id']}", headers=h, json={"image_url": "https://x/img.png"})
+    assert r2.status_code == 200 and r2.json()["image_url"] == "https://x/img.png"

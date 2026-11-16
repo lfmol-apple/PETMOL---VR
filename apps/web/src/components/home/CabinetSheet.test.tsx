@@ -2,10 +2,11 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const api = vi.hoisted(() => ({
-  fetchCabinet: vi.fn(), addCabinetItem: vi.fn(), updateCabinetItem: vi.fn(), deleteCabinetItem: vi.fn(),
+  fetchCabinet: vi.fn(), getCachedCabinet: vi.fn().mockReturnValue(null), addCabinetItem: vi.fn(), updateCabinetItem: vi.fn(), deleteCabinetItem: vi.fn(),
 }));
 vi.mock('@/lib/cabinetApi', () => api);
-vi.mock('@/features/commerce/productPricing', () => ({ searchAwinCatalog: vi.fn().mockResolvedValue([]) }));
+const search = vi.hoisted(() => ({ searchAwinCatalog: vi.fn() }));
+vi.mock('@/features/commerce/productPricing', () => search);
 vi.mock('@/features/commerce/AffiliateCatalogSearch', () => ({
   AffiliateCatalogSearch: ({ initialQuery }: { initialQuery: string }) => <div data-testid="loja">{initialQuery}</div>,
 }));
@@ -20,7 +21,7 @@ const props = { open: true, onClose: () => {}, petId: 'p1', petName: 'Mel', spec
 
 describe('CabinetSheet', () => {
   afterEach(() => cleanup());
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => { vi.clearAllMocks(); api.getCachedCabinet.mockReturnValue(null); search.searchAwinCatalog.mockResolvedValue([]); });
 
   it('lista vazia convida a guardar o primeiro produto', async () => {
     api.fetchCabinet.mockResolvedValue([]);
@@ -41,7 +42,7 @@ describe('CabinetSheet', () => {
     expect(await screen.findByText('Hidratante de patinhas')).toBeTruthy();
   });
 
-  it('item acabando sobe para "Acabando" e "Ver onde comprar" abre a busca da Loja', async () => {
+  it('item acabando sobe para "Acabando" e "Comprar novamente" abre a busca da Loja', async () => {
     api.fetchCabinet.mockResolvedValue([
       item({ id: 'a', name: 'Shampoo', days_left: 40, duration_days: 60 }),
       item({ id: 'b', name: 'Gel dental', days_left: 3, duration_days: 30 }),
@@ -49,8 +50,24 @@ describe('CabinetSheet', () => {
     render(<CabinetSheet {...props} />);
     expect(await screen.findByText('Acabando')).toBeTruthy();
     expect(screen.getByText('Acaba em 3 dias')).toBeTruthy();
-    fireEvent.click(screen.getAllByRole('button', { name: 'Ver onde comprar' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Comprar novamente' })[0]);
     expect((await screen.findByTestId('loja')).textContent).toBe('Gel dental');
+  });
+
+  it('abre na hora com a lista em cache, sem "Carregando…"', async () => {
+    api.getCachedCabinet.mockReturnValue([item({ name: 'Shampoo' })]);
+    api.fetchCabinet.mockReturnValue(new Promise(() => {}));
+    render(<CabinetSheet {...props} />);
+    expect(screen.getByText('Shampoo')).toBeTruthy();
+    expect(screen.queryByText('Carregando…')).toBeNull();
+  });
+
+  it('produto sem foto ganha a foto do catálogo (mesmo GTIN) e é guardada', async () => {
+    api.fetchCabinet.mockResolvedValue([item({ name: 'Gel dental', gtin: '7891234567895', image_url: null })]);
+    search.searchAwinCatalog.mockResolvedValue([{ gtin: '7891234567895', title: 'Gel dental Pet', image_url: 'https://x/img.png' }]);
+    api.updateCabinetItem.mockResolvedValue({ ok: true, data: item({ name: 'Gel dental', image_url: 'https://x/img.png' }) });
+    render(<CabinetSheet {...props} />);
+    await waitFor(() => expect(api.updateCabinetItem).toHaveBeenCalledWith('p1', 'i1', { image_url: 'https://x/img.png' }));
   });
 
   it('"Troquei por uma nova" reinicia a contagem', async () => {

@@ -17,11 +17,11 @@ import { AffiliateCatalogSearch } from '@/features/commerce/AffiliateCatalogSear
 import { searchAwinCatalog, type AwinSearchResult } from '@/features/commerce/productPricing';
 import { identifyProductByBarcode } from '@/lib/productScanner';
 import {
-  addCabinetItem, deleteCabinetItem, fetchCabinet, updateCabinetItem,
+  addCabinetItem, deleteCabinetItem, fetchCabinet, getCachedCabinet, updateCabinetItem,
   type CabinetItem, type CabinetItemInput,
 } from '@/lib/cabinetApi';
 import {
-  CABINET_DURABLE_DAYS, CABINET_DURATIONS, cabinetSearchTerm, cabinetStatusText, isDurable, cabinetUrgency, sortCabinet,
+  CABINET_DURABLE_DAYS, CABINET_DURATIONS, cabinetSearchTerm, cabinetStatusText, isDurable, cabinetUrgency, pickProductImage, sortCabinet,
 } from '@/lib/cabinet';
 import { petSpeciesEmoji } from '@/lib/petTaxonomy';
 
@@ -62,9 +62,31 @@ export function CabinetSheet({ open, onClose, petId, petName, species, photoSrc,
   useEffect(() => {
     if (!open) return;
     let alive = true;
-    void fetchCabinet(petId).then((list) => { if (alive) setItems(list ?? []); });
+    const cached = getCachedCabinet(petId);
+    if (cached) setItems(cached);
+    void fetchCabinet(petId).then((list) => { if (alive && (list || !cached)) setItems(list ?? []); });
     return () => { alive = false; };
   }, [open, petId]);
+
+  // Produto sem foto (leitura de código ou nome digitado): procura a foto no catálogo e guarda, uma vez por item.
+  const triedImages = useRef(new Set<string>());
+  useEffect(() => {
+    if (!open || !items) return;
+    const missing = items.filter((i) => !i.image_url && !triedImages.current.has(i.id)).slice(0, 6);
+    if (!missing.length) return;
+    missing.forEach((i) => triedImages.current.add(i.id));
+    let alive = true;
+    void (async () => {
+      for (const it of missing) {
+        const results = await searchAwinCatalog(it.gtin || it.name);
+        const img = pickProductImage(it, results);
+        if (!img || !alive) continue;
+        const r = await updateCabinetItem(petId, it.id, { image_url: img });
+        if (r.ok && alive) setItems((cur) => (cur ?? []).map((x) => (x.id === r.data.id ? r.data : x)));
+      }
+    })();
+    return () => { alive = false; };
+  }, [open, items, petId]);
 
   // Sugestões do catálogo enquanto digita (só a partir de 3 letras; sem código de barras digitado).
   useEffect(() => {
@@ -104,7 +126,9 @@ export function CabinetSheet({ open, onClose, petId, petName, species, photoSrc,
     const p = await identifyProductByBarcode(code);
     setSearching(false);
     if (p.found && p.name) {
-      setDraft({ name: p.name, brand: p.brand ?? null, gtin: /^\d{8,14}$/.test(code) ? code : null });
+      const gtin = /^\d{8,14}$/.test(code) ? code : null;
+      const img = pickProductImage({ name: p.name, gtin }, await searchAwinCatalog(gtin || p.name));
+      setDraft({ name: p.name, brand: p.brand ?? null, gtin, image_url: img });
     } else {
       setQuery('');
       setError('Não achei esse código no catálogo. Digite o nome do produto.');
@@ -329,7 +353,6 @@ function CabinetRow({
   const urgency = cabinetUrgency(item);
   const status = cabinetStatusText(item);
   const pill = urgency === 'out' ? 'bg-rose-100 text-rose-700' : urgency === 'soon' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600';
-  const highlight = urgency === 'out' || urgency === 'soon';
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm" data-testid="cabinet-item">
       <div className="flex items-start gap-3">
@@ -347,9 +370,9 @@ function CabinetRow({
         <button
           type="button"
           onClick={onBuy}
-          className={`rounded-xl px-3 py-2 text-[13px] font-bold active:scale-95 ${highlight ? 'bg-[#0056D2] text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
+          className="rounded-xl bg-[#0056D2] px-3 py-2 text-[13px] font-bold text-white active:scale-95"
         >
-          Ver onde comprar
+          Comprar novamente
         </button>
         {item.duration_days && !isDurable(item.duration_days) ? (
           <button
