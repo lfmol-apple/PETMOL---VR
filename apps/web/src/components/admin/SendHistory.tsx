@@ -47,7 +47,15 @@ function Details({ h, onToggleHidden, busy }: { h: HistoryItem; onToggleHidden: 
         {new Date(h.created_at).toLocaleString('pt-BR')} · {audienceLabel(h)} · {statusText(h)}
         {m.goal_label ? ` · meta: ${m.goal_label}` : ''}{!m.window_closed ? ' · ainda contando' : ''}
       </p>
-      {h.product && <p className="text-[12px] text-slate-600">Produto: {h.product.title}</p>}
+      {h.product && (
+        <p className="text-[12px] text-slate-600">
+          Produto:{' '}
+          <a href={h.product.url} target="_blank" rel="noopener noreferrer" className="break-all font-semibold text-[#0056D2] underline">
+            {h.product.title || h.product.url}
+          </a>{' '}
+          <span className="text-slate-500">(toque para ver onde o link leva)</span>
+        </p>
+      )}
       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
         {rows.map(([t, n]) => (
           <div key={t} className="rounded-lg bg-slate-50 p-2 text-center">
