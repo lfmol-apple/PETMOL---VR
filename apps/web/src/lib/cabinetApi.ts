@@ -44,10 +44,19 @@ async function readError(res: Response): Promise<string> {
 
 const base = (petId: string) => `${API_BASE_URL}/pets/${petId}/cabinet`;
 
+/** Última lista vista por pet: a tela abre na hora e atualiza em seguida. */
+const cabinetCache = new Map<string, CabinetItem[]>();
+export function getCachedCabinet(petId: string): CabinetItem[] | null {
+  return cabinetCache.get(petId) ?? null;
+}
+
 export async function fetchCabinet(petId: string): Promise<CabinetItem[] | null> {
   try {
     const res = await fetch(base(petId), { headers: headers(), cache: 'no-store' });
-    return res.ok ? ((await res.json()) as CabinetItem[]) : null;
+    if (!res.ok) return null;
+    const list = (await res.json()) as CabinetItem[];
+    cabinetCache.set(petId, list);
+    return list;
   } catch {
     return null;
   }
@@ -63,6 +72,7 @@ export async function addCabinetItem(petId: string, input: CabinetItemInput): Pr
 }
 
 export interface CabinetPatch {
+  image_url?: string;
   duration_days?: number;
   clear_duration?: boolean;
   restarted_today?: boolean;

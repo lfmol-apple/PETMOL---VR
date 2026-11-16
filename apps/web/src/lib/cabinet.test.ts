@@ -43,3 +43,14 @@ describe('armário: termo de busca nas lojas', () => {
     expect(cabinetSearchTerm({ name: 'Pet Clean Gel dental', brand: 'pet clean' })).toBe('Pet Clean Gel dental');
   });
 });
+
+import { pickProductImage } from './cabinet';
+describe('pickProductImage', () => {
+  const r = [
+    { gtin: '1', title: 'Outro produto', image_url: 'https://x/a.png' },
+    { gtin: '7891234567895', title: 'Gel Dental Pet 60g', image_url: 'https://x/b.png' },
+  ];
+  it('casa por GTIN', () => expect(pickProductImage({ name: 'qualquer', gtin: '7891234567895' }, r)).toBe('https://x/b.png'));
+  it('casa por nome equivalente', () => expect(pickProductImage({ name: 'gel dental pet' }, r)).toBe('https://x/b.png'));
+  it('sem certeza, não devolve foto de outro produto', () => expect(pickProductImage({ name: 'Shampoo neutro' }, r)).toBeNull());
+});

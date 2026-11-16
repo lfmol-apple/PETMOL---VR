@@ -79,6 +79,7 @@ class CabinetItemIn(BaseModel):
 class CabinetItemUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=2, max_length=160)
     category: Optional[str] = None
+    image_url: Optional[str] = Field(default=None, max_length=500)   # foto achada depois no catálogo
     duration_days: Optional[int] = Field(default=None, ge=1, le=36500)   # 36500 = 'dura muito tempo' (sem aviso)
     started_on: Optional[date] = None
     notes: Optional[str] = Field(default=None, max_length=300)
@@ -163,7 +164,7 @@ def update_item(pet_id: str, item_id: str, payload: CabinetItemUpdate, db: Sessi
     data = payload.model_dump(exclude_unset=True)
     if "category" in data:
         item.category = _valid_category(data["category"]) or item.category
-    for f in ("name", "notes", "started_on"):
+    for f in ("name", "notes", "started_on", "image_url"):
         if f in data and data[f] is not None:
             setattr(item, f, data[f].strip() if isinstance(data[f], str) else data[f])
     if data.get("duration_days"):

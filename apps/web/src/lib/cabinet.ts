@@ -61,3 +61,21 @@ export function cabinetSearchTerm(item: Pick<CabinetItem, 'name' | 'brand'>): st
   if (brand && !name.toLowerCase().includes(brand.toLowerCase())) return `${brand} ${name}`.trim();
   return name;
 }
+
+const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+/** Escolhe, entre resultados do catálogo, a foto do MESMO produto (GTIN igual ou nome equivalente). Sem certeza, não devolve nada. */
+export function pickProductImage(
+  item: { name: string; gtin?: string | null },
+  results: { gtin: string; title: string | null; image_url: string | null }[],
+): string | null {
+  const withImage = results.filter((r) => r.image_url);
+  if (item.gtin) {
+    const hit = withImage.find((r) => r.gtin === item.gtin);
+    if (hit) return hit.image_url;
+  }
+  const n = norm(item.name);
+  if (n.length < 4) return null;
+  const hit = withImage.find((r) => r.title && (norm(r.title) === n || norm(r.title).includes(n)));
+  return hit?.image_url ?? null;
+}
