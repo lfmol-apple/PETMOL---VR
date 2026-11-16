@@ -2,7 +2,7 @@
 
 import { petSpeciesEmoji } from '@/lib/petTaxonomy';
 import { useBackHandler } from '@/lib/backStack';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { useI18n } from '@/lib/I18nContext';
 import { ModalPortal } from '@/components/ModalPortal';
@@ -12,6 +12,7 @@ import { speciesCare, speciesNoun } from '@/lib/speciesCare';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { ARMARIO_ENABLED, MEDICATIONS_ENABLED } from '@/lib/featureFlags';
 import { CabinetSheet } from '@/components/home/CabinetSheet';
+import { fetchCabinet } from '@/lib/cabinetApi';
 import type { PetHealthProfile } from '@/lib/petHealth';
 
 type ControlTone = 'neutral' | 'ok' | 'warning' | 'critical';
@@ -95,6 +96,11 @@ export function HomeNavigationModals({
   // "PetShops perto de você" saiu da Home e agora vive aqui dentro de Cuidados.
   const [showPetShopsNearby, setShowPetShopsNearby] = useState(false);
   const [showCabinet, setShowCabinet] = useState(false);
+  // Aquece a lista de Produtos assim que Cuidados abre: ao tocar em Produtos ela já está pronta.
+  const cabinetPetId = currentPet?.pet_id;
+  useEffect(() => {
+    if (ARMARIO_ENABLED && showHealthOptionsModal && cabinetPetId) void fetchCabinet(cabinetPetId);
+  }, [showHealthOptionsModal, cabinetPetId]);
   const petSpeciesWord = speciesNoun(currentPet?.species);
   useBackHandler(showHealthOptionsModal, onCloseHealthOptionsModal);
 

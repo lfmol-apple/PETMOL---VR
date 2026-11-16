@@ -21,7 +21,7 @@ import {
   type CabinetItem, type CabinetItemInput,
 } from '@/lib/cabinetApi';
 import {
-  CABINET_DURABLE_DAYS, CABINET_DURATIONS, cabinetSearchTerm, cabinetStatusText, isDurable, cabinetUrgency, pickProductImage, sortCabinet,
+  CABINET_DURABLE_DAYS, CABINET_DURATIONS, cabinetSearchTerm, cabinetStatusText, imageSearchQueries, isDurable, cabinetUrgency, pickProductImage, sortCabinet,
 } from '@/lib/cabinet';
 import { petSpeciesEmoji } from '@/lib/petTaxonomy';
 
@@ -39,6 +39,14 @@ interface Props {
   photoSrc?: string | null;
   /** Itens fixos da espécie (ex.: areia para gatos): aparecem sempre; ao escolher o prazo, viram um item normal com contagem. */
   staples?: { key: string; name: string; query: string }[];
+}
+
+async function findImage(it: { name: string; gtin?: string | null }): Promise<string | null> {
+  for (const q of imageSearchQueries(it)) {
+    const img = pickProductImage(it, await searchAwinCatalog(q));
+    if (img) return img;
+  }
+  return null;
 }
 
 interface Draft extends CabinetItemInput { name: string }
@@ -78,8 +86,7 @@ export function CabinetSheet({ open, onClose, petId, petName, species, photoSrc,
     let alive = true;
     void (async () => {
       for (const it of missing) {
-        const results = await searchAwinCatalog(it.gtin || it.name);
-        const img = pickProductImage(it, results);
+        const img = await findImage(it);
         if (!img || !alive) continue;
         const r = await updateCabinetItem(petId, it.id, { image_url: img });
         if (r.ok && alive) setItems((cur) => (cur ?? []).map((x) => (x.id === r.data.id ? r.data : x)));
@@ -127,7 +134,7 @@ export function CabinetSheet({ open, onClose, petId, petName, species, photoSrc,
     setSearching(false);
     if (p.found && p.name) {
       const gtin = /^\d{8,14}$/.test(code) ? code : null;
-      const img = pickProductImage({ name: p.name, gtin }, await searchAwinCatalog(gtin || p.name));
+      const img = await findImage({ name: p.name, gtin });
       setDraft({ name: p.name, brand: p.brand ?? null, gtin, image_url: img });
     } else {
       setQuery('');
@@ -358,7 +365,7 @@ function CabinetRow({
       <div className="flex items-start gap-3">
         {item.image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={item.image_url} alt="" className="h-12 w-12 flex-shrink-0 rounded-lg object-contain" loading="lazy" />
+          <img src={item.image_url} alt="" className="h-12 w-12 flex-shrink-0 rounded-lg object-contain" />
         ) : null}
         <div className="min-w-0 flex-1">
           <p className="text-[14px] font-bold leading-snug text-slate-900">{item.name}</p>

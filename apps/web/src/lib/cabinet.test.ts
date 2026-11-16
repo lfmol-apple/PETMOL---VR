@@ -52,5 +52,7 @@ describe('pickProductImage', () => {
   ];
   it('casa por GTIN', () => expect(pickProductImage({ name: 'qualquer', gtin: '7891234567895' }, r)).toBe('https://x/b.png'));
   it('casa por nome equivalente', () => expect(pickProductImage({ name: 'gel dental pet' }, r)).toBe('https://x/b.png'));
+  it('nome do tutor mais curto/curto ainda casa o produto do catálogo', () =>
+    expect(pickProductImage({ name: 'Gel dental pet clean' }, r)).toBe('https://x/b.png'));
   it('sem certeza, não devolve foto de outro produto', () => expect(pickProductImage({ name: 'Shampoo neutro' }, r)).toBeNull());
 });
