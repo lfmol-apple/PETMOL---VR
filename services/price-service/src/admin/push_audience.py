@@ -71,6 +71,7 @@ from .push_campaigns import (
 )
 
 MAX_USERS_IN_MEMORY = 50_000
+MAX_SELECTED_TUTORS = 200
 EARTH_RADIUS_KM = 6371.0088
 LB_TO_KG = 0.45359237
 
@@ -147,6 +148,7 @@ FIELD_META: dict[str, dict] = {
     "tutor_created_at": {"group": "Tutor", "origin": "Cadastro do tutor", "precision": "exata"},
     "tutor_pet_count": {"group": "Tutor", "origin": "Pets cadastrados", "precision": "exata"},
     "tutor_species_mix": {"group": "Tutor", "origin": "Pets cadastrados", "precision": "exata"},
+    "tutor_selected": {"group": "Tutor", "origin": "Escolha manual do administrador", "precision": "exata"},
     "tutor_activity": {"group": "Engajamento", "origin": "Eventos registrados no app (não é login)", "precision": "registro de eventos"},
     "platform": {"group": "Engajamento", "origin": "Aparelho com push ativo", "precision": "exata"},
     "pet_species": {"group": "Pet", "origin": "Cadastro do pet", "precision": "exata"},
@@ -217,6 +219,10 @@ def validate_filter_values(flt: AudienceFilter) -> None:
         if rule.field == "tutor_created_at":
             for v in (rule.value if isinstance(rule.value, list) else [rule.value]):
                 _to_dt(v, label)
+        elif rule.field == "tutor_selected":
+            vals = rule.value if isinstance(rule.value, list) else []
+            if not vals or len(vals) > MAX_SELECTED_TUTORS or any(not isinstance(v, str) or not 1 <= len(v.strip()) <= 36 for v in vals):
+                raise FilterError(f"{label}: escolha de 1 a {MAX_SELECTED_TUTORS} tutores.")
         elif rule.field in ("tutor_pet_count",):
             for v in (rule.value if isinstance(rule.value, list) else [rule.value]):
                 _num(v, label, integer=True)
@@ -405,6 +411,13 @@ def _bucket(last: Optional[datetime], now: datetime) -> str:
     if last >= now - timedelta(days=30):
         return "d8_30"
     return "over_30d"
+
+
+def _r_tutor_selected(ctx: AudienceContext, rule: FilterRule) -> _Outcome:
+    """Tutores marcados à mão. Quem não existe mais ou está fora do universo alcançável (sem push / pediu para parar) cai fora
+    nas contagens normais: escolher um tutor NÃO fura a regra de opt-out."""
+    ids = {str(v).strip() for v in rule.value} & ctx.all_users
+    return _Outcome("tutor", ids, _Cov(len(ids), len(ctx.all_users), "tutores"))
 
 
 def _r_tutor_activity(ctx: AudienceContext, rule: FilterRule) -> _Outcome:
@@ -847,7 +860,7 @@ def _r_tutor_sex(ctx: AudienceContext, rule: FilterRule) -> _Outcome:
 
 _RULES: dict[str, Callable[[AudienceContext, FilterRule], _Outcome]] = {
     "tutor_created_at": _r_tutor_created_at, "tutor_pet_count": _r_tutor_pet_count, "tutor_species_mix": _r_tutor_species_mix,
-    "tutor_activity": _r_tutor_activity, "platform": _r_platform,
+    "tutor_selected": _r_tutor_selected, "tutor_activity": _r_tutor_activity, "platform": _r_platform,
     "pet_species": _r_pet_species, "pet_sex": _r_pet_sex, "pet_breed_contains": _r_pet_breed, "pet_age_months": _r_pet_age,
     "pet_weight_kg": _r_pet_weight, "pet_neutered_yes": _r_pet_neutered,
     "location_registered_state": _r_state, "location_registered_city": _r_city, "location_gps_radius": _r_gps, "location_geoip_region": _r_geoip,
@@ -1059,6 +1072,35 @@ def list_fields(current=Depends(get_current_admin)):
     return {"fields": describe_fields(),
             "activity_note": "Atividade = eventos registrados no app, não necessariamente login.",
             "location_origins": _ORIGIN_LABEL}
+
+
+@router.get("/tutors")
+def search_tutors(q: str = "", ids: str = "", current=Depends(get_current_admin)):
+    """Busca de tutores para ESCOLHER à mão (admin). `q` = nome, e-mail ou nome de um pet (mín. 2 letras, até 20 resultados);
+    `ids` = ids separados por vírgula (para a tela reconhecer uma seleção já feita). Só leitura. Mostra se o tutor é alcançável por push."""
+    db = _read_only_session()
+    try:
+        wanted = [i.strip() for i in ids.split(",") if i.strip()][:MAX_SELECTED_TUTORS]
+        term = q.strip()
+        if wanted:
+            users = db.query(User.id, User.name, User.email).filter(User.id.in_(wanted)).all()
+        elif len(term) >= 2:
+            like = f"%{term.replace('%', '').replace('_', '')}%"
+            by_pet = db.query(Pet.user_id).filter(Pet.name.ilike(like))
+            users = (db.query(User.id, User.name, User.email)
+                     .filter((User.name.ilike(like)) | (User.email.ilike(like)) | (User.id.in_(by_pet)))
+                     .order_by(User.name).limit(20).all())
+        else:
+            return {"tutors": []}
+        ctx = AudienceContext(db)
+        reach = ctx.reachable_universe
+        pets: dict[str, list] = defaultdict(list)
+        for uid_, name in db.query(Pet.user_id, Pet.name).filter(Pet.user_id.in_([u[0] for u in users])).all():
+            pets[str(uid_)].append(name)
+        return {"tutors": [{"id": str(u[0]), "name": u[1] or "", "email": u[2] or "", "pets": pets.get(str(u[0]), [])[:6],
+                            "reachable": str(u[0]) in reach} for u in users]}
+    finally:
+        db.close()
 
 
 OVERDUE_BUCKETS = (("ate_7", "Até 7 dias", 1, 7), ("d8_30", "8 a 30 dias", 8, 30), ("d31_90", "31 a 90 dias", 31, 90), ("mais_90", "Mais de 90 dias", 91, 36500))

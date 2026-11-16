@@ -6,6 +6,7 @@
  */
 import { useState } from 'react';
 import type { FieldInfo } from './api';
+import { TutorPicker } from './TutorPicker';
 import { QUICK_BLOCK_ID } from './quickFilters';
 import { GROUPS, describeCond, PET_SCOPE_LABEL, VALUE_LABEL, defaultCond, condError, kindOf, uid, type Block, type Cond, type FilterState, type Op, type PetScope } from './filters';
 
@@ -39,6 +40,7 @@ function CondEditor({ f, c, onChange, brandHints }: { f: FieldInfo; c: Cond; onC
   if (f.field === 'location_place' || f.field === 'tutor_sex_estimate') {      // escolhidos nos seletores da tela principal: aqui só leitura (mesmo estado, sem editar o código interno)
     return <p className="text-[13px] font-semibold text-slate-700" data-testid="cond-gerenciada">{describeCond(c, f)} <span className="font-normal text-slate-500">— altere nos seletores acima (Onde / Tutor ou tutora).</span></p>;
   }
+  if (k === 'tutors') return <TutorPicker value={(c.value as string[]) ?? []} onChange={(value) => onChange({ value })} />;
   if (k === 'flag') return <p className="text-[13px] text-slate-600">Quem tem este dado cadastrado.</p>;
   if (k === 'multi') return <Multi id={id} f={f} c={c} onChange={(value) => onChange({ value })} />;
   if (k === 'single') {

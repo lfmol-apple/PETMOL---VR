@@ -192,7 +192,7 @@ def test_diferencial_300_filtros_aleatorios_motor_igual_ao_avaliador_de_referenc
 
 def test_diferencial_cobre_todos_os_campos_disponiveis():
     # location_place e tutor_sex_estimate têm testes próprios (lugar escolhido em lista; sexo provável experimental, desligado por padrão)
-    assert set(ref.ALL_FIELDS) | {"location_place", "tutor_sex_estimate"} == set(pc.FILTER_FIELDS)
+    assert set(ref.ALL_FIELDS) | {"location_place", "tutor_sex_estimate", "tutor_selected"} == set(pc.FILTER_FIELDS)
 
 
 # ══ 2) CASOS NOMEADOS ════════════════════════════════════════════════════════
@@ -275,6 +275,35 @@ def test_filtro_de_plataforma_so_conta_aparelho_ativo(db):
     assert ids_of(db, F(R("platform", "in", ["ios"])))[0] == {a}
     assert ids_of(db, F(R("platform", "in", ["android", "web"])))[0] == {b, c}
     assert d not in ids_of(db, F(R("platform", "in", ["ios", "android", "web"])))[0]
+
+
+def test_tutores_escolhidos_a_mao_respeitam_push_e_opt_out(db):
+    w = World(db)
+    a = w.user("A", ios=True); b = w.user("B", android=True); c = w.user("C", ios=True, optout=True); d = w.user("D")
+    w.user("E", ios=True)
+    matches, reachable = ids_of(db, F(R("tutor_selected", "in", [a, c, d, "id-que-nao-existe"])))
+    assert matches == {a, c, d}                 # só quem existe
+    assert reachable == {a}                     # escolher não fura opt-out nem a falta de push
+    assert ids_of(db, F(R("tutor_selected", "in", [a, b])))[1] == {a, b}
+
+
+def test_tutor_escolhido_valida_a_lista():
+    for bad in ([], [""], ["x" * 40], list(map(str, range(pa.MAX_SELECTED_TUTORS + 1)))):
+        with pytest.raises(pa.FilterError):
+            pa.validate_filter_values(F(R("tutor_selected", "in", bad)))
+
+
+def test_busca_de_tutores_para_escolher(api, db):
+    w = World(db)
+    a = w.user("Maria Silva", ios=True); w.pet(a, "dog", name="Thor")
+    b = w.user("Joao Souza", web=True, optout=True)
+    db.commit()
+    r = api.get("/v1/admin/push-campaigns/tutors", params={"q": "maria"})
+    assert [t["id"] for t in r.json()["tutors"]] == [a] and r.json()["tutors"][0]["reachable"] is True
+    assert [t["id"] for t in api.get("/v1/admin/push-campaigns/tutors", params={"q": "thor"}).json()["tutors"]] == [a]
+    j = api.get("/v1/admin/push-campaigns/tutors", params={"ids": b}).json()["tutors"][0]
+    assert j["name"] == "Joao Souza" and j["reachable"] is False       # pediu para parar: aparece, mas marcado
+    assert api.get("/v1/admin/push-campaigns/tutors", params={"q": "m"}).json() == {"tutors": []}
 
 
 def test_gps_raio_fronteira_e_origem_gps_somente(db):
@@ -647,7 +676,7 @@ def test_teto_de_escala_vira_503_no_endpoint(api, db, monkeypatch):
 def test_so_ha_endpoints_de_leitura_e_nenhum_envia():
     rotas = {(tuple(sorted(r.methods)), r.path) for r in pa.router.routes}
     assert rotas == {(("GET",), "/v1/admin/push-campaigns/fields"), (("GET",), "/v1/admin/push-campaigns/suggestions/brands"),
-                     (("GET",), "/v1/admin/push-campaigns/audience/location-coverage"), (("GET",), "/v1/admin/push-campaigns/audience/location-options"), (("GET",), "/v1/admin/push-campaigns/audience/expired-feeding-plans"), (("POST",), "/v1/admin/push-campaigns/audience/count")}
+                     (("GET",), "/v1/admin/push-campaigns/audience/location-coverage"), (("GET",), "/v1/admin/push-campaigns/audience/location-options"), (("GET",), "/v1/admin/push-campaigns/audience/expired-feeding-plans"), (("GET",), "/v1/admin/push-campaigns/tutors"), (("POST",), "/v1/admin/push-campaigns/audience/count")}
     src = open(pa.__file__, encoding="utf-8").read()
     assert "push_to_user" not in src and "_spawn" not in src and "db.commit" not in src and "db.add" not in src
 

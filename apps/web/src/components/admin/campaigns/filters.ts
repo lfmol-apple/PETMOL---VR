@@ -42,9 +42,10 @@ export const GROUPS: { key: string; title: string; hint: string }[] = [
   { key: 'Engajamento', title: 'Atividade', hint: 'Atividade registrada no app e aparelho com push' },
 ];
 
-export type Kind = 'multi' | 'single' | 'flag' | 'text' | 'number' | 'date' | 'list' | 'gps';
+export type Kind = 'tutors' | 'multi' | 'single' | 'flag' | 'text' | 'number' | 'date' | 'list' | 'gps';
 
 export function kindOf(f: FieldInfo): Kind {
+  if (f.field === 'tutor_selected') return 'tutors';
   if (f.field === 'location_gps_radius') return 'gps';
   if (f.field === 'tutor_created_at') return 'date';
   if (f.ops.includes('contains')) return 'text';
@@ -59,6 +60,7 @@ export function defaultCond(f: FieldInfo): Cond {
   const k = kindOf(f);
   const base = { id: uid('c'), field: f.field, ack: false };
   switch (k) {
+    case 'tutors': return { ...base, op: 'in', value: [] };
     case 'flag': return { ...base, op: 'eq', value: true };
     case 'multi': return { ...base, op: 'in', value: [] };
     case 'single': return { ...base, op: 'eq', value: '' };
@@ -78,7 +80,10 @@ export function condError(c: Cond, f: FieldInfo | undefined): string | null {
   if (!f) return 'Filtro desconhecido.';
   const k = kindOf(f);
   const v = c.value;
-  if (k === 'multi' || k === 'list') {
+  if (k === 'tutors') {
+    if (!Array.isArray(v) || v.length === 0) return 'Escolha ao menos um tutor.';
+    if (v.length > 200) return 'No máximo 200 tutores por vez.';
+  } else if (k === 'multi' || k === 'list') {
     if (!Array.isArray(v) || v.length === 0) return 'Escolha ao menos um valor.';
   } else if (k === 'single') {
     if (isBlank(v)) return 'Escolha um valor.';
@@ -146,6 +151,7 @@ export function describeCond(c: Cond, f: FieldInfo | undefined): string {
   const k = kindOf(f);
   const v = c.value;
   const lbl = (x: unknown) => VALUE_LABEL[String(x)] ?? String(x);
+  if (k === 'tutors') { const n = Array.isArray(v) ? v.length : 0; return `${f.label}: ${n} ${n === 1 ? 'tutor' : 'tutores'}`; }
   if (k === 'flag') return f.label;
   if (k === 'multi') return `${f.label}: ${(Array.isArray(v) ? v : []).map(lbl).join(' ou ')}`;
   if (k === 'single') return `${f.label}: ${lbl(v)}`;
