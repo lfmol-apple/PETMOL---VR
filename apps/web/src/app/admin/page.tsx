@@ -11,12 +11,14 @@ import { useAdmin } from '@/hooks/useAdmin';
 import { TodosTab } from '@/components/admin/tabs/TodosTab';
 import { DesempenhoTab } from '@/components/admin/tabs/DesempenhoTab';
 import { EmailsTab } from '@/components/admin/tabs/EmailsTab';
+import { GratuitoTab } from '@/components/admin/tabs/GratuitoTab';
 import { PushTab } from '@/components/admin/tabs/PushTab';
 import { PetsSumidosTab } from '@/components/admin/tabs/PetsSumidosTab';
 
 const TABS = [
   { key: 'todos', label: 'Todos' },
   { key: 'desempenho', label: 'Desempenho' },
+  { key: 'gratuito', label: 'Gratuito' },
   { key: 'emails', label: 'E-mails' },
   { key: 'push', label: 'Push' },
   { key: 'sumidos', label: 'Pets sumidos' },
@@ -54,6 +56,7 @@ function AdminPanel() {
         </div>
         {tab === 'todos' && <TodosTab />}
         {tab === 'desempenho' && <DesempenhoTab />}
+        {tab === 'gratuito' && <GratuitoTab />}
         {tab === 'emails' && <EmailsTab />}
         {tab === 'push' && <PushTab />}
         {tab === 'sumidos' && <PetsSumidosTab />}

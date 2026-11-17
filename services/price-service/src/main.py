@@ -46,6 +46,7 @@ from .pets.grooming_models import GroomingRecord as _gr  # register with Base
 from .pets.heat_models import HeatCycle as _hc, HeatSettings as _hs  # register with Base
 from .pets.cabinet import CabinetItem as _ci  # register with Base
 from .admin.email_campaigns import EmailCampaign as _ec, router as email_campaigns_admin_router  # register with Base
+from .admin.gratuito_router import router as gratuito_admin_router
 from .admin.missing_pets_admin import router as missing_pets_admin_router
 from .admin.performance_router import router as performance_admin_router
 from .admin.search_demand_admin import router as search_demand_admin_router
@@ -268,6 +269,8 @@ app.include_router(users_router)
 app.include_router(pets_router)
 from .admin.email_pet_photo import router as email_pet_photo_router
 app.include_router(email_pet_photo_router)
+from .admin.email_clicks import router as email_clicks_router
+app.include_router(email_clicks_router)
 app.include_router(product_lookup_router)
 app.include_router(product_lookup_router, prefix="/api")
 app.include_router(gtin_router)
@@ -302,6 +305,7 @@ app.include_router(activation_panel_admin_router)
 app.include_router(broadcast_admin_router)
 app.include_router(store_promos_admin_router)
 app.include_router(email_campaigns_admin_router)
+app.include_router(gratuito_admin_router)
 app.include_router(push_campaigns_admin_router)
 app.include_router(push_audience_admin_router)
 app.include_router(push_campaign_batches_admin_router)
@@ -329,6 +333,7 @@ app.include_router(activation_panel_admin_router, prefix="/api")
 app.include_router(broadcast_admin_router, prefix="/api")
 app.include_router(store_promos_admin_router, prefix="/api")
 app.include_router(email_campaigns_admin_router, prefix="/api")
+app.include_router(gratuito_admin_router, prefix="/api")
 app.include_router(push_campaigns_admin_router, prefix="/api")
 app.include_router(push_audience_admin_router, prefix="/api")
 app.include_router(push_campaign_batches_admin_router, prefix="/api")
