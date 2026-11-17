@@ -6,6 +6,7 @@ Integrates with existing backend structure.
 """
 import json
 import logging
+import unicodedata
 
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Literal, Optional
@@ -89,23 +90,47 @@ PUPPY_BOOSTER_CUTOFF_DAYS = 26 * 7  # 182 — one more booster at 26+ weeks old
 PUPPY_SERIES_INTERVAL_DAYS = 21     # 3 weeks — common BR practice (e.g. V10 ~45/65/90d), within WSAVA's 2-4 week range; always editable by the tutor
 
 
-def _puppy_protocol_next_dose(pet_birth_date: Optional[date], applied_date: datetime) -> Optional[datetime]:
+# Vacinas que NÃO seguem a série de filhote: dose única e reforço anual (raiva) ou esquema próprio. Aplicar a série de 3 em 3 semanas
+# (ou o "reforço de 26 semanas") nelas gera datas sem sentido — ex.: antirrábica dada com 17 semanas "vencia" na semana 26, embora
+# valha até 1 ano depois. Caso real (Zara, nov/2026): todas apareciam vencidas, mas estavam em dia.
+_NON_SERIES_VACCINE_WORDS = ("raiva", "antirrab", "rabies", "bordetella", "tosse", "influenza", "gripe", "giardia", "leishmani", "fiv", "felv")
+
+
+def _vaccine_follows_puppy_series(display_name: Optional[str]) -> bool:
+    n = unicodedata.normalize("NFKD", (display_name or "").lower())
+    n = "".join(c for c in n if not unicodedata.combining(c))
+    return not any(w in n for w in _NON_SERIES_VACCINE_WORDS)
+
+
+def _puppy_protocol_next_dose(pet_birth_date: Optional[date], applied_date: datetime, display_name: Optional[str] = None,
+                              today: Optional[date] = None) -> Optional[datetime]:
     """Returns a suggested next-dose date if this vaccine was given while the
     pet was still in its puppy/kitten core-vaccine window, else None (meaning:
-    use the normal adult catalog/fallback logic instead)."""
+    use the normal adult catalog/fallback logic instead).
+
+    Duas travas contra "vencida" que não existe:
+    - só vale para vacinas de SÉRIE (polivalente etc.), nunca antirrábica/bordetella/gripe/giárdia/leishmaniose;
+    - se a sugestão já está no PASSADO (o tutor está registrando uma dose antiga), ela não vale: a data viraria "vencida" no mesmo dia
+      do cadastro sem o tutor ter perdido nada. Cai no intervalo normal contado da aplicação."""
     if not pet_birth_date:
+        return None
+    if not _vaccine_follows_puppy_series(display_name):
         return None
     age_days = (applied_date.date() - pet_birth_date).days
     if age_days < 0 or age_days >= PUPPY_BOOSTER_CUTOFF_DAYS:
         return None
     if age_days < PUPPY_SERIES_CUTOFF_DAYS:
-        return applied_date + timedelta(days=PUPPY_SERIES_INTERVAL_DAYS)
-    # 16-26 weeks old: this dose is at/around the "final" series dose —
-    # suggest the 26-week safety booster, floored so it's never sooner than
-    # a normal series gap even if already close to 26 weeks at this dose.
-    booster_date = datetime.combine(pet_birth_date, datetime.min.time()) + timedelta(days=PUPPY_BOOSTER_CUTOFF_DAYS)
-    floor_date = applied_date + timedelta(days=14)
-    return max(booster_date, floor_date)
+        suggestion = applied_date + timedelta(days=PUPPY_SERIES_INTERVAL_DAYS)
+    else:
+        # 16-26 weeks old: this dose is at/around the "final" series dose —
+        # suggest the 26-week safety booster, floored so it's never sooner than
+        # a normal series gap even if already close to 26 weeks at this dose.
+        booster_date = datetime.combine(pet_birth_date, datetime.min.time()) + timedelta(days=PUPPY_BOOSTER_CUTOFF_DAYS)
+        floor_date = applied_date + timedelta(days=14)
+        suggestion = max(booster_date, floor_date)
+    if suggestion.date() < (today or date.today()):
+        return None
+    return suggestion
 
 
 def _vaccine_record_to_response(record: VaccineRecord) -> VaccineResponse:
@@ -598,7 +623,7 @@ async def bulk_confirm_vaccines(
             # catalog interval — a flat annual (or any fixed) interval is
             # simply the wrong schedule for an animal still in its core
             # series. See _puppy_protocol_next_dose above.
-            puppy_next_due = _puppy_protocol_next_dose(pet.birth_date, applied_date)
+            puppy_next_due = _puppy_protocol_next_dose(pet.birth_date, applied_date, vac.display_name)
             if puppy_next_due:
                 next_due_date = puppy_next_due
                 next_due_source = "puppy_protocol"
