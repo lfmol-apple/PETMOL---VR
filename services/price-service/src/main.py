@@ -70,6 +70,7 @@ from .admin import activation_campaign_admin_router, activation_optout_public_ro
 from .admin import broadcast_admin_router
 from .admin import models as _admin_models
 from .moderation.models import PhotoModerationDecision as _photo_moderation_decision_model  # noqa: F401 — register with Base
+from .plans.models import Subscription as _subscription_model  # noqa: F401 — register with Base
 from .admin.analytics.permission_snapshots import PermissionSnapshot as _permission_snapshot_model  # noqa: F401 — register with Base
 from .moderation.router import router as moderation_admin_router
 from .admin.vaccine_date_notice import AdminNoticeLog as _admin_notice_log_model, router as vaccine_date_notice_router  # noqa: F401 — model registers with Base
@@ -264,6 +265,8 @@ app.include_router(otp_router)
 # Users API compatibility router
 from .user_auth.users_router import router as users_router
 app.include_router(users_router)
+from .plans.router import router as plans_router
+app.include_router(plans_router)
 
 app.include_router(pets_router)
 from .admin.email_pet_photo import router as email_pet_photo_router

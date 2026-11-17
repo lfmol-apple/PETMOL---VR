@@ -107,6 +107,13 @@ class Settings(BaseSettings):
     # Data-limite (ISO 8601, ex.: 2026-12-01T00:00:00+00:00) a partir da qual uma conta vista pela 1ª vez sem versão NÃO vira legado
     # (impede "farmar" legado depois do lançamento). Vazio = sem limite. Mudar = env LEGACY_MARKER_UNTIL + restart.
     legacy_marker_until: str = ""
+    # Planos e direitos por conta (plans/): DESLIGADO por padrão. Desligado, todos são "unlimited" e /plans/me responde 404 — nada muda.
+    # Ligar = env PLANS_ENABLED=true + restart, só depois do dono aprovar a divisão grátis×pago. Limites abaixo são PROPOSTA (valem só
+    # para o plano "free" da versão nova; a versão atual = "legacy" nunca tem limite). Só informam: quem aplica é cada endpoint.
+    plans_enabled: bool = False
+    plans_free_max_pets: int = 2
+    plans_free_ocr_total: int = 2
+    plans_free_caregivers: int = 1
     # Campanhas push manuais com segmentação e lotes (admin/push_campaigns.py). DESLIGADO por padrão: ligar = env
     # PUSH_CAMPAIGNS_ENABLED=true + restart. Desligada, os endpoints novos respondem 404 e o envio avulso não muda.
     push_campaigns_enabled: bool = False
