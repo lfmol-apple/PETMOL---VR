@@ -137,6 +137,20 @@ class PushCampaignRecipient(Base):
     )
 
 
+class PushLinkOpen(Base):
+    """O produto de uma campanha de link já foi aberto neste tutor (pelo toque ou pelo plano B "ao abrir o app"). Garante que o link
+    abre UMA vez por envio. Sem FK (como push_campaign_recipient); entra na limpeza de conta."""
+    __tablename__ = "push_link_open"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), nullable=False, index=True)
+    batch_id = Column(String(36), nullable=False)
+    via = Column(String(12), nullable=True)                 # "tap" | "app_open"
+    opened_at = Column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (UniqueConstraint("user_id", "batch_id", name="uq_push_link_open_user_batch"),)
+
+
 @event.listens_for(PushCampaign, "before_update")
 def _freeze_commercial_content(_mapper, _connection, target: PushCampaign) -> None:
     """Rede de segurança no nível do modelo: depois do 1º lote (content_locked_at), título, mensagem, destino, objetivo e link

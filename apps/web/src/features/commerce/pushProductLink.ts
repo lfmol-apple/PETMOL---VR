@@ -8,6 +8,7 @@
  * um teste confere que são iguais. Ao acrescentar uma loja, acrescente nos dois.
  */
 import { Capacitor } from '@capacitor/core';
+import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { pushDiagBreadcrumb } from '@/features/notifications/nativePushService';
 import { navigateToPartnerUrl } from './homeShoppingPartners';
@@ -189,4 +190,49 @@ export async function openPendingProduct(): Promise<boolean> {
     openingPending = false;
     emit(PRODUCT_OPENED_EVENT);
   }
+}
+
+// ── Plano B: "abriu o app → abre o produto da campanha" ────────────────────────────────────────────────────────────
+// O toque na notificação sempre acorda o PETMOL. Se a abertura direta da loja não rolar por qualquer motivo, ao abrir o app
+// perguntamos ao servidor se há um link de campanha enviado a este tutor há poucos minutos e ainda não aberto — e abrimos.
+const HANDLED_KEY = 'petmol_product_handled';
+
+export function markProductHandled(batch: string | null | undefined): void {
+  if (!batch) return;
+  try {
+    const cur = JSON.parse(localStorage.getItem(HANDLED_KEY) || '[]') as string[];
+    if (!cur.includes(batch)) localStorage.setItem(HANDLED_KEY, JSON.stringify([...cur, batch].slice(-20)));
+  } catch { /* sem storage */ }
+}
+export function isProductHandled(batch: string): boolean {
+  try { return (JSON.parse(localStorage.getItem(HANDLED_KEY) || '[]') as string[]).includes(batch); } catch { return false; }
+}
+
+async function authed(path: string, init?: RequestInit): Promise<Response | null> {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    return await fetch(`${API_BASE_URL}${path}`, { ...init, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(init?.headers ?? {}) }, cache: 'no-store' });
+  } catch { return null; }
+}
+
+/** Avisa o servidor que este envio já abriu o produto (toque ou plano B): ele não será oferecido de novo. */
+export async function consumePendingLink(batch: string | null | undefined, via: 'tap' | 'app_open'): Promise<void> {
+  if (!batch) return;
+  markProductHandled(batch);
+  await authed('/notifications/pending-link/consume', { method: 'POST', body: JSON.stringify({ batch_id: batch, via }) });
+}
+
+/** Ao abrir o app: há link de campanha recente e não aberto? Abre o produto (com a tela "Abrindo o produto"). Devolve se abriu. */
+export async function openPendingCampaignLink(): Promise<boolean> {
+  if (!Capacitor.isNativePlatform() || openingPending) return false;
+  const res = await authed('/notifications/pending-link');
+  if (!res || !res.ok) return false;
+  const pending = ((await res.json()) as { pending: { batch_id: string; url: string } | null }).pending;
+  if (!pending || isProductHandled(pending.batch_id) || !isPushProductUrl(pending.url)) return false;
+  markProductHandled(pending.batch_id);
+  pushDiagBreadcrumb('plano B: abriu o app e há link de campanha pendente (' + (() => { try { return new URL(pending.url).hostname; } catch { return '?'; } })() + ')');
+  savePendingProduct(pending.url, pending.batch_id);
+  void consumePendingLink(pending.batch_id, 'app_open');
+  return openPendingProduct();
 }

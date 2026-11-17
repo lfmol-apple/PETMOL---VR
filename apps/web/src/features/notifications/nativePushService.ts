@@ -322,6 +322,7 @@ export async function initNativePushDeepLink(): Promise<void> {
           if (!product) { deliverNativeDeepLink(url); return; }
           if (product.broadcast) trackProductEvent('broadcast_opened', { broadcast: product.broadcast });
           trackProductEvent('broadcast_product_opened', { broadcast: product.broadcast ?? undefined });
+          void m.consumePendingLink(product.broadcast, 'tap');                        // este envio já abriu: o plano B (ao abrir o app) não repete
           m.savePendingProduct(product.raw, product.broadcast);   // antes de qualquer espera: se a página cair, o próximo carregamento abre
           void m.openPendingProduct().then((ok) => reportDiag('product tap: abertura ' + (ok ? 'FEITA' : 'NÃO feita')));
         })

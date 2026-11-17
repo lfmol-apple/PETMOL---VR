@@ -9,6 +9,7 @@ let platform = 'ios';
 let token: string | null = 'tok';
 let storeNativeUser = vi.fn<() => Promise<boolean>>();
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => native, getPlatform: () => platform } }));
+vi.mock('@capacitor/browser', () => ({ Browser: { open: vi.fn(), addListener: async () => ({ remove: async () => {} }) } }));
 vi.mock('@capacitor/app', () => ({ App: { getState: async () => ({ isActive: true }) } }));
 vi.mock('@/features/notifications/nativePushService', () => ({ pushDiagBreadcrumb: vi.fn() }));
 vi.mock('./homeShoppingPartners', () => ({ navigateToPartnerUrl: (...a: unknown[]) => { order.push('abriu'); nav(...a); } }));
@@ -63,10 +64,12 @@ describe('openPushProductLink', () => {
     storeNativeUser = vi.fn(async () => { order.push('checou'); return true; });
   });
   afterEach(() => vi.useRealTimers());
+  // a abertura nativa espera o app ficar ativo (+350 ms) antes de abrir
+  const run = async (u: string) => { const p = openPushProductLink(u); await vi.advanceTimersByTimeAsync(800); return p; };
 
   it('iPhone: confirma "abre no app da loja" ANTES de abrir (é o que mantém o ◀ PETMOL)', async () => {
     native = true;
-    expect(await openPushProductLink('https://amzn.to/3SN1ORt')).toBe(true);
+    expect(await run('https://amzn.to/3SN1ORt')).toBe(true);
     expect(order).toEqual(['checou', 'abriu']);
     expect(nav).toHaveBeenCalledWith('https://amzn.to/3SN1ORt');
   });
@@ -78,7 +81,7 @@ describe('openPushProductLink', () => {
     expect(storeNativeUser).not.toHaveBeenCalled();     // sem login não adianta checar
     expect(nav).not.toHaveBeenCalled();
     token = 'tok';
-    await vi.advanceTimersByTimeAsync(300);
+    await vi.advanceTimersByTimeAsync(1000);
     await p;
     expect(order).toEqual(['checou', 'abriu']);
   });
@@ -88,7 +91,7 @@ describe('openPushProductLink', () => {
     let n = 0;
     storeNativeUser = vi.fn(async () => { n += 1; order.push('checou' + n); if (n === 1) { await new Promise((r) => setTimeout(r, 1500)); return false; } return true; });
     const p = openPushProductLink('https://amzn.to/x');
-    await vi.advanceTimersByTimeAsync(1600);
+    await vi.advanceTimersByTimeAsync(2400);
     await p;
     expect(storeNativeUser).toHaveBeenCalledTimes(2);
     expect(order).toEqual(['checou1', 'checou2', 'abriu']);
@@ -97,7 +100,7 @@ describe('openPushProductLink', () => {
   it('iPhone, conta comum (negativa rápida): abre sem esperar nem repetir', async () => {
     native = true;
     storeNativeUser = vi.fn(async () => false);
-    await openPushProductLink('https://amzn.to/x');
+    await run('https://amzn.to/x');
     expect(storeNativeUser).toHaveBeenCalledTimes(1);
     expect(nav).toHaveBeenCalledTimes(1);
   });
@@ -105,14 +108,14 @@ describe('openPushProductLink', () => {
   it('iPhone: nunca trava para sempre; passado o prazo abre do jeito de sempre', async () => {
     native = true; token = null;
     const p = openPushProductLink('https://amzn.to/x');
-    await vi.advanceTimersByTimeAsync(4500);
+    await vi.advanceTimersByTimeAsync(5200);
     await p;
     expect(nav).toHaveBeenCalledTimes(1);
   });
 
   it('Android: não faz a checagem do iPhone', async () => {
     native = true; platform = 'android';
-    await openPushProductLink('https://www.cobasi.com.br/x/p');
+    await run('https://www.cobasi.com.br/x/p');
     expect(storeNativeUser).not.toHaveBeenCalled();
     expect(nav).toHaveBeenCalledWith('https://www.cobasi.com.br/x/p');
   });

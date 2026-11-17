@@ -42,15 +42,24 @@ export function NativePushBridge() {
     });
     void initNativePushDeepLink();
     // Termina a abertura de um produto de push que ficou pela metade (página recarregada/retomada no meio do toque).
+    // PLANO B: ao abrir o app (e a cada volta ao primeiro plano), se há link de campanha recente ainda não aberto, abre o produto.
+    // Espera 2,5 s para o toque direto (se houve) abrir primeiro; o servidor garante que cada envio abre uma vez só.
+    let planB: number | null = null;
+    const checkCampaignLink = () => {
+      if (planB) window.clearTimeout(planB);
+      planB = window.setTimeout(() => { void import('@/features/commerce/pushProductLink').then((m) => m.openPendingCampaignLink()).catch(() => {}); }, 2500);
+    };
+    checkCampaignLink();
     const finishPendingProduct = () => { void import('@/features/commerce/pushProductLink').then((m) => m.openPendingProduct()).catch(() => {}); };
     finishPendingProduct();
-    const onVisible = () => { if (document.visibilityState === 'visible') finishPendingProduct(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') { finishPendingProduct(); checkCampaignLink(); } };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', finishPendingProduct);
     return () => {
       setNativeDeepLinkNavigator(null);
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', finishPendingProduct);
+      if (planB) window.clearTimeout(planB);
     };
   }, [router]);
 
