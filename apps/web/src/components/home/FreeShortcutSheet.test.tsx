@@ -61,6 +61,14 @@ describe('FreeShortcutSheet', () => {
     expect(JSON.parse(window.localStorage.getItem(FREE_SHORTCUT_STORAGE_KEY) ?? '{}').end).toBe('dismissed');
   });
 
+  it('mostra quantos passos faltam e atualiza conforme a pessoa avança (ela sempre vê os demais)', () => {
+    mocks.permission = 'default';
+    const { rerender } = render(<FreeShortcutSheet {...base} startedAt={Date.now()} hasFood={false} />);
+    expect(screen.getByTestId('free-shortcut-missing').textContent).toBe('Faltam 3 passos');
+    rerender(<FreeShortcutSheet {...base} startedAt={Date.now()} hasFood />);
+    expect(screen.getByTestId('free-shortcut-missing').textContent).toBe('Faltam 2 passos');
+  });
+
   it('cadastrar a ração NÃO fecha a tela: o passo fica marcado e os outros botões continuam', () => {
     mocks.permission = 'default';
     const { rerender } = render(<FreeShortcutSheet {...base} startedAt={Date.now()} hasFood={false} />);

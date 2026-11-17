@@ -116,6 +116,7 @@ export function FreeShortcutSheet({ startedAt, petName, petSex, hasFood, onOpenF
   const name = petName || 'seu pet';
   const artigo = petName ? petDo({ sex: petSex }) : 'de';
   const nothingLeft = hasFood && hasPush && hasLocation;
+  const missing = [!hasFood, !hasPush, !hasLocation].filter(Boolean).length;
 
   return (
     <SheetShell open={!suppressed} onClose={() => finish('dismissed')} tone="grey" size="sm" z={SHEET_Z.raised} hideHandle>
@@ -138,6 +139,11 @@ export function FreeShortcutSheet({ startedAt, petName, petSex, hasFood, onOpenF
         </div>
 
         <div className="space-y-3 px-5 pb-2 pt-4">
+          {!nothingLeft && (
+            <p className="text-center text-[13px] font-extrabold text-[#0056D2]" data-testid="free-shortcut-missing">
+              {missing === 1 ? 'Falta 1 passo' : `Faltam ${missing} passos`}
+            </p>
+          )}
           <div className="flex rounded-2xl border border-slate-200 bg-white py-3">
             <Step ok label="Pet" />
             <Step ok={hasFood} label="Ração" />
