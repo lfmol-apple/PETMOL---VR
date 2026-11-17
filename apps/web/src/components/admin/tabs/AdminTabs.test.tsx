@@ -66,6 +66,20 @@ describe('abas do painel', () => {
     expect(screen.getAllByText('Se cadastrou').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Notificações ativas').length).toBeGreaterThan(0);
   });
+
+  it('Desempenho: percentuais de pet, ração e notificações sobre "Se cadastrou"; downloads sem percentual', async () => {
+    const totals = { downloads: 50, cadastros: 8, pets: 6, alimentacao: 2, notificacoes: 4 };
+    api.adminApi.mockResolvedValue({ totals, series: [{ date: '2026-11-08', ...totals }] });
+    render(<DesempenhoTab />);
+    await waitFor(() => expect(screen.getAllByTestId('pct-periodo-pets').length).toBe(1));
+    expect(screen.getByTestId('pct-periodo-pets').textContent).toContain('75%');
+    expect(screen.getByTestId('pct-periodo-alimentacao').textContent).toContain('25%');
+    expect(screen.getByTestId('pct-periodo-notificacoes').textContent).toContain('50%');
+    expect(screen.queryByTestId('pct-periodo-downloads')).toBeNull();
+    expect(screen.queryByTestId('pct-periodo-cadastros')).toBeNull();
+    expect(screen.getByTestId('pct-hoje-notificacoes').textContent).toContain('50%');
+    expect(screen.getAllByText('base dos percentuais').length).toBe(2);   // hoje × ontem e período
+  });
 });
 
 describe('Pets sumidos: quem encontrou', () => {

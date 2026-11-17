@@ -4,12 +4,14 @@
  * Desempenho — só o essencial, com o período que o dono escolher. Cada número é contado NA DATA em que aconteceu:
  * Downloads, Se cadastrou (criou a conta), Cadastrou o pet (o primeiro) e Cadastrou a alimentação (a ração do primeiro).
  * Em cima, Hoje × Ontem; embaixo, o período escolhido (qualquer intervalo) e o dia a dia.
+ * Percentuais: pet, alimentação e notificações sobre "Se cadastrou" (a base). Downloads não têm percentual.
  */
 import { useState } from 'react';
 import { spDayBounds, spStartOfToday, spYesterdayRange } from '@/lib/analytics/spTime';
 import { DateField } from '@/components/ui/DateField';
 import { Card, adminApi } from '@/components/admin/AdminUi';
 import { ErrorBox, Loading, numberFmt, useAsync } from '@/components/admin/sections/sections';
+import { PERCENT_KEYS, pctOf, type PercentKey } from '@/lib/admin/percent';
 
 type Key = 'downloads' | 'cadastros' | 'pets' | 'alimentacao' | 'notificacoes';
 interface Block { totals: Record<Key, number>; series: ({ date: string } & Record<Key, number>)[] }
@@ -18,11 +20,15 @@ type View = 'all' | 'ios' | 'android';
 const VIEWS: { key: View; label: string }[] = [{ key: 'all', label: 'Todos' }, { key: 'ios', label: 'iPhone' }, { key: 'android', label: 'Android' }];
 
 /** "iPhone 3 · Android 5" — a mesma contagem separada por aparelho. */
+const hasPct = (k: Key): k is PercentKey => (PERCENT_KEYS as readonly string[]).includes(k);
+
 function Split({ perf, k }: { perf: Perf | null | undefined; k: Key }) {
   if (!perf?.platforms) return null;
+  const { ios, android } = perf.platforms;
   return (
     <p className="mt-1 text-[12px] text-slate-500">
-      iPhone <strong className="text-slate-700">{numberFmt(perf.platforms.ios.totals[k])}</strong> · Android <strong className="text-slate-700">{numberFmt(perf.platforms.android.totals[k])}</strong>
+      iPhone <strong className="text-slate-700">{numberFmt(ios.totals[k])}</strong>{hasPct(k) && <span className="text-slate-400"> ({pctOf(ios.totals[k], ios.totals.cadastros)})</span>}
+      {' · '}Android <strong className="text-slate-700">{numberFmt(android.totals[k])}</strong>{hasPct(k) && <span className="text-slate-400"> ({pctOf(android.totals[k], android.totals.cadastros)})</span>}
     </p>
   );
 }
@@ -64,7 +70,7 @@ export function DesempenhoTab() {
 
   return (
     <div className="space-y-5">
-      <Card title="Hoje × ontem" subtitle="Hoje ainda está em andamento; ontem já fechou.">
+      <Card title="Hoje × ontem" subtitle="Hoje ainda está em andamento; ontem já fechou. Percentuais sobre quem se cadastrou no mesmo dia: pode passar de 100% quando a pessoa se cadastrou antes e fez a ação agora.">
         {today.loading && !today.data ? <Loading /> : today.error || yesterday.error || !today.data ? <ErrorBox msg={today.error || yesterday.error} /> : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             {METRICS.map((m) => (
@@ -72,6 +78,13 @@ export function DesempenhoTab() {
                 <p className="text-[12px] font-bold uppercase tracking-wide text-slate-400">{m.label}</p>
                 <p className="mt-1 text-[32px] font-black leading-none text-slate-900">{numberFmt(today.data!.totals[m.key])}</p>
                 <p className="mt-1.5 text-[12px] text-slate-500">hoje · ontem <strong className="text-slate-700">{numberFmt(yesterday.data?.totals[m.key])}</strong></p>
+                {hasPct(m.key) && (
+                  <p className="mt-0.5 text-[13px] font-extrabold text-[#0056D2]" data-testid={`pct-hoje-${m.key}`}>
+                    {pctOf(today.data!.totals[m.key], today.data!.totals.cadastros)}
+                    <span className="ml-1 text-[11.5px] font-semibold text-slate-400">dos cadastros hoje · ontem {pctOf(yesterday.data?.totals[m.key], yesterday.data?.totals.cadastros)}</span>
+                  </p>
+                )}
+                {m.key === 'cadastros' && <p className="mt-0.5 text-[11.5px] font-semibold text-slate-400">base dos percentuais</p>}
                 <Split perf={today.data} k={m.key} />
                 <p className="text-[11px] text-slate-400">ontem: iPhone {numberFmt(yesterday.data?.platforms?.ios.totals[m.key])} · Android {numberFmt(yesterday.data?.platforms?.android.totals[m.key])}</p>
               </div>
@@ -80,7 +93,7 @@ export function DesempenhoTab() {
         )}
       </Card>
 
-      <Card title="Período" subtitle="Escolha o intervalo que quiser.">
+      <Card title="Período" subtitle="Escolha o intervalo que quiser. Percentuais sobre quem se cadastrou no mesmo período (pode passar de 100% se a pessoa se cadastrou antes e fez a ação dentro do período).">
         <div className="mb-4 flex flex-wrap items-center gap-2 text-[12px]">
           {PRESETS.map((p) => (
             <button key={p.key} type="button" onClick={() => setPreset(p.key)}
@@ -103,6 +116,13 @@ export function DesempenhoTab() {
                   <p className="text-[12px] font-bold uppercase tracking-wide text-slate-400">{m.label}</p>
                   <p className="mt-1 text-[32px] font-black leading-none text-[#0056D2]">{numberFmt(period.data!.totals[m.key])}</p>
                   <p className="mt-1.5 text-[12px] text-slate-500">{m.hint}</p>
+                  {hasPct(m.key) && (
+                    <p className="mt-0.5 text-[13px] font-extrabold text-[#0056D2]" data-testid={`pct-periodo-${m.key}`}>
+                      {pctOf(period.data!.totals[m.key], period.data!.totals.cadastros)}
+                      <span className="ml-1 text-[11.5px] font-semibold text-slate-400">dos cadastros</span>
+                    </p>
+                  )}
+                  {m.key === 'cadastros' && <p className="mt-0.5 text-[11.5px] font-semibold text-slate-400">base dos percentuais</p>}
                   <Split perf={period.data} k={m.key} />
                 </div>
               ))}
@@ -141,7 +161,12 @@ function DailyTable({ perf }: { perf: Perf }) {
               {rows.map((r) => (
                 <tr key={r.date} className="border-t border-slate-100">
                   <td className="px-3 py-1.5 tabular-nums text-slate-600">{r.date.split('-').reverse().join('/')}</td>
-                  {METRICS.map((m) => <td key={m.key} className="px-3 py-1.5 text-right tabular-nums">{numberFmt(r[m.key])}</td>)}
+                  {METRICS.map((m) => (
+                    <td key={m.key} className="px-3 py-1.5 text-right tabular-nums">
+                      {numberFmt(r[m.key])}
+                      {hasPct(m.key) && <span className="ml-1 text-[11px] text-slate-400">{pctOf(r[m.key], r.cadastros)}</span>}
+                    </td>
+                  ))}
                 </tr>
               ))}
             </tbody>
