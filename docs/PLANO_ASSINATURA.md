@@ -63,15 +63,50 @@ Teste de preço sugerido: R$ 12,90 × R$ 19,90 no mensal, medindo conversão par
 renovação (esperar conversão freemium de poucos pontos percentuais; não projetar receita com a
 mediana de 10,7% de hard paywall).
 
-## 5. Transição dos usuários atuais (grandfathering)
+## 5. Transição dos usuários atuais — regra do dono (17/11/2026)
 
-- Quem já usa mantém o que já usa; a cobrança vale para **funções novas ou limites novos**, nunca
-  retroativa sem aceite (Termos §9). Alternativa: prazo longo com data final clara.
-- Anunciar **antes** (e-mail + aviso no app), explicando o porquê; abrir a versão paga primeiro a
-  novos usuários. Paywall retroativo gera avaliações baixas.
-- iOS: identificar legados por `AppTransaction` (versão original). Android: gravar marcador **no
-  servidor por conta** antes de ligar o paywall. Conferir a regra da Apple sobre mover para pago algo
-  que o usuário já tinha.
+> **Quem já tem a versão atual do app só paga se decidir fazer o upgrade para a versão nova.
+> Caso contrário, continua usando a versão que tem gratuitamente.**
+
+Como ficou definido (e como está escrito nos Termos §9.7):
+
+- **Versão-corte:** a última versão publicada antes de a cobrança existir. *Número a fixar quando for
+  lançar* (iOS: versão + build; Android: versionName + versionCode). Quem está nela ou em anterior é "legado".
+- **Legado:** continua com todas as funções que essa versão já tem, sem cobrança, sem prazo de
+  validade escrito de fim de gratuidade. Não há paywall retroativo nem corte de funções existentes.
+- **Upgrade é opcional:** ao atualizar para a versão com planos, a pessoa passa a ver a estrutura nova
+  (plano gratuito com limites + assinatura). Isso precisa estar **claro antes** de atualizar: nota de
+  versão ("O que há de novo") nas lojas e aviso no app/e-mail, para ninguém atualizar sem saber.
+- **Sem pressão indevida:** não usar atualização obrigatória nem aviso insistente para empurrar o
+  upgrade; só por motivo de segurança, exigência legal ou de loja/sistema (ver ressalvas).
+- **Ressalva jurídica (por que não escrevemos "para sempre" sem condição):** a promessa vale
+  "enquanto o serviço estiver disponível", e o PETMOL pode encerrar o suporte de uma versão por
+  segurança, obrigação legal, exigência da Apple/Google/sistema operacional ou fim do serviço, **com
+  aviso prévio e sem cobrar para manter o que já tinha**. Uma promessa absoluta e eterna poderia
+  virar passivo se o servidor, uma API de terceiro ou uma loja deixar de permitir a versão antiga.
+
+### O que isso exige tecnicamente (riscos reais)
+
+1. **Compatibilidade do servidor com versões antigas:** o backend é compartilhado. Toda mudança de API
+   precisa manter a versão-corte funcionando (versionamento/compatibilidade). Isso é custo permanente.
+2. **O app carrega conteúdo web do servidor?** Se o app nativo exibe páginas servidas pelo PETMOL (a
+   estrutura Capacitor/WebView), mudar o front-end no servidor muda **também** o app antigo. Para o
+   legado ficar de fato congelado, a regra de plano precisa ser decidida **no servidor por marcador de
+   conta/versão**, e não só "nova tela só na versão nova". Validar a arquitetura antes de prometer.
+3. **Marcador de legado no servidor, gravado ANTES de ligar o paywall:** registrar, por conta, a versão
+   do app (header/versão enviada nas requisições) e marcar `legacy=true` para quem estiver na versão-corte
+   ou anterior. Sem esse registro prévio não há como provar quem é legado.
+4. **Custo variável do legado:** o legado mantém OCR (Gemini), foto de produto e moderação sem cota por
+   plano. Definir um **teto técnico anti-abuso** (hoje 20/h por IP; avaliar limite por conta) que não
+   seja apresentado como "cobrança" — só proteção do serviço.
+5. **Web/PWA e novos cadastros:** versão-corte só existe no app nativo. Decidir: usuário que usa só pelo
+   navegador, e quem criar conta depois do lançamento numa versão antiga, são legado ou não? *Sugestão:*
+   legado = conta que já usou o app nativo na versão-corte ou anterior antes da data de lançamento.
+6. **Lojas:** a versão antiga continua disponível aos que já a têm; novos downloads sempre pegam a
+   versão atual da loja. Confirmar que reinstalar não rebaixa quem já era legado (por isso o marcador é
+   por conta, não por aparelho).
+7. **Rollback de decisão:** a promessa é pública (Termos). Mudar depois exige aviso e pode gerar
+   reclamação/avaliação negativa — decidir com calma antes de publicar o número da versão-corte.
 
 ## 6. O que falta construir (técnico)
 
@@ -94,6 +129,7 @@ mediana de 10,7% de hard paywall).
   sem guarda de cartão); 9.3 teste/promoções "quando oferecidos"; 9.4 alteração de preços com
   aviso e consentimento quando exigido; 9.5 reembolsos pela loja e CDC art. 49; 9.6 fim/falta de
   pagamento (dados preservados; Pet Sumido não depende de plano).
+- **Termos §9.7** (versão atual do app): quem usa a versão anterior à introdução de planos continua sem cobrança; paga só quem decidir atualizar para a versão com planos.
 - **Termos §10**: limitação de responsabilidade "na extensão máxima permitida pela lei" sem afastar
   direitos do consumidor. **§11**: corrigido erro de redação ("se violarmos" → "se você violar").
 - **Privacidade §2.6**: dados de assinatura (condicional); loja processa pagamento; PETMOL não guarda cartão.
@@ -108,7 +144,8 @@ mediana de 10,7% de hard paywall).
 | /sobre e /transparencia | Neutros | Acrescentar: "se sustenta por assinaturas e, de forma complementar, por afiliados…" |
 | Cópia de loja/landing | Sem "grátis"/"sem anúncios" (PR #850) | Idem + preços, renovação, cancelamento, links de Termos/Privacidade |
 | App Privacy / Data Safety | Atual | Incluir compras/ID de transação |
-| App | Sem paywall | Paywall + IAP + legado (seções 5 e 6) |
+| App | Sem paywall | Paywall + IAP + marcador de legado; versão-corte segue grátis (seções 5 e 6) |
+| Termos §9.7 | Já vale (versões anteriores à cobrança) | Publicar o número da versão-corte no anúncio e nas lojas |
 
 **Proteções que ainda dependem de decisão/validação (não inventei texto sobre elas):**
 
@@ -126,7 +163,9 @@ mediana de 10,7% de hard paywall).
 - [ ] Aprovar divisão grátis × pago (seção 3) e limites exatos (1 ou 2 pets? quantas leituras de OCR?).
 - [x] Teste grátis: **não usar no lançamento**; possibilidade registrada (Termos §9.3).
 - [ ] Aprovar preços; decidir se haverá teste A/B de preço.
-- [ ] Definir regra do grandfathering (função existente fica para sempre ou tem data final).
+- [x] Regra do legado definida pelo dono: versão atual segue grátis; só paga quem fizer upgrade (seção 5).
+- [ ] Fixar a **versão-corte** (iOS/Android) e a definição de legado para web/novas contas (seção 5, item 5).
+- [ ] Validar com a arquitetura se o app antigo realmente fica congelado (seção 5, item 2).
 - [ ] Inscrição no Apple Small Business Program.
 - [ ] Revisão jurídica das minutas; checar CDC art. 49 e política de reembolso.
 - [ ] Conferir preços de concorrentes ao vivo nas lojas BR e a política de pagamentos do Google Play.

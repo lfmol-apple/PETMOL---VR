@@ -97,7 +97,9 @@ A APNs Auth Key foi gerada e configurada, a capability "Push Notifications" est�
 - [ ] StoreKit + Play Billing integrados; validação no servidor; "restaurar compras" funcionando
 - [ ] Paywall mostra recursos, preço, período, renovação automática, cancelamento, links de Termos/Privacidade
 - [ ] Sem botão/link externo de pagamento no app nativo
-- [ ] Usuários atuais marcados como legado no servidor ANTES de ligar o paywall; aviso prévio enviado
+- [ ] **Versão-corte fixada** (iOS versão+build / Android versionName+versionCode) e usuários da versão-corte ou anterior marcados `legacy` por conta no servidor ANTES de ligar o paywall (quem não atualizar segue grátis — Termos §9.7)
+- [ ] "O que há de novo" da versão com planos explica o que muda; aviso prévio no app/e-mail; sem atualização obrigatória para empurrar upgrade
+- [ ] Servidor mantém compatibilidade com a versão-corte; teto anti-abuso por conta definido (sem parecer cobrança)
 - [ ] Termos §9 e Privacidade §2.6 (já redigidos em modo duplo) revisados por advogado e republicados com aviso aos usuários; /sobre e /transparencia atualizados
 - [ ] App Privacy / Data Safety e ficha das lojas atualizados (sem "grátis"/"sem anúncios")
 - [ ] Conta de revisor com assinatura de teste (sandbox) e review notes explicando o paywall

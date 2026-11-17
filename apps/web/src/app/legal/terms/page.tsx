@@ -127,6 +127,14 @@ export default function TermsPage() {
             Se a assinatura terminar ou o pagamento não for confirmado, os recursos exclusivos do plano pago poderão ser limitados. Você mantém acesso aos seus dados e aos recursos disponíveis sem cobrança, e não apagamos seus dados por esse motivo. Alertas de segurança da comunidade, como o Pet Sumido, não dependem de plano pago, salvo aviso em contrário.
           </p>
 
+          <h3>9.7. Versão atual do aplicativo</h3>
+          <p>
+            Se o PETMOL passar a oferecer planos pagos em uma nova versão do aplicativo, quem já utiliza a versão disponível antes dessa mudança (a &quot;versão-corte&quot;, que será identificada no comunicado da mudança e nas lojas) poderá continuar usando essa versão, com as funcionalidades que ela já oferece, sem cobrança. A cobrança só se aplica a quem decidir, por escolha própria, atualizar para a versão com planos e contratar um plano pago; a informação sobre o que muda será apresentada antes da atualização.
+          </p>
+          <p>
+            Essa continuidade vale enquanto o serviço estiver disponível. Podemos encerrar o suporte a uma versão por motivos de segurança, obrigação legal, exigência da Apple, do Google ou do sistema operacional, ou encerramento do serviço, sempre com aviso prévio e sem cobrança para manter o que você já utilizava. Podemos aplicar limites técnicos de uso razoável para proteger o serviço contra abuso, sem que isso configure cobrança.
+          </p>
+
           <h2>10. Limitação de Responsabilidade</h2>
           <p>
             O PETMOL é fornecido &quot;como está&quot; e &quot;conforme disponível&quot;. Não garantimos que o serviço será ininterrupto, seguro ou livre de erros. Em nenhuma circunstância seremos responsáveis por:
