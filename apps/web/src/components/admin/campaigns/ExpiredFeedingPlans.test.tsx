@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { SegmentedCampaigns } from './SegmentedCampaigns';
 import { Backend } from './testBackend';
+import { addProductLink } from './testLink';
 
 vi.mock('@/lib/auth-token', () => ({ getToken: () => 'tok' }));
 let be: Backend;
@@ -37,6 +38,8 @@ describe('painel de planos de alimentação com previsão vencida', () => {
   });
 
   const create = async () => {
+    await screen.findByLabelText(/Nome da campanha/);
+    await addProductLink();
     fireEvent.change(await screen.findByLabelText(/Nome da campanha/), { target: { value: 'Atualize sua ração' } });
     fireEvent.change(screen.getByLabelText(/Mensagem principal/), { target: { value: 'Seu plano de alimentação pode estar desatualizado.' } });
     fireEvent.click(screen.getByRole('button', { name: /Salvar campanha e continuar/ }));
