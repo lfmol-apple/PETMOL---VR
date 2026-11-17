@@ -61,7 +61,7 @@ export function generateSmartSuggestions(petId: string): SmartSuggestion[] {
               action_url: `/health/${petId}/vaccines`,
               pet_id: petId,
               created_at: now,
-              expires_at: nextDose,
+              expires_at: new Date(`${vaccine.next_dose_date.slice(0, 10)}T23:59:59`).getTime(),
             });
           }
         }
