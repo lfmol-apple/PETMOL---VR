@@ -317,7 +317,8 @@ export async function initNativePushDeepLink(): Promise<void> {
           if (!product) { deliverNativeDeepLink(url); return; }
           if (product.broadcast) trackProductEvent('broadcast_opened', { broadcast: product.broadcast });
           trackProductEvent('broadcast_product_opened', { broadcast: product.broadcast ?? undefined });
-          void m.openPushProductLink(product.raw);
+          m.savePendingProduct(product.raw, product.broadcast);   // antes de qualquer espera: se a página cair, o próximo carregamento abre
+          void m.openPendingProduct();
         })
         .catch(() => deliverNativeDeepLink(url));
     });

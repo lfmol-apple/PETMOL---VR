@@ -27,7 +27,17 @@ export function NativePushBridge() {
       }
     });
     void initNativePushDeepLink();
-    return () => setNativeDeepLinkNavigator(null);
+    // Termina a abertura de um produto de push que ficou pela metade (página recarregada/retomada no meio do toque).
+    const finishPendingProduct = () => { void import('@/features/commerce/pushProductLink').then((m) => m.openPendingProduct()).catch(() => {}); };
+    finishPendingProduct();
+    const onVisible = () => { if (document.visibilityState === 'visible') finishPendingProduct(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', finishPendingProduct);
+    return () => {
+      setNativeDeepLinkNavigator(null);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', finishPendingProduct);
+    };
   }, [router]);
 
   return null;

@@ -93,3 +93,45 @@ export function productFromPushUrl(url: string | null | undefined): { raw: strin
     return null;
   }
 }
+
+// ── Produto pendente: o toque NUNCA depende de a página sobreviver até abrir a loja ─────────────────────────────────
+// O toque grava o link no aparelho ANTES de qualquer espera. Se algo interromper (recarregamento por versão nova, app
+// retomado com JS antigo, WebView reiniciada), o próximo carregamento do app termina a abertura (NativePushBridge).
+const PENDING_PRODUCT_KEY = 'petmol_pending_product';
+const PENDING_PRODUCT_TTL_MS = 180_000;
+
+export function savePendingProduct(raw: string, broadcast: string | null, now = Date.now()): void {
+  try { localStorage.setItem(PENDING_PRODUCT_KEY, JSON.stringify({ raw, b: broadcast, ts: now })); } catch { /* sem storage */ }
+}
+
+function readPendingProduct(now = Date.now()): { raw: string; ts: number } | null {
+  try {
+    const j = localStorage.getItem(PENDING_PRODUCT_KEY);
+    if (!j) return null;
+    const p = JSON.parse(j) as { raw?: string; ts?: number };
+    if (!p.raw || typeof p.ts !== 'number' || now - p.ts > PENDING_PRODUCT_TTL_MS || !isPushProductUrl(p.raw)) {
+      localStorage.removeItem(PENDING_PRODUCT_KEY);
+      return null;
+    }
+    return { raw: p.raw, ts: p.ts };
+  } catch {
+    return null;
+  }
+}
+
+let openingPending = false;
+
+/** Abre o produto pendente (se houver) e só então o apaga. Seguro para chamar várias vezes: uma abertura por vez. */
+export async function openPendingProduct(): Promise<boolean> {
+  if (openingPending) return false;
+  const p = readPendingProduct();
+  if (!p) return false;
+  openingPending = true;
+  try {
+    const ok = await openPushProductLink(p.raw);
+    try { localStorage.removeItem(PENDING_PRODUCT_KEY); } catch { /* ok */ }
+    return ok;
+  } finally {
+    openingPending = false;
+  }
+}

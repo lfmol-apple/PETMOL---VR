@@ -153,3 +153,21 @@ describe('productFromPushUrl', () => {
     expect(productFromPushUrl(null)).toBeNull();
   });
 });
+
+import { savePendingProduct, openPendingProduct } from './pushProductLink';
+describe('produto pendente', () => {
+  it('abre o que ficou pela metade e apaga; link vencido ou de fora não abre', async () => {
+    native = true; platform = 'android'; nav.mockClear(); localStorage.clear();
+    const link = 'https://meli.la/abc';
+    savePendingProduct(link, 'b1');
+    expect(await openPendingProduct()).toBe(true);
+    expect(nav).toHaveBeenCalledWith(link);
+    expect(localStorage.getItem('petmol_pending_product')).toBeNull();
+    nav.mockClear();
+    savePendingProduct(link, 'b1', Date.now() - 10 * 60_000);
+    expect(await openPendingProduct()).toBe(false);
+    savePendingProduct('https://evil.example/x', 'b2');
+    expect(await openPendingProduct()).toBe(false);
+    expect(nav).not.toHaveBeenCalled();
+  });
+});
