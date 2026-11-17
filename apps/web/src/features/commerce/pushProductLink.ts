@@ -9,6 +9,7 @@
  */
 import { Capacitor } from '@capacitor/core';
 import { getToken } from '@/lib/auth-token';
+import { pushDiagBreadcrumb } from '@/features/notifications/nativePushService';
 import { navigateToPartnerUrl } from './homeShoppingPartners';
 import { isStoreNativeOpenUser } from './storeNativeOpen';
 
@@ -67,8 +68,10 @@ export async function openPushProductLink(raw: string): Promise<boolean> {
   if (Capacitor.isNativePlatform()) {
     try {
       await primeStoreNativeOpen();
+      pushDiagBreadcrumb('product open: chamando a abertura da loja (' + (Capacitor.getPlatform?.() ?? '?') + ')');
       navigateToPartnerUrl(url);
-    } catch {
+    } catch (e) {
+      pushDiagBreadcrumb('product open: ERRO ' + String(e).slice(0, 120) + ' → navegador do sistema');
       // Rede de segurança: se o caminho das lojas falhar, abre o link no navegador do sistema (nunca fica só no PETMOL).
       void import('@capacitor/browser').then(({ Browser }) => Browser.open({ url })).catch(() => { window.location.assign(url); });
     }
