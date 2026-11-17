@@ -16,12 +16,13 @@ vi.mock('@/lib/auth-token', () => ({ getToken: () => 'tok' }));
 import { openPushProductLink } from './pushProductLink';
 
 const link = 'https://meli.la/abc';
+const go = async () => { const p = openPushProductLink(link); await vi.advanceTimersByTimeAsync(600); await p; };
 describe('abertura nativa com verificação', () => {
   beforeEach(() => { vi.useFakeTimers(); nav.mockClear(); browserOpen.mockClear(); pageLoaded = null; active = true; });
   afterEach(() => vi.useRealTimers());
 
   it('sem sinal em 3,5 s, tenta o navegador do sistema', async () => {
-    await openPushProductLink(link);
+    await go();
     expect(nav).toHaveBeenCalledWith(link);
     expect(browserOpen).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(3800);
@@ -40,7 +41,7 @@ describe('abertura nativa com verificação', () => {
   });
 
   it('com sinal de que abriu, não tenta de novo (nada abre duas vezes)', async () => {
-    await openPushProductLink(link);
+    await go();
     await vi.advanceTimersByTimeAsync(500);
     pageLoaded?.();
     await vi.advanceTimersByTimeAsync(4000);
