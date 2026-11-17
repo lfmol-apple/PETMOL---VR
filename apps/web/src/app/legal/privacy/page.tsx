@@ -8,7 +8,7 @@ export default function PrivacyPage() {
       backHref="/"
     >
       <PremiumCard>
-        <p className="text-slate-500 text-xs mb-6">Última atualização: 26 de setembro de 2026</p>
+        <p className="text-slate-500 text-xs mb-6">Última atualização: 17 de novembro de 2026</p>
         <div className="prose prose-sm prose-slate max-w-none">
           <h2>1. Introdução</h2>
           <p>
@@ -75,6 +75,8 @@ export default function PrivacyPage() {
           <h3>3.2. Comunicação</h3>
           <ul>
             <li>Enviar notificações importantes sobre o serviço</li>
+            <li>Enviar lembretes e comunicados sobre o uso do app, por notificação e por e-mail, com a opção de parar de receber a qualquer momento</li>
+            <li>Consultar você sobre a sua conta, quando houver uma mudança relevante, antes de qualquer alteração</li>
             <li>Responder suas dúvidas e solicitações</li>
             <li>Enviar atualizações sobre novos recursos (se autorizado)</li>
           </ul>
@@ -226,6 +228,7 @@ export default function PrivacyPage() {
           <ul>
             <li><strong>E-mail:</strong> gerenciamento@petmol.com.br</li>
             <li><strong>Resposta em:</strong> até 15 dias úteis</li>
+            <li><strong>Controlador dos dados:</strong> PETMOL NEGOCIOS DIGITAIS LTDA, CNPJ 65.625.299/0001-15, Belo Horizonte/MG</li>
           </ul>
 
           <h2>13. Autoridade Nacional</h2>
