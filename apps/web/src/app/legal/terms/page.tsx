@@ -177,6 +177,9 @@ export default function TermsPage() {
             <li>Email: gerenciamento@petmol.com.br</li>
             <li>Através do formulário de contato na plataforma</li>
           </ul>
+          <p>
+            <strong>Fornecedor do serviço:</strong> PETMOL NEGOCIOS DIGITAIS LTDA, CNPJ 65.625.299/0001-15, com sede na Rua Ramalhete, 474, apto. 301, bairro Serra, Belo Horizonte/MG, CEP 30.210-500.
+          </p>
 
           <div className="mt-12 p-6 bg-blue-50 rounded-lg border border-blue-200">
             <p className="text-sm text-blue-900">

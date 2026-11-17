@@ -92,6 +92,10 @@ export default function SobrePage() {
           erro em algum guia, esse é o caminho — corrigir informação faz parte do compromisso
           editorial.
         </p>
+        <p>
+          O PETMOL é operado por PETMOL NEGOCIOS DIGITAIS LTDA, CNPJ 65.625.299/0001-15, Rua Ramalhete,
+          474, apto. 301, Serra, Belo Horizonte/MG, CEP 30.210-500.
+        </p>
       </InstitutionalLayout>
     </>
   );

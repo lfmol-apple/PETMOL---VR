@@ -250,6 +250,7 @@ export default function PrivacyPage() {
           <ul>
             <li><strong>E-mail:</strong> gerenciamento@petmol.com.br</li>
             <li><strong>Suporte:</strong> Através do chat na plataforma</li>
+            <li><strong>Controladora dos dados:</strong> PETMOL NEGOCIOS DIGITAIS LTDA, CNPJ 65.625.299/0001-15, Rua Ramalhete, 474, apto. 301, Serra, Belo Horizonte/MG, CEP 30.210-500</li>
           </ul>
 
           <div className="mt-12 p-6 bg-green-50 rounded-lg border border-green-200">

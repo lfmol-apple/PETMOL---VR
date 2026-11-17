@@ -25,8 +25,11 @@
 ## O que NÃO consegui resolver sozinho (precisa de advogado/dono)
 
 1. **Identificação do fornecedor (Decreto 7.962/2013, art. 2º):** razão social, CNPJ, endereço físico e
-   eletrônico e canal de atendimento devem estar visíveis. O site só traz e-mail. *Falta: razão social,
-   CNPJ e endereço — não inventei.* Incluir no §14 dos Termos e no rodapé.
+   eletrônico e canal de atendimento devem estar visíveis. **RESOLVIDO (17/11/2026):** dados do cartão CNPJ
+   (PETMOL NEGOCIOS DIGITAIS LTDA, 65.625.299/0001-15, R. Ramalhete 474 apto 301, Serra, BH/MG) incluídos
+   nos Termos §14, Privacidade §14 e /sobre; canal = gerenciamento@petmol.com.br. *Atenção:* o endereço do
+   cartão tem "apto. 301" (possível residência); telefone do cartão NÃO foi publicado. Se preferir outro
+   endereço comercial, trocar nesses 3 lugares. Falta ainda linha de rodapé global do site (opcional).
 2. **Direito de arrependimento em compra dentro do app:** o fluxo é da loja, mas o PETMOL responde
    perante o consumidor. Confirmar com advogado se mantém "devolução integral em 7 dias" (assumi sim,
    por segurança) e como atender pedidos que cheguem direto ao suporte.
