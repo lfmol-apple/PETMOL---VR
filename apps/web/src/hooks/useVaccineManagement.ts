@@ -64,23 +64,36 @@ const PUPPY_SERIES_CUTOFF_DAYS = 16 * 7;   // 112
 const PUPPY_BOOSTER_CUTOFF_DAYS = 26 * 7;  // 182
 const PUPPY_SERIES_INTERVAL_DAYS = 21;     // 3 weeks
 
-function puppyProtocolNextDose(petBirthDate: string | undefined, appliedDate: Date): Date | null {
+// Vacinas FORA da série de filhote (dose única + reforço anual, ou esquema próprio): nunca recebem a série de 3 semanas nem o
+// "reforço de 26 semanas". Espelha `_NON_SERIES_VACCINE_WORDS` do backend.
+const NON_SERIES_VACCINE_WORDS = ['raiva', 'antirrab', 'rabies', 'bordetella', 'tosse', 'influenza', 'gripe', 'giardia', 'leishmani', 'fiv', 'felv'];
+export function vaccineFollowsPuppySeries(name: string | undefined): boolean {
+  const n = (name ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return !NON_SERIES_VACCINE_WORDS.some((w) => n.includes(w));
+}
+
+export function puppyProtocolNextDose(petBirthDate: string | undefined, appliedDate: Date, vaccineName?: string, today: Date = new Date()): Date | null {
   if (!petBirthDate) return null;
+  if (!vaccineFollowsPuppySeries(vaccineName)) return null;
   const birth = createLocalDate(petBirthDate);
   const ageDays = Math.round((appliedDate.getTime() - birth.getTime()) / 86_400_000);
   if (ageDays < 0 || ageDays >= PUPPY_BOOSTER_CUTOFF_DAYS) return null;
+  let suggestion: Date;
   if (ageDays < PUPPY_SERIES_CUTOFF_DAYS) {
-    const next = new Date(appliedDate);
-    next.setDate(next.getDate() + PUPPY_SERIES_INTERVAL_DAYS);
-    return next;
+    suggestion = new Date(appliedDate);
+    suggestion.setDate(suggestion.getDate() + PUPPY_SERIES_INTERVAL_DAYS);
+  } else {
+    // 16-26 weeks old: suggest the 26-week safety booster, floored so it's
+    // never sooner than a normal series gap even if already close to 26 weeks.
+    const boosterDate = new Date(birth);
+    boosterDate.setDate(boosterDate.getDate() + PUPPY_BOOSTER_CUTOFF_DAYS);
+    const floorDate = new Date(appliedDate);
+    floorDate.setDate(floorDate.getDate() + 14);
+    suggestion = boosterDate.getTime() > floorDate.getTime() ? boosterDate : floorDate;
   }
-  // 16-26 weeks old: suggest the 26-week safety booster, floored so it's
-  // never sooner than a normal series gap even if already close to 26 weeks.
-  const boosterDate = new Date(birth);
-  boosterDate.setDate(boosterDate.getDate() + PUPPY_BOOSTER_CUTOFF_DAYS);
-  const floorDate = new Date(appliedDate);
-  floorDate.setDate(floorDate.getDate() + 14);
-  return boosterDate.getTime() > floorDate.getTime() ? boosterDate : floorDate;
+  // Sugestão já no PASSADO (dose antiga registrada depois): não vale — viraria "vencida" no mesmo dia do cadastro.
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return suggestion.getTime() < start.getTime() ? null : suggestion;
 }
 
 const DEFAULT_VACCINE_FORM: VaccineFormData = {
@@ -300,7 +313,7 @@ export function useVaccineManagement({
           confirmed_by_user: true,
         };
         const puppyNextDose = vaccineFormData.date_administered
-          ? puppyProtocolNextDose(currentPet.birth_date, createLocalDate(vaccineFormData.date_administered))
+          ? puppyProtocolNextDose(currentPet.birth_date, createLocalDate(vaccineFormData.date_administered), vaccineFormData.vaccine_name)
           : null;
         const computedNextDose = vaccineFormData.date_administered
           ? (puppyNextDose ? dateToLocalISO(puppyNextDose) : calculateNextDose(vaccineFormData.date_administered, vaccineFormData.frequency_days || 365))
