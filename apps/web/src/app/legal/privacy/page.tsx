@@ -8,7 +8,7 @@ export default function PrivacyPage() {
       backHref="/"
     >
       <PremiumCard>
-        <p className="text-slate-500 text-xs mb-6">Última atualização: 26 de setembro de 2026</p>
+        <p className="text-slate-500 text-xs mb-6">Última atualização: 17 de novembro de 2026</p>
         <div className="prose prose-sm prose-slate max-w-none">
           <h2>1. Introdução</h2>
           <p>
@@ -57,6 +57,11 @@ export default function PrivacyPage() {
           <h3>2.5. Publicidade e Medição de Campanhas (app para iPhone e iPad)</h3>
           <p>
             No app para iPhone e iPad usamos o <strong>SDK da Meta (Facebook)</strong> apenas para medir se os anúncios de instalação do PETMOL funcionam. Ele recebe eventos básicos de uso do app (como instalação e abertura), informações do aparelho (modelo, versão do sistema e idioma) e, <strong>somente se você permitir o rastreamento</strong> no aviso do sistema, o identificador de publicidade do aparelho. Não enviamos à Meta dados dos seus pets, dados de saúde, sua localização, fotos ou o conteúdo que você cadastra. Se você tocar em &quot;Pedir ao App para Não Rastrear&quot;, o identificador de publicidade não é coletado. Você pode mudar isso a qualquer momento em Ajustes &gt; Privacidade e Segurança &gt; Rastreamento.
+          </p>
+
+          <h3>2.6. Dados de Assinatura (se você contratar um plano pago)</h3>
+          <p>
+            O pagamento é processado pela App Store ou pelo Google Play. O PETMOL <strong>não recebe nem armazena</strong> os dados do seu cartão. Recebemos da loja apenas informações sobre a assinatura (plano, status, datas de início e renovação e identificador da transação) para liberar os recursos contratados. A base legal é a execução de contrato, e mantemos esses registros pelo tempo necessário para cumprir obrigações legais, fiscais e para resolver disputas.
           </p>
 
           <h2>3. Finalidade do Tratamento de Dados</h2>

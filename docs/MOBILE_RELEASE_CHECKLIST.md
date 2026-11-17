@@ -91,14 +91,14 @@ A APNs Auth Key foi gerada e configurada, a capability "Push Notifications" est�
 
 ## Assinatura / lançamento cobrado (ver `docs/PLANO_ASSINATURA.md`)
 
-- [ ] Divisão grátis × pago, preços, trial e regra de grandfathering aprovados pelo dono
+- [ ] Divisão grátis × pago, preços e regra de grandfathering (sem teste grátis no lançamento; possibilidade prevista nos Termos §9.3) aprovados pelo dono
 - [ ] Apple Small Business Program (comissão 15%) inscrito
-- [ ] Produtos de assinatura criados no App Store Connect e no Google Play Console (mensal/anual, trial)
+- [ ] Produtos de assinatura criados no App Store Connect e no Google Play Console (mensal/anual; sem trial no lançamento)
 - [ ] StoreKit + Play Billing integrados; validação no servidor; "restaurar compras" funcionando
 - [ ] Paywall mostra recursos, preço, período, renovação automática, cancelamento, links de Termos/Privacidade
 - [ ] Sem botão/link externo de pagamento no app nativo
 - [ ] Usuários atuais marcados como legado no servidor ANTES de ligar o paywall; aviso prévio enviado
-- [ ] Termos §9 e Privacidade ("Dados de assinatura") atualizados com a minuta revisada por advogado; /sobre e /transparencia reescritos
+- [ ] Termos §9 e Privacidade §2.6 (já redigidos em modo duplo) revisados por advogado e republicados com aviso aos usuários; /sobre e /transparencia atualizados
 - [ ] App Privacy / Data Safety e ficha das lojas atualizados (sem "grátis"/"sem anúncios")
 - [ ] Conta de revisor com assinatura de teste (sandbox) e review notes explicando o paywall
 - [ ] Flag de lançamento do plano OFF → ligar só após homologação; regra "não mexer nas lojas" suspensa por decisão do dono
