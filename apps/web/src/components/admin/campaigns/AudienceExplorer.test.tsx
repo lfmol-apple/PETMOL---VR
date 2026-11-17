@@ -19,7 +19,19 @@ describe('Segmentação de público: chips + contagem ao vivo, sem criar campanh
     render(<SegmentedCampaigns />);
     await screen.findByRole('heading', { name: 'Explorar o público' });
     expect(screen.getByRole('heading', { name: 'Escolher tutores um a um' })).toBeTruthy();
-    expect(screen.getByLabelText(/Buscar tutor/)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /Somar mais pessoas ao grupo/ })).toBeTruthy();
+    expect(screen.getAllByLabelText(/Buscar tutor/)).toHaveLength(2);   // um para "só estes" (E) e um para "somar ao grupo" (OU)
+    expect(chip('Nunca recebeu notificação')).toBeTruthy();
+  });
+
+  it('"Nunca recebeu notificação" + "Tem ração cadastrada" mandam os dois filtros ao servidor no mesmo bloco (E)', async () => {
+    render(<SegmentedCampaigns />);
+    await screen.findByRole('heading', { name: 'Explorar o público' });
+    fireEvent.click(chip('Nunca recebeu notificação')); fireEvent.click(chip('Tem ração cadastrada'));
+    await waitFor(() => {
+      const items = lastFilter().items[0].items.map((r: { field: string; value: unknown }) => [r.field, r.value]);
+      expect(items).toEqual(expect.arrayContaining([['push_received', 'never'], ['feeding_registered', true]]));
+    }, { timeout: 3000 });
   });
 
   it('gato + fêmea (mesmo pet) conta no servidor e mostra o número grande; nada é criado nem enviado', async () => {

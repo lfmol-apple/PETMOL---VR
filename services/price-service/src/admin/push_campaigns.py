@@ -176,6 +176,8 @@ FILTER_FIELDS: dict[str, dict] = {
     "tutor_selected":         {"scope": "tutor", "ops": ("in",), "label": "Tutores escolhidos por mim (um a um)"},
     "tutor_activity":         {"scope": "tutor", "ops": ("eq",), "label": "Atividade registrada no app (não é login)", "values": ("last_7d", "d8_30", "over_30d", "no_events")},
     # engajamento / canal
+    # Histórico de envios do painel: "never" = nenhum push de campanha/lote chegou a este tutor; "received" = já chegou algum.
+    "push_received":          {"scope": "tutor", "ops": ("eq",), "label": "Notificações de campanha já recebidas", "values": ("never", "received")},
     "platform":               {"scope": "tutor", "ops": ("in",), "label": "Aparelho com push ativo", "values": ("ios", "android", "web")},
     # pet (escopo de pets obrigatório no grupo: any | all | same)
     "pet_species":            {"scope": "pet", "ops": ("in",), "label": "Espécie", "values": ("dog", "cat", "other")},

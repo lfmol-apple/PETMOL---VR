@@ -151,6 +151,7 @@ FIELD_META: dict[str, dict] = {
     "tutor_selected": {"group": "Tutor", "origin": "Escolha manual do administrador", "precision": "exata"},
     "tutor_activity": {"group": "Engajamento", "origin": "Eventos registrados no app (não é login)", "precision": "registro de eventos"},
     "platform": {"group": "Engajamento", "origin": "Aparelho com push ativo", "precision": "exata"},
+    "push_received": {"group": "Engajamento", "origin": "Histórico de envios do painel (push aceito por algum aparelho)", "precision": "exata"},
     "pet_species": {"group": "Pet", "origin": "Cadastro do pet", "precision": "exata"},
     "pet_sex": {"group": "Pet", "origin": "Cadastro do pet", "precision": "declarada"},
     "pet_breed_contains": {"group": "Pet", "origin": "Cadastro do pet (texto livre)", "precision": "declarada"},
@@ -424,6 +425,17 @@ def _r_tutor_activity(ctx: AudienceContext, rule: FilterRule) -> _Outcome:
     want = rule.value if isinstance(rule.value, str) else rule.value[0]
     ids = {u for u in ctx.all_users if _bucket(ctx.last_event.get(u), ctx.now) == want}
     return _Outcome("tutor", ids, _Cov(len(ctx.last_event), len(ctx.all_users), "tutores"))
+
+
+def _r_push_received(ctx: AudienceContext, rule: FilterRule) -> _Outcome:
+    """Quem já recebeu (ou nunca recebeu) algum push enviado pelo painel: lote de campanha ou envio avulso, desde que algum
+    aparelho tenha aceitado. Serve para testar um produto em quem ainda não foi incomodado."""
+    from .broadcast_router import AdminBroadcastRecipient
+    got = {str(u) for (u,) in ctx.db.query(AdminBroadcastRecipient.user_id).filter(AdminBroadcastRecipient.delivered.is_(True)).distinct().all()}
+    got |= {str(u) for (u,) in ctx.db.query(PushCampaignRecipient.user_id).filter(PushCampaignRecipient.state == "accepted").distinct().all()}
+    want = rule.value if isinstance(rule.value, str) else rule.value[0]
+    ids = (ctx.all_users & got) if want == "received" else (ctx.all_users - got)
+    return _Outcome("tutor", ids, _Cov(len(ctx.all_users), len(ctx.all_users), "tutores"))
 
 
 def _r_platform(ctx: AudienceContext, rule: FilterRule) -> _Outcome:
@@ -860,7 +872,7 @@ def _r_tutor_sex(ctx: AudienceContext, rule: FilterRule) -> _Outcome:
 
 _RULES: dict[str, Callable[[AudienceContext, FilterRule], _Outcome]] = {
     "tutor_created_at": _r_tutor_created_at, "tutor_pet_count": _r_tutor_pet_count, "tutor_species_mix": _r_tutor_species_mix,
-    "tutor_selected": _r_tutor_selected, "tutor_activity": _r_tutor_activity, "platform": _r_platform,
+    "tutor_selected": _r_tutor_selected, "tutor_activity": _r_tutor_activity, "platform": _r_platform, "push_received": _r_push_received,
     "pet_species": _r_pet_species, "pet_sex": _r_pet_sex, "pet_breed_contains": _r_pet_breed, "pet_age_months": _r_pet_age,
     "pet_weight_kg": _r_pet_weight, "pet_neutered_yes": _r_pet_neutered,
     "location_registered_state": _r_state, "location_registered_city": _r_city, "location_gps_radius": _r_gps, "location_geoip_region": _r_geoip,

@@ -125,7 +125,10 @@ export function AudienceExplorer({ fields, state, onChange, onUse, locationNote,
   const d = fresh ? res.data! : null;
   const has = (field: string, v: string) => ((quickCond(state, field)?.value as string[] | undefined) ?? []).includes(v);
   const eq = (field: string, v: string) => quickCond(state, field)?.value === v;
-  const chips = state.blocks.flatMap((b) => b.conds.map((c) => ({ id: c.id, text: describeCond(c, by.get(c.field)) })));
+  const chips = [
+    ...state.blocks.flatMap((b) => b.conds.map((c) => ({ id: c.id, text: describeCond(c, by.get(c.field)) }))),
+    ...(state.extra?.length ? [{ id: 'extra', text: `+ ${state.extra.length} ${state.extra.length === 1 ? 'pessoa somada' : 'pessoas somadas'} (OU)` }] : []),
+  ];
   const nothing = conditionCount(state) === 0;
   const locks = useMemo(() => chipLocks(state), [state]);
   const conflicts = useMemo(() => findConflicts(state, fields), [state, fields]);
@@ -149,6 +152,24 @@ export function AudienceExplorer({ fields, state, onChange, onUse, locationNote,
                 onChange={(ids) => onChange(setQuick(state, 'tutor_selected', ids.length ? { op: 'in', value: ids, ack: false } : null))}
               />
               <p className="mt-2 text-[11.5px] leading-snug text-slate-500">Se houver outros filtros marcados abaixo, o envio vai só para os escolhidos que também atendem a eles. Quem não recebe push continua sem receber.</p>
+            </div>
+          </Group>
+        )}
+        {by.has('push_received') && (
+          <Group title="Notificações já recebidas" hint="útil para testar um produto em quem ainda não foi incomodado" note={lock('push_received')}>
+            <Chip on={eq('push_received', 'never')} onClick={() => onChange(pickOne(state, 'push_received', 'never'))} title="Nenhum push de campanha chegou a este tutor">Nunca recebeu notificação</Chip>
+            <Chip on={eq('push_received', 'received')} onClick={() => onChange(pickOne(state, 'push_received', 'received'))} title="Algum push de campanha já chegou a este tutor">Já recebeu notificação</Chip>
+          </Group>
+        )}
+        {by.has('tutor_selected') && (
+          <Group title="Somar mais pessoas ao grupo (OU)" hint="o público filtrado abaixo MAIS as pessoas que você marcar aqui">
+            <div className="w-full">
+              <TutorPicker
+                idPrefix="extra"
+                value={state.extra ?? []}
+                onChange={(ids) => onChange({ ...state, extra: ids.length ? ids : undefined })}
+              />
+              <p className="mt-2 text-[11.5px] leading-snug text-slate-500">Estas pessoas recebem <strong>além</strong> de quem atende aos filtros (união). Quem não recebe push continua sem receber.</p>
             </div>
           </Group>
         )}
@@ -248,7 +269,7 @@ export function AudienceExplorer({ fields, state, onChange, onUse, locationNote,
                 <ul className="flex flex-wrap gap-1.5">
                   {chips.map((c) => (
                     <li key={c.id}>
-                      <button type="button" onClick={() => onChange(removeCond(state, c.id))} aria-label={`Remover ${c.text}`}
+                      <button type="button" onClick={() => onChange(c.id === 'extra' ? { ...state, extra: undefined } : removeCond(state, c.id))} aria-label={`Remover ${c.text}`}
                         className="rounded-full bg-sky-50 px-2.5 py-1 text-[12px] font-semibold text-sky-900 ring-1 ring-sky-200 hover:bg-rose-50 hover:text-rose-800 hover:ring-rose-200">{c.text} ✕</button>
                     </li>
                   ))}

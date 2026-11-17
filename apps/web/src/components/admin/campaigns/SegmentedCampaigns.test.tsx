@@ -78,7 +78,7 @@ describe('1–2. criar campanha e conteúdo', () => {
 });
 
 describe('3–4. filtros e contagem dinâmica', () => {
-  it('mostra os 6 grupos expansíveis e os 32 filtros', async () => {
+  it('mostra os 6 grupos expansíveis e os 33 filtros', async () => {
     be.addCampaign();
     await openCampaign();
     fireEvent.click(screen.getByRole('button', { name: /Adicionar bloco de filtros/ }));
@@ -92,7 +92,7 @@ describe('3–4. filtros e contagem dinâmica', () => {
       total += within(group).getAllByRole('listitem').length;
       fireEvent.click(btn);
     }
-    expect(total).toBe(32);
+    expect(total).toBe(33);
   });
   it('conta com os filtros montados e mostra tutores, alcançáveis, usados, disponíveis e próximo lote', async () => {
     be.available = 80; be.used = 20;

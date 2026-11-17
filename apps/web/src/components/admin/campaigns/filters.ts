@@ -9,7 +9,8 @@ export type Op = 'and' | 'or';
 export type PetScope = 'any' | 'all' | 'same';
 export interface Cond { id: string; field: string; op: string; value: unknown; ack: boolean }
 export interface Block { id: string; op: Op; petScope: PetScope; conds: Cond[] }
-export interface FilterState { op: Op; blocks: Block[] }
+/** `extra`: tutores somados ao público por OU ("além do grupo"). Ficam fora dos blocos para não misturar com os filtros. */
+export interface FilterState { op: Op; blocks: Block[]; extra?: string[] }
 
 export const emptyFilter = (): FilterState => ({ op: 'and', blocks: [] });
 
@@ -28,6 +29,7 @@ export const VALUE_LABEL: Record<string, string> = {
   ios: 'iPhone (iOS)', android: 'Android', web: 'Navegador (web)',
   dog: 'Cão', cat: 'Gato', other: 'Outro', male: 'Macho', female: 'Fêmea',
   calculated: 'calculada pelo sistema', manual: 'informada pelo tutor',
+  never: 'Nunca recebeu notificação de campanha', received: 'Já recebeu notificação de campanha',
 };
 
 export const OP_LABEL: Record<string, string> = { eq: 'é igual a', gte: 'é no mínimo', lte: 'é no máximo', between: 'está entre', in: 'é um de', contains: 'contém', within_km: 'a até' };
@@ -140,7 +142,13 @@ export function buildFilter(state: FilterState, fields: FieldInfo[]): Built {
     }
     if (rules.length) items.push({ kind: 'group', op: b.op, ...(hasPet ? { pet_scope: b.petScope } : {}), items: rules });
   }
-  return { filter: { version: 1, root: { kind: 'group', op: state.op, items } }, errors, ready: errors.length === 0 };
+  const extra = (state.extra ?? []).filter(Boolean);
+  if (extra.length > 200) errors.push({ condId: 'extra', text: 'No máximo 200 tutores somados por vez.' });
+  const main = { kind: 'group', op: state.op, items };
+  // "Além do grupo": o público filtrado MAIS as pessoas escolhidas. Sem filtro nenhum, vale só a escolha (grupo vazio = todos, não somar).
+  const extraGroup = { kind: 'group', op: 'and', items: [{ kind: 'rule', field: 'tutor_selected', op: 'in', value: extra, approximate_ack: false }] };
+  const root = !extra.length ? main : items.length ? { kind: 'group', op: 'or', items: [main, extraGroup] } : extraGroup;
+  return { filter: { version: 1, root }, errors, ready: errors.length === 0 };
 }
 
 /** Texto legível de uma condição (resumo e conferência na prévia). */
@@ -162,7 +170,7 @@ export function describeCond(c: Cond, f: FieldInfo | undefined): string {
   return `${f.label} ${OP_LABEL[c.op] ?? c.op} ${String(v)}`;
 }
 
-export function conditionCount(s: FilterState): number { return s.blocks.reduce((n, b) => n + b.conds.length, 0); }
+export function conditionCount(s: FilterState): number { return s.blocks.reduce((n, b) => n + b.conds.length, 0) + ((s.extra?.length ?? 0) > 0 ? 1 : 0); }
 
 // ── Filtros guardados no lote (JSON do backend) → tela / texto ───────────────
 
@@ -182,6 +190,12 @@ function condFromRule(r: RawRule, f: FieldInfo | undefined): Cond {
 export function filterToState(stored: StoredFilter | null | undefined, fields: FieldInfo[]): FilterState {
   const root = stored?.root;
   if (!root || !Array.isArray(root.items)) return emptyFilter();
+  // Formato "grupo OU pessoas escolhidas": desembrulha para a tela (blocos + lista extra).
+  const [first, second] = root.items;
+  if (root.op === 'or' && root.items.length === 2 && first?.kind === 'group' && second?.kind === 'group') {
+    const picked = second.items.length === 1 && second.items[0].kind === 'rule' && second.items[0].field === 'tutor_selected' ? (second.items[0].value as string[]) : null;
+    if (picked) return { ...filterToState({ root: first }, fields), extra: picked };
+  }
   const by = new Map(fields.map((f) => [f.field, f]));
   const blocks: Block[] = [];
   const loose: Cond[] = [];
@@ -197,7 +211,8 @@ export function filterToState(stored: StoredFilter | null | undefined, fields: F
 /** Resumo legível dos filtros de um lote (o histórico precisa explicar POR QUE aquele público foi escolhido). */
 export function describeStoredFilter(stored: StoredFilter | null | undefined, fields: FieldInfo[]): string[] {
   const st = filterToState(stored, fields);
-  if (!st.blocks.length) return ['Sem filtros: todos os tutores alcançáveis por push.'];
+  const extraLine = st.extra?.length ? [`Somados ao grupo (OU): ${st.extra.length} ${st.extra.length === 1 ? 'tutor escolhido' : 'tutores escolhidos'} um a um.`] : [];
+  if (!st.blocks.length) return [...(st.extra?.length ? [] : ['Sem filtros: todos os tutores alcançáveis por push.']), ...extraLine];
   const by = new Map(fields.map((f) => [f.field, f]));
   const lines: string[] = [];
   if (st.blocks.length > 1) lines.push(st.op === 'and' ? 'O tutor precisa estar em TODOS os blocos (E):' : 'O tutor precisa estar em QUALQUER um dos blocos (OU):');
@@ -207,7 +222,7 @@ export function describeStoredFilter(stored: StoredFilter | null | undefined, fi
     const joiner = b.op === 'and' ? ' E ' : ' OU ';
     lines.push(`${st.blocks.length > 1 ? `Bloco ${i + 1}: ` : ''}${b.conds.map((c) => describeCond(c, by.get(c.field))).join(joiner)}${scope}`);
   });
-  return lines;
+  return [...lines, ...extraLine];
 }
 
 /** Exemplo de como {tutor} e {pets} ficam no aparelho (a substituição real é feita no envio). */

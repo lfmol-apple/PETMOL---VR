@@ -105,7 +105,8 @@ export function SegmentedCampaigns() {
   const built = useMemo(() => buildFilter(filter, fields), [filter, fields]);
   const summary = useMemo(() => {
     const by = new Map(fields.map((f) => [f.field, f]));
-    return filter.blocks.map((b, i) => `Bloco ${i + 1} (${b.op === 'and' ? 'todas' : 'qualquer'}): ` + b.conds.map((c) => describeCond(c, by.get(c.field))).join(b.op === 'and' ? ' E ' : ' OU ')).filter((s) => !s.endsWith(': '));
+    const extraLine = filter.extra?.length ? [`Somados ao grupo (OU): ${filter.extra.length} tutor${filter.extra.length === 1 ? '' : 'es'} escolhido${filter.extra.length === 1 ? '' : 's'} um a um`] : [];
+    return [...filter.blocks.map((b, i) => `Bloco ${i + 1} (${b.op === 'and' ? 'todas' : 'qualquer'}): ` + b.conds.map((c) => describeCond(c, by.get(c.field))).join(b.op === 'and' ? ' E ' : ' OU ')).filter((s) => !s.endsWith(': ')), ...extraLine];
   }, [filter, fields]);
 
   if (enabled === null) return <Loading />;

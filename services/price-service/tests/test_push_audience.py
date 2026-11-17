@@ -191,8 +191,8 @@ def test_diferencial_300_filtros_aleatorios_motor_igual_ao_avaliador_de_referenc
 
 
 def test_diferencial_cobre_todos_os_campos_disponiveis():
-    # location_place e tutor_sex_estimate têm testes próprios (lugar escolhido em lista; sexo provável experimental, desligado por padrão)
-    assert set(ref.ALL_FIELDS) | {"location_place", "tutor_sex_estimate", "tutor_selected"} == set(pc.FILTER_FIELDS)
+    # push_received (ver test_push_audience_received.py), location_place e tutor_sex_estimate têm testes próprios (lugar escolhido em lista; sexo provável experimental, desligado por padrão)
+    assert set(ref.ALL_FIELDS) | {"location_place", "tutor_sex_estimate", "tutor_selected", "push_received"} == set(pc.FILTER_FIELDS)
 
 
 # ══ 2) CASOS NOMEADOS ════════════════════════════════════════════════════════
