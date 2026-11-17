@@ -722,6 +722,27 @@ def close_campaign(session_factory, campaign_id: str) -> dict:
             return serialize_campaign(db, c)
 
 
+def delete_campaign(session_factory, campaign_id: str) -> dict:
+    """Exclui a campanha e a lista de quem foi alcançado nela. Recusa se algum lote ainda está enviando ou aguardando decisão.
+    Os lotes JÁ ENVIADOS não somem: continuam no histórico de envios (e suas métricas), só deixam de pertencer a uma campanha."""
+    with session_factory() as db:
+        with _campaign_lock(campaign_id):
+            c = _lock_campaign_row(db, campaign_id)
+            if c is None:
+                raise BatchError("campaign_not_found", "Campanha não encontrada.", status=404)
+            blk = _blocking_batch(db, campaign_id)
+            if blk:
+                raise _blocking_error(blk, "excluir a campanha")
+            batches = db.query(br.AdminBroadcast).filter(br.AdminBroadcast.campaign_id == campaign_id).all()
+            kept = len(batches)
+            for b in batches:
+                b.campaign_id = None
+            db.query(PushCampaignRecipient).filter(PushCampaignRecipient.campaign_id == campaign_id).delete(synchronize_session=False)
+            db.delete(c)
+            db.commit()
+            return {"deleted": True, "id": campaign_id, "batches_kept_in_history": kept}
+
+
 # ── Endpoints (atrás da flag; só administradores) ────────────────────────────
 
 
@@ -787,6 +808,14 @@ def api_get_campaign(campaign_id: str, current=Depends(get_current_admin)):
 def api_close_campaign(campaign_id: str, current=Depends(get_current_admin)):
     try:
         return close_campaign(SessionLocal, campaign_id)
+    except BatchError as exc:
+        raise _http(exc)
+
+
+@router.delete("/campaigns/{campaign_id}")
+def api_delete_campaign(campaign_id: str, current=Depends(get_current_admin)):
+    try:
+        return delete_campaign(SessionLocal, campaign_id)
     except BatchError as exc:
         raise _http(exc)
 

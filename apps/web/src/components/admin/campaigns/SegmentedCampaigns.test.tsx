@@ -323,6 +323,29 @@ describe('8. histórico, estados e recuperação', () => {
   });
 });
 
+describe('excluir campanha', () => {
+  it('pede confirmação, exclui e some da lista (também pelo botão da própria lista)', async () => {
+    const c = be.addCampaign({ name: 'Campanha velha' });
+    render(<SegmentedCampaigns />);
+    await screen.findByText('Campanha velha');
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir' }));
+    expect(be.count('DELETE', `/campaigns/${c.id}`)).toBe(0);                       // só pediu confirmação
+    expect(screen.getByText(/não dá para desfazer/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Sim, excluir' }));
+    await waitFor(() => expect(be.count('DELETE', `/campaigns/${c.id}`)).toBe(1));
+    await waitFor(() => expect(screen.queryByText('Campanha velha')).toBeNull());
+  });
+  it('cancelar não exclui', async () => {
+    const c = be.addCampaign({ name: 'Campanha boa' });
+    render(<SegmentedCampaigns />);
+    await screen.findByText('Campanha boa');
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(be.count('DELETE', `/campaigns/${c.id}`)).toBe(0);
+    expect(screen.getByText('Campanha boa')).toBeTruthy();
+  });
+});
+
 describe('acessibilidade básica', () => {
   it('todo campo, botão e select tem nome acessível', async () => {
     const c = be.addCampaign(); be.addBatch(c, { phase: 'interrupted', reserved: 20, counts: { reserved: 8, sending: 0, accepted: 10, failed: 0, uncertain: 2 } });

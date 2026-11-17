@@ -36,6 +36,37 @@ const pasteLink = async () => {
   await screen.findByText(/Loja reconhecida/);
 };
 
+describe('Link: primeiro da lista e campanha preenchida pela oferta', () => {
+  it('"Abrir um produto (link direto da loja)" é a primeira opção da lista de objetivos', async () => {
+    await openForm();
+    const select = screen.getByLabelText(/vai incentivar o tutor a/) as HTMLSelectElement;
+    expect(select.options[0].value).toBe('link_produto');
+  });
+
+  it('colar o link confere sozinho e monta nome, título e mensagem pela oferta (sem digitar nada)', async () => {
+    await openForm();
+    const box = screen.getByLabelText(/Link do produto/);
+    fireEvent.change(box, { target: { value: 'https://amzn.to/abc' } });     // o navegador troca o texto ao colar…
+    fireEvent.paste(box, { clipboardData: { getData: () => 'https://amzn.to/abc' } });   // …e dispara a conferência automática
+    await screen.findByText(/Loja reconhecida/);
+    expect((screen.getByLabelText(/Nome da campanha/) as HTMLInputElement).value).toBe('Ração Premier Gatos 7,5kg');
+    expect((screen.getByLabelText(/Mensagem principal/) as HTMLTextAreaElement).value).toContain('Ração Premier Gatos 7,5kg');
+    expect((screen.getByLabelText(/^Título/) as HTMLInputElement).value).toBe('t');
+    expect((screen.getByLabelText(/vai incentivar o tutor a/) as HTMLSelectElement).value).toBe('link_produto');
+    expect(saveBtn().disabled).toBe(false);
+  });
+
+  it('o que você já digitou não é sobrescrito', async () => {
+    await openForm(); fill();
+    const box = screen.getByLabelText(/Link do produto/);
+    fireEvent.change(box, { target: { value: 'https://amzn.to/abc' } });     // o navegador troca o texto ao colar…
+    fireEvent.paste(box, { clipboardData: { getData: () => 'https://amzn.to/abc' } });   // …e dispara a conferência automática
+    await screen.findByText(/Loja reconhecida/);
+    expect((screen.getByLabelText(/Nome da campanha/) as HTMLInputElement).value).toBe('Campanha de teste');
+    expect((screen.getByLabelText(/Mensagem principal/) as HTMLTextAreaElement).value).toBe('Mensagem de teste');
+  });
+});
+
 describe('Ao tocar, abrir × objetivo × link', () => {
   it('o objetivo escolhido define para onde o toque abre e a tela mostra isso', async () => {
     await openForm(); fill();
@@ -81,7 +112,7 @@ describe('Ao tocar, abrir × objetivo × link', () => {
     goal('link_produto');
     expect(saveBtn().disabled).toBe(true);
     expect(screen.getByText(/Este objetivo abre o link do produto: cole o link acima/)).toBeTruthy();
-    expect(dest().value).toBe('');
+    expect(screen.getByText(/não há outra pergunta de destino/)).toBeTruthy();   // escolheu o link: não pergunta o destino de novo
     await pasteLink();
     expect(saveBtn().disabled).toBe(false);
   });

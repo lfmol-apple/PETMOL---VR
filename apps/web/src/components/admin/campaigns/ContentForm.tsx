@@ -9,7 +9,7 @@ const input = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text
 const label = 'mb-1 block text-[12px] font-bold text-slate-600';
 
 export interface Goal { key: string; group: string; label: string; title: string; open: string; message: string }
-interface LinkInfo { url: string; store: string; title: string | null; readable: boolean; reason: string | null }
+interface LinkInfo { url: string; store: string; title: string | null; image?: string | null; readable: boolean; reason: string | null }
 
 export interface Draft { name: string; goal: string; title: string; message: string; destination: string; productUrl: string; productTitle: string }
 export const emptyDraft = (): Draft => ({ name: '', goal: '', title: '', message: '', destination: 'home', productUrl: '', productTitle: '' });
@@ -58,18 +58,38 @@ export function ContentForm({ goals, destinations, initial, onCreated }: {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const set = (p: Partial<Draft>) => setD((x) => ({ ...x, ...p }));
-  const groups = Array.from(new Set(goals.map((g) => g.group)));
+  const linkGoal = goals.find((g) => g.key === 'link_produto');          // "Abrir um produto (link direto da loja)": primeiro da lista
+  const otherGoals = goals.filter((g) => g.key !== 'link_produto');
+  const groups = Array.from(new Set(otherGoals.map((g) => g.group)));
 
   const pickGoal = (key: string) => {
     const g = goals.find((x) => x.key === key);
     set(g ? { goal: key, title: g.title, message: g.message, destination: g.open || 'home' } : { goal: '' });
+    if (key === 'link_produto') setTimeout(() => document.getElementById('cp-link')?.focus(), 0);   // escolheu o link: já vai para o campo dele
   };
-  const checkLink = async () => {
+  const checkLink = async (urlArg?: string) => {
+    const url = (urlArg ?? d.productUrl).trim();
+    if (!url) return;
     setChecking(true); setLinkErr(null); setLink(null);
     try {
-      const info = await call<LinkInfo>('/link-preview', { url: d.productUrl.trim() }, { base: '/api/v1/admin/broadcast' });
+      const info = await call<LinkInfo>('/link-preview', { url }, { base: '/api/v1/admin/broadcast' });
       setLink(info);
-      set({ productTitle: info.title ?? d.productTitle, destination: 'produto', message: d.message || (info.title ?? '').slice(0, 240) });
+      // Aproveita a oferta para montar a campanha: só preenche o que ainda está vazio (ou é o texto-padrão do objetivo);
+      // nada digitado por você é sobrescrito.
+      setD((x) => {
+        const name = (info.title ?? x.productTitle).trim();
+        const lg = goals.find((g) => g.key === 'link_produto');
+        const generic = !x.message.trim() || (lg && x.message.trim() === lg.message.trim());
+        return {
+          ...x,
+          productTitle: info.title ?? x.productTitle,
+          destination: 'produto',
+          goal: x.goal || (lg ? lg.key : ''),
+          title: x.title.trim() ? x.title : (lg?.title ?? ''),
+          message: generic && name ? `${name.slice(0, 200)} — toque para ver.` : x.message,
+          name: x.name.trim() ? x.name : name.slice(0, 120),
+        };
+      });
     } catch (e) { setLinkErr((e as Error).message); } finally { setChecking(false); }
   };
 
@@ -106,8 +126,9 @@ export function ContentForm({ goals, destinations, initial, onCreated }: {
       <div>
         <label className={label} htmlFor="cp-goal">Esta campanha vai incentivar o tutor a: (opcional, preenche um texto sugerido)</label>
         <select id="cp-goal" className={input} value={d.goal} onChange={(e) => pickGoal(e.target.value)}>
+          {linkGoal && <option value={linkGoal.key}>{linkGoal.label}</option>}
           <option value="">Escrever livremente</option>
-          {groups.map((g) => <optgroup key={g} label={g}>{goals.filter((x) => x.group === g).map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</optgroup>)}
+          {groups.map((g) => <optgroup key={g} label={g}>{otherGoals.filter((x) => x.group === g).map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</optgroup>)}
         </select>
       </div>
       <div>
@@ -131,15 +152,20 @@ export function ContentForm({ goals, destinations, initial, onCreated }: {
         <label className={label} htmlFor="cp-link">Link do produto (opcional): você cola o link monetizado, o PETMOL não altera nada nele</label>
         <div className="flex gap-2">
           <input id="cp-link" className={input} inputMode="url" autoComplete="off" value={d.productUrl} placeholder="Cole o link (Amazon, Cobasi, Shopee, Mercado Livre…)"
+            onPaste={(e) => { const t = e.clipboardData?.getData('text')?.trim(); if (t && /^https:\/\//i.test(t)) setTimeout(() => void checkLink(t), 0); }}
             onChange={(e) => {
               const v = e.target.value;
               // tirou o link: o toque deixa de abrir "o produto" e volta ao destino do objetivo (nunca fica um destino sem link)
               set({ productUrl: v, ...(v.trim() === '' && d.destination === 'produto' ? { destination: suggested === 'produto' ? 'produto' : suggested } : {}) });
               setLink(null); setLinkErr(null);
             }} />
-          <button type="button" disabled={checking || !hasLink} onClick={checkLink} className="shrink-0 rounded-lg bg-slate-800 px-3 text-[13px] font-bold text-white disabled:opacity-40">{checking ? 'Conferindo…' : 'Conferir'}</button>
+          <button type="button" disabled={checking || !hasLink} onClick={() => void checkLink()} className="shrink-0 rounded-lg bg-slate-800 px-3 text-[13px] font-bold text-white disabled:opacity-40">{checking ? 'Conferindo…' : 'Conferir'}</button>
         </div>
         {linkErr && <p role="alert" className="mt-2 text-[12.5px] text-rose-700">{linkErr}</p>}
+        {link?.image && /^https:\/\//i.test(link.image) && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={link.image} alt="" className="mt-2 h-20 w-20 rounded-lg border border-slate-200 object-contain" />
+        )}
         {link && (
           <p className={`mt-2 text-[12.5px] leading-snug ${link.readable ? 'text-emerald-800' : 'text-amber-900'}`}>
             Loja reconhecida: <strong>{link.store}</strong>.{' '}
@@ -156,9 +182,9 @@ export function ContentForm({ goals, destinations, initial, onCreated }: {
       </div>
       <div data-testid="ao-tocar">
         <label className={label} htmlFor="cp-dest">Ao tocar na notificação, abrir:</label>
-        {hasLink ? (
+        {hasLink || d.goal === 'link_produto' ? (
           <p id="cp-dest" className="rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-[13px] leading-snug text-emerald-900">
-            <strong>O link do produto</strong>, direto na loja{link ? <> ({link.store})</> : null}. O PETMOL abre exatamente o link colado acima; não abre a tela do objetivo.
+            <strong>O link do produto</strong>, direto na loja{link ? <> ({link.store})</> : null}. {hasLink ? 'O PETMOL abre exatamente o link colado acima; não abre a tela do objetivo.' : 'Cole o link acima: não há outra pergunta de destino.'}
           </p>
         ) : (
           <select id="cp-dest" className={input} value={d.destination === 'produto' ? '' : d.destination} onChange={(e) => set({ destination: e.target.value })}>

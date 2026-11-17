@@ -162,6 +162,7 @@ export class Backend {
         return { status: 404, json: { detail: { code: 'batch_not_found', message: 'Lote não encontrado.' } } };
       };
       else if ((m = path.match(/^\/campaigns\/([^/]+)$/)) && method === 'GET') h = () => { const c = this.campaigns.find((x) => x.id === m![1]); return c ? { json: this.maxBatch !== null ? { ...c, max_batch: this.maxBatch } : c } : { status: 404, json: { detail: { code: 'campaign_not_found', message: 'Campanha não encontrada.' } } }; };
+      else if ((m = path.match(/^\/campaigns\/([^/]+)$/)) && method === 'DELETE') h = () => { this.campaigns = this.campaigns.filter((x) => x.id !== m![1]); return { json: { deleted: true, id: m![1], batches_kept_in_history: 0 } }; };
       else if ((m = path.match(/^\/campaigns\/([^/]+)\/close$/)) && method === 'POST') h = () => { const c = this.campaigns.find((x) => x.id === m![1])!; c.status = 'closed'; return { json: c }; };
       else if ((m = path.match(/^\/campaigns\/([^/]+)\/batches\/preview$/)) && method === 'POST' && this.world) h = (b, s) => {
         const a = s.worldAudience({ ...b, campaign_id: m![1] }) as any; const avail = a._avail.length;

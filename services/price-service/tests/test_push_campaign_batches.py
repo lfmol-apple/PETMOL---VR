@@ -414,6 +414,27 @@ def test_campanha_encerrada_nao_aceita_lote_e_nao_encerra_com_lote_em_andamento(
     assert error_of(reserve, env, cid, CATS, 1).code == "campaign_closed"
 
 
+def test_excluir_campanha_recusa_lote_em_andamento_e_preserva_o_historico_dos_lotes(env):
+    seed(env, 10)
+    cid = campaign(env)
+    first, *_ = reserve(env, cid, CATS, 5)
+    assert error_of(svc.delete_campaign, env.sf, cid).code == "batch_in_progress"          # lote reservado/enviando: recusa
+    run(env, first["batch"]["id"])
+    out = svc.delete_campaign(env.sf, cid)
+    assert out == {"deleted": True, "id": cid, "batches_kept_in_history": 1}
+    with env.sf() as s:
+        assert s.get(svc.PushCampaign, cid) is None
+        assert s.query(svc.PushCampaignRecipient).filter_by(campaign_id=cid).count() == 0
+        b = s.get(svc.br.AdminBroadcast, first["batch"]["id"])
+        assert b is not None and b.campaign_id is None and b.delivered_total >= 0           # o envio feito continua no histórico
+    assert error_of(svc.delete_campaign, env.sf, cid).code == "campaign_not_found"
+
+
+def test_excluir_campanha_sem_lotes(env):
+    cid = campaign(env)
+    assert svc.delete_campaign(env.sf, cid)["batches_kept_in_history"] == 0
+
+
 def test_a_propria_reserva_recusa_campanha_encerrada_mesmo_com_previa_anterior(env):
     """A prévia já recusa campanha encerrada; aqui a campanha é encerrada DEPOIS da prévia e a RESERVA tem que recusar por conta própria."""
     seed(env, 10)
@@ -857,13 +878,15 @@ def api(client, monkeypatch):
 _P = "/v1/admin/push-campaigns"
 _FLT = {"version": 1, "root": {"kind": "group", "op": "and", "pet_scope": "any", "items": [{"kind": "rule", "field": "pet_species", "op": "in", "value": ["cat"]}]}}
 _ENDPOINTS = (("POST", f"{_P}/campaigns", {"name": "Camp", "message": "Mensagem boa"}), ("GET", f"{_P}/campaigns", None), ("GET", f"{_P}/campaigns/x", None),
-              ("POST", f"{_P}/campaigns/x/close", None), ("POST", f"{_P}/campaigns/x/batches/preview", {"batch_size": 1}),
+              ("POST", f"{_P}/campaigns/x/close", None), ("DELETE", f"{_P}/campaigns/x", None), ("POST", f"{_P}/campaigns/x/batches/preview", {"batch_size": 1}),
               ("POST", f"{_P}/campaigns/x/batches", {"batch_size": 1, "preview_token": "t" * 12, "confirm_count": 1, "idempotency_key": "k" * 20}),
               ("GET", f"{_P}/batches/x", None), ("POST", f"{_P}/batches/x/recover", None), ("POST", f"{_P}/batches/x/resume", {"confirm_count": 1}),
               ("POST", f"{_P}/batches/x/release", {"confirm_count": 1}))
 
 
 def _call(c, method, path, body):
+    if method == "DELETE":
+        return c.delete(path)
     return c.get(path) if method == "GET" else c.post(path, json=body)
 
 

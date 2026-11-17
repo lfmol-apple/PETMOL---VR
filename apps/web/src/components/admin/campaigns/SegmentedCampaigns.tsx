@@ -44,6 +44,8 @@ export function SegmentedCampaigns() {
   const [filter, setFilter] = useState<FilterState>(emptyFilter());
   const [confirmClose, setConfirmClose] = useState(false);
   const [closeErr, setCloseErr] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);   // id da campanha com a confirmação de exclusão aberta
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);
   const [seedNote, setSeedNote] = useState<string | null>(null);
   const seededFor = useRef<string | null>(null);
   const [explore, setExplore] = useState<FilterState>(emptyFilter());      // público montado na tela de segmentação
@@ -117,6 +119,24 @@ export function SegmentedCampaigns() {
   if (!boot) return bootErr ? <p role="alert" className="rounded-lg bg-rose-50 p-3 text-[13px] text-rose-800">{bootErr}</p> : <Loading />;
 
   // ── 1. lista / nova ──
+  const deleteCampaign = async (id: string) => {
+    setDeleteErr(null);
+    try {
+      await call(`/campaigns/${id}`, undefined, { method: 'DELETE' });
+      setConfirmDelete(null); setCampaign(null); setView({ kind: 'list' }); void loadList();
+    } catch (e) { setDeleteErr(explainError(e).text); }
+  };
+  const DeleteConfirm = ({ id, name }: { id: string; name: string }) => (
+    <div role="alertdialog" aria-label={`Confirmar exclusão de ${name}`} className="mt-1.5 rounded-xl border border-rose-300 bg-rose-50 p-3 text-[13px] text-rose-900">
+      <p>Excluir <strong>{name}</strong>? A campanha e a lista de quem foi alcançado nela são apagadas e <strong>não dá para desfazer</strong>. Os envios já feitos continuam no histórico de envios.</p>
+      <div className="mt-2 flex gap-2">
+        <button type="button" className="rounded-lg bg-rose-700 px-3 py-1.5 font-bold text-white" onClick={() => void deleteCampaign(id)}>Sim, excluir</button>
+        <button type="button" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-700" onClick={() => { setConfirmDelete(null); setDeleteErr(null); }}>Cancelar</button>
+      </div>
+      {deleteErr && <p role="alert" className="mt-2">{deleteErr}</p>}
+    </div>
+  );
+
   if (view.kind === 'list') {
     return (
       <div className="space-y-4">
@@ -143,6 +163,9 @@ export function SegmentedCampaigns() {
                     </span>
                     <span className="mt-1.5 block"><CountChips counts={c.counts} /></span>
                   </button>
+                  {confirmDelete === c.id
+                    ? <DeleteConfirm id={c.id} name={c.name} />
+                    : <button type="button" className="mt-1 text-[12px] font-semibold text-rose-700 underline" aria-label="Excluir" title={`Excluir a campanha ${c.name}`} onClick={() => { setDeleteErr(null); setConfirmDelete(c.id); }}>Excluir</button>}
                 </li>
               ))}
             </ul>
@@ -181,10 +204,12 @@ export function SegmentedCampaigns() {
         {campaign && (
           <div className="flex flex-wrap gap-2">
             <button type="button" className="rounded-lg border border-slate-300 px-3 py-1.5 text-[12.5px] font-semibold text-slate-700" onClick={() => setView({ kind: 'new', draft: draftFrom(campaign) })}>Criar cópia editável</button>
+            {confirmDelete !== campaign.id && <button type="button" className="rounded-lg border border-rose-300 px-3 py-1.5 text-[12.5px] font-semibold text-rose-800" onClick={() => { setDeleteErr(null); setConfirmDelete(campaign.id); }}>Excluir campanha</button>}
             {campaign.status !== 'closed' && !confirmClose && <button type="button" className="rounded-lg border border-rose-300 px-3 py-1.5 text-[12.5px] font-semibold text-rose-800" onClick={() => setConfirmClose(true)}>Encerrar campanha</button>}
           </div>
         )}
       </div>
+      {campaign && confirmDelete === campaign.id && <DeleteConfirm id={campaign.id} name={campaign.name} />}
       {confirmClose && (
         <div role="alertdialog" aria-label="Confirmar encerramento" className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-[13px] text-rose-900">
           <p>Encerrar a campanha impede novos lotes. O histórico fica guardado. Não dá para reabrir.</p>
