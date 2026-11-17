@@ -100,6 +100,13 @@ class Settings(BaseSettings):
     # Registro agregado de demanda de busca (search_demand.py). DESLIGADO por padrão: ligar = env SEARCH_DEMAND_ENABLED=true + restart.
     # Nunca guarda tutor, IP, sessão, aparelho nem texto bruto; só contagem por dia + termo filtrado/GTIN. Desligada, nada é gravado.
     search_demand_enabled: bool = False
+    # Marcador de "versão atual" do app (user_auth/legacy_marker.py): grava, uma única vez por conta, se a 1ª vez que vimos o app
+    # nativo foi na casca SEM versão no User-Agent (versão atual, gratuita — docs/PLANO_ASSINATURA.md §5). DESLIGADO por padrão:
+    # ligar = env LEGACY_MARKER_ENABLED=true + restart. Desligado, nada é gravado e a autenticação não muda.
+    legacy_marker_enabled: bool = False
+    # Data-limite (ISO 8601, ex.: 2026-12-01T00:00:00+00:00) a partir da qual uma conta vista pela 1ª vez sem versão NÃO vira legado
+    # (impede "farmar" legado depois do lançamento). Vazio = sem limite. Mudar = env LEGACY_MARKER_UNTIL + restart.
+    legacy_marker_until: str = ""
     # Campanhas push manuais com segmentação e lotes (admin/push_campaigns.py). DESLIGADO por padrão: ligar = env
     # PUSH_CAMPAIGNS_ENABLED=true + restart. Desligada, os endpoints novos respondem 404 e o envio avulso não muda.
     push_campaigns_enabled: bool = False
