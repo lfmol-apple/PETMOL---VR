@@ -82,6 +82,8 @@ export const metadata: Metadata = {
     images: ['/og-image.png'],
   },
   metadataBase: new URL(siteUrl),
+  // Google Search Console (propriedade https://www.petmol.com.br/). Não remover: o Google confere a tag de tempos em tempos.
+  verification: { google: 'lWZFp118_Ge8eUmC90rcAVpjjHOptJrP1rGYSNsO2WA' },
 };
 
 export default function RootLayout({
