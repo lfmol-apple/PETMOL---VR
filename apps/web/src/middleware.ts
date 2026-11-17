@@ -76,6 +76,8 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/brand') ||
     pathname.startsWith('/uploads') ||
     pathname === '/sw.js' ||
+    // arquivo de verificação do Google Search Console (visitante sem login; sem isto redirecionava para /login)
+    /^\/google[a-z0-9]+\.html$/.test(pathname) ||
     // mp4: o comercial da landing (visitante sem login) — sem isto o vídeo redirecionava para /login
     pathname.match(/\.(ico|svg|png|jpg|jpeg|webp|webmanifest|json|txt|xml|mp4)$/)
   ) {

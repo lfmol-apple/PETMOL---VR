@@ -65,3 +65,19 @@ describe('middleware — comercial da landing (mp4) para visitante sem login', (
     }
   });
 });
+
+describe('middleware — arquivo de verificação do Google Search Console', () => {
+  it('é servido sem sessão (não redireciona para /login)', async () => {
+    const { NextRequest } = await import('next/server');
+    const { middleware } = await import('./middleware');
+    const res = middleware(new NextRequest('https://www.petmol.com.br/google75797b3212170bbb.html'));
+    expect(res.headers.get('location')).toBeNull();
+    expect(res.status).toBe(200);
+  });
+  it('outros .html continuam sob as regras normais', async () => {
+    const { NextRequest } = await import('next/server');
+    const { middleware } = await import('./middleware');
+    const res = middleware(new NextRequest('https://www.petmol.com.br/segredo.html'));
+    expect(res.headers.get('location')).toMatch(/\/login/);
+  });
+});
