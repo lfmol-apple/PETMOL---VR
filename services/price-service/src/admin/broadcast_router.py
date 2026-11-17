@@ -56,13 +56,14 @@ router = APIRouter(prefix="/v1/admin/broadcast", tags=["Admin Broadcast"])
 
 WEEKLY_CAP_DAYS = 7
 RESULT_WINDOW = timedelta(hours=24)
-SEGMENTS = ("todos", "sem_racao", "sem_gps", "sem_foto", "sem_pet")
+SEGMENTS = ("todos", "sem_racao", "sem_gps", "sem_foto", "sem_pet", "faltam_passos")
 SEGMENT_LABELS = {
     "todos": "Todos com notificação ativa",
     "sem_racao": "Tem pet e ainda não cadastrou a ração",
     "sem_gps": "Não compartilha a localização",
     "sem_foto": "Tem pet sem foto",
     "sem_pet": "Ainda não cadastrou nenhum pet",
+    "faltam_passos": "Falta pet, ração ou localização (campanha Continue com o PETMOL gratuito)",
 }
 
 # Eventos "passivos": só abrir/ver tela não conta como "fez algo no app".
@@ -124,6 +125,11 @@ GOAL_CATALOG: list[dict] = [
      "message": "Toque em Tutorial na tela inicial e veja os vídeos.",
      "why": "O botão Tutorial ensina ração, vacinas, cuidados e Pet Sumido. Quem entende o app usa mais.",
      "success": "Abriu um vídeo do Tutorial em 24h."},
+    {"key": "atalho", "title": '{tutor}, continue com o PETMOL gratuito', "group": "Campanha Continue gratuito", "label": "Atalho: continuar com o PETMOL gratuito", "segment": "faltam_passos", "state": None,
+     "events": {"food_cycle_created", "onboarding_food_completed"},
+     "message": "Faltam poucos passos para você. Toque: o atalho fica aberto por 20 minutos.",
+     "why": "Uma notificação só: abre a página-atalho, que mostra apenas o que falta (pet, ração ou localização) e some quando a pessoa faz uma ação.",
+     "success": "Cadastrou a ração em 24h (a localização e o pet aparecem no painel Gratuito)."},
     {"key": "gps", "title": '{tutor}, ative a localização', "group": "Segurança", "label": "Ativar a localização", "segment": "sem_gps", "state": "gps",
      "events": set(),
      "message": "Se um pet sumir perto de você, você é avisado na hora.",
@@ -160,9 +166,10 @@ DESTINATIONS = {
     "medication": "Medicação",
     "grooming": "Banho e tosa",
     "produto": "O produto do link (direto na loja)",
+    "atalho": "Atalho \"Continue com o PETMOL gratuito\" (20 minutos)",
 }
 _GOAL_OPEN = {"compra_racao": "loja", "cupom": "loja", "promocao_loja": "loja", "racao": "food", "vacina": "vaccines",
-              "parasitas": "parasites", "medicacao": "medication", "banho": "grooming", "link_produto": "produto"}
+              "parasitas": "parasites", "medicacao": "medication", "banho": "grooming", "link_produto": "produto", "atalho": "atalho"}
 for _g in GOAL_CATALOG:
     _g["open"] = _GOAL_OPEN.get(_g["key"], "home")
 GOALS = tuple(g["key"] for g in GOAL_CATALOG)
@@ -345,8 +352,8 @@ def eligible_users(db, segment: str, ignore_weekly_cap: bool = False, care: Opti
         # e a mensagem cita só os pets certos.
         species_of = {str(pid): sp for pid, sp in db.query(Pet.id, Pet.species).filter(Pet.user_id.in_(set(users) or {"__none__"})).all()}
         pets = {uid: [(pid, nm) for pid, nm in plist if species_applies(species_of.get(pid), care)] for uid, plist in pets.items()}
-    feeding_pets = _feeding_configured_pet_ids(db) if segment == "sem_racao" else set()
-    gps_users = {str(u) for (u,) in db.query(User.id).filter(shares_location()).all()} if segment == "sem_gps" else set()
+    feeding_pets = _feeding_configured_pet_ids(db) if segment in ("sem_racao", "faltam_passos") else set()
+    gps_users = {str(u) for (u,) in db.query(User.id).filter(shares_location()).all()} if segment in ("sem_gps", "faltam_passos") else set()
     no_photo_users = {str(u) for (u,) in db.query(Pet.user_id).filter(or_(Pet.photo.is_(None), Pet.photo == "")).distinct().all()} \
         if segment == "sem_foto" else set()
 
@@ -373,6 +380,9 @@ def eligible_users(db, segment: str, ignore_weekly_cap: bool = False, care: Opti
             continue
         if segment == "sem_pet" and user_pets:
             skipped["segment"] += 1
+            continue
+        if segment == "faltam_passos" and user_pets and any(pid in feeding_pets for pid, _ in user_pets) and uid in gps_users:
+            skipped["segment"] += 1          # já tem pet, ração e localização: nada a pedir
             continue
         out.append({"user_id": uid, "name": name, "pet_names": [n for _, n in user_pets if n]})
     return out, skipped
@@ -610,10 +620,10 @@ class AudienceIn(BaseModel):
 
 class BroadcastIn(BaseModel):
     message: str = Field(min_length=3, max_length=240)
-    segment: Literal["todos", "sem_racao", "sem_gps", "sem_foto", "sem_pet"] = "todos"
+    segment: Literal["todos", "sem_racao", "sem_gps", "sem_foto", "sem_pet", "faltam_passos"] = "todos"
     audience: AudienceIn = AudienceIn()
     title: Optional[str] = Field(default=None, max_length=80)   # gancho do título; vazio = padrão
-    destination: Optional[Literal["home", "loja", "food", "vaccines", "parasites", "medication", "grooming", "produto"]] = None
+    destination: Optional[Literal["home", "loja", "food", "vaccines", "parasites", "medication", "grooming", "produto", "atalho"]] = None
     # Push de produto: o link colado pelo dono (só lojas conhecidas) e o nome que ele conferiu. O toque abre o produto direto na loja.
     product_url: Optional[str] = Field(default=None, max_length=700)
     product_title: Optional[str] = Field(default=None, max_length=160)
