@@ -74,6 +74,10 @@ function envSnapshot(): Record<string, unknown> {
 }
 /** Manda o passo/erro pro backend (fire-and-forget) — dá pra ler de fora
  *  sem Web Inspector. Endpoint temporário /notifications/native-diag. */
+function safeHost(raw: string): string {
+  try { return new URL(raw).hostname; } catch { return '?'; }
+}
+
 function reportDiag(step: string, extra?: Record<string, unknown>) {
   try {
     void fetch(`${API_BASE}/notifications/native-diag`, {
@@ -314,13 +318,14 @@ export async function initNativePushDeepLink(): Promise<void> {
       void import('@/features/commerce/pushProductLink')
         .then((m) => {
           const product = m.productFromPushUrl(url);
+          reportDiag('product tap: ' + (product ? 'link de produto reconhecido (' + safeHost(product.raw) + ')' : 'SEM produto na URL do toque → caminho da Home'));
           if (!product) { deliverNativeDeepLink(url); return; }
           if (product.broadcast) trackProductEvent('broadcast_opened', { broadcast: product.broadcast });
           trackProductEvent('broadcast_product_opened', { broadcast: product.broadcast ?? undefined });
           m.savePendingProduct(product.raw, product.broadcast);   // antes de qualquer espera: se a página cair, o próximo carregamento abre
-          void m.openPendingProduct();
+          void m.openPendingProduct().then((ok) => reportDiag('product tap: abertura ' + (ok ? 'FEITA' : 'NÃO feita')));
         })
-        .catch(() => deliverNativeDeepLink(url));
+        .catch((e) => { reportDiag('product tap: ERRO ' + String(e).slice(0, 120)); deliverNativeDeepLink(url); });
     });
     await PushNotifications.addListener('pushNotificationReceived', (evt: unknown) => {
       const e = (evt || {}) as { title?: string; body?: string };
