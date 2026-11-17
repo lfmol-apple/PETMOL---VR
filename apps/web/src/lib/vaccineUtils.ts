@@ -392,3 +392,24 @@ export function buildCanonicalVaccineState(records: VaccineRecord[]): CanonicalV
 
   return groups.sort((a, b) => (ORDER[a.status] ?? 4) - (ORDER[b.status] ?? 4));
 }
+
+
+/**
+ * Dias inteiros de HOJE até uma data de calendário ("YYYY-MM-DD", com ou sem hora), no fuso do aparelho.
+ * 0 = vence hoje; negativo = já passou. Datas sem hora NÃO podem ser lidas por `new Date("YYYY-MM-DD")`: isso vira meia-noite UTC
+ * e, no Brasil (UTC-3), uma vacina que vence HOJE aparecia como "vencida" o dia inteiro.
+ */
+export function daysUntilCalendarDate(dateStr: string | null | undefined, now: Date = new Date()): number | null {
+  const m = String(dateStr ?? '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const due = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (Number.isNaN(due.getTime())) return null;
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((due.getTime() - today.getTime()) / 86400000);
+}
+
+/** Vencida = a data do reforço é ANTES de hoje. Vence hoje não é vencida. */
+export const isVaccineOverdue = (nextDose: string | null | undefined, now: Date = new Date()): boolean => {
+  const d = daysUntilCalendarDate(nextDose, now);
+  return d !== null && d < 0;
+};

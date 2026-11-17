@@ -3,6 +3,7 @@
 import { PremiumCard, PremiumPanelShell } from '@/components/premium';
 import { useI18n } from '@/lib/I18nContext';
 import type { VaccineRecord } from '@/lib/petHealth';
+import { daysUntilCalendarDate } from '@/lib/vaccineUtils';
 
 interface HealthVaccinesPanelProps {
   petName: string | undefined;
@@ -39,28 +40,11 @@ export function HealthVaccinesPanel({
 }: HealthVaccinesPanelProps) {
   const { t } = useI18n();
 
-  const upcomingCount = currentVaccines.filter(v => {
-    if (!v.next_dose_date) return false;
-    const nextDose = new Date(v.next_dose_date);
-    if (Number.isNaN(nextDose.getTime())) return false;
-    const diffDays = Math.ceil((nextDose.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-    return diffDays > 0 && diffDays <= 60;
-  }).length;
-
-  const dueSoonCount = currentVaccines.filter(v => {
-    if (!v.next_dose_date) return false;
-    const nextDose = new Date(v.next_dose_date);
-    if (Number.isNaN(nextDose.getTime())) return false;
-    const diffDays = Math.ceil((nextDose.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-    return diffDays > 0 && diffDays <= 7;
-  }).length;
-
-  const overdueCount = currentVaccines.filter(v => {
-    if (!v.next_dose_date) return false;
-    const nextDose = new Date(v.next_dose_date);
-    if (Number.isNaN(nextDose.getTime())) return false;
-    return nextDose.getTime() < Date.now();
-  }).length;
+  // Contas por DIA de calendário (fuso do aparelho): vence hoje não é vencida.
+  const dayCounts = currentVaccines.map((v) => daysUntilCalendarDate(v.next_dose_date)).filter((d): d is number => d !== null);
+  const upcomingCount = dayCounts.filter((d) => d >= 0 && d <= 60).length;
+  const dueSoonCount = dayCounts.filter((d) => d >= 0 && d <= 7).length;
+  const overdueCount = dayCounts.filter((d) => d < 0).length;
 
   return (
     <PremiumPanelShell title={t('health.vaccines')} subtitle={petName}>
