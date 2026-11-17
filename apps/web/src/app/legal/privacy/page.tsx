@@ -61,7 +61,7 @@ export default function PrivacyPage() {
 
           <h3>2.6. Dados de Assinatura (se você contratar um plano pago)</h3>
           <p>
-            O pagamento é processado pela App Store ou pelo Google Play. O PETMOL <strong>não recebe nem armazena</strong> os dados do seu cartão. Recebemos da loja apenas informações sobre a assinatura (plano, status, datas de início e renovação e identificador da transação) para liberar os recursos contratados. A base legal é a execução de contrato, e mantemos esses registros pelo tempo necessário para cumprir obrigações legais, fiscais e para resolver disputas.
+            O pagamento é processado pela App Store (Apple) ou pelo Google Play (Google), que atuam como controladores independentes dos dados de pagamento, conforme as políticas de privacidade deles. O PETMOL <strong>não recebe nem armazena</strong> os dados do seu cartão. Recebemos da loja apenas informações sobre a assinatura (plano, status, datas de início, renovação e cancelamento, e identificador da transação) e as associamos à sua conta para liberar os recursos contratados e prestar suporte. Base legal: execução de contrato (art. 7º, V, da LGPD) e cumprimento de obrigação legal ou regulatória, quando aplicável (art. 7º, II). Mantemos esses registros enquanto a conta existir e pelo prazo exigido pela legislação para obrigações legais e fiscais e para o exercício regular de direitos em disputas. Você pode exercer os direitos da seção 7, inclusive de acesso, correção e eliminação, observadas as hipóteses legais de retenção. Esses dados não são usados para publicidade de terceiros e não são vendidos.
           </p>
 
           <h2>3. Finalidade do Tratamento de Dados</h2>
@@ -118,6 +118,7 @@ export default function PrivacyPage() {
           <p>Podemos compartilhar seus dados apenas com:</p>
           <ul>
             <li><strong>Provedores de serviço:</strong> Hospedagem, e-mail, notificações push (sob contrato de confidencialidade)</li>
+            <li><strong>Lojas de aplicativos (Apple e Google):</strong> processamento de pagamentos e gestão de assinaturas, quando você contratar um plano pago (seção 2.6)</li>
             <li><strong>Medição de anúncios (app para iPhone e iPad):</strong> Meta Platforms (SDK da Meta), conforme descrito na seção 2.5 e somente com a sua permissão de rastreamento para o identificador de publicidade</li>
             <li><strong>APIs externas:</strong> Google Maps/Places (busca de estabelecimentos), Google Gemini (leitura automática de carteirinha de vacinação e identificação de produtos por foto, sempre com consentimento prévio por usuário), Cosmos Bluesoft e GTIN (consulta de código de barras de produtos)</li>
             <li><strong>Autoridades:</strong> Quando exigido por lei ou ordem judicial</li>

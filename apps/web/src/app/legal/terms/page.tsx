@@ -44,6 +44,9 @@ export default function TermsPage() {
             <li>Telefone (opcional)</li>
           </ul>
           <p>
+            A contratação de planos pagos é destinada a pessoas maiores de 18 anos ou legalmente capazes; menores de idade só podem contratar por meio de seus representantes legais.
+          </p>
+          <p>
             Você é responsável por manter a confidencialidade de suas credenciais de login e por todas as atividades que ocorram em sua conta.
           </p>
 
@@ -100,7 +103,7 @@ export default function TermsPage() {
 
           <h2>9. Modificações do Serviço, Planos e Condições Comerciais</h2>
           <p>
-            Reservamo-nos o direito de modificar, suspender ou descontinuar qualquer parte do serviço, inclusive recursos, limites de uso e planos, a qualquer momento. Mudanças que reduzam o que você contratou e já pagou serão informadas com antecedência razoável.
+            Podemos modificar, suspender ou descontinuar partes do serviço, inclusive recursos, limites de uso e planos, por motivos técnicos, de segurança, legais ou comerciais legítimos. Mudanças que reduzam recursos de um plano que você já contratou e pagou serão informadas com antecedência razoável e não afetarão o período já pago; se a mudança for relevante, você poderá cancelar e, na ausência de fruição do que foi pago, solicitar a devolução proporcional, conforme a lei.
           </p>
           <h3>9.1. Planos gratuitos e pagos</h3>
           <p>
@@ -108,7 +111,7 @@ export default function TermsPage() {
           </p>
           <h3>9.2. Assinaturas (quando houver)</h3>
           <p>
-            Se houver plano pago, o que ele inclui, o preço, a periodicidade e a renovação serão exibidos na tela de contratação, antes da confirmação. A assinatura é contratada e cobrada pela App Store ou pelo Google Play, conforme o seu aparelho, e se renova automaticamente ao fim de cada período, pelo mesmo valor, até ser cancelada. O cancelamento é feito nas configurações de assinaturas da própria loja, com antecedência mínima de 24 horas antes da renovação; ele interrompe renovações futuras e o acesso pago continua até o fim do período já pago. O PETMOL não recebe nem armazena os dados do seu cartão.
+            Se houver plano pago, o que ele inclui, o preço, a periodicidade e a renovação serão exibidos na tela de contratação, antes da confirmação. A assinatura é contratada e cobrada pela App Store ou pelo Google Play, conforme o seu aparelho, e se renova automaticamente ao fim de cada período, pelo mesmo valor, até ser cancelada. O cancelamento é feito nas configurações de assinaturas da própria loja, com antecedência mínima de 24 horas antes da renovação; ele interrompe renovações futuras e o acesso pago continua até o fim do período já pago. O PETMOL não recebe nem armazena os dados do seu cartão. A contratação é feita por você, de forma voluntária e após a exibição das informações acima.
           </p>
           <h3>9.3. Período de teste e promoções</h3>
           <p>
@@ -116,28 +119,31 @@ export default function TermsPage() {
           </p>
           <h3>9.4. Alteração de preços</h3>
           <p>
-            Podemos alterar os preços dos planos. A alteração será comunicada com antecedência e, quando a loja ou a lei exigirem, dependerá do seu consentimento; sem ele, a assinatura não será renovada pelo novo valor.
+            Podemos alterar os preços dos planos para períodos futuros. A alteração nunca afetará o período já pago, será comunicada com antecedência, pela loja e/ou por aviso no aplicativo ou e-mail, e permitirá que você cancele antes da renovação. Quando a loja ou a lei exigirem, a renovação pelo novo valor dependerá do seu consentimento; sem ele, a assinatura não será renovada.
           </p>
           <h3>9.5. Reembolsos</h3>
           <p>
-            Os reembolsos são tratados pela loja em que a assinatura foi contratada, conforme as regras dela e a legislação aplicável, incluindo o direito de arrependimento previsto no art. 49 do Código de Defesa do Consumidor, quando cabível.
+            Você pode exercer o direito de arrependimento em até 7 (sete) dias a contar da contratação, nos termos do art. 49 do Código de Defesa do Consumidor, com a devolução integral dos valores pagos. Como o pagamento é processado pela loja, o pedido de reembolso é feito diretamente à Apple ou ao Google, conforme as regras e os canais dela; se tiver dificuldade, você também pode nos contatar em gerenciamento@petmol.com.br para orientação. Isso não limita outros direitos que a lei lhe assegure.
           </p>
           <h3>9.6. Fim ou falta de pagamento</h3>
           <p>
-            Se a assinatura terminar ou o pagamento não for confirmado, os recursos exclusivos do plano pago poderão ser limitados. Você mantém acesso aos seus dados e aos recursos disponíveis sem cobrança, e não apagamos seus dados por esse motivo. Alertas de segurança da comunidade, como o Pet Sumido, não dependem de plano pago, salvo aviso em contrário.
+            Se a assinatura terminar ou o pagamento não for confirmado, os recursos exclusivos do plano pago poderão ser limitados. Você mantém acesso aos seus dados e aos recursos disponíveis sem cobrança, e não apagamos seus dados por esse motivo. Alertas de segurança da comunidade, como o Pet Sumido, não dependem de plano pago; qualquer mudança nesse ponto será informada com antecedência e não afetará os alertas já em andamento.
+          </p>
+          <p>
+            Se encerrarmos um plano pago por nossa iniciativa, sem culpa sua, devolveremos o valor proporcional ao período já pago e não utilizado.
           </p>
 
           <h3>9.7. Versão atual do aplicativo</h3>
           <p>
-            Se o PETMOL passar a oferecer planos pagos em uma nova versão do aplicativo, quem já utiliza a versão disponível antes dessa mudança (a &quot;versão-corte&quot;, que será identificada no comunicado da mudança e nas lojas) poderá continuar usando essa versão, com as funcionalidades que ela já oferece, sem cobrança. A cobrança só se aplica a quem decidir, por escolha própria, atualizar para a versão com planos e contratar um plano pago; a informação sobre o que muda será apresentada antes da atualização.
+            Se o PETMOL passar a oferecer planos pagos em uma nova versão do aplicativo, quem já utiliza a versão disponível antes dessa mudança (a &quot;versão-corte&quot;, que será identificada, por número de versão, no comunicado da mudança e nas lojas) poderá continuar usando essa versão, com as funcionalidades que ela já oferece, sem cobrança. A cobrança só se aplica a quem decidir, por escolha própria, atualizar para a versão com planos e contratar um plano pago; a informação sobre o que muda será apresentada antes da atualização.
           </p>
           <p>
-            Essa continuidade vale enquanto o serviço estiver disponível. Podemos encerrar o suporte a uma versão por motivos de segurança, obrigação legal, exigência da Apple, do Google ou do sistema operacional, ou encerramento do serviço, sempre com aviso prévio e sem cobrança para manter o que você já utilizava. Podemos aplicar limites técnicos de uso razoável para proteger o serviço contra abuso, sem que isso configure cobrança.
+            Essa continuidade vale enquanto o serviço estiver disponível. Podemos encerrar o suporte a uma versão por motivos de segurança, obrigação legal, exigência da Apple, do Google ou do sistema operacional, ou encerramento do serviço, sempre com aviso prévio e sem cobrança para manter o que você já utilizava. Podemos aplicar limites técnicos de uso razoável para proteger o serviço contra abuso, sem que isso configure cobrança. Atualizar para a versão com planos é uma escolha sua; a versão com planos pode oferecer recursos, limites e condições diferentes dos da versão-corte, e isso será informado antes da atualização.
           </p>
 
           <h2>10. Limitação de Responsabilidade</h2>
           <p>
-            O PETMOL é fornecido &quot;como está&quot; e &quot;conforme disponível&quot;. Não garantimos que o serviço será ininterrupto, seguro ou livre de erros. Em nenhuma circunstância seremos responsáveis por:
+            O PETMOL é fornecido de acordo com a disponibilidade técnica do serviço. Empregamos esforços razoáveis para mantê-lo seguro e em funcionamento, mas não garantimos que será ininterrupto ou livre de erros. Na máxima extensão permitida pela lei, e salvo nos casos de dolo, culpa ou responsabilidade que a lei não permita excluir, não nos responsabilizamos por:
           </p>
           <ul>
             <li>Danos diretos, indiretos, incidentais ou consequenciais</li>
@@ -145,7 +151,7 @@ export default function TermsPage() {
             <li>Interrupção de negócios</li>
           </ul>
           <p>
-            Essas limitações se aplicam na extensão máxima permitida pela lei e não afastam direitos que a legislação de defesa do consumidor assegura a você, inclusive em relação a serviços pagos.
+            Nada nestes Termos exclui ou limita direitos que a legislação de defesa do consumidor assegura a você, inclusive em relação a serviços pagos (por exemplo, o direito à reexecução do serviço, à restituição proporcional ou ao abatimento do preço em caso de falha relevante que impeça o uso dos recursos contratados).
           </p>
 
           <h2>11. Rescisão</h2>
@@ -155,12 +161,12 @@ export default function TermsPage() {
 
           <h2>12. Lei Aplicável</h2>
           <p>
-            Estes Termos são regidos pelas leis da República Federativa do Brasil. Quaisquer disputas serão resolvidas nos tribunais brasileiros.
+            Estes Termos são regidos pelas leis da República Federativa do Brasil. Quaisquer disputas serão resolvidas nos tribunais brasileiros, sendo assegurado ao consumidor o foro do seu domicílio.
           </p>
 
           <h2>13. Alterações nos Termos</h2>
           <p>
-            Podemos atualizar estes Termos periodicamente. Notificaremos você sobre mudanças significativas através de e-mail ou aviso na plataforma. O uso continuado do serviço após as alterações constitui aceitação dos novos termos.
+            Podemos atualizar estes Termos periodicamente. Notificaremos você sobre mudanças significativas através de e-mail ou aviso na plataforma. O uso continuado do serviço após as alterações constitui aceitação dos novos termos; alterações que reduzam direitos de assinantes ou aumentem o preço seguem o previsto nas seções 9.1 a 9.4 e, quando exigido por lei ou pela loja, dependerão do seu consentimento.
           </p>
 
           <h2>14. Contato</h2>
@@ -174,7 +180,7 @@ export default function TermsPage() {
 
           <div className="mt-12 p-6 bg-blue-50 rounded-lg border border-blue-200">
             <p className="text-sm text-blue-900">
-              <strong>Versão:</strong> 2026-08-24<br />
+              <strong>Versão:</strong> 2026-11-17<br />
               <strong>Data de vigência:</strong> 17 de novembro de 2026
             </p>
           </div>
