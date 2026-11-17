@@ -8,7 +8,7 @@ export default function TermsPage() {
       backHref="/"
     >
       <PremiumCard>
-        <p className="text-slate-500 text-xs mb-6">Última atualização: 24 de agosto de 2026</p>
+        <p className="text-slate-500 text-xs mb-6">Última atualização: 17 de novembro de 2026</p>
         <div className="prose prose-sm prose-slate max-w-none">
           <h2>1. Aceitação dos Termos</h2>
           <p>
@@ -120,6 +120,9 @@ export default function TermsPage() {
           <p>
             Você pode encerrar sua conta a qualquer momento através das configurações da plataforma. Reservamo-nos o direito de suspender ou encerrar sua conta se violarmos estes Termos.
           </p>
+          <p>
+            <strong>Contas gratuitas.</strong> Poderemos entrar em contato com titulares de contas gratuitas que não tenham cadastro de ração, notificações ou localização para saber se desejam continuar. Nenhuma conta, cadastro ou dado será excluído ou removido sem o consentimento do titular, salvo por obrigação legal ou por violação destes Termos.
+          </p>
 
           <h2>12. Lei Aplicável</h2>
           <p>
@@ -138,6 +141,7 @@ export default function TermsPage() {
           <ul>
             <li>Email: gerenciamento@petmol.com.br</li>
             <li>Através do formulário de contato na plataforma</li>
+            <li>Responsável: PETMOL NEGOCIOS DIGITAIS LTDA, CNPJ 65.625.299/0001-15, Belo Horizonte/MG</li>
           </ul>
 
           <div className="mt-12 p-6 bg-blue-50 rounded-lg border border-blue-200">
