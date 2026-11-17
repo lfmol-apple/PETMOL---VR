@@ -33,7 +33,7 @@ describe('FreeShortcutSheet', () => {
 
   it('mostra o título, a data real e a contagem de 20 minutos a partir do primeiro toque', () => {
     render(<FreeShortcutSheet {...base} startedAt={Date.now()} hasFood={false} />);
-    expect(screen.getByText('Mantenha o PETMOL gratuito para você')).toBeTruthy();
+    expect(screen.getByText('Continue com o PETMOL gratuito')).toBeTruthy();
     expect(screen.getByText(/Falta só a ração do Baby\. Cadastre até 31\/12\./)).toBeTruthy();
     expect(screen.getByTestId('free-shortcut-countdown').textContent).toBe('20:00');
     act(() => { vi.advanceTimersByTime(65_000); });
@@ -52,6 +52,7 @@ describe('FreeShortcutSheet', () => {
     expect(screen.getByText(/Cada passo concluído fica marcado/)).toBeTruthy();
     expect(screen.getByText(/Depois, você faz o mesmo no menu do app/)).toBeTruthy();
     expect(screen.getByText(/A localização é opcional e você desativa quando quiser/)).toBeTruthy();
+    expect(screen.getByText(/Nenhuma conta ou cadastro é removido sem o seu consentimento/)).toBeTruthy();
   });
 
   it('"Agora não" encerra e grava o motivo', () => {
@@ -107,7 +108,7 @@ describe('FreeShortcutSheet', () => {
 
   it('recolhe enquanto o sheet de ração está por cima, mas a contagem segue', () => {
     const { rerender } = render(<FreeShortcutSheet {...base} startedAt={Date.now()} hasFood={false} suppressed />);
-    expect(screen.queryByText('Mantenha o PETMOL gratuito para você')).toBeNull();
+    expect(screen.queryByText('Continue com o PETMOL gratuito')).toBeNull();
     act(() => { vi.advanceTimersByTime(60_000); });
     rerender(<FreeShortcutSheet {...base} startedAt={Date.now() - 60_000} hasFood={false} />);
     expect(screen.getByTestId('free-shortcut-countdown').textContent).toBe('19:00');

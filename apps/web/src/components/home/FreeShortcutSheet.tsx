@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Atalho "Mantenha o PETMOL gratuito para você" — aberto pelo toque na notificação da campanha (deep link `modal=atalho`).
+ * Atalho "Continue com o PETMOL gratuito" — aberto pelo toque na notificação da campanha (deep link `modal=atalho`).
  *
  * Visual no estilo do e-mail da campanha. Regras (revisão jurídica, 17/11/2026):
  * - A contagem de 20 minutos começa no primeiro toque e não reinicia (ver lib/freeShortcut). O que expira é SÓ este atalho:
@@ -126,7 +126,7 @@ export function FreeShortcutSheet({ startedAt, petName, petSex, hasFood, onOpenF
           <span className="inline-block rounded-full border border-white/35 bg-white/15 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.08em]">
             ✓ Versão gratuita mantida
           </span>
-          <h2 className="mt-3 text-[24px] font-extrabold leading-tight">Mantenha o PETMOL gratuito para você</h2>
+          <h2 className="mt-3 text-[24px] font-extrabold leading-tight">Continue com o PETMOL gratuito</h2>
           {!hasFood && (
             <p className="mt-2 text-[14px] leading-snug text-[#CFE0FF]">
               Falta só a ração {artigo} {name}. Cadastre até {FREE_SHORTCUT_DEADLINE_LABEL}.
@@ -173,7 +173,7 @@ export function FreeShortcutSheet({ startedAt, petName, petSex, hasFood, onOpenF
 
           <p className="text-center text-[12px] leading-relaxed text-slate-500">
             Este atalho fica aberto por 20 minutos a partir do seu toque. Cada passo concluído fica marcado, e você pode seguir para os
-            outros. Ele fecha quando tudo estiver feito ou ao fim do tempo. Depois, você faz o mesmo no menu do app.{' '}
+            outros. Ele fecha quando tudo estiver feito ou ao fim do tempo. Depois, você faz o mesmo no menu do app. Nenhuma conta ou cadastro é removido sem o seu consentimento.{' '}
             {!hasLocation && 'A localização é opcional e você desativa quando quiser.'}
           </p>
           <button type="button" onClick={() => finish('dismissed')} className="mx-auto block px-4 py-2 text-[13px] font-bold text-slate-500">

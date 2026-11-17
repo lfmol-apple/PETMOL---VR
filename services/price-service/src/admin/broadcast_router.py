@@ -63,7 +63,7 @@ SEGMENT_LABELS = {
     "sem_gps": "Não compartilha a localização",
     "sem_foto": "Tem pet sem foto",
     "sem_pet": "Ainda não cadastrou nenhum pet",
-    "faltam_passos": "Falta pet, ração ou localização (campanha Mantenha gratuito)",
+    "faltam_passos": "Falta pet, ração ou localização (campanha Continue com o PETMOL gratuito)",
 }
 
 # Eventos "passivos": só abrir/ver tela não conta como "fez algo no app".
@@ -125,9 +125,9 @@ GOAL_CATALOG: list[dict] = [
      "message": "Toque em Tutorial na tela inicial e veja os vídeos.",
      "why": "O botão Tutorial ensina ração, vacinas, cuidados e Pet Sumido. Quem entende o app usa mais.",
      "success": "Abriu um vídeo do Tutorial em 24h."},
-    {"key": "atalho", "title": '{tutor}, mantenha o PETMOL gratuito', "group": "Campanha 31/12", "label": "Atalho: manter o PETMOL gratuito", "segment": "faltam_passos", "state": None,
+    {"key": "atalho", "title": '{tutor}, continue com o PETMOL gratuito', "group": "Campanha 31/12", "label": "Atalho: continuar com o PETMOL gratuito", "segment": "faltam_passos", "state": None,
      "events": {"food_cycle_created", "onboarding_food_completed"},
-     "message": "Faltam poucos passos para você. Faça até 31/12. Toque: o atalho dura 20 minutos.",
+     "message": "Faltam poucos passos para você. Cadastre até 31/12. Toque: o atalho dura 20 minutos.",
      "why": "Uma notificação só: abre a página-atalho, que mostra apenas o que falta (pet, ração ou localização) e some quando a pessoa faz uma ação.",
      "success": "Cadastrou a ração em 24h (a localização e o pet aparecem no painel Gratuito)."},
     {"key": "gps", "title": '{tutor}, ative a localização', "group": "Segurança", "label": "Ativar a localização", "segment": "sem_gps", "state": "gps",
@@ -166,7 +166,7 @@ DESTINATIONS = {
     "medication": "Medicação",
     "grooming": "Banho e tosa",
     "produto": "O produto do link (direto na loja)",
-    "atalho": "Atalho \"Mantenha o PETMOL gratuito\" (20 minutos)",
+    "atalho": "Atalho \"Continue com o PETMOL gratuito\" (20 minutos)",
 }
 _GOAL_OPEN = {"compra_racao": "loja", "cupom": "loja", "promocao_loja": "loja", "racao": "food", "vacina": "vaccines",
               "parasitas": "parasites", "medicacao": "medication", "banho": "grooming", "link_produto": "produto", "atalho": "atalho"}
