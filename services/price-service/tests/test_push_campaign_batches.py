@@ -116,7 +116,7 @@ def seed(env, n, species="cat", *, push=True, optout=False, pets=1):
 
 def campaign(env, **kw):
     data = dict(name="Campanha teste", message="Oferta de ração hoje.", title="{tutor}, olha para {pets}", goal=None, destination=None,
-                product_url=None, product_title=None, created_by=ADMIN)
+                product_url="https://amzn.to/abc", product_title="Ração Premier", created_by=ADMIN)
     data.update(kw)
     with env.sf() as s:
         return svc.create_campaign(s, **data).id
@@ -430,6 +430,12 @@ def test_excluir_campanha_recusa_lote_em_andamento_e_preserva_o_historico_dos_lo
     assert error_of(svc.delete_campaign, env.sf, cid).code == "campaign_not_found"
 
 
+def test_campanha_sem_link_e_recusada(env):
+    e = error_of(svc.create_campaign, env.sf().__enter__(), name="Sem link", message="Mensagem boa", title=None, goal=None, destination="food",
+                 product_url=None, product_title=None, created_by=ADMIN)
+    assert e.code == "link_required"
+
+
 def test_excluir_campanha_sem_lotes(env):
     cid = campaign(env)
     assert svc.delete_campaign(env.sf, cid)["batches_kept_in_history"] == 0
@@ -538,7 +544,7 @@ def test_criacao_valida_o_conteudo_como_o_envio_avulso(env):
             assert e.code == "invalid_content" and e.status == 422 and trecho in e.message, bad
     with env.sf() as s:
         c = svc.create_campaign(s, **dict(base, product_url=URL_AFILIADO, product_title="Produto"))
-        assert c.destination == "produto" and c.content_hash == pc.compute_content_hash(None, "Mensagem boa", "produto", None, URL_AFILIADO, "Produto")
+        assert c.destination == "produto" and c.content_hash == pc.compute_content_hash(None, "Mensagem boa", "produto", "link_produto", URL_AFILIADO, "Produto")
 
 
 # ══ EXECUÇÃO: INTENÇÃO ANTES DO PROVEDOR E RESULTADOS ════════════════════════
@@ -939,7 +945,7 @@ def test_erros_da_api_tem_codigo_e_status(api):
     bad = api.c.post(f"{_P}/campaigns", json={"name": "Camp", "message": "Mensagem boa", "product_url": "https://evil.com/x", "product_title": "X"})
     assert bad.status_code == 422 and bad.json()["detail"]["code"] == "invalid_content"
     assert api.c.get(f"{_P}/campaigns/nao-existe").status_code == 404
-    cid = api.c.post(f"{_P}/campaigns", json={"name": "Camp", "message": "Mensagem boa"}).json()["id"]
+    cid = api.c.post(f"{_P}/campaigns", json={"name": "Camp", "message": "Mensagem boa", "product_url": "https://amzn.to/abc", "product_title": "Ração"}).json()["id"]
     assert api.c.post(f"{_P}/campaigns/{cid}/batches/preview", json={"filter": _FLT}).json()["detail"]["code"] == "invalid_request"
     pv = api.c.post(f"{_P}/campaigns/{cid}/batches/preview", json={"filter": _FLT, "batch_size": 2}).json()
     r = api.c.post(f"{_P}/campaigns/{cid}/batches", json={"filter": _FLT, "batch_size": 2, "preview_token": pv["token"], "confirm_count": 3,
@@ -954,7 +960,7 @@ def test_erros_da_api_tem_codigo_e_status(api):
 
 def test_recuperar_retomar_e_devolver_pela_api(api):
     seed(api, 12)
-    cid = api.c.post(f"{_P}/campaigns", json={"name": "Camp", "message": "Mensagem boa"}).json()["id"]
+    cid = api.c.post(f"{_P}/campaigns", json={"name": "Camp", "message": "Mensagem boa", "product_url": "https://amzn.to/abc", "product_title": "Ração"}).json()["id"]
     res, *_ = reserve(api, cid, CATS, None, all_=True)
     bid = res["batch"]["id"]
     api.mp.setattr(svc, "send_push", api.prov)

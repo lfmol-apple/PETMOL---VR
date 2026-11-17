@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { SegmentedCampaigns } from './SegmentedCampaigns';
 import { Backend } from './testBackend';
+import { addProductLink } from './testLink';
 
 vi.mock('@/lib/auth-token', () => ({ getToken: () => 'tok' }));
 

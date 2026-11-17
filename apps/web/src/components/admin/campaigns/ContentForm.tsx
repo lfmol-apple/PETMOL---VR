@@ -48,8 +48,12 @@ export function ContentReadOnly({ content, locked, destinations }: { content: Ca
   );
 }
 
-export function ContentForm({ goals, destinations, initial, onCreated }: {
-  goals: Goal[]; destinations: Record<string, string>; initial: Draft; onCreated: (c: Campaign) => void;
+const LINK_GOAL = 'link_produto';
+const LINK_TITLE = '{tutor}, olha este produto para {pets}';
+
+/** Campanha SÓ de link (decisão do dono, 16/11/2026): o link do produto é obrigatório e o toque abre sempre o produto na loja. */
+export function ContentForm({ initial, onCreated }: {
+  goals?: Goal[]; destinations?: Record<string, string>; initial: Draft; onCreated: (c: Campaign) => void;
 }) {
   const [d, setD] = useState<Draft>(initial);
   const [link, setLink] = useState<LinkInfo | null>(null);
@@ -58,15 +62,7 @@ export function ContentForm({ goals, destinations, initial, onCreated }: {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const set = (p: Partial<Draft>) => setD((x) => ({ ...x, ...p }));
-  const linkGoal = goals.find((g) => g.key === 'link_produto');          // "Abrir um produto (link direto da loja)": primeiro da lista
-  const otherGoals = goals.filter((g) => g.key !== 'link_produto');
-  const groups = Array.from(new Set(otherGoals.map((g) => g.group)));
 
-  const pickGoal = (key: string) => {
-    const g = goals.find((x) => x.key === key);
-    set(g ? { goal: key, title: g.title, message: g.message, destination: g.open || 'home' } : { goal: '' });
-    if (key === 'link_produto') setTimeout(() => document.getElementById('cp-link')?.focus(), 0);   // escolheu o link: já vai para o campo dele
-  };
   const checkLink = async (urlArg?: string) => {
     const url = (urlArg ?? d.productUrl).trim();
     if (!url) return;
@@ -74,19 +70,14 @@ export function ContentForm({ goals, destinations, initial, onCreated }: {
     try {
       const info = await call<LinkInfo>('/link-preview', { url }, { base: '/api/v1/admin/broadcast' });
       setLink(info);
-      // Aproveita a oferta para montar a campanha: só preenche o que ainda está vazio (ou é o texto-padrão do objetivo);
-      // nada digitado por você é sobrescrito.
+      // Aproveita a oferta: só preenche o que ainda está vazio; nada digitado por você é sobrescrito.
       setD((x) => {
         const name = (info.title ?? x.productTitle).trim();
-        const lg = goals.find((g) => g.key === 'link_produto');
-        const generic = !x.message.trim() || (lg && x.message.trim() === lg.message.trim());
         return {
           ...x,
           productTitle: info.title ?? x.productTitle,
-          destination: 'produto',
-          goal: x.goal || (lg ? lg.key : ''),
-          title: x.title.trim() ? x.title : (lg?.title ?? ''),
-          message: generic && name ? `${name.slice(0, 200)} — toque para ver.` : x.message,
+          title: x.title.trim() ? x.title : LINK_TITLE,
+          message: x.message.trim() ? x.message : (name ? `${name.slice(0, 200)} — toque para ver.` : x.message),
           name: x.name.trim() ? x.name : name.slice(0, 120),
         };
       });
@@ -94,24 +85,19 @@ export function ContentForm({ goals, destinations, initial, onCreated }: {
   };
 
   const hasLink = d.productUrl.trim() !== '';
-  const goalObj = goals.find((x) => x.key === d.goal);
-  const suggested = goalObj?.open || 'home';                                  // para onde o objetivo escolhido costuma levar
-  const needsLink = !hasLink && d.destination === 'produto';                  // destino "produto" sem link: não há o que abrir
-  const dest = (k: string) => destinations[k] ?? k;
-  const missing = d.name.trim().length < 3 ? 'Dê um nome à campanha (mínimo 3 letras).'
-    : !d.message.trim() ? 'Escreva a mensagem principal.'
-    : hasLink && !link && !initial.productUrl ? 'Confira o link do produto antes de continuar.'
-    : needsLink ? 'Este objetivo abre o link do produto: cole o link acima (ou escolha outro objetivo / “Escrever livremente”).'
-    : hasLink && d.productTitle.trim().length < 2 ? 'Informe o nome do produto.' : null;
+  const missing = !hasLink ? 'Cole o link do produto (com o seu afiliado).'
+    : !link && !initial.productUrl ? 'Confira o link do produto antes de continuar.'
+    : d.productTitle.trim().length < 2 ? 'Informe o nome do produto.'
+    : d.name.trim().length < 3 ? 'Dê um nome à campanha (mínimo 3 letras).'
+    : !d.message.trim() ? 'Escreva a mensagem principal.' : null;
 
   const save = async () => {
     if (busy) return;                       // clique duplicado: um pedido por vez
     setBusy(true); setErr(null);
     try {
       const c = await call<Campaign>('/campaigns', {
-        name: d.name.trim(), message: d.message.trim(), title: d.title.trim() || null, goal: d.goal || null,
-        destination: hasLink ? 'produto' : d.destination || null,
-        product_url: hasLink ? d.productUrl.trim() : null, product_title: hasLink ? d.productTitle.trim() : null,
+        name: d.name.trim(), message: d.message.trim(), title: d.title.trim() || null, goal: LINK_GOAL, destination: 'produto',
+        product_url: d.productUrl.trim(), product_title: d.productTitle.trim(),
       });
       onCreated(c);
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
@@ -119,46 +105,12 @@ export function ContentForm({ goals, destinations, initial, onCreated }: {
 
   return (
     <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (!missing) void save(); }}>
-      <div>
-        <label className={label} htmlFor="cp-name">Nome da campanha (só para você identificar)</label>
-        <input id="cp-name" className={input} maxLength={120} value={d.name} onChange={(e) => set({ name: e.target.value })} placeholder="Ex.: Ração para gatos — fevereiro" />
-      </div>
-      <div>
-        <label className={label} htmlFor="cp-goal">Esta campanha vai incentivar o tutor a: (opcional, preenche um texto sugerido)</label>
-        <select id="cp-goal" className={input} value={d.goal} onChange={(e) => pickGoal(e.target.value)}>
-          {linkGoal && <option value={linkGoal.key}>{linkGoal.label}</option>}
-          <option value="">Escrever livremente</option>
-          {groups.map((g) => <optgroup key={g} label={g}>{otherGoals.filter((x) => x.group === g).map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</optgroup>)}
-        </select>
-      </div>
-      <div>
-        <label className={label} htmlFor="cp-title">Título</label>
-        <input id="cp-title" className={input} maxLength={80} value={d.title} onChange={(e) => set({ title: e.target.value })} placeholder="{tutor}, uma novidade para {pets}" />
-      </div>
-      <div>
-        <label className={label} htmlFor="cp-msg">Mensagem principal</label>
-        <textarea id="cp-msg" rows={3} maxLength={240} className={input} value={d.message} onChange={(e) => set({ message: e.target.value })} />
-        <p className="mt-1 text-[11px] text-slate-500">{d.message.length}/240 · <code>{'{tutor}'}</code> e <code>{'{pets}'}</code> são trocados no envio pelo nome do tutor e dos pets dele.</p>
-      </div>
-      {(d.title.trim() || d.message.trim()) && (
-        <div className="rounded-xl bg-slate-50 p-3" aria-label="Prévia do texto">
-          <p className="text-[11px] font-bold uppercase text-slate-500">Como vai aparecer no celular (exemplo com “Ana” e o pet “Thor”)</p>
-          <p className="text-[14px] font-bold text-slate-900">{exampleOf(d.title.trim() || '{tutor}, uma novidade para {pets}')}</p>
-          <p className="text-[13px] text-slate-700">{exampleOf(d.message)}</p>
-          {(hasVariables(d.title) || hasVariables(d.message) || !d.title.trim()) && <p className="mt-1 text-[11.5px] text-slate-500">Cada tutor recebe com o próprio nome e os nomes dos pets dele.</p>}
-        </div>
-      )}
       <div className="rounded-xl border border-slate-200 p-3">
-        <label className={label} htmlFor="cp-link">Link do produto (opcional): você cola o link monetizado, o PETMOL não altera nada nele</label>
+        <label className={label} htmlFor="cp-link">Link do produto: cole o link com o seu afiliado, o PETMOL não altera nada nele</label>
         <div className="flex gap-2">
           <input id="cp-link" className={input} inputMode="url" autoComplete="off" value={d.productUrl} placeholder="Cole o link (Amazon, Cobasi, Shopee, Mercado Livre…)"
             onPaste={(e) => { const t = e.clipboardData?.getData('text')?.trim(); if (t && /^https:\/\//i.test(t)) setTimeout(() => void checkLink(t), 0); }}
-            onChange={(e) => {
-              const v = e.target.value;
-              // tirou o link: o toque deixa de abrir "o produto" e volta ao destino do objetivo (nunca fica um destino sem link)
-              set({ productUrl: v, ...(v.trim() === '' && d.destination === 'produto' ? { destination: suggested === 'produto' ? 'produto' : suggested } : {}) });
-              setLink(null); setLinkErr(null);
-            }} />
+            onChange={(e) => { set({ productUrl: e.target.value }); setLink(null); setLinkErr(null); }} />
           <button type="button" disabled={checking || !hasLink} onClick={() => void checkLink()} className="shrink-0 rounded-lg bg-slate-800 px-3 text-[13px] font-bold text-white disabled:opacity-40">{checking ? 'Conferindo…' : 'Conferir'}</button>
         </div>
         {linkErr && <p role="alert" className="mt-2 text-[12.5px] text-rose-700">{linkErr}</p>}
@@ -170,7 +122,7 @@ export function ContentForm({ goals, destinations, initial, onCreated }: {
           <p className={`mt-2 text-[12.5px] leading-snug ${link.readable ? 'text-emerald-800' : 'text-amber-900'}`}>
             Loja reconhecida: <strong>{link.store}</strong>.{' '}
             {link.readable ? 'O nome do produto foi lido do link.'
-              : 'Não foi possível ler o nome do produto agora (sem conexão com a loja, ou a loja não permite a leitura automática). Isso não é um erro do link: ele continua exatamente como você colou. Digite o nome do produto abaixo.'}
+              : 'Não foi possível ler o nome do produto agora. Isso não é um erro do link: ele continua exatamente como você colou. Digite o nome do produto abaixo.'}
           </p>
         )}
         {hasLink && (
@@ -180,30 +132,30 @@ export function ContentForm({ goals, destinations, initial, onCreated }: {
           </div>
         )}
       </div>
-      <div data-testid="ao-tocar">
-        <label className={label} htmlFor="cp-dest">Ao tocar na notificação, abrir:</label>
-        {hasLink || d.goal === 'link_produto' ? (
-          <p id="cp-dest" className="rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-[13px] leading-snug text-emerald-900">
-            <strong>O link do produto</strong>, direto na loja{link ? <> ({link.store})</> : null}. {hasLink ? 'O PETMOL abre exatamente o link colado acima; não abre a tela do objetivo.' : 'Cole o link acima: não há outra pergunta de destino.'}
-          </p>
-        ) : (
-          <select id="cp-dest" className={input} value={d.destination === 'produto' ? '' : d.destination} onChange={(e) => set({ destination: e.target.value })}>
-            {d.destination === 'produto' && <option value="" disabled>— cole o link acima —</option>}
-            {Object.entries(destinations).filter(([k]) => k !== 'produto').map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
-        )}
-        {!hasLink && goalObj && !needsLink && d.destination !== suggested && suggested !== 'produto' && (
-          <p role="note" className="mt-1.5 rounded-lg bg-amber-50 p-2 text-[12.5px] leading-snug text-amber-900">
-            Atenção: o objetivo “{goalObj.label}” costuma abrir <strong>{dest(suggested)}</strong>, e você escolheu <strong>{dest(d.destination)}</strong>. Confira se coincide com o que a mensagem promete.{' '}
-            <button type="button" className="font-bold underline" onClick={() => set({ destination: suggested })}>Usar {dest(suggested)}</button>
-          </p>
-        )}
-        {hasLink && goalObj && suggested !== 'produto' && (
-          <p role="note" className="mt-1.5 rounded-lg bg-amber-50 p-2 text-[12.5px] leading-snug text-amber-900">
-            Atenção: o objetivo “{goalObj.label}” abriria {dest(suggested)}, mas como há um link, o toque abre <strong>o link do produto</strong>. Confira se a mensagem combina com o link.
-          </p>
-        )}
+      <div>
+        <label className={label} htmlFor="cp-name">Nome da campanha (só para você identificar)</label>
+        <input id="cp-name" className={input} maxLength={120} value={d.name} onChange={(e) => set({ name: e.target.value })} placeholder="Preenchido pelo nome do produto" />
       </div>
+      <div>
+        <label className={label} htmlFor="cp-title">Título</label>
+        <input id="cp-title" className={input} maxLength={80} value={d.title} onChange={(e) => set({ title: e.target.value })} placeholder={LINK_TITLE} />
+      </div>
+      <div>
+        <label className={label} htmlFor="cp-msg">Mensagem principal</label>
+        <textarea id="cp-msg" rows={3} maxLength={240} className={input} value={d.message} onChange={(e) => set({ message: e.target.value })} />
+        <p className="mt-1 text-[11px] text-slate-500">{d.message.length}/240 · <code>{'{tutor}'}</code> e <code>{'{pets}'}</code> são trocados no envio pelo nome do tutor e dos pets dele.</p>
+      </div>
+      {(d.title.trim() || d.message.trim()) && (
+        <div className="rounded-xl bg-slate-50 p-3" aria-label="Prévia do texto">
+          <p className="text-[11px] font-bold uppercase text-slate-500">Como vai aparecer no celular (exemplo com “Ana” e o pet “Thor”)</p>
+          <p className="text-[14px] font-bold text-slate-900">{exampleOf(d.title.trim() || LINK_TITLE)}</p>
+          <p className="text-[13px] text-slate-700">{exampleOf(d.message)}</p>
+          {(hasVariables(d.title) || hasVariables(d.message) || !d.title.trim()) && <p className="mt-1 text-[11.5px] text-slate-500">Cada tutor recebe com o próprio nome e os nomes dos pets dele.</p>}
+        </div>
+      )}
+      <p data-testid="ao-tocar" className="rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-[13px] leading-snug text-emerald-900">
+        Ao tocar na notificação, abre <strong>o produto direto na loja</strong>{link ? <> ({link.store})</> : null}, com o link exatamente como você colou.
+      </p>
       {err && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-[13px] text-rose-800">{err}</p>}
       {missing && <p className="text-[12.5px] text-amber-800">{missing}</p>}
       <button type="submit" disabled={busy || !!missing} className="rounded-lg bg-sky-700 px-4 py-2.5 text-[14px] font-bold text-white disabled:opacity-40">{busy ? 'Salvando…' : 'Salvar campanha e continuar'}</button>

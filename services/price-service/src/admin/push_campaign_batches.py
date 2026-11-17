@@ -197,6 +197,9 @@ def create_campaign(db, *, name: str, message: str, title: Optional[str], goal: 
     name = (name or "").strip()
     if not 3 <= len(name) <= 120:
         raise BatchError("invalid_content", "O nome da campanha precisa ter de 3 a 120 caracteres.", status=422)
+    if not bi.product_url:                   # decisão do dono (16/11/2026): campanha é SÓ de link de produto, até o link funcionar 100%
+        raise BatchError("link_required", "Toda campanha precisa do link do produto (por enquanto, as campanhas só abrem o produto na loja).", status=422)
+    bi.goal = "link_produto"
     dest = bi.destination or (br._GOAL.get(bi.goal or "") or {}).get("open") or "home"
     c = PushCampaign(name=name, title=(bi.title or None), message=bi.message.strip(), goal=bi.goal, destination=dest,
                      product_url=bi.product_url, product_title=bi.product_title, created_by=created_by, status="draft",

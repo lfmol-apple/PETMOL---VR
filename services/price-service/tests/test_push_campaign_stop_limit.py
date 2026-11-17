@@ -340,7 +340,7 @@ def test_api_teto_vale_para_chamada_direta_e_para_todos(api):
     api.mp.setattr(svc, "max_batch_limit", lambda: 2)
     ctx = type("E", (), {"sf": api.sf, "kind": "sqlite", "mp": api.mp})()
     _seed(ctx, 6)
-    cid = api.c.post(f"{_P}/campaigns", json={"name": "Camp teto", "message": "Mensagem boa"}).json()["id"]
+    cid = api.c.post(f"{_P}/campaigns", json={"name": "Camp teto", "message": "Mensagem boa", "product_url": "https://amzn.to/abc", "product_title": "Ração"}).json()["id"]
     r = api.c.post(f"{_P}/campaigns/{cid}/batches/preview", json={"filter": _FLT, "batch_size": 3})
     assert r.status_code == 422 and r.json()["detail"]["code"] == "batch_limit_exceeded"
     r = api.c.post(f"{_P}/campaigns/{cid}/batches/preview", json={"filter": _FLT, "all_available": True})
@@ -360,7 +360,7 @@ def test_api_parar_exige_confirmacao_e_e_idempotente(api):
     _seed(ctx, 4)
     api.mp.setattr(svc, "max_batch_limit", lambda: 1_000_000)
     api.mp.setattr(svc, "spawn", lambda fn, *a: None)                         # reserva sem executar: o lote fica em andamento
-    cid = api.c.post(f"{_P}/campaigns", json={"name": "Camp parar", "message": "Mensagem boa"}).json()["id"]
+    cid = api.c.post(f"{_P}/campaigns", json={"name": "Camp parar", "message": "Mensagem boa", "product_url": "https://amzn.to/abc", "product_title": "Ração"}).json()["id"]
     pv = api.c.post(f"{_P}/campaigns/{cid}/batches/preview", json={"filter": _FLT, "batch_size": 4}).json()
     bid = api.c.post(f"{_P}/campaigns/{cid}/batches", json={"filter": _FLT, "batch_size": 4, "preview_token": pv["token"], "confirm_count": 4,
                                                            "idempotency_key": uuid.uuid4().hex}).json()["batch"]["id"]

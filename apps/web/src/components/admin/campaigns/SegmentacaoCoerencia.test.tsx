@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { SegmentedCampaigns } from './SegmentedCampaigns';
 import { Backend } from './testBackend';
+import { addProductLink } from './testLink';
 
 vi.mock('@/lib/auth-token', () => ({ getToken: () => 'tok' }));
 let be: Backend;
@@ -156,6 +157,8 @@ describe('"Criar campanha com este público" leva TODOS os filtros e nunca envia
     await waitFor(() => expect(use.disabled).toBe(false), { timeout: 3000 });
     fireEvent.click(use);
     expect(noSend()).toHaveLength(0);
+    await screen.findByLabelText(/Nome da campanha/);
+    await addProductLink();
     fireEvent.change(await screen.findByLabelText(/Nome da campanha/), { target: { value: 'Combinação completa' } });
     fireEvent.change(screen.getByLabelText(/Mensagem principal/), { target: { value: 'Oferta' } });
     fireEvent.click(screen.getByRole('button', { name: /Salvar campanha e continuar/ }));
@@ -189,6 +192,8 @@ describe('"Criar campanha com este público" leva TODOS os filtros e nunca envia
     const use = aside().getByRole('button', { name: /Criar campanha com este público/ }) as HTMLButtonElement;
     await waitFor(() => expect(use.disabled).toBe(false), { timeout: 3000 });
     fireEvent.click(use);
+    await screen.findByLabelText(/Nome da campanha/);
+    await addProductLink();
     fireEvent.change(await screen.findByLabelText(/Nome da campanha/), { target: { value: 'Raiz OU' } });
     fireEvent.change(screen.getByLabelText(/Mensagem principal/), { target: { value: 'Oferta' } });
     fireEvent.click(screen.getByRole('button', { name: /Salvar campanha e continuar/ }));
@@ -208,6 +213,8 @@ describe('"Criar campanha com este público" leva TODOS os filtros e nunca envia
     await screen.findByLabelText(/Nome da campanha/);
     fireEvent.click(screen.getByRole('button', { name: /Voltar às campanhas/ }));
     fireEvent.click(await screen.findByRole('button', { name: /Nova campanha/ }));
+    await screen.findByLabelText(/Nome da campanha/);
+    await addProductLink();
     fireEvent.change(await screen.findByLabelText(/Nome da campanha/), { target: { value: 'À mão' } });
     fireEvent.change(screen.getByLabelText(/Mensagem principal/), { target: { value: 'Oferta' } });
     fireEvent.click(screen.getByRole('button', { name: /Salvar campanha e continuar/ }));

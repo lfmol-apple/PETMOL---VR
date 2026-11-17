@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { SegmentedCampaigns } from './SegmentedCampaigns';
 import { Backend, err } from './testBackend';
+import { addProductLink } from './testLink';
 
 vi.mock('@/lib/auth-token', () => ({ getToken: () => 'tok' }));
 
@@ -41,6 +42,7 @@ describe('1–2. criar campanha e conteúdo', () => {
     render(<SegmentedCampaigns />);
     fireEvent.click(await screen.findByRole('button', { name: /Nova campanha/ }));
     const link = 'https://www.amazon.com.br/dp/B0TEST?tag=amazonpetmol-20&linkCode=ll1&th=1 ';
+    await addProductLink();
     fireEvent.change(screen.getByLabelText(/Nome da campanha/), { target: { value: 'Ração Premier gatos' } });
     fireEvent.change(screen.getByLabelText(/Mensagem principal/), { target: { value: 'Premier com desconto.' } });
     fireEvent.change(screen.getByLabelText(/Link do produto/), { target: { value: link } });
@@ -57,6 +59,7 @@ describe('1–2. criar campanha e conteúdo', () => {
     be.delayMs = 30;
     render(<SegmentedCampaigns />);
     fireEvent.click(await screen.findByRole('button', { name: /Nova campanha/ }));
+    await addProductLink();
     fireEvent.change(screen.getByLabelText(/Nome da campanha/), { target: { value: 'Teste dupla' } });
     fireEvent.change(screen.getByLabelText(/Mensagem principal/), { target: { value: 'Olá' } });
     const b = screen.getByRole('button', { name: /Salvar campanha e continuar/ });

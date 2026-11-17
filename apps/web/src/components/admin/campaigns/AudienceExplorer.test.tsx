@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { SegmentedCampaigns } from './SegmentedCampaigns';
 import { Backend } from './testBackend';
+import { addProductLink } from './testLink';
 
 vi.mock('@/lib/auth-token', () => ({ getToken: () => 'tok' }));
 let be: Backend;
@@ -90,6 +91,7 @@ describe('Segmentação de público: chips + contagem ao vivo, sem criar campanh
     await waitFor(() => expect(use.disabled).toBe(false), { timeout: 3000 });
     fireEvent.click(use);
     expect(await screen.findByText(/vai usar o/)).toBeTruthy();
+    await addProductLink();
     fireEvent.change(screen.getByLabelText(/Nome da campanha/), { target: { value: 'Ração gata' } });
     fireEvent.change(screen.getByLabelText(/Mensagem principal/), { target: { value: 'Oferta para gatas' } });
     fireEvent.click(screen.getByRole('button', { name: /Salvar campanha e continuar/ }));
