@@ -61,20 +61,55 @@ export async function primeStoreNativeOpen(maxMs = 4000): Promise<void> {
   }
 }
 
-/** Abre o produto. No app nativo usa o caminho de sempre das lojas; na web/PWA, navega na própria aba (sem bloqueio de pop-up). */
+/**
+ * Abertura COM VERIFICAÇÃO (app nativo). Chamar a abertura da loja logo depois do toque pode falhar em silêncio (o app ainda está
+ * acordando e não há tela para apresentar o navegador). Então: espera o app ficar visível, abre, e só considera aberto se houver
+ * sinal real (o app foi para o segundo plano porque a loja assumiu, ou o navegador do sistema carregou a página). Sem sinal em 3,5 s,
+ * tenta de outro jeito (navegador do sistema; depois navegação direta). Cada passo é registrado no diagnóstico do servidor.
+ */
+async function openNativeVerified(url: string, firstAttemptDone: () => void): Promise<void> {
+  let confirmed = false;
+  const confirm = () => { confirmed = true; };
+  const onVis = () => { if (document.visibilityState === 'hidden') confirm(); };
+  document.addEventListener('visibilitychange', onVis);
+  window.addEventListener('pagehide', confirm);
+  let handle: { remove: () => Promise<void> } | null = null;
+  const waitConfirm = async (ms: number) => { const end = Date.now() + ms; while (!confirmed && Date.now() < end) await sleep(150); };
+  try {
+    try {
+      const { Browser } = await import('@capacitor/browser');
+      handle = await Browser.addListener('browserPageLoaded', confirm);
+    } catch { /* sem plugin: segue só com o sinal de segundo plano */ }
+
+    for (let i = 0; i < 20 && document.visibilityState !== 'visible'; i++) await sleep(150);   // só abre com o app visível
+    await primeStoreNativeOpen();
+    pushDiagBreadcrumb('product open: 1ª tentativa (caminho das lojas, ' + (Capacitor.getPlatform?.() ?? '?') + ')');
+    try { navigateToPartnerUrl(url); } catch (e) { pushDiagBreadcrumb('product open: erro na 1ª tentativa ' + String(e).slice(0, 100)); }
+    firstAttemptDone();                      // quem chamou já pode seguir; a verificação continua em segundo plano
+    await waitConfirm(3500);
+    if (confirmed) { pushDiagBreadcrumb('product open: CONFIRMADO (1ª tentativa)'); return; }
+
+    pushDiagBreadcrumb('product open: 1ª tentativa SEM sinal → navegador do sistema');
+    try { const { Browser } = await import('@capacitor/browser'); await Browser.open({ url }); } catch (e) { pushDiagBreadcrumb('product open: erro no navegador do sistema ' + String(e).slice(0, 100)); }
+    await waitConfirm(3500);
+    if (confirmed) { pushDiagBreadcrumb('product open: CONFIRMADO (navegador do sistema)'); return; }
+
+    pushDiagBreadcrumb('product open: 2ª tentativa SEM sinal → navegação direta');
+    window.location.assign(url);
+  } finally {
+    firstAttemptDone();
+    document.removeEventListener('visibilitychange', onVis);
+    window.removeEventListener('pagehide', confirm);
+    try { await handle?.remove(); } catch { /* ok */ }
+  }
+}
+
+/** Abre o produto. No app nativo, com verificação e plano B (em segundo plano, sem travar quem chamou); na web/PWA, navega na própria aba. */
 export async function openPushProductLink(raw: string): Promise<boolean> {
   const url = (raw ?? '').trim();
   if (!isPushProductUrl(url)) return false;
   if (Capacitor.isNativePlatform()) {
-    try {
-      await primeStoreNativeOpen();
-      pushDiagBreadcrumb('product open: chamando a abertura da loja (' + (Capacitor.getPlatform?.() ?? '?') + ')');
-      navigateToPartnerUrl(url);
-    } catch (e) {
-      pushDiagBreadcrumb('product open: ERRO ' + String(e).slice(0, 120) + ' → navegador do sistema');
-      // Rede de segurança: se o caminho das lojas falhar, abre o link no navegador do sistema (nunca fica só no PETMOL).
-      void import('@capacitor/browser').then(({ Browser }) => Browser.open({ url })).catch(() => { window.location.assign(url); });
-    }
+    await new Promise<void>((resolve) => { void openNativeVerified(url, resolve); });
   } else {
     window.location.assign(url);
   }
