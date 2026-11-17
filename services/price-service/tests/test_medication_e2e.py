@@ -71,7 +71,13 @@ def _aware(dt):
 
 
 def _now_hhmm_plus(minutes):
-    return (datetime.now(BRT) + timedelta(minutes=minutes)).strftime("%H:%M")
+    """Hora de hoje (BRT) daqui a `minutes`. Nunca passa da meia-noite: depois das 23:30 o "+30 min" caía no dia seguinte e o teste
+    falhava só nessa meia hora (a CI rodando às 23h39 quebrava um PR sem relação). Trava em 23:59."""
+    now = datetime.now(BRT)
+    target = now + timedelta(minutes=minutes)
+    if target.date() != now.date():
+        target = now.replace(hour=23, minute=59)
+    return target.strftime("%H:%M")
 
 
 def test_lifecycle_all_frequencies_and_notifications(ctx):

@@ -252,3 +252,31 @@ def test_endpoint_de_conferencia_devolve_nome_ou_pede_manual(adm, monkeypatch):
 def test_sem_login_de_admin_o_endpoint_recusa(client):
     client.app.dependency_overrides.pop(get_current_admin, None)
     assert client.post("/v1/admin/broadcast/link-preview", json={"url": "https://amzn.to/x"}).status_code in (401, 403)
+
+
+# ── Coleta da oferta (preço/desconto) ────────────────────────────────────────
+
+def _ld(offer: str) -> str:
+    return f'<html><script type="application/ld+json">{{"@type":"Product","name":"Ração X","offers":{offer}}}</script></html>'
+
+
+def test_oferta_preco_do_dado_estruturado_em_reais():
+    o = pl.extract_offer(_ld('{"@type":"Offer","price":"129.90","priceCurrency":"BRL"}'))
+    assert o == {"price": 129.9, "list_price": None, "discount_pct": None}
+
+
+def test_oferta_com_preco_de_lista_calcula_o_desconto_so_se_a_pagina_traz_os_dois():
+    o = pl.extract_offer(_ld('{"@type":"AggregateOffer","lowPrice":"80","highPrice":"100","priceCurrency":"BRL"}'))
+    assert o == {"price": 80.0, "list_price": 100.0, "discount_pct": 20}
+    # preço de lista menor ou igual ao atual não é desconto
+    assert pl.extract_offer(_ld('{"@type":"AggregateOffer","lowPrice":"100","highPrice":"90","priceCurrency":"BRL"}'))["discount_pct"] is None
+
+
+def test_oferta_so_em_reais_e_sem_inventar():
+    assert pl.extract_offer(_ld('{"@type":"Offer","price":"29.9","priceCurrency":"USD"}'))["price"] is None
+    assert pl.extract_offer("<html><title>sem dados</title></html>") == {"price": None, "list_price": None, "discount_pct": None}
+
+
+def test_oferta_por_meta_e_formato_brasileiro():
+    page = '<meta property="product:price:amount" content="1.299,90"><meta property="product:price:currency" content="BRL">'
+    assert pl.extract_offer(page)["price"] == 1299.9

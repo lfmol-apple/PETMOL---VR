@@ -4,12 +4,13 @@
 import { useState } from 'react';
 import { call, type Campaign, type CampaignContent } from './api';
 import { destinationLabel, exampleOf, hasVariables } from './filters';
+import { composeCampaign, LINK_TITLE } from './linkCampaign';
 
 const input = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[14px] text-slate-900';
 const label = 'mb-1 block text-[12px] font-bold text-slate-600';
 
 export interface Goal { key: string; group: string; label: string; title: string; open: string; message: string }
-interface LinkInfo { url: string; store: string; title: string | null; image?: string | null; readable: boolean; reason: string | null }
+interface LinkInfo { url: string; store: string; title: string | null; image?: string | null; readable: boolean; reason: string | null; price?: number | null; list_price?: number | null; discount_pct?: number | null }
 
 export interface Draft { name: string; goal: string; title: string; message: string; destination: string; productUrl: string; productTitle: string }
 export const emptyDraft = (): Draft => ({ name: '', goal: '', title: '', message: '', destination: 'home', productUrl: '', productTitle: '' });
@@ -49,7 +50,6 @@ export function ContentReadOnly({ content, locked, destinations }: { content: Ca
 }
 
 const LINK_GOAL = 'link_produto';
-const LINK_TITLE = '{tutor}, olha este produto para {pets}';
 
 /** Campanha SÓ de link (decisão do dono, 16/11/2026): o link do produto é obrigatório e o toque abre sempre o produto na loja. */
 export function ContentForm({ initial, onCreated }: {
@@ -71,16 +71,14 @@ export function ContentForm({ initial, onCreated }: {
       const info = await call<LinkInfo>('/link-preview', { url }, { base: '/api/v1/admin/broadcast' });
       setLink(info);
       // Aproveita a oferta: só preenche o que ainda está vazio; nada digitado por você é sobrescrito.
-      setD((x) => {
-        const name = (info.title ?? x.productTitle).trim();
-        return {
-          ...x,
-          productTitle: info.title ?? x.productTitle,
-          title: x.title.trim() ? x.title : LINK_TITLE,
-          message: x.message.trim() ? x.message : (name ? `${name.slice(0, 200)} — toque para ver.` : x.message),
-          name: x.name.trim() ? x.name : name.slice(0, 120),
-        };
-      });
+      const auto = composeCampaign({ ...info, title: info.title ?? null });
+      setD((x) => ({
+        ...x,
+        productTitle: info.title ?? x.productTitle,
+        title: x.title.trim() ? x.title : auto.title,
+        message: x.message.trim() ? x.message : (auto.message || x.message),
+        name: x.name.trim() ? x.name : auto.name,
+      }));
     } catch (e) { setLinkErr((e as Error).message); } finally { setChecking(false); }
   };
 
@@ -117,6 +115,13 @@ export function ContentForm({ initial, onCreated }: {
         {link?.image && /^https:\/\//i.test(link.image) && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={link.image} alt="" className="mt-2 h-20 w-20 rounded-lg border border-slate-200 object-contain" />
+        )}
+        {link && typeof link.price === 'number' && (
+          <p className="mt-2 text-[12.5px] leading-snug text-slate-700" data-testid="oferta-preco">
+            Preço lido da página agora: <strong>{link.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+            {link.discount_pct ? <> (de {link.list_price?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}, <strong>{link.discount_pct}% de desconto</strong>)</> : null}.
+            {link.store === 'Amazon' ? ' Na Amazon o preço não é citado na notificação.' : ' Está no texto da notificação: confira se ainda vale antes de enviar.'}
+          </p>
         )}
         {link && (
           <p className={`mt-2 text-[12.5px] leading-snug ${link.readable ? 'text-emerald-800' : 'text-amber-900'}`}>
