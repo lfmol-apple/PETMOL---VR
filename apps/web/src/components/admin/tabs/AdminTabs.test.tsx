@@ -58,23 +58,25 @@ describe('abas do painel', () => {
   });
 
   it('Desempenho: mostra os 5 números (inclui notificações ativas), hoje × ontem', async () => {
-    const totals = { downloads: 5, cadastros: 4, pets: 3, alimentacao: 2, notificacoes: 1 };
+    const totals = { downloads: 5, cadastros: 4, pets: 3, alimentacao: 2, notificacoes: 1, localizacao: 1 };
     api.adminApi.mockResolvedValue({ totals, series: [{ date: '2026-11-08', ...totals }] });
     render(<DesempenhoTab />);
     await waitFor(() => expect(screen.getAllByText('Cadastrou a alimentação').length).toBeGreaterThan(0));
     expect(screen.getAllByText('Downloads').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Se cadastrou').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Notificações ativas').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Localização ativa').length).toBeGreaterThan(0);          // o 6º card
   });
 
   it('Desempenho: percentuais de pet, ração e notificações sobre "Se cadastrou"; downloads sem percentual', async () => {
-    const totals = { downloads: 50, cadastros: 8, pets: 6, alimentacao: 2, notificacoes: 4 };
+    const totals = { downloads: 50, cadastros: 8, pets: 6, alimentacao: 2, notificacoes: 4, localizacao: 2 };
     api.adminApi.mockResolvedValue({ totals, series: [{ date: '2026-11-08', ...totals }] });
     render(<DesempenhoTab />);
     await waitFor(() => expect(screen.getAllByTestId('pct-periodo-pets').length).toBe(1));
     expect(screen.getByTestId('pct-periodo-pets').textContent).toContain('75%');
     expect(screen.getByTestId('pct-periodo-alimentacao').textContent).toContain('25%');
     expect(screen.getByTestId('pct-periodo-notificacoes').textContent).toContain('50%');
+    expect(screen.getByTestId('pct-periodo-localizacao').textContent).toContain('25%');
     expect(screen.queryByTestId('pct-periodo-downloads')).toBeNull();
     expect(screen.queryByTestId('pct-periodo-cadastros')).toBeNull();
     expect(screen.getByTestId('pct-hoje-notificacoes').textContent).toContain('50%');

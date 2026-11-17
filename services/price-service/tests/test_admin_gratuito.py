@@ -203,3 +203,35 @@ def test_percentual_ignora_downloads_e_cadastros(client, admin):
     assert cards["downloads"]["before"]["pct"] is None and cards["downloads"]["now"]["pct"] is None
     assert cards["cadastros"]["before"]["pct"] is None and cards["cadastros"]["denominator"] == "base dos percentuais"
     assert cards["pets"]["denominator"] == "das pessoas cadastradas"
+
+
+# ── Desempenho: 6º card "Localização ativa" ─────────────────────────────────
+
+def test_desempenho_conta_localizacao_uma_vez_na_data_do_primeiro_salvou(client, admin):
+    from datetime import timedelta
+    from src.analytics.models import AnalyticsProductEvent
+    now = datetime.now(timezone.utc)
+    db = SessionLocal()
+    try:
+        com_evento = _user(db, "Com evento", gps=True)
+        sem_evento = _user(db, "Sem evento", gps=True)
+        sem_evento.location_updated_at = now - timedelta(days=3)
+        so_cidade = _user(db, "Só cidade"); so_cidade.location_source = "city"; so_cidade.lat = -19.9; so_cidade.lng = -43.9
+        db.commit()
+        for i, days in enumerate((5, 1)):             # dois "salvou": vale o PRIMEIRO
+            db.add(AnalyticsProductEvent(event_id=f"e{i}-{uuid.uuid4().hex[:8]}", event_name="perm_location_result", user_id=com_evento.id,
+                                         properties_json='{"result": "saved"}', received_at=now - timedelta(days=days)))
+        db.add(AnalyticsProductEvent(event_id=f"n-{uuid.uuid4().hex[:8]}", event_name="perm_location_result", user_id=so_cidade.id,
+                                     properties_json='{"result": "denied"}', received_at=now))
+        db.commit()
+    finally:
+        db.close()
+    d = client.get("/v1/admin/performance").json()
+    assert d["totals"]["localizacao"] == 2                                  # só quem compartilha o GPS (cidade/negou não contam)
+    assert sum(r["localizacao"] for r in d["series"]) == 2
+    por_dia = {r["date"]: r["localizacao"] for r in d["series"]}
+    d5 = (now - timedelta(days=5)).astimezone(gr.__dict__.get("_BR", None) or __import__("zoneinfo").ZoneInfo("America/Sao_Paulo")).date().isoformat()
+    d3 = (now - timedelta(days=3)).astimezone(__import__("zoneinfo").ZoneInfo("America/Sao_Paulo")).date().isoformat()
+    assert por_dia.get(d5) == 1 and por_dia.get(d3) == 1                    # com evento: data do 1º salvou; sem evento: última atualização
+    hoje = client.get("/v1/admin/performance", params={"since": (now - timedelta(hours=6)).isoformat()}).json()["totals"]
+    assert hoje["localizacao"] == 0

@@ -5,10 +5,13 @@
 - Cadastrou o pet: a pessoa cadastrou o PRIMEIRO pet.
 - Cadastrou a alimentação: a pessoa configurou a ração do primeiro pet.
 - Notificações ativas: a pessoa ativou as notificações (primeiro aparelho que segue ativo).
+- Localização ativa: a pessoa compartilha a posição precisa (GPS), contada UMA vez, na data em que a localização foi salva pela
+  primeira vez (evento do app); quem não tem esse evento (antes da medição) entra na data da última atualização da posição.
 Nada de funil de coorte: se alguém criou a conta ontem e cadastrou o pet hoje, o pet conta hoje.
 """
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 from datetime import datetime
 from typing import Optional
@@ -25,6 +28,7 @@ from ..user_auth.models import User
 from ..analytics.models import AnalyticsProductEvent
 from .analytics.filters import AnalyticsFilters, platform_clause
 from .analytics.growth_bi import _installs, _signup_users
+from .analytics.permissions_bi import shares_location
 from .analytics.queries import _aware, _feeding_configured_pet_ids
 from .deps import get_current_admin
 
@@ -74,12 +78,34 @@ def _compute(db, since, until, platform: Optional[str], user_ids: Optional[set[s
                 first_push[uid] = c
     pushes = [c for c in first_push.values() if _inside(c, since, until)]
 
-    days: dict[str, dict[str, int]] = defaultdict(lambda: {"downloads": 0, "cadastros": 0, "pets": 0, "alimentacao": 0, "notificacoes": 0})
-    for key, items in (("downloads", installs), ("cadastros", signups), ("pets", pets), ("alimentacao", foods), ("notificacoes", pushes)):
+    # Localização ativa: quem compartilha o GPS hoje (mesma regra do painel de Push), contado uma vez. A data é a do 1º "salvou" do app;
+    # sem esse evento (conta anterior à medição), vale a última atualização da posição.
+    first_saved: dict[str, datetime] = {}
+    for uid, props, at in (db.query(AnalyticsProductEvent.user_id, AnalyticsProductEvent.properties_json, AnalyticsProductEvent.received_at)
+                           .filter(AnalyticsProductEvent.event_name == "perm_location_result", AnalyticsProductEvent.user_id.isnot(None),
+                                   AnalyticsProductEvent.properties_json.like("%saved%")).all()):
+        try:
+            if str((json.loads(props) if props else {}).get("result")) != "saved":
+                continue
+        except (ValueError, TypeError):
+            continue
+        if at is not None and (str(uid) not in first_saved or _aware(at) < _aware(first_saved[str(uid)])):
+            first_saved[str(uid)] = at
+    first_loc: dict[str, datetime] = {}
+    for uid, updated, created in db.query(User.id, User.location_updated_at, User.created_at).filter(real, shares_location()).all():
+        if user_ids is not None and str(uid) not in user_ids:
+            continue
+        when = first_saved.get(str(uid)) or updated or created
+        if when is not None:
+            first_loc[str(uid)] = when
+    locs = [c for c in first_loc.values() if _inside(c, since, until)]
+
+    days: dict[str, dict[str, int]] = defaultdict(lambda: {"downloads": 0, "cadastros": 0, "pets": 0, "alimentacao": 0, "notificacoes": 0, "localizacao": 0})
+    for key, items in (("downloads", installs), ("cadastros", signups), ("pets", pets), ("alimentacao", foods), ("notificacoes", pushes), ("localizacao", locs)):
         for c in items:
             days[_aware(c).astimezone(_BR).date().isoformat()][key] += 1
     return {
-        "totals": {"downloads": len(installs), "cadastros": len(signups), "pets": len(pets), "alimentacao": len(foods), "notificacoes": len(pushes)},
+        "totals": {"downloads": len(installs), "cadastros": len(signups), "pets": len(pets), "alimentacao": len(foods), "notificacoes": len(pushes), "localizacao": len(locs)},
         "series": [{"date": d, **v} for d, v in sorted(days.items())],
     }
 
