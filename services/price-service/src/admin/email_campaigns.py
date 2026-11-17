@@ -33,6 +33,8 @@ from .activation_campaign_router import (
 from .analytics.permissions_bi import has_any_push
 from .analytics.queries import _feeding_configured_pet_ids
 from .deps import get_current_admin
+from .email_clicks import EmailClick, click_url
+from . import email_gratuito
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +86,15 @@ def _ensure_legacy(db) -> None:
     db.commit()
 
 
+def _ensure_gratuito(db) -> None:
+    """Modelo fixo "versão gratuita permanece" (17/11/2026): criado uma vez; se o dono remover da lista, não volta sozinho."""
+    if db.query(EmailCampaign.id).filter(EmailCampaign.template == "gratuito").first():
+        return
+    db.add(EmailCampaign(name="Você continua com o PETMOL gratuito", subject=email_gratuito.SUBJECT, template="gratuito",
+                         created_at=datetime(2026, 11, 17, tzinfo=timezone.utc)))
+    db.commit()
+
+
 def _legacy_prefix(template: str) -> tuple[str, str]:
     return (CAMPAIGN_EMAIL_FOTO, CAMPAIGN_EMAIL_FOTO_CTL) if template == "foto" else (CAMPAIGN_EMAIL_RACAO, CAMPAIGN_EMAIL_RACAO_CTL)
 
@@ -97,7 +108,35 @@ def _stats(db, c: EmailCampaign) -> dict:
             ActivationCampaignContact.campaign.startswith(ctl_p + "__", autoescape=True)).scalar() or 0
         return {"sent": int(sent or 0), "control": int(ctl), "last_sent_at": last.isoformat() if last else None}
     sent, last = q.filter(ActivationCampaignContact.campaign == _tag(c.id)).one()
-    return {"sent": int(sent or 0), "control": 0, "last_sent_at": last.isoformat() if last else None}
+    out = {"sent": int(sent or 0), "control": 0, "last_sent_at": last.isoformat() if last else None}
+    if c.template == "gratuito":
+        out["tracking"] = _tracking(db, _tag(c.id))
+    return out
+
+
+def _tracking(db, tag: str) -> dict:
+    """Acompanhamento do e-mail "gratuito": cliques (só de quem recebeu) e efeito no app (estado ATUAL de quem recebeu).
+    Sem grupo de controle, então o efeito é "quantos dos que receberam usam hoje", não "quanto o e-mail causou"."""
+    recipients = {str(u) for (u,) in db.query(ActivationCampaignContact.user_id).filter(ActivationCampaignContact.campaign == tag).all()}
+    clicks = [(str(u), link) for (u, link) in db.query(EmailClick.user_id, EmailClick.link).filter(EmailClick.campaign == tag).all()
+              if str(u) in recipients]
+    by_link: dict[str, int] = {}
+    for _u, link in clicks:
+        by_link[link] = by_link.get(link, 0) + 1
+    out = {"recipients": len(recipients), "clicks": len(clicks), "clickers": len({u for u, _l in clicks}), "by_link": by_link,
+           "with_food": 0, "with_push": 0, "with_pet": 0}
+    if recipients:
+        ids = list(recipients)
+        feeding_ids = _feeding_configured_pet_ids(db)
+        pets_by_user: dict[str, list[str]] = {}
+        for i in range(0, len(ids), 500):
+            for uid, pid in db.query(Pet.user_id, Pet.id).filter(Pet.user_id.in_(ids[i:i + 500])).all():
+                pets_by_user.setdefault(str(uid), []).append(str(pid))
+        pushable = {str(u) for (u,) in db.query(User.id).filter(has_any_push(User.id)).all()}
+        out["with_pet"] = sum(1 for u in recipients if pets_by_user.get(u))
+        out["with_food"] = sum(1 for u in recipients if any(pid in feeding_ids for pid in pets_by_user.get(u, [])))
+        out["with_push"] = sum(1 for u in recipients if u in pushable)
+    return out
 
 
 # ── Conteúdo ────────────────────────────────────────────────────────────────
@@ -117,11 +156,17 @@ def _fill(text: str, name: Optional[str], pet_names: list[str]) -> str:
     return (text.replace("{nome}", _first(name) or "").replace("{pets}", _pets_phrase(pet_names)).replace("  ", " "))
 
 
-def render_email(c: EmailCampaign, name: Optional[str], pet_names: list[str], user_id: str) -> tuple[str, str, str]:
-    """(assunto, texto, html). Marcadores aceitos: {nome} e {pets}. Rodapé com o link para parar de receber."""
+def render_email(c: EmailCampaign, name: Optional[str], pet_names: list[str], user_id: str, extra: Optional[dict] = None) -> tuple[str, str, str]:
+    """(assunto, texto, html). Marcadores aceitos: {nome} e {pets}. Rodapé com o link para parar de receber.
+    `extra` ({"progress", "pet_of"}) só é usado pelo e-mail "gratuito", que se adapta ao que falta na conta de cada pessoa."""
+    unsub = unsubscribe_url(user_id)
+    if c.template == "gratuito":
+        tag = _tag(c.id)
+        ex = extra or {}
+        return email_gratuito.build_email(name, user_id, unsubscribe_url=unsub, link=lambda k: click_url(tag, user_id, k),
+                                          progress=ex.get("progress"), pet_of=ex.get("pet_of"), company_line=email_gratuito.COMPANY_LINE)
     subject = _fill(c.subject, name, pet_names).strip()
     body = _fill(c.body, name, pet_names).strip()
-    unsub = unsubscribe_url(user_id)
     paragraphs = [p.strip() for p in body.split("\n\n") if p.strip()]
     html_body = "".join(f'<p style="margin:0 0 16px;font-size:16px;line-height:1.55;color:#1e293b">{escape(p).replace(chr(10), "<br>")}</p>'
                         for p in paragraphs)
@@ -191,7 +236,7 @@ class AudienceIn(BaseModel):
 
 
 class SendIn(BaseModel):
-    segment: Literal["todos", "sem_pet", "sem_racao", "sem_push", "sem_foto"] = "todos"
+    segment: Literal["todos", "sem_pet", "sem_racao", "sem_push", "sem_foto", "gratuito_dia0", "gratuito_dia3"] = "todos"
     audience: AudienceIn = AudienceIn()
     confirm_count: Optional[int] = None
 
@@ -204,6 +249,18 @@ def _get(db, c_id: str) -> EmailCampaign:
 
 
 def _plan(db, c: EmailCampaign, payload: SendIn, admin_user) -> list[dict]:
+    if c.template == "gratuito":
+        from .gratuito_router import gratuito_targets   # import tardio: gratuito_router importa este módulo
+        if payload.audience.kind == "test":
+            return gratuito_targets(db, "dia0", only_user=str(admin_user.id))
+        if payload.segment not in ("gratuito_dia0", "gratuito_dia3"):
+            raise HTTPException(422, "Escolha o grupo do e-mail: dia 0 (quem a notificação não alcança) ou dia 3 (2º contato).")
+        import random
+        already = {str(u) for (u,) in db.query(ActivationCampaignContact.user_id).filter(ActivationCampaignContact.campaign == _tag(c.id)).all()}
+        targets = [t for t in gratuito_targets(db, payload.segment.removeprefix("gratuito_")) if t["user_id"] not in already]
+        if payload.audience.kind == "count" and payload.audience.count and payload.audience.count < len(targets):
+            targets = random.sample(targets, payload.audience.count)
+        return targets
     if payload.audience.kind == "test":
         pets = [n for (n,) in db.query(Pet.name).filter(Pet.user_id == admin_user.id).all() if n]
         return [{"user_id": str(admin_user.id), "name": admin_user.name, "email": admin_user.email, "pet_names": pets}]
@@ -219,7 +276,7 @@ def list_campaigns(current=Depends(get_current_admin)):
     db = SessionLocal()
     try:
         _ensure_legacy(db)
-        rows = db.query(EmailCampaign).filter(EmailCampaign.status == "active").order_by(EmailCampaign.created_at.desc()).all()
+        rows = db.query(EmailCampaign).filter(EmailCampaign.status == "active", EmailCampaign.template != "gratuito").order_by(EmailCampaign.created_at.desc()).all()
         return {
             "segments": SEGMENTS,
             "campaigns": [{
@@ -281,12 +338,34 @@ def preview(c_id: str, payload: SendIn, current=Depends(get_current_admin)):
         targets = _plan(db, c, payload, current[0])
         ex = next((t for t in targets if t["pet_names"]), targets[0] if targets else None)
         sample = None
-        if ex and c.template == "custom":
-            subject, text, _html = render_email(c, ex["name"], ex["pet_names"], ex["user_id"])
+        if ex and c.template in ("custom", "gratuito"):
+            subject, text, _html = render_email(c, ex["name"], ex["pet_names"], ex["user_id"], extra=ex)
             sample = {"subject": subject, "text": text.split("\n\n--\n")[0]}
-        total_all = len(audience(db, payload.segment)) if payload.audience.kind != "test" else len(targets)
+        total_all = len(targets) if (payload.audience.kind == "test" or c.template == "gratuito") else len(audience(db, payload.segment))
         return {"will_send": len(targets), "audience_total": total_all, "already_received": total_all - len(targets) if payload.audience.kind == "all" else 0,
                 "sample": sample}
+    finally:
+        db.close()
+
+
+@router.get("/{c_id}/html")
+def html_preview(c_id: str, current=Depends(get_current_admin)):
+    """Como o e-mail aparece (para o painel mostrar). Links diretos: clicar na pré-visualização não conta como clique de ninguém."""
+    db = SessionLocal()
+    try:
+        c = _get(db, c_id)
+        if c.template not in ("custom", "gratuito"):
+            raise HTTPException(409, "Campanha antiga: use o painel dela.")
+        admin = current[0]
+        pets = [n for (n,) in db.query(Pet.name).filter(Pet.user_id == admin.id).all() if n]
+        if c.template == "gratuito":
+            from .gratuito_router import gratuito_targets
+            mine = (gratuito_targets(db, "dia0", only_user=str(admin.id)) or [{}])[0]
+            subject, _t, html = email_gratuito.build_email(admin.name, str(admin.id), unsubscribe_url="#", progress=mine.get("progress"),
+                                                            pet_of=mine.get("pet_of"), company_line=email_gratuito.COMPANY_LINE)
+        else:
+            subject, _t, html = render_email(c, admin.name, pets, str(admin.id))
+        return {"subject": subject, "html": html}
     finally:
         db.close()
 
@@ -300,10 +379,14 @@ def send_test(c_id: str, current=Depends(get_current_admin)):
     db = SessionLocal()
     try:
         c = _get(db, c_id)
-        if c.template != "custom":
+        if c.template not in ("custom", "gratuito"):
             raise HTTPException(409, "Campanha antiga: só histórico.")
         pets = [n for (n,) in db.query(Pet.name).filter(Pet.user_id == admin.id).all() if n]
-        subject, text, html = render_email(c, admin.name, pets, str(admin.id))
+        extra = None
+        if c.template == "gratuito":
+            from .gratuito_router import gratuito_targets
+            extra = (gratuito_targets(db, "dia0", only_user=str(admin.id)) or [None])[0]
+        subject, text, html = render_email(c, admin.name, pets, str(admin.id), extra=extra)
     finally:
         db.close()
     if not send_mail(to=admin.email, subject=subject, body_text=text, body_html=html):
@@ -316,11 +399,15 @@ def send(c_id: str, payload: SendIn, current=Depends(get_current_admin)):
     db = SessionLocal()
     try:
         c = _get(db, c_id)
-        if c.template != "custom":
+        if c.template not in ("custom", "gratuito"):
             raise HTTPException(409, "Campanha antiga: só histórico. Crie uma nova.")
         with _lock:
             if any((s or {}).get("phase") == "running" for s in _state.values()):
                 raise HTTPException(409, "Já existe um envio de e-mail em andamento. Espere terminar.")
+        if c.template == "gratuito" and payload.audience.kind != "test":
+            problems = email_gratuito.ready_problems(email_gratuito.COMPANY_LINE)
+            if problems:
+                raise HTTPException(422, " ".join(problems))
         targets = _plan(db, c, payload, current[0])
         if not targets:
             raise HTTPException(422, "Ninguém receberia este e-mail agora.")
@@ -344,7 +431,7 @@ def _run(c: EmailCampaign, targets: list[dict], record: bool) -> None:
     try:
         for t in targets:
             try:
-                subject, text, html = render_email(c, t["name"], t["pet_names"], t["user_id"])
+                subject, text, html = render_email(c, t["name"], t["pet_names"], t["user_id"], extra=t)
                 ok = send_mail(to=t["email"], subject=subject, body_text=text, body_html=html)
             except Exception:  # noqa: BLE001 — um e-mail com problema não derruba os outros
                 logger.exception("email_campaign %s: falha para %s", c.id, t["user_id"])
