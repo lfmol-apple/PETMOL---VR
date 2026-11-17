@@ -24,12 +24,12 @@ export default function TransparenciaPage() {
       <InstitutionalJsonLd name="Transparência comercial do PETMOL" description={DESCRIPTION} path="/transparencia" />
       <InstitutionalLayout
         title="Transparência comercial"
-        intro="O PETMOL é gratuito para o usuário. Esta página explica como o serviço se financia."
+        intro="Esta página explica como o serviço se financia."
         updatedAt="30/08/2026"
       >
         <h2>Como o PETMOL se sustenta</h2>
         <p>
-          O aplicativo é gratuito e a página pública de conteúdo é a{' '}
+          A página pública de conteúdo é a{' '}
           <Link href="/recommendations">PETMOL Recommendations</Link>. Para manter o serviço, o
           PETMOL pode participar de <strong>programas de afiliados</strong> de lojas parceiras.
         </p>

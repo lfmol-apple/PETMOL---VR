@@ -33,7 +33,7 @@ export default function SobrePage() {
         <Bullets
           items={[
             <>
-              <strong>O aplicativo</strong> (com conta gratuita): registro de vacinas, controle de
+              <strong>O aplicativo</strong> (com conta): registro de vacinas, controle de
               ração com lembrete de recompra, agenda de cuidados, carteirinha digital do pet e alerta
               comunitário quando um pet se perde.
             </>,
@@ -69,7 +69,7 @@ export default function SobrePage() {
 
         <h2>Como o PETMOL se sustenta</h2>
         <p>
-          O aplicativo é gratuito. Para financiar o serviço, o PETMOL pode participar de programas de
+          Para financiar o serviço, o PETMOL pode participar de programas de
           afiliados de lojas parceiras — alguns links de compra podem gerar comissão para o PETMOL,
           sem custo adicional para você. Essa relação comercial é sempre identificada e não determina
           a conclusão dos conteúdos. Detalhes na{' '}

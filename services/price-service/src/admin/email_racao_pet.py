@@ -185,9 +185,9 @@ def build_email(
         '</td></tr>'
         # rodapé com a marca
         f'<tr><td style="background:#F4F7FB;border-top:1px solid #E2E8F0;padding:12px 16px;text-align:center;font-size:12px;color:#64748B">'
-        f'<span style="font-weight:800;color:{BLUE};font-size:13px">Petmol</span> • Gratuito e sem anúncios{unsub}</td></tr>'
+        f'<span style="font-weight:800;color:{BLUE};font-size:13px">Petmol</span>{unsub}</td></tr>'
         '</table></div>'
     )
-    text = (f"{livro}\n\n{title}\n\n{body}\n\n{callout}\n\n{cta}: {link_btn}\n(O PETMOL já está no seu celular: na página que abrir, toque em Abrir.)\n\nPetmol • Gratuito e sem anúncios\n"
+    text = (f"{livro}\n\n{title}\n\n{body}\n\n{callout}\n\n{cta}: {link_btn}\n(O PETMOL já está no seu celular: na página que abrir, toque em Abrir.)\n\nPetmol\n"
             + (f"\nPara parar de receber estes lembretes: {unsubscribe_url}\n" if unsubscribe_url else ""))
     return subject, text, html

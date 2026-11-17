@@ -59,7 +59,7 @@ export default function HomeBPreview() {
         <div id="lojas-home-b" className="relative mx-auto mt-6 flex max-w-sm flex-col items-center gap-3">
           <MainCta placement="home-b-hero" />
           <DownloadButton placement="home-b" compact />
-          <p className="text-[12px] font-medium text-blue-100">Grátis · para iPhone e Android</p>
+          <p className="text-[12px] font-medium text-blue-100">Para iPhone e Android</p>
         </div>
       </header>
 

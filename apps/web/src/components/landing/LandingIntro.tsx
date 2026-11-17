@@ -213,7 +213,7 @@ export function LandingIntro({ commercial, preview, onDone }: { commercial: Comm
           </button>
           <a href={href} onClick={onDownload} target="_blank" rel="noopener noreferrer" data-placement="intro-video" data-store="auto"
             className={`${pill} bg-[#0056D2]/90 text-white`}>
-            Baixar grátis
+            Baixar o PETMOL
           </a>
           <button type="button" onClick={skip} className={pill}>Pular ›</button>
         </div>

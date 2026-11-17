@@ -543,7 +543,7 @@ def _email_copy_push_location(name: Optional[str], pet_names: list[str]) -> tupl
         f"{pet} {nao_sabe} conferir a data da próxima vacina nem avisar que a ração "
         f"está acabando. Mas {tem} você para cuidar de tudo isso — e foi para ajudar "
         "nesse cuidado que criamos o PETMOL.\n\n"
-        "O app é gratuito, sem anúncios. E sabemos como é chato receber notificações o "
+        "Sabemos como é chato receber notificações o "
         "tempo todo só para comprar alguma coisa. Também não gostamos disso.\n\n"
         "Pedimos que você ative as notificações para que os avisos importantes cheguem "
         "na hora certa: o lembrete de uma vacina, a previsão de quando a ração vai "
@@ -565,7 +565,7 @@ def _email_copy_push_location(name: Optional[str], pet_names: list[str]) -> tupl
         f"<p>{pet_html} {nao_sabe} conferir a data da próxima vacina nem avisar que a "
         f"ração está acabando. Mas {tem} você para cuidar de tudo isso — e foi para "
         "ajudar nesse cuidado que criamos o PETMOL.</p>"
-        "<p>O app é gratuito, sem anúncios. E sabemos como é chato receber notificações "
+        "<p>Sabemos como é chato receber notificações "
         "o tempo todo só para comprar alguma coisa. Também não gostamos disso.</p>"
         "<p><strong>Pedimos que você ative as notificações para que os avisos "
         "importantes cheguem na hora certa:</strong> o lembrete de uma vacina, a "
@@ -673,7 +673,7 @@ def _email_copy_push_second(name: Optional[str], pet_names: list[str], user_id: 
         f"{saudacao}\n\n"
         f"Quando a ração de {pet} estiver acabando ou uma vacina vencer, o PETMOL só consegue te avisar se as "
         "notificações estiverem ligadas. Hoje elas estão desligadas.\n\n"
-        f"É grátis e sem anúncios: só os avisos que importam — vacina, ração e, se um dia {pet} {sumir}, o alerta "
+        f"Só os avisos que importam — vacina, ração e, se um dia {pet} {sumir}, o alerta "
         "da região.\n\n"
         'Leva 10 segundos: abra o PETMOL, toque no seu perfil e depois em "Ativar notificações".\n\n'
         "Equipe PETMOL"
@@ -687,7 +687,7 @@ def _email_copy_push_second(name: Optional[str], pet_names: list[str], user_id: 
         f"<p>{escape(saudacao)}</p>"
         f"<p>Quando a ração de {pet_html} estiver acabando ou uma vacina vencer, o PETMOL só consegue te avisar se as "
         "notificações estiverem ligadas. <strong>Hoje elas estão desligadas.</strong></p>"
-        f"<p>É grátis e sem anúncios: só os avisos que importam — vacina, ração e, se um dia {pet_html} {sumir}, o alerta da região.</p>"
+        f"<p>Só os avisos que importam — vacina, ração e, se um dia {pet_html} {sumir}, o alerta da região.</p>"
         '<p><strong>Leva 10 segundos: abra o PETMOL, toque no seu perfil e depois em "Ativar notificações".</strong></p>'
         "<p>Equipe PETMOL</p>" + opt + "</div>"
     )

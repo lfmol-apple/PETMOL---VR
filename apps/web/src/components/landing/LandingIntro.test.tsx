@@ -92,11 +92,11 @@ describe('introdução em vídeo (celular)', () => {
     }
   });
 
-  it('durante o vídeo: botão Baixar grátis presente (com loja e UTMs) e som liga/desliga', () => {
+  it('durante o vídeo: botão Baixar o PETMOL presente (com loja e UTMs) e som liga/desliga', () => {
     render(<LandingIntro commercial={COMMERCIALS.racao} preview={false} onDone={() => undefined} />);
     fireEvent.click(screen.getByText(/Assistir com som/));
     act(() => { fireEvent(video(), new Event('playing')); });
-    const dl = screen.getByText('Baixar grátis') as HTMLAnchorElement;
+    const dl = screen.getByText('Baixar o PETMOL') as HTMLAnchorElement;
     expect(dl.getAttribute('href')).toMatch(/apps\.apple\.com|play\.google\.com/);
     fireEvent.click(dl);
     const click = sent().filter((e) => e.event_name === 'landing_download_click').pop();

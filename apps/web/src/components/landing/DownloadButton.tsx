@@ -41,11 +41,11 @@ function GooglePlayBadge({ placement, heightPx }: { placement: string; heightPx:
 }
 
 /**
- * Botão "Baixar grátis": a chamada principal para a ação. Abre a loja do aparelho (App Store no iPhone,
+ * Botão "Baixar o PETMOL": a chamada principal para a ação. Abre a loja do aparelho (App Store no iPhone,
  * Google Play no Android); no computador leva aos selos. Tem pulso e brilho — efeito que os selos oficiais
  * NÃO podem ter, por isso o botão é separado deles.
  */
-export function DownloadCta({ placement, targetId, label: labelText = 'Baixar grátis' }: { placement: string; targetId?: string; label?: string }) {
+export function DownloadCta({ placement, targetId, label: labelText = 'Baixar o PETMOL' }: { placement: string; targetId?: string; label?: string }) {
   const platform = usePlatform();
   const ctx = useLandingContext();
   const track = () => trackDownloadClick({ button: 'cta', placement, store: platform === 'android' ? 'google' : platform === 'ios' ? 'apple' : 'auto' });
@@ -73,7 +73,7 @@ export function DownloadCta({ placement, targetId, label: labelText = 'Baixar gr
 function DownloadCue() {
   return (
     <div className="mb-1 flex flex-col items-center text-[#0056D2]" aria-hidden="true">
-      <span className="text-[13px] font-black uppercase tracking-wider">Baixe grátis</span>
+      <span className="text-[13px] font-black uppercase tracking-wider">Baixe o app</span>
       <svg className="landing-cue-arrow mt-0.5" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
         <path d="M6 9l6 6 6-6" />
       </svg>
@@ -153,7 +153,7 @@ export function StickyDownloadBar() {
         className="absolute right-2 top-1 flex h-8 w-8 items-center justify-center text-lg leading-none text-slate-400">×</button>
       <div className="flex items-center justify-center gap-4">
         <p className="text-[13px] font-black leading-tight text-slate-800">
-          Grátis<br /><span className="font-semibold text-slate-500">sem anúncios</span>
+          Baixe o PETMOL<br /><span className="font-semibold text-slate-500">iPhone e Android</span>
         </p>
         {platform === 'android' ? <GooglePlayBadge placement="barra" heightPx={44} /> : <AppStoreBadge placement="barra" heightPx={44} />}
       </div>
