@@ -15,7 +15,8 @@ vi.mock('@capacitor/core', () => ({
   }),
 }));
 vi.mock('@/features/interactions/userPromptChannel', () => ({ showAppToast: vi.fn() }));
-vi.mock('@/lib/deepLinkIntent', () => ({ markDeepLinkIntent: vi.fn(), savePendingDeepLink: (...a: unknown[]) => deliver(...a) }));
+const intent = vi.fn();
+vi.mock('@/lib/deepLinkIntent', () => ({ markDeepLinkIntent: () => intent(), savePendingDeepLink: (...a: unknown[]) => deliver(...a) }));
 vi.mock('@/lib/analytics', () => ({ trackProductEvent: (...a: unknown[]) => track(...a) }));
 vi.mock('@/features/commerce/pushProductLink', async () => {
   const actual = await vi.importActual<typeof import('@/features/commerce/pushProductLink')>('@/features/commerce/pushProductLink');
@@ -35,6 +36,7 @@ describe('toque em push de produto (app nativo)', () => {
   it('link do Mercado Livre abre a loja na hora e mede o toque', async () => {
     const link = 'https://meli.la/1AbCdEf';
     tap(`/home?produto=${encodeURIComponent(link)}&b=env1`);
+    expect(intent).toHaveBeenCalled();   // antes de qualquer espera: o gate de versão não recarrega a página no meio da abertura
     await waitFor(() => expect(open).toHaveBeenCalledWith(link));
     expect(track).toHaveBeenCalledWith('broadcast_opened', { broadcast: 'env1' });
     expect(deliver).not.toHaveBeenCalled();

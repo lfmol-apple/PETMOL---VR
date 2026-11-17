@@ -306,6 +306,9 @@ export async function initNativePushDeepLink(): Promise<void> {
       if (!url && typeof data.url === 'string') url = data.url as string;
       if (!url) url = '/home';
       reportDiag('native tap → ' + url);
+      // Marca já, de forma síncrona, que o toque trouxe um destino: sem isso o BuildVersionGate (versão nova no ar) recarregava a
+      // página logo depois do toque e a abertura da loja se perdia — o app só abria o PETMOL.
+      markDeepLinkIntent();
       // Push de produto: abre a loja direto no toque. Passar pela Home (ler ?produto= depois de montar) perdia o link
       // e o tutor caía só no PETMOL.
       void import('@/features/commerce/pushProductLink')
