@@ -5,6 +5,8 @@ const nav = vi.fn();
 const browserOpen = vi.fn().mockResolvedValue(undefined);
 let pageLoaded: (() => void) | null = null;
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => true, getPlatform: () => 'android' } }));
+let active = false;
+vi.mock('@capacitor/app', () => ({ App: { getState: async () => ({ isActive: active }) } }));
 vi.mock('@capacitor/browser', () => ({ Browser: { open: (...a: unknown[]) => browserOpen(...a), addListener: async (_e: string, cb: () => void) => { pageLoaded = cb; return { remove: async () => {} }; } } }));
 vi.mock('@/features/notifications/nativePushService', () => ({ pushDiagBreadcrumb: vi.fn() }));
 vi.mock('./homeShoppingPartners', () => ({ navigateToPartnerUrl: (...a: unknown[]) => nav(...a) }));
@@ -15,7 +17,7 @@ import { openPushProductLink } from './pushProductLink';
 
 const link = 'https://meli.la/abc';
 describe('abertura nativa com verificação', () => {
-  beforeEach(() => { vi.useFakeTimers(); nav.mockClear(); browserOpen.mockClear(); pageLoaded = null; });
+  beforeEach(() => { vi.useFakeTimers(); nav.mockClear(); browserOpen.mockClear(); pageLoaded = null; active = true; });
   afterEach(() => vi.useRealTimers());
 
   it('sem sinal em 3,5 s, tenta o navegador do sistema', async () => {
@@ -24,6 +26,17 @@ describe('abertura nativa com verificação', () => {
     expect(browserOpen).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(3800);
     expect(browserOpen).toHaveBeenCalledWith({ url: link });
+  });
+
+  it('espera o app ficar ativo antes de abrir (o iOS cancela a abertura se a cena ainda está em transição)', async () => {
+    active = false;
+    const p = openPushProductLink(link);
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(nav).not.toHaveBeenCalled();
+    active = true;
+    await vi.advanceTimersByTimeAsync(800);
+    await p;
+    expect(nav).toHaveBeenCalledWith(link);
   });
 
   it('com sinal de que abriu, não tenta de novo (nada abre duas vezes)', async () => {

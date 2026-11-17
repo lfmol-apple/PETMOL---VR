@@ -9,6 +9,7 @@ let platform = 'ios';
 let token: string | null = 'tok';
 let storeNativeUser = vi.fn<() => Promise<boolean>>();
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => native, getPlatform: () => platform } }));
+vi.mock('@capacitor/app', () => ({ App: { getState: async () => ({ isActive: true }) } }));
 vi.mock('@/features/notifications/nativePushService', () => ({ pushDiagBreadcrumb: vi.fn() }));
 vi.mock('./homeShoppingPartners', () => ({ navigateToPartnerUrl: (...a: unknown[]) => { order.push('abriu'); nav(...a); } }));
 vi.mock('./storeNativeOpen', () => ({ isStoreNativeOpenUser: () => storeNativeUser() }));

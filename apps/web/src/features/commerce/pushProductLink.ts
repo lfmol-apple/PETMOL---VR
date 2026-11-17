@@ -81,7 +81,15 @@ async function openNativeVerified(url: string, firstAttemptDone: () => void): Pr
       handle = await Browser.addListener('browserPageLoaded', confirm);
     } catch { /* sem plugin: segue só com o sinal de segundo plano */ }
 
-    for (let i = 0; i < 20 && document.visibilityState !== 'visible'; i++) await sleep(150);   // só abre com o app visível
+    // O iOS só entrega o link à loja (window.location / navegador do sistema) se a cena do app estiver TOTALMENTE ativa; logo depois do toque
+    // ela ainda está em transição e a abertura é cancelada em silêncio. Espera ficar ativa (até 6 s) e dá um respiro antes de abrir.
+    try {
+      const { App } = await import('@capacitor/app');
+      for (let i = 0; i < 30; i++) { if ((await App.getState()).isActive) break; await sleep(200); }
+    } catch {
+      for (let i = 0; i < 20 && document.visibilityState !== 'visible'; i++) await sleep(150);
+    }
+    await sleep(350);
     await primeStoreNativeOpen();
     pushDiagBreadcrumb('product open: 1ª tentativa (caminho das lojas, ' + (Capacitor.getPlatform?.() ?? '?') + ')');
     try { navigateToPartnerUrl(url); } catch (e) { pushDiagBreadcrumb('product open: erro na 1ª tentativa ' + String(e).slice(0, 100)); }
