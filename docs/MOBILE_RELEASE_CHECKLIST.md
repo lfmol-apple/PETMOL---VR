@@ -89,6 +89,22 @@ A APNs Auth Key foi gerada e configurada, a capability "Push Notifications" est�
 - [x] Review notes para App Store e Google Play — rascunho pronto em `docs/APP_STORE_METADATA.md`
 - [x] Copy de loja sem "grátis"/"menor preço garantido"/"diagnóstico"/"garantia de saúde" — landing page já corrigida (PR #55); lembretes documentados pra aplicar na ficha das lojas também
 
+## Assinatura / lançamento cobrado (ver `docs/PLANO_ASSINATURA.md`)
+
+- [ ] Divisão grátis × pago, preços e regra de grandfathering (sem teste grátis no lançamento; possibilidade prevista nos Termos §9.3) aprovados pelo dono
+- [ ] Apple Small Business Program (comissão 15%) inscrito
+- [ ] Produtos de assinatura criados no App Store Connect e no Google Play Console (mensal/anual; sem trial no lançamento)
+- [ ] StoreKit + Play Billing integrados; validação no servidor; "restaurar compras" funcionando
+- [ ] Paywall mostra recursos, preço, período, renovação automática, cancelamento, links de Termos/Privacidade
+- [ ] Sem botão/link externo de pagamento no app nativo
+- [ ] **Versão-corte fixada** (iOS versão+build / Android versionName+versionCode) e usuários da versão-corte ou anterior marcados `legacy` por conta no servidor ANTES de ligar o paywall (quem não atualizar segue grátis — Termos §9.7)
+- [ ] "O que há de novo" da versão com planos explica o que muda; aviso prévio no app/e-mail; sem atualização obrigatória para empurrar upgrade
+- [ ] Servidor mantém compatibilidade com a versão-corte; teto anti-abuso por conta definido (sem parecer cobrança)
+- [ ] Termos §9 e Privacidade §2.6 (já redigidos em modo duplo) revisados por advogado e republicados com aviso aos usuários; /sobre e /transparencia atualizados
+- [ ] App Privacy / Data Safety e ficha das lojas atualizados (sem "grátis"/"sem anúncios")
+- [ ] Conta de revisor com assinatura de teste (sandbox) e review notes explicando o paywall
+- [ ] Flag de lançamento do plano OFF → ligar só após homologação; regra "não mexer nas lojas" suspensa por decisão do dono
+
 ## Suporte / feedback
 
 - [x] "Fale com o PETMOL" — sugestão / problema / ajuda, `POST /support/feedback` + tabela `support_feedback`, minimizado (sem PII desnecessária), anonimizado (não apagado) na exclusão de conta — commit deste ciclo, CI verde

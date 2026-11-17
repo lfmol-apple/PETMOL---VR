@@ -8,7 +8,7 @@ export default function TermsPage() {
       backHref="/"
     >
       <PremiumCard>
-        <p className="text-slate-500 text-xs mb-6">Última atualização: 24 de agosto de 2026</p>
+        <p className="text-slate-500 text-xs mb-6">Última atualização: 17 de novembro de 2026</p>
         <div className="prose prose-sm prose-slate max-w-none">
           <h2>1. Aceitação dos Termos</h2>
           <p>
@@ -98,12 +98,41 @@ export default function TermsPage() {
             Todo o conteúdo do PETMOL (textos, gráficos, logos, ícones, imagens, software) é propriedade da PETMOL ou de seus licenciadores e está protegido por leis de direitos autorais.
           </p>
 
-          <h2>9. Modificações do Serviço e Condições Comerciais</h2>
+          <h2>9. Modificações do Serviço, Planos e Condições Comerciais</h2>
           <p>
-            Reservamo-nos o direito de modificar, suspender ou descontinuar qualquer parte do serviço a qualquer momento, com ou sem aviso prévio.
+            Reservamo-nos o direito de modificar, suspender ou descontinuar qualquer parte do serviço, inclusive recursos, limites de uso e planos, a qualquer momento. Mudanças que reduzam o que você contratou e já pagou serão informadas com antecedência razoável.
+          </p>
+          <h3>9.1. Planos gratuitos e pagos</h3>
+          <p>
+            O PETMOL pode ser oferecido, no todo ou em parte, de forma gratuita ou mediante assinatura paga, e essa condição pode mudar ao longo do tempo. A disponibilidade de um recurso sem cobrança em determinado momento não constitui promessa de gratuidade permanente. Funcionalidades que você já usava não passam a ser cobradas sem o seu aceite explícito.
+          </p>
+          <h3>9.2. Assinaturas (quando houver)</h3>
+          <p>
+            Se houver plano pago, o que ele inclui, o preço, a periodicidade e a renovação serão exibidos na tela de contratação, antes da confirmação. A assinatura é contratada e cobrada pela App Store ou pelo Google Play, conforme o seu aparelho, e se renova automaticamente ao fim de cada período, pelo mesmo valor, até ser cancelada. O cancelamento é feito nas configurações de assinaturas da própria loja, com antecedência mínima de 24 horas antes da renovação; ele interrompe renovações futuras e o acesso pago continua até o fim do período já pago. O PETMOL não recebe nem armazena os dados do seu cartão.
+          </p>
+          <h3>9.3. Período de teste e promoções</h3>
+          <p>
+            Quando oferecermos período de teste ou condição promocional, as regras serão informadas na tela de contratação. Ao fim do teste, a cobrança do plano escolhido começa automaticamente, salvo cancelamento antes do término do período de teste.
+          </p>
+          <h3>9.4. Alteração de preços</h3>
+          <p>
+            Podemos alterar os preços dos planos. A alteração será comunicada com antecedência e, quando a loja ou a lei exigirem, dependerá do seu consentimento; sem ele, a assinatura não será renovada pelo novo valor.
+          </p>
+          <h3>9.5. Reembolsos</h3>
+          <p>
+            Os reembolsos são tratados pela loja em que a assinatura foi contratada, conforme as regras dela e a legislação aplicável, incluindo o direito de arrependimento previsto no art. 49 do Código de Defesa do Consumidor, quando cabível.
+          </p>
+          <h3>9.6. Fim ou falta de pagamento</h3>
+          <p>
+            Se a assinatura terminar ou o pagamento não for confirmado, os recursos exclusivos do plano pago poderão ser limitados. Você mantém acesso aos seus dados e aos recursos disponíveis sem cobrança, e não apagamos seus dados por esse motivo. Alertas de segurança da comunidade, como o Pet Sumido, não dependem de plano pago, salvo aviso em contrário.
+          </p>
+
+          <h3>9.7. Versão atual do aplicativo</h3>
+          <p>
+            Se o PETMOL passar a oferecer planos pagos em uma nova versão do aplicativo, quem já utiliza a versão disponível antes dessa mudança (a &quot;versão-corte&quot;, que será identificada no comunicado da mudança e nas lojas) poderá continuar usando essa versão, com as funcionalidades que ela já oferece, sem cobrança. A cobrança só se aplica a quem decidir, por escolha própria, atualizar para a versão com planos e contratar um plano pago; a informação sobre o que muda será apresentada antes da atualização.
           </p>
           <p>
-            O PETMOL poderá oferecer diferentes funcionalidades, planos ou condições comerciais ao longo do tempo. Eventual cobrança será informada previamente ao usuário e dependerá do aceite/contratação correspondente — funcionalidades já em uso não passam a ser cobradas retroativamente sem esse aceite explícito.
+            Essa continuidade vale enquanto o serviço estiver disponível. Podemos encerrar o suporte a uma versão por motivos de segurança, obrigação legal, exigência da Apple, do Google ou do sistema operacional, ou encerramento do serviço, sempre com aviso prévio e sem cobrança para manter o que você já utilizava. Podemos aplicar limites técnicos de uso razoável para proteger o serviço contra abuso, sem que isso configure cobrança.
           </p>
 
           <h2>10. Limitação de Responsabilidade</h2>
@@ -115,10 +144,13 @@ export default function TermsPage() {
             <li>Perda de lucros ou dados</li>
             <li>Interrupção de negócios</li>
           </ul>
+          <p>
+            Essas limitações se aplicam na extensão máxima permitida pela lei e não afastam direitos que a legislação de defesa do consumidor assegura a você, inclusive em relação a serviços pagos.
+          </p>
 
           <h2>11. Rescisão</h2>
           <p>
-            Você pode encerrar sua conta a qualquer momento através das configurações da plataforma. Reservamo-nos o direito de suspender ou encerrar sua conta se violarmos estes Termos.
+            Você pode encerrar sua conta a qualquer momento através das configurações da plataforma. Reservamo-nos o direito de suspender ou encerrar sua conta se você violar estes Termos.
           </p>
 
           <h2>12. Lei Aplicável</h2>
@@ -143,7 +175,7 @@ export default function TermsPage() {
           <div className="mt-12 p-6 bg-blue-50 rounded-lg border border-blue-200">
             <p className="text-sm text-blue-900">
               <strong>Versão:</strong> 2026-08-24<br />
-              <strong>Data de vigência:</strong> 24 de agosto de 2026
+              <strong>Data de vigência:</strong> 17 de novembro de 2026
             </p>
           </div>
         </div>
