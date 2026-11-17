@@ -1080,6 +1080,56 @@ def native_diag_dump(_admin=Depends(_native_diag_guard)):
     return {"count": len(_NATIVE_DIAG), "entries": _NATIVE_DIAG[-40:]}
 
 
+# ── Plano B da campanha de link: "abriu o app → abre o produto" ──────────────────────────────────────────────
+# O toque na notificação sempre acorda o PETMOL; se a abertura direta da loja falhar, o app pergunta aqui, ao abrir, se há um
+# link de campanha enviado a este tutor há pouco e ainda não aberto, e abre a loja sozinho.
+PENDING_LINK_WINDOW = timedelta(minutes=30)
+
+
+@router.get("/pending-link")
+def pending_campaign_link(current_user=Depends(get_current_user)):
+    from sqlalchemy import func, exists
+    from ..admin.push_campaigns import PushCampaign, PushCampaignRecipient, PushLinkOpen
+    uid = str(current_user.id)
+    since = datetime.now(timezone.utc) - PENDING_LINK_WINDOW
+    when = func.coalesce(PushCampaignRecipient.finished_at, PushCampaignRecipient.attempted_at)
+    db = SessionLocal()
+    try:
+        opened = exists().where(PushLinkOpen.user_id == uid, PushLinkOpen.batch_id == PushCampaignRecipient.batch_id)
+        row = (db.query(PushCampaignRecipient.batch_id, PushCampaign.id, PushCampaign.product_url, PushCampaign.product_title)
+               .join(PushCampaign, PushCampaign.id == PushCampaignRecipient.campaign_id)
+               .filter(PushCampaignRecipient.user_id == uid, PushCampaignRecipient.state == "accepted", when >= since,
+                       PushCampaign.product_url.is_not(None), ~opened)
+               .order_by(when.desc()).first())
+        if not row:
+            return {"pending": None}
+        return {"pending": {"batch_id": row[0], "campaign_id": row[1], "url": row[2], "title": row[3]}}
+    finally:
+        db.close()
+
+
+class ConsumeLinkRequest(BaseModel):
+    batch_id: str
+    via: Optional[str] = None
+
+
+@router.post("/pending-link/consume")
+def consume_pending_link(body: ConsumeLinkRequest, current_user=Depends(get_current_user)):
+    from ..admin.push_campaigns import PushLinkOpen
+    uid = str(current_user.id)
+    db = SessionLocal()
+    try:
+        if not db.query(PushLinkOpen.id).filter(PushLinkOpen.user_id == uid, PushLinkOpen.batch_id == body.batch_id[:36]).first():
+            db.add(PushLinkOpen(user_id=uid, batch_id=body.batch_id[:36], via=(body.via or "")[:12] or None))
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()          # corrida: já registrado por outro pedido
+        return {"ok": True}
+    finally:
+        db.close()
+
+
 def _user_never_had_push(db, user_id: str) -> bool:
     """True se o tutor nunca teve NENHUM aparelho de push (ativo ou não) — evita "ativou" falso
     por troca de token/aparelho de quem já tinha notificação."""
