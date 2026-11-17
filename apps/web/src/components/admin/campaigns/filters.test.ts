@@ -9,7 +9,7 @@ const f = (name: string) => FIELDS.find((x) => x.field === name)!;
 
 describe('catálogo de filtros', () => {
   it('são exatamente os 31 filtros (21 da Etapa 2 + localização por origem + ração), sem campos inexistentes', () => {
-    expect(FIELDS).toHaveLength(31);
+    expect(FIELDS).toHaveLength(32);
     const names = FIELDS.map((x) => x.field).join(' ');
     for (const proibido of ['tutor_sex', 'sexo_tutor', 'litter', 'areia', 'days_remaining', 'dias_restantes']) expect(names).not.toContain(proibido);
   });

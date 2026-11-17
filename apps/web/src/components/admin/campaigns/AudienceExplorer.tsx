@@ -8,8 +8,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { call, explainError, type AudienceCount, type FieldInfo } from './api';
 import { FilterBuilder } from './FilterBuilder';
+import { TutorPicker } from './TutorPicker';
 import { buildFilter, conditionCount, describeCond, emptyFilter, type FilterState } from './filters';
-import { removeField } from './quickFilters';
+import { removeField, setQuick } from './quickFilters';
 import { chipLocks, findConflicts } from './consistency';
 import { AGE_BANDS, FEED_BANDS, WEIGHT_BANDS, bandKey, pickBand, pickIn, pickOne, quickCond, removeCond, toggleFlag, toggleIn } from './quickFilters';
 import { PLACE_FIELD, SEX_FIELD, SEX_OPTIONS, parsePlace, placeValue, rememberPlaces, type PlaceOptions } from './places';
@@ -140,6 +141,17 @@ export function AudienceExplorer({ fields, state, onChange, onUse, locationNote,
           <span className="text-[22px] font-black leading-none">{!built.ready ? '—' : res.error ? '!' : d ? numberFmt(d.reachable) : '…'}</span>
           <span className="truncate text-[11.5px] text-sky-100">{nothing ? 'todos com push' : `${chips.length} filtro${chips.length === 1 ? '' : 's'}`}</span>
         </div>
+        {by.has('tutor_selected') && (
+          <Group title="Escolher tutores um a um" hint="busque por nome, e-mail ou nome do pet e marque quem deve receber">
+            <div className="w-full">
+              <TutorPicker
+                value={(quickCond(state, 'tutor_selected')?.value as string[] | undefined) ?? []}
+                onChange={(ids) => onChange(setQuick(state, 'tutor_selected', ids.length ? { op: 'in', value: ids, ack: false } : null))}
+              />
+              <p className="mt-2 text-[11.5px] leading-snug text-slate-500">Se houver outros filtros marcados abaixo, o envio vai só para os escolhidos que também atendem a eles. Quem não recebe push continua sem receber.</p>
+            </div>
+          </Group>
+        )}
         <Group title="Pet" hint="Os chips combinam no MESMO pet (ex.: gato + fêmea = gata)" note={locks.all ?? ['pet_species', 'pet_sex', 'pet_neutered_yes'].map((f) => locks.byField.get(f)).find(Boolean) ?? null}>
           <Chip on={has('pet_species', 'dog')} onClick={() => onChange(toggleIn(state, 'pet_species', 'dog'))}>Cão</Chip>
           <Chip on={has('pet_species', 'cat')} onClick={() => onChange(toggleIn(state, 'pet_species', 'cat'))}>Gato</Chip>
