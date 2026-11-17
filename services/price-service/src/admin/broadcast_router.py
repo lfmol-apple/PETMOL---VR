@@ -702,7 +702,7 @@ def link_preview(payload: LinkPreviewIn, current=Depends(get_current_admin)):
         info = fetch_product_info(payload.url)
     except ProductLinkError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
-    return {k: info[k] for k in ("url", "store", "host", "final_host", "title", "image", "readable", "reason")}
+    return {k: info.get(k) for k in ("url", "store", "host", "final_host", "title", "image", "readable", "reason", "price", "list_price", "discount_pct")}
 
 
 @router.post("/preview")

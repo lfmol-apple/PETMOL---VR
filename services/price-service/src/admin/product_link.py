@@ -141,6 +141,60 @@ def _jsonld_product_name(content: str) -> Optional[str]:
     return None
 
 
+def _to_price(v) -> Optional[float]:
+    """'1.299,90' / '1299.90' / 1299.9 → 1299.9. Só preço plausível (> 0 e < 100 mil)."""
+    if v is None:
+        return None
+    if isinstance(v, (int, float)):
+        n = float(v)
+    else:
+        t = re.sub(r"[^\d.,]", "", str(v))
+        if not t:
+            return None
+        if "," in t and "." in t:
+            t = t.replace(".", "").replace(",", ".") if t.rfind(",") > t.rfind(".") else t.replace(",", "")
+        elif "," in t:
+            t = t.replace(",", ".")
+        try:
+            n = float(t)
+        except ValueError:
+            return None
+    return round(n, 2) if 0 < n < 100_000 else None
+
+
+def extract_offer(page: str) -> dict:
+    """Preço atual e preço de lista (riscado), SÓ em reais, quando a página expõe (JSON-LD de oferta ou meta). Sem dado → tudo None.
+    Nunca inventa: o desconto só existe se a própria página traz os dois preços e o de lista é maior."""
+    price = list_price = None
+    for block in re.findall(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>', page, re.I | re.S):
+        try:
+            data = json.loads(block.strip())
+        except ValueError:
+            continue
+        stack = data if isinstance(data, list) else [data]
+        while stack and price is None:
+            node = stack.pop()
+            if isinstance(node, list):
+                stack.extend(node)
+            elif isinstance(node, dict):
+                kind = node.get("@type")
+                kinds = kind if isinstance(kind, list) else [kind]
+                if ("Offer" in kinds or "AggregateOffer" in kinds) and str(node.get("priceCurrency", "BRL")).upper() == "BRL":
+                    price = _to_price(node.get("price") if node.get("price") is not None else node.get("lowPrice"))
+                    if price is not None:
+                        list_price = _to_price(node.get("highPrice")) if "AggregateOffer" in kinds else None
+                stack.extend(v for v in node.values() if isinstance(v, (dict, list)))
+    if price is None:
+        cur = (_meta(page, "product:price:currency") or _meta(page, "og:price:currency") or "BRL").upper()
+        if cur == "BRL":
+            price = _to_price(_meta(page, "product:price:amount") or _meta(page, "og:price:amount"))
+            list_price = _to_price(_meta(page, "product:original_price:amount"))
+    if price is not None and list_price is not None and list_price <= price:
+        list_price = None
+    discount = int(round((1 - price / list_price) * 100)) if price and list_price else None
+    return {"price": price, "list_price": list_price, "discount_pct": discount}
+
+
 def extract_title(page: str) -> Optional[str]:
     """Ordem: dado estruturado do produto → og:title → twitter:title → <title>. Devolve o primeiro que passar na limpeza."""
     candidates = [_jsonld_product_name(page), _meta(page, "og:title"), _meta(page, "twitter:title")]
@@ -171,7 +225,8 @@ def fetch_product_info(raw_url: str, *, transport: Optional[httpx.BaseTransport]
     ProductLinkError só para link inválido (loja desconhecida, http, etc.)."""
     url = validate_product_url(raw_url)
     out = {"url": url, "store": store_label(url), "host": (urlparse(url).hostname or ""), "final_host": None,
-           "title": None, "image": None, "readable": False, "reason": None}
+           "title": None, "image": None, "readable": False, "reason": None,
+           "price": None, "list_price": None, "discount_pct": None}
     current = url
     try:
         with httpx.Client(follow_redirects=False, timeout=TIMEOUT_S, transport=transport,
@@ -212,6 +267,7 @@ def fetch_product_info(raw_url: str, *, transport: Optional[httpx.BaseTransport]
                     out["title"] = extract_title(page)
                     img = _meta(page, "og:image")
                     out["image"] = img if img and img.startswith("https://") else None
+                    out.update(extract_offer(page))
                     out["readable"] = out["title"] is not None
                     if not out["readable"]:
                         out["reason"] = "A loja não deixa ler o nome automaticamente. Digite o nome do produto."

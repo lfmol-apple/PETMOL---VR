@@ -59,4 +59,24 @@ describe('Campanha só de link', () => {
     expect((screen.getByLabelText(/Nome da campanha/) as HTMLInputElement).value).toBe('Campanha de teste');
     expect((screen.getByLabelText(/Mensagem principal/) as HTMLTextAreaElement).value).toBe('Mensagem de teste');
   });
+
+  it('oferta com preço e desconto (Mercado Livre): a campanha já sai montada com o preço e o desconto', async () => {
+    be.on('POST /link-preview', (b) => ({ json: { url: b.url, store: 'Mercado Livre', host: 'meli.la', final_host: 'mercadolivre.com.br', title: 'Ração Premier 10kg', image: null, readable: true, reason: null, price: 129.9, list_price: 159.9, discount_pct: 19 } }));
+    await openForm();
+    paste('https://meli.la/abc');
+    await screen.findByTestId('oferta-preco');
+    expect((screen.getByLabelText(/^Título/) as HTMLInputElement).value).toBe('{tutor}, oferta para {pets}: 19% de desconto');
+    expect((screen.getByLabelText(/Mensagem principal/) as HTMLTextAreaElement).value).toMatch(/Ração Premier 10kg por R\$\s?129,90/);
+    expect(screen.getByTestId('oferta-preco').textContent).toMatch(/19% de desconto/);
+    expect(saveBtn().disabled).toBe(false);
+  });
+
+  it('Amazon: o preço lido aparece só para você e NÃO vai para a notificação', async () => {
+    be.on('POST /link-preview', (b) => ({ json: { url: b.url, store: 'Amazon', host: 'amzn.to', final_host: 'amazon.com.br', title: 'Coleira X', image: null, readable: true, reason: null, price: 49.9, list_price: 99.9, discount_pct: 50 } }));
+    await openForm();
+    paste();
+    await screen.findByTestId('oferta-preco');
+    expect((screen.getByLabelText(/Mensagem principal/) as HTMLTextAreaElement).value).toBe('Coleira X — toque para ver.');
+    expect(screen.getByTestId('oferta-preco').textContent).toMatch(/Na Amazon o preço não é citado/);
+  });
 });
