@@ -20,7 +20,6 @@ import { getToken } from '@/lib/auth-token';
 import { fetchMe } from '@/lib/fetchMe';
 import { petDo } from '@/lib/petGender';
 import {
-  FREE_SHORTCUT_DEADLINE_LABEL,
   endFreeShortcut,
   formatCountdown,
   remainingFrom,
@@ -129,7 +128,7 @@ export function FreeShortcutSheet({ startedAt, petName, petSex, hasFood, onOpenF
           <h2 className="mt-3 text-[24px] font-extrabold leading-tight">Continue com o PETMOL gratuito</h2>
           {!hasFood && (
             <p className="mt-2 text-[14px] leading-snug text-[#CFE0FF]">
-              Falta só a ração {artigo} {name}. Cadastre até {FREE_SHORTCUT_DEADLINE_LABEL}.
+              Falta só a ração {artigo} {name}.
             </p>
           )}
           <div className="mx-auto mt-4 inline-block rounded-2xl bg-[#F5B73B] px-5 py-2 text-[#3B2A00]" aria-live="off">

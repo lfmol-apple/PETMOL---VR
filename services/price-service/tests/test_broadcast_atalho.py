@@ -35,7 +35,7 @@ def test_destino_atalho_abre_a_pagina_certa():
 def test_meta_do_catalogo_aponta_para_o_atalho_e_o_publico_certo():
     g = next(x for x in br.GOAL_CATALOG if x["key"] == "atalho")
     assert g["open"] == "atalho" and g["segment"] == "faltam_passos" and g["title"] == "{tutor}, continue com o PETMOL gratuito"
-    assert "31/12" in g["message"] and "20 minutos" in g["message"]
+    assert "31/12" not in g["message"] and "20 minutos" in g["message"]
     assert "faltam_passos" in br.SEGMENTS
 
 

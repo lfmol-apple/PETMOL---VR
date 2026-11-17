@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  FREE_SHORTCUT_DEADLINE_LABEL,
   FREE_SHORTCUT_DURATION_MS,
   endFreeShortcut,
   formatCountdown,
@@ -16,8 +15,7 @@ function memory() {
 const MIN = 60 * 1000;
 
 describe('freeShortcut', () => {
-  it('usa a data real e 20 minutos', () => {
-    expect(FREE_SHORTCUT_DEADLINE_LABEL).toBe('31/12');
+  it('usa 20 minutos e nenhuma data-limite', () => {
     expect(FREE_SHORTCUT_DURATION_MS).toBe(20 * MIN);
   });
 

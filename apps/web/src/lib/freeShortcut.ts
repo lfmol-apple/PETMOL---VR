@@ -7,8 +7,6 @@
  * e a mesma ação continua disponível no menu do app.
  */
 
-/** Data-limite REAL definida pelo dono (31/12). Mesma do e-mail e da notificação. */
-export const FREE_SHORTCUT_DEADLINE_LABEL = '31/12';
 /** Duração do atalho a partir do primeiro toque (dono, 17/11/2026: 20 minutos). */
 export const FREE_SHORTCUT_DURATION_MS = 20 * 60 * 1000;
 export const FREE_SHORTCUT_STORAGE_KEY = 'petmol_free_shortcut_v1';

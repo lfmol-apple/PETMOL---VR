@@ -34,7 +34,8 @@ describe('FreeShortcutSheet', () => {
   it('mostra o título, a data real e a contagem de 20 minutos a partir do primeiro toque', () => {
     render(<FreeShortcutSheet {...base} startedAt={Date.now()} hasFood={false} />);
     expect(screen.getByText('Continue com o PETMOL gratuito')).toBeTruthy();
-    expect(screen.getByText(/Falta só a ração do Baby\. Cadastre até 31\/12\./)).toBeTruthy();
+    expect(screen.getByText('Falta só a ração do Baby.')).toBeTruthy();
+    expect(screen.queryByText(/31\/12/)).toBeNull();                       // sem data-limite (soava como ameaça)
     expect(screen.getByTestId('free-shortcut-countdown').textContent).toBe('20:00');
     act(() => { vi.advanceTimersByTime(65_000); });
     expect(screen.getByTestId('free-shortcut-countdown').textContent).toBe('18:55');
