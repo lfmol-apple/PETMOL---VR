@@ -100,6 +100,22 @@ const fixture = {
    "precision": "exata"
   },
   {
+   "field": "push_received",
+   "label": "Notificações de campanha já recebidas",
+   "group": "Engajamento",
+   "scope": "tutor",
+   "ops": [
+    "eq"
+   ],
+   "values": [
+    "never",
+    "received"
+   ],
+   "approximate": false,
+   "origin": "Histórico de envios do painel (push aceito por algum aparelho)",
+   "precision": "exata"
+  },
+  {
    "field": "pet_species",
    "label": "Espécie",
    "group": "Pet",

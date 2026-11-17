@@ -9,7 +9,7 @@ import { lookupTutors, searchTutors, type TutorHit } from './api';
 
 const input = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-[14px] text-slate-900';
 
-export function TutorPicker({ value, onChange }: { value: string[]; onChange: (ids: string[]) => void }) {
+export function TutorPicker({ value, onChange, idPrefix = 'tutor' }: { value: string[]; onChange: (ids: string[]) => void; idPrefix?: string }) {
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<TutorHit[]>([]);
   const [busy, setBusy] = useState(false);
@@ -46,9 +46,9 @@ export function TutorPicker({ value, onChange }: { value: string[]; onChange: (i
   const toggle = (id: string) => onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
 
   return (
-    <div data-testid="tutor-picker">
-      <label className="block text-[12px] font-bold text-slate-600" htmlFor="tutor-search">Buscar tutor (nome, e-mail ou nome do pet)</label>
-      <input id="tutor-search" className={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Digite ao menos 2 letras" />
+    <div data-testid={`${idPrefix}-picker`}>
+      <label className="block text-[12px] font-bold text-slate-600" htmlFor={`${idPrefix}-search`}>Buscar tutor (nome, e-mail ou nome do pet)</label>
+      <input id={`${idPrefix}-search`} className={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Digite ao menos 2 letras" />
       {busy && <p className="mt-1 text-[12px] text-slate-500">Buscando…</p>}
       {err && <p className="mt-1 text-[12px] text-rose-700" role="alert">{err}</p>}
       {hits.length > 0 && (
