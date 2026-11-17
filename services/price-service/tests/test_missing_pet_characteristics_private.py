@@ -98,8 +98,8 @@ def test_match_photo_does_not_return_characteristics_but_ai_still_gets_them(monk
 def test_my_alerts_for_nearby_stranger_does_not_return_characteristics(monkeypatch):
     mp = _mk_alert()
     monkeypatch.setattr(mp_mod, "catch_up_missing_pet_alerts_for_user", lambda *_a, **_k: None)
-    monkeypatch.setattr(mp_mod, "_load_mp_notified", lambda: {mp.id: {"notified": ["stranger"]}})
     with SessionLocal() as db:
+        mp_mod._mark_notified(db, mp.id, ["stranger"], "nearby")   # o registro de quem foi avisado hoje é a tabela MissingPetNotification
         items = mp_mod.my_alerts(db=db, current_user=types.SimpleNamespace(id="stranger"))
     assert [i["id"] for i in items] == [mp.id]
     assert "characteristics" not in items[0]

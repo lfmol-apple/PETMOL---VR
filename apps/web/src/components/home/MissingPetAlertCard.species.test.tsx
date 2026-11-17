@@ -6,7 +6,7 @@ afterEach(cleanup);
 
 const alert = (species: string | null): NearbyAlert => ({
   id: 'a1', pet_name: 'Bidu', species, last_seen_location: null, missing_date: null, missing_time: null,
-  created_at: null, user_id: 'u1', photo_url: null, breed: null, characteristics: null, public_slug: null,
+  created_at: null, user_id: 'u1', photo_url: null, breed: null, public_slug: null,
 });
 
 const show = (species: string | null) =>
