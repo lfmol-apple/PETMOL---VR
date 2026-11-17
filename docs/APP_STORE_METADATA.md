@@ -87,6 +87,9 @@ Rascunho, ajustar tom conforme o formulário pedir:
 ## Copy de loja — lembretes já em vigor (ver seção "Landing page" do release)
 
 - Nunca usar "grátis"/"sempre gratuito"/"sem custo"/"free forever"
+- Nunca usar "sem anúncios" nem "gratuito" como promessa (o app vai passar a ter assinatura — ver `docs/PLANO_ASSINATURA.md`). Se houver plano gratuito, descrevê-lo como "plano gratuito com recursos limitados", nunca como "grátis".
+- Quando a assinatura existir, a ficha das lojas e a tela de contratação precisam informar, antes da compra: o que cada plano inclui, preço, período, **renovação automática**, como cancelar, e links de Termos de Uso e Política de Privacidade (Apple 3.1.2; Play: política de pagamentos). Compra só por IAP no app nativo — sem botão/link externo de pagamento.
+- Atualizar a ficha: descrição/subtítulo sem "grátis", seção de assinaturas com preços, App Privacy (compras/ID de transação) e Data Safety (informações de pagamento processadas pela loja), e novas capturas se o paywall aparecer.
 - Nunca prometer "o menor preço do Brasil" ou "sempre o menor preço" — usar "Compare preços entre lojas parceiras."
 - Nunca usar "diagnóstico" ou "garantia de saúde" — o PETMOL organiza e lembra, não diagnostica
 - Frases seguras: "Compare ofertas disponíveis.", "Organize os cuidados do seu pet.", "Receba lembretes.", "Acompanhe alimentação e tratamentos."

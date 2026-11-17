@@ -89,6 +89,20 @@ A APNs Auth Key foi gerada e configurada, a capability "Push Notifications" est�
 - [x] Review notes para App Store e Google Play — rascunho pronto em `docs/APP_STORE_METADATA.md`
 - [x] Copy de loja sem "grátis"/"menor preço garantido"/"diagnóstico"/"garantia de saúde" — landing page já corrigida (PR #55); lembretes documentados pra aplicar na ficha das lojas também
 
+## Assinatura / lançamento cobrado (ver `docs/PLANO_ASSINATURA.md`)
+
+- [ ] Divisão grátis × pago, preços, trial e regra de grandfathering aprovados pelo dono
+- [ ] Apple Small Business Program (comissão 15%) inscrito
+- [ ] Produtos de assinatura criados no App Store Connect e no Google Play Console (mensal/anual, trial)
+- [ ] StoreKit + Play Billing integrados; validação no servidor; "restaurar compras" funcionando
+- [ ] Paywall mostra recursos, preço, período, renovação automática, cancelamento, links de Termos/Privacidade
+- [ ] Sem botão/link externo de pagamento no app nativo
+- [ ] Usuários atuais marcados como legado no servidor ANTES de ligar o paywall; aviso prévio enviado
+- [ ] Termos §9 e Privacidade ("Dados de assinatura") atualizados com a minuta revisada por advogado; /sobre e /transparencia reescritos
+- [ ] App Privacy / Data Safety e ficha das lojas atualizados (sem "grátis"/"sem anúncios")
+- [ ] Conta de revisor com assinatura de teste (sandbox) e review notes explicando o paywall
+- [ ] Flag de lançamento do plano OFF → ligar só após homologação; regra "não mexer nas lojas" suspensa por decisão do dono
+
 ## Suporte / feedback
 
 - [x] "Fale com o PETMOL" — sugestão / problema / ajuda, `POST /support/feedback` + tabela `support_feedback`, minimizado (sem PII desnecessária), anonimizado (não apagado) na exclusão de conta — commit deste ciclo, CI verde
