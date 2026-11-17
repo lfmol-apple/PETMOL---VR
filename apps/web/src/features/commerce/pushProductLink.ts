@@ -122,16 +122,25 @@ function readPendingProduct(now = Date.now()): { raw: string; ts: number } | nul
 let openingPending = false;
 
 /** Abre o produto pendente (se houver) e só então o apaga. Seguro para chamar várias vezes: uma abertura por vez. */
+export const PRODUCT_OPENING_EVENT = 'petmol:product-opening';
+export const PRODUCT_OPENED_EVENT = 'petmol:product-opened';
+const emit = (name: string) => { try { window.dispatchEvent(new Event(name)); } catch { /* sem window */ } };
+
+/** Há um produto de push a abrir (gravado e ainda válido)? A tela neutra "Abrindo o produto" usa isto. */
+export const hasPendingProduct = (): boolean => readPendingProduct() !== null;
+
 export async function openPendingProduct(): Promise<boolean> {
   if (openingPending) return false;
   const p = readPendingProduct();
   if (!p) return false;
   openingPending = true;
+  emit(PRODUCT_OPENING_EVENT);          // REGRA DE OURO: enquanto abre o produto, o PETMOL não mostra a Home
   try {
     const ok = await openPushProductLink(p.raw);
     try { localStorage.removeItem(PENDING_PRODUCT_KEY); } catch { /* ok */ }
     return ok;
   } finally {
     openingPending = false;
+    emit(PRODUCT_OPENED_EVENT);
   }
 }
