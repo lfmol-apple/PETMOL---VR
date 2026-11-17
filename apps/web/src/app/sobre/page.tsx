@@ -69,7 +69,7 @@ export default function SobrePage() {
 
         <h2>Como o PETMOL se sustenta</h2>
         <p>
-          O aplicativo é gratuito. Para financiar o serviço, o PETMOL pode participar de programas de
+          O aplicativo é gratuito. O PETMOL pode ser mantido por assinaturas de planos pagos, oferecidos em versões do aplicativo que os incluam (a versão que você já usa não é cobrada, ver os <Link href="/legal/terms">Termos de Uso</Link>), e por programas de
           afiliados de lojas parceiras — alguns links de compra podem gerar comissão para o PETMOL,
           sem custo adicional para você. Essa relação comercial é sempre identificada e não determina
           a conclusão dos conteúdos. Detalhes na{' '}

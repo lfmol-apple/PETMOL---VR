@@ -31,7 +31,7 @@ export default function TransparenciaPage() {
         <p>
           O aplicativo é gratuito e a página pública de conteúdo é a{' '}
           <Link href="/recommendations">PETMOL Recommendations</Link>. Para manter o serviço, o
-          PETMOL pode participar de <strong>programas de afiliados</strong> de lojas parceiras.
+          PETMOL pode oferecer planos pagos por assinatura, em versões do aplicativo que os incluam (a versão que você já usa não é cobrada; ver os <Link href="/legal/terms">Termos de Uso</Link>), e pode participar de <strong>programas de afiliados</strong> de lojas parceiras.
         </p>
 
         <h2>O que é um programa de afiliados</h2>

@@ -1,12 +1,35 @@
 # Plano de assinatura mensal — lançamento cobrado do PETMOL
 
-> **Status: PROPOSTA (17/11/2026). Preços e limites não estão decididos nem implementados.**
+> **Status (17/11/2026): lançamento da versão paga previsto em poucos dias; convivência com a versão atual gratuita decidida (seção 0). Preços e limites ainda são proposta; nada de cobrança está implementado.**
 > Decisão do dono (17/11): **sem teste grátis no lançamento**, mas a possibilidade fica escrita nos
 > Termos (§9.3) e nas decisões abaixo.
 > **Documentação em modo duplo:** os Termos (§9) e a Privacidade (§2.6) foram redigidos para valer
 > tanto com o app gratuito (hoje) quanto com assinatura (amanhã) — condicionais como "se houver plano
 > pago" e "quando oferecermos teste". Nada de "grátis" ou "pago" é prometido como permanente.
 > A seção 7 traz o que ainda precisa ser feito/revisado. **Revisão por advogado é necessária.**
+
+## 0. Convivência das duas versões (decisão do dono, 17/11/2026)
+
+A versão paga entra **em poucos dias**. A documentação já trata as duas como coexistentes:
+
+| | **Versão atual (legado)** | **Versão nova (com planos)** |
+|---|---|---|
+| Custo para o usuário | Gratuita, sem cobrança, mantendo o que já oferece | Plano gratuito com limites + assinatura paga (mensal/anual) |
+| Como o servidor a reconhece | User-Agent `PetmolApp` **sem** número de versão + marcador `legacy` por conta | User-Agent versionado (ex.: `PetmolApp/2.x`) |
+| Paywall / compra dentro do app | Não | Sim (IAP) |
+| Teste grátis | — | Não no lançamento (possibilidade prevista no Termos §9.3) |
+| Pet Sumido | Completo | Completo e fora do paywall (Termos §9.6) |
+| Passar da atual para a nova | Opcional; a pessoa é avisada **antes** do que muda | — |
+| Texto jurídico | Termos §9.1 e §9.7 | Termos §9.2–9.6, Privacidade §2.6 |
+| Navegador/PWA e contas novas | Tratados como a versão nova (padrão adotado; revisável) | Idem |
+
+Páginas públicas já descrevem a convivência de forma condicional ("pode ser mantido por assinaturas…
+a versão que você já usa não é cobrada"): Termos §9, Privacidade §2.6, `/sobre`, `/transparencia`.
+
+**Ordem sugerida até o lançamento (poucos dias):** (1) advogado revisa Termos §9/Privacidade §2.6;
+(2) merge do #851 (e do #850); (3) fixar a versão-corte e gravar o marcador `legacy` por conta **antes**
+de ligar qualquer paywall; (4) build novo com UA versionado + IAP; (5) "O que há de novo" explicando que
+a versão atual segue gratuita; (6) ficha das lojas e Data Safety/App Privacy.
 
 ## 1. Estado atual (verificado no código)
 
