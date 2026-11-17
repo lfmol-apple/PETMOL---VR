@@ -8,10 +8,10 @@ import type { ReactNode } from 'react';
  * JavaScript, então leem estes metadados e não são redirecionados.
  * A imagem é 1200×630 (proporção 1,91:1) e pesa menos de 100 KB, como o WhatsApp recomenda.
  */
-const TITLE = 'Baixe o Petmol — grátis e sem anúncios';
+const TITLE = 'Baixe o Petmol';
 const DESCRIPTION = 'Vacinas, ração, lembretes e alerta de pet perdido no mesmo app. Toque para baixar: iPhone e Android.';
-// v2 (17/10/2026): Home nova. O WhatsApp guarda a imagem por endereço; trocar o nome força a atualização do cartão.
-const IMAGE = '/og/petmol-instalar-v2.jpg';
+// v3 (17/11/2026): sem o selo de gratuidade. v2: Home nova. O WhatsApp guarda a imagem por endereço; trocar o nome força a atualização do cartão.
+const IMAGE = '/og/petmol-instalar-v3.jpg';
 
 export const metadata: Metadata = {
   title: TITLE,

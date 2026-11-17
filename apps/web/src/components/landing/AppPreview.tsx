@@ -100,7 +100,6 @@ export function AppPreview() {
 
       <div className="mx-auto mt-6 w-full max-w-xs px-5">
         <DownloadButton placement="telas" cue />
-        <p className="mt-2 text-center text-xs font-semibold text-slate-400">Grátis · sem anúncios</p>
       </div>
     </section>
   );

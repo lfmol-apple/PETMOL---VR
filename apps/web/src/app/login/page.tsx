@@ -109,9 +109,6 @@ export default function LoginPage() {
             <p className="mt-2 text-slate-500 text-sm font-medium">
               Cadastre seu pet em menos de 1 minuto e receba os lembretes na hora certa.
             </p>
-            <p className="mt-3 inline-block rounded-full bg-emerald-50 px-3 py-1 text-[12px] font-black text-emerald-700">
-              Grátis. Sem anúncios.
-            </p>
             <Link
               href={registerHref}
               onClick={() => { markLoginSeen(); trackV1Metric('auth_choice_register', {}); }}

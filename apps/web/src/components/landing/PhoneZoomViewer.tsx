@@ -10,7 +10,7 @@ const MAX = 4;
 
 /**
  * Visualizador da tela do app: pinça para dar zoom, arrasto quando ampliado, toque duplo alterna 1×/2,5×.
- * O zoom é feito aqui dentro (não no navegador), então o botão "Baixar grátis" fica FIXO embaixo o tempo
+ * O zoom é feito aqui dentro (não no navegador), então o botão "Baixar o PETMOL" fica FIXO embaixo o tempo
  * todo — nunca sai da tela, não importa o quanto a pessoa amplie.
  */
 export function PhoneZoomViewer({ src, alt, onClose, initialScale = 1 }: { src: string; alt: string; onClose: () => void; initialScale?: number }) {

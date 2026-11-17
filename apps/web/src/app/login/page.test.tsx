@@ -32,7 +32,6 @@ describe('/login — primeira abertura do app', () => {
   it('entrada real do app (raiz → /login?redirect=/home?native_start=1): também mostra a escolha', async () => {
     openAt('?redirect=%2Fhome%3Fnative_start%3D1');
     await waitFor(() => expect(screen.getByText('Criar minha conta')).toBeTruthy());
-    expect(screen.getByText('Grátis. Sem anúncios.')).toBeTruthy();
   });
 
   it('redirect para outra tela (link/deep link) não interpõe a escolha', async () => {

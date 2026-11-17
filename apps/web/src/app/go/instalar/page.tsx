@@ -91,7 +91,7 @@ function InstallBridge() {
           </a>
         </div>
       )}
-      <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Grátis · para iPhone e Android</p>
+      <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Para iPhone e Android</p>
     </main>
   );
 }

@@ -57,6 +57,6 @@ export const LANDING_COPY: Record<LandingVariant, LandingCopy> = {
   },
   'sem-isso': {
     title: ['Como eu vivia', 'sem isso?'],
-    subtitle: 'Vacinas, ração e o alerta de Pet Sumido na palma da sua mão. Grátis e sem anúncios.',
+    subtitle: 'Vacinas, ração e o alerta de Pet Sumido na palma da sua mão.',
   },
 };

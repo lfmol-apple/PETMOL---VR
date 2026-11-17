@@ -140,7 +140,7 @@ export default function LandingPage() {
         <div className="mx-auto mt-6 w-full max-w-sm">
           <DownloadCta placement="hero-botao" targetId="lojas-hero" label="Baixar o PETMOL" />
           <div className="mt-2.5"><DownloadButton placement="hero" compact /></div>
-          <p className="mt-2 text-[12px] font-medium text-slate-500">Grátis · para iPhone e Android</p>
+          <p className="mt-2 text-[12px] font-medium text-slate-500">Para iPhone e Android</p>
         </div>
       </section>
 

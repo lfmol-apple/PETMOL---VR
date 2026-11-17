@@ -96,7 +96,7 @@ export default function LojaPublicaPage() {
         <section className="rounded-2xl bg-blue-600 text-white p-6 text-center space-y-3">
           <h2 className="text-[18px] font-black">Quer recomendações pro seu pet, não só gerais?</h2>
           <p className="text-[13px] text-blue-100 leading-relaxed max-w-md mx-auto">
-            Criando uma conta gratuita no PETMOL, você cadastra cada pet e recebe recomendações
+            Criando uma conta no PETMOL, você cadastra cada pet e recebe recomendações
             filtradas pela espécie dele, além de lembrete automático de ração, vacina e
             antiparasitário.
           </p>
@@ -104,7 +104,7 @@ export default function LojaPublicaPage() {
             href="/register"
             className="inline-flex items-center justify-center rounded-xl bg-white text-blue-700 text-[14px] font-black px-6 py-3 active:scale-95 transition-all"
           >
-            Criar conta gratuita
+            Criar conta
           </Link>
         </section>
 
