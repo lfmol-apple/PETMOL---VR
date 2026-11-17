@@ -89,10 +89,24 @@ Como ficou definido (e como está escrito nos Termos §9.7):
 
 1. **Compatibilidade do servidor com versões antigas:** o backend é compartilhado. Toda mudança de API
    precisa manter a versão-corte funcionando (versionamento/compatibilidade). Isso é custo permanente.
-2. **O app carrega conteúdo web do servidor?** Se o app nativo exibe páginas servidas pelo PETMOL (a
-   estrutura Capacitor/WebView), mudar o front-end no servidor muda **também** o app antigo. Para o
-   legado ficar de fato congelado, a regra de plano precisa ser decidida **no servidor por marcador de
-   conta/versão**, e não só "nova tela só na versão nova". Validar a arquitetura antes de prometer.
+2. **Achado da leitura do código (17/11/2026): o app nativo é uma casca que carrega o site ao vivo.**
+   `apps/web/capacitor.config.ts` usa `server.url = https://www.petmol.com.br` (o Next.js roda em
+   modo servidor; não há pacote de telas dentro do app). Consequências:
+   - **O app antigo NÃO fica congelado sozinho:** toda tela e função vêm do servidor. Qualquer mudança
+     no site aparece também para quem está na versão antiga.
+   - **A versão do app hoje não é identificável pelo servidor:** o User-Agent do WebView traz só
+     `PetmolApp`, sem número de versão. App antigo e app novo seriam indistinguíveis.
+   - **Caminho viável:** a nova versão nativa passa a anexar a versão ao User-Agent (ex.: `PetmolApp/2.0`)
+     e/ou a enviar um header de versão. O servidor então decide: **UA `PetmolApp` sem versão = legado
+     (comportamento atual, sem paywall); `PetmolApp/2.x` = modelo com planos.** O paywall e a compra
+     (IAP) vivem só na versão nova, que de qualquer forma exige novo build nas lojas.
+   - **Custo:** o servidor precisa manter dois comportamentos em paralelo (legado ilimitado × planos) e
+     continuar compatível com a casca antiga. Toda função nova entra "para a versão nova" ou é decidida
+     caso a caso para o legado.
+   - **Limite da defesa:** UA é falsificável. Para o legado isso é aceitável (impacto pequeno), mas o
+     marcador **por conta** (item 3) é a prova de verdade, e a cota técnica anti-abuso (item 4) limita o pior caso.
+   - **Web/PWA:** navegador não tem `PetmolApp` e não distingue "versão antiga". Hoje seria tratado como
+     plano gratuito do modelo novo, a menos que o dono decida o contrário (item 5).
 3. **Marcador de legado no servidor, gravado ANTES de ligar o paywall:** registrar, por conta, a versão
    do app (header/versão enviada nas requisições) e marcar `legacy=true` para quem estiver na versão-corte
    ou anterior. Sem esse registro prévio não há como provar quem é legado.
@@ -165,7 +179,7 @@ Como ficou definido (e como está escrito nos Termos §9.7):
 - [ ] Aprovar preços; decidir se haverá teste A/B de preço.
 - [x] Regra do legado definida pelo dono: versão atual segue grátis; só paga quem fizer upgrade (seção 5).
 - [ ] Fixar a **versão-corte** (iOS/Android) e a definição de legado para web/novas contas (seção 5, item 5).
-- [ ] Validar com a arquitetura se o app antigo realmente fica congelado (seção 5, item 2).
+- [x] Arquitetura validada: app = casca do site ao vivo; legado só se distingue via UA/header de versão da nova casca (seção 5, item 2). Decidir se segue esse desenho.
 - [ ] Inscrição no Apple Small Business Program.
 - [ ] Revisão jurídica das minutas; checar CDC art. 49 e política de reembolso.
 - [ ] Conferir preços de concorrentes ao vivo nas lojas BR e a política de pagamentos do Google Play.
