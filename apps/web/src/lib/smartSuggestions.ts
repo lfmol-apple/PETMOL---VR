@@ -7,6 +7,8 @@
  * e UI local; não dispara mais notificações de navegador.
  */
 
+import { daysUntilCalendarDate } from '@/lib/vaccineUtils';
+
 export interface SmartSuggestion {
   id: string;
   type: 'vaccine_due' | 'walk_time' | 'grooming_due' | 'checkup_due' | 'medication_refill';
@@ -46,10 +48,9 @@ export function generateSmartSuggestions(petId: string): SmartSuggestion[] {
       const vaccines = JSON.parse(vaccinesJson);
       vaccines.forEach((vaccine: { id?: string; name?: string; next_dose_date?: string }) => {
         if (vaccine.next_dose_date) {
-          const nextDose = new Date(vaccine.next_dose_date).getTime();
-          const daysUntil = Math.floor((nextDose - now) / (1000 * 60 * 60 * 24));
-          
-          if (daysUntil <= 7 && daysUntil >= 0) {
+          const daysUntil = daysUntilCalendarDate(vaccine.next_dose_date);
+
+          if (daysUntil !== null && daysUntil <= 7 && daysUntil >= 0) {
             suggestions.push({
               id: `vaccine_${vaccine.id}`,
               type: 'vaccine_due',

@@ -20,7 +20,7 @@ import type {
   GroomingFormData,
   ParasiteFormData,
 } from '@/lib/types/homeForms';
-import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
+import { isVaccineOverdue, latestVaccinePerGroup } from '@/lib/vaccineUtils';
 import { MEDICATIONS_ENABLED } from '@/lib/featureFlags';
 import { PETMOL_HEADER_BG, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 type VaccineCardOcrRecord = {
@@ -264,11 +264,11 @@ export function HealthModal({
     }, new Map<string, ParasiteControl>()).values()
   );
 
-  const now = Date.now();
-  const overdueVaccines = currentVaccines.filter(v => v.next_dose_date && new Date(v.next_dose_date).getTime() < now).length;
+  // "Vencida" = a data é ANTES de hoje (dia de calendário, fuso do aparelho): vence hoje não é vencida.
+  const overdueVaccines = currentVaccines.filter(v => isVaccineOverdue(v.next_dose_date)).length;
   const overdueParasites = currentParasiteControls.filter((p) => {
     const nextDate = p.collar_expiry_date || p.next_due_date;
-    return nextDate ? new Date(nextDate).getTime() < now : false;
+    return isVaccineOverdue(nextDate);
   }).length;
   const overdueGroomingCount = groomingDueAlerts.length;
   // Ícones de aba — Lucide, não emoji (microinterface, pedido do dono

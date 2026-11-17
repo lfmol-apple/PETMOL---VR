@@ -6,6 +6,7 @@
 
 import type { GroomingRecord, ParasiteControl } from '@/lib/types/home';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
+import { daysUntilCalendarDate } from '@/lib/vaccineUtils';
 
 
 // ============================================================
@@ -514,14 +515,11 @@ export function getUpcomingVaccines(petId: string, daysAhead: number = 30): Vacc
   const profile = getHealthProfile(petId);
   if (!profile) return [];
   
-  const now = new Date();
-  const futureDate = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
-  
   return profile.vaccines
     .filter(v => v.next_dose_date)
     .filter(v => {
-      const nextDose = new Date(v.next_dose_date!);
-      return nextDose >= now && nextDose <= futureDate;
+      const days = daysUntilCalendarDate(v.next_dose_date);
+      return days !== null && days >= 0 && days <= daysAhead;
     })
     .sort((a, b) => new Date(a.next_dose_date!).getTime() - new Date(b.next_dose_date!).getTime());
 }
