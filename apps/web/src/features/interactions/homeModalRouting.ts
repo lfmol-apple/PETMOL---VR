@@ -69,6 +69,10 @@ export type HomeSurfaceResolution =
   | {
       // Loja do Pet (as lojas parceiras): destino das notificações de oferta/cupom enviadas pelo admin.
       kind: 'shopping';
+    }
+  | {
+      // Atalho "Mantenha o PETMOL gratuito" (campanha 17/11/2026): destino da notificação, com contagem de 20 min.
+      kind: 'free-shortcut';
     };
 
 export function resolveHomeDeepLinkDestination(
@@ -81,6 +85,10 @@ export function resolveHomeDeepLinkDestination(
 
   if (modal === 'loja' || modal === 'lojas' || modal === 'shopping' || modal === 'store') {
     return { kind: 'shopping' };
+  }
+
+  if (modal === 'atalho') {
+    return { kind: 'free-shortcut' };
   }
 
   if (modal === 'food-setup') {

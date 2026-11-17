@@ -85,6 +85,8 @@ import { commonVaccines } from '@/data/vaccineInfo';
 
 import { hasCompletedOnboarding, getOwnerProfile } from '@/lib/ownerProfile';
 import { hasFoodData, isOnboardingActiveFlag, readOnboardingStore } from '@/lib/onboardingProgress';
+import { FreeShortcutSheet } from '@/components/home/FreeShortcutSheet';
+import { openFreeShortcut as startFreeShortcut } from '@/lib/freeShortcut';
 import { FoodSecondChanceCard } from '@/components/home/FoodSecondChanceCard';
 import { readSecondChance, shouldShowSecondChance } from '@/components/home/foodSecondChance';
 import { needsLeishmaniaseAwareness } from '@/lib/leishmaniaseAwareness';
@@ -476,6 +478,8 @@ function HomePageInner() {
   // Notificação personalizada do admin (/admin, aba Push): o toque abre a Home com ?b=<id do envio>. Avisa o
   // servidor UMA vez ("tocou na notificação") para medirmos o êxito do envio. Nada de dado pessoal.
   const [shoppingDeepLinkNonce, setShoppingDeepLinkNonce] = useState(0);
+  // Atalho "Mantenha o PETMOL gratuito" (deep link modal=atalho): instante do 1º toque; null = fechado.
+  const [freeShortcutStartedAt, setFreeShortcutStartedAt] = useState<number | null>(null);
   // Um toque por ENVIO (não um por sessão): o app costuma continuar aberto entre as notificações.
   const lastBroadcastTapped = useRef<string | null>(null);
   useEffect(() => {
@@ -1537,6 +1541,11 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     openHealth: handleOpenHealth,
   } = useHomeSurfaceActions({
     openShopping: () => setShoppingDeepLinkNonce((n) => n + 1),
+    openFreeShortcut: () => {
+      const st = startFreeShortcut(Date.now());
+      if (st.status === 'active') setFreeShortcutStartedAt(st.startedAt);
+      else showAppToast('Este atalho já foi encerrado. Você pode cadastrar a ração pelo cartão Alimentação.');
+    },
     setShowVaccineSheet,
     setShowQuickAddVaccine,
     setShowVermifugoSheet,
@@ -2966,6 +2975,18 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           onClose={() => { setParasiteSheetInitialMode('view'); closeColeiraSheet(); }}
           onGoHome={() => goHome(() => { setParasiteSheetInitialMode('view'); closeColeiraSheet(); })}
           onRefresh={loadParasiteControls}
+        />
+      )}
+
+      {freeShortcutStartedAt !== null && currentPet && (
+        <FreeShortcutSheet
+          startedAt={freeShortcutStartedAt}
+          petName={currentPet.pet_name}
+          petSex={currentPet.sex}
+          hasFood={hasFoodData(feedingPlan[currentPet.pet_id] ?? null)}
+          onOpenFood={() => setShowFoodSheet(true)}
+          onClose={() => setFreeShortcutStartedAt(null)}
+          suppressed={showFoodSheet}
         />
       )}
 

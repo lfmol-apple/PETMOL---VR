@@ -22,10 +22,13 @@ interface UseHomeSurfaceActionsInput {
   setPetSumidoInitialTab: (value: 'nearby' | 'report') => void;
   /** abre a Loja do Pet (deep link `modal=loja`) */
   openShopping?: () => void;
+  /** abre o atalho "Mantenha o PETMOL gratuito" (deep link `modal=atalho`) */
+  openFreeShortcut?: () => void;
 }
 
 export function useHomeSurfaceActions({
   openShopping,
+  openFreeShortcut,
   setShowVaccineSheet,
   setShowQuickAddVaccine,
   setShowVermifugoSheet,
@@ -125,9 +128,15 @@ export function useHomeSurfaceActions({
 
     if (resolution.kind === 'shopping') {
       openShopping?.();
+      return;
+    }
+
+    if (resolution.kind === 'free-shortcut') {
+      openFreeShortcut?.();
     }
   }, [
     openShopping,
+    openFreeShortcut,
     setEditPetInitialSection,
     setHealthActiveTab,
     setHealthModalMode,
