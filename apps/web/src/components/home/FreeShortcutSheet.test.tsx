@@ -114,4 +114,21 @@ describe('FreeShortcutSheet', () => {
     rerender(<FreeShortcutSheet {...base} startedAt={Date.now() - 60_000} hasFood={false} />);
     expect(screen.getByTestId('free-shortcut-countdown').textContent).toBe('19:00');
   });
+
+  it('sem pet: o primeiro passo é cadastrar o pet', () => {
+    const onAddPet = vi.fn();
+    render(<FreeShortcutSheet {...base} petName="" startedAt={Date.now()} hasPet={false} onAddPet={onAddPet} hasFood={false} />);
+    expect(screen.getByText('Falta cadastrar o seu pet.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Cadastrar a ração/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Cadastrar o meu pet' }));
+    expect(onAddPet).toHaveBeenCalled();
+  });
+
+  it('atalho já encerrado abre sem contagem (sem urgência falsa) e sem fechar sozinho', () => {
+    render(<FreeShortcutSheet {...base} startedAt={null} hasFood={false} />);
+    expect(screen.queryByTestId('free-shortcut-countdown')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Cadastrar a ração do Baby' })).toBeTruthy();
+    act(() => { vi.advanceTimersByTime(60 * 60 * 1000); });
+    expect(base.onClose).not.toHaveBeenCalled();
+  });
 });
