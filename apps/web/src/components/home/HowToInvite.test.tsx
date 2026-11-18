@@ -28,7 +28,7 @@ describe('HowToSheet', () => {
     render(<HowToSheet open onClose={() => {}} />);
     for (const v of HOWTO_VIDEOS) expect(screen.getByText(v.title)).toBeTruthy();
     fireEvent.click(screen.getByText('Vacinas'));
-    expect(openUrl).toHaveBeenCalledWith('https://www.youtube.com/watch?v=n-Z6W7r9fHI');
+    expect(openUrl).toHaveBeenCalledWith('https://www.youtube.com/watch?v=N2_rnDPyFPA');
   });
   it('"Ver todos no canal" abre o canal; fechado não renderiza nada', () => {
     const { rerender } = render(<HowToSheet open onClose={() => {}} />);
