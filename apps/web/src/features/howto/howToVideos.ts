@@ -16,13 +16,12 @@ export interface HowToVideo {
 }
 
 export const HOWTO_VIDEOS: readonly HowToVideo[] = [
-  { key: 'geral', title: 'Tutorial geral', subtitle: 'O app inteiro em poucos minutos', videoId: '9bx3GMVmQdU' },
-  { key: 'alimentacao', title: 'Ração e alimentação', subtitle: 'Registrar e saber quando acaba', videoId: 'LAetKGeRH2c' },
-  { key: 'vacinas', title: 'Vacinas', subtitle: 'Cadastrar a carteirinha', videoId: 'n-Z6W7r9fHI' },
-  { key: 'cuidados', title: 'Cuidados', subtitle: 'Vermífugo, antipulgas, medicações', videoId: 'JkZjyBP3g-U' },
-  { key: 'passeio', title: 'Passeio', subtitle: 'O reloginho na foto do perfil', videoId: 'FeRpzpsAAsE' },
-  { key: 'emergencia', title: 'Emergência', subtitle: 'Caminho até o socorro mais próximo', videoId: 'XHQRy16DLgc' },
-  { key: 'pet_sumido', title: 'Pet Sumido', subtitle: 'Como usar o botão', videoId: '4N3qQjCYo6w' },
+  { key: 'alimentacao', title: 'Ração e alimentação', subtitle: 'Registrar e saber quando acaba', videoId: '4WZlbyTXw8Y' },
+  { key: 'vacinas', title: 'Vacinas', subtitle: 'Cadastrar a carteirinha', videoId: 'N2_rnDPyFPA' },
+  { key: 'banho', title: 'Banho', subtitle: 'Cadastrar e receber lembretes', videoId: 'gYc16KzAS08' },
+  { key: 'passeio', title: 'Passeio', subtitle: 'Cadastrar e lembrar dos passeios', videoId: 'P1WHbSu5P_c' },
+  { key: 'emergencia', title: 'Emergência', subtitle: 'Botão de emergência veterinária', videoId: 'hmFi8oXxXDI' },
+  { key: 'pet_sumido', title: 'Pet Sumido', subtitle: 'Como agir se o pet sumir', videoId: 'w0BiaefsN0E' },
 ];
 
 export function howToVideoUrl(videoId: string): string {
