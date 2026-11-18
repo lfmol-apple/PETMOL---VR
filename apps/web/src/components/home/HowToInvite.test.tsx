@@ -18,7 +18,7 @@ describe('vídeos do "Como usar"', () => {
     const ids = HOWTO_VIDEOS.map((v) => v.videoId);
     expect(new Set(ids).size).toBe(ids.length);
     for (const id of ids) expect(id).toMatch(/^[A-Za-z0-9_-]{11}$/);
-    expect(howToVideoUrl('9bx3GMVmQdU')).toBe('https://www.youtube.com/watch?v=9bx3GMVmQdU');
+    expect(howToVideoUrl('4WZlbyTXw8Y')).toBe('https://www.youtube.com/watch?v=4WZlbyTXw8Y');
     expect(HOWTO_CHANNEL_URL).toBe('https://www.youtube.com/@petmolinstitucional');
   });
 });
@@ -28,7 +28,7 @@ describe('HowToSheet', () => {
     render(<HowToSheet open onClose={() => {}} />);
     for (const v of HOWTO_VIDEOS) expect(screen.getByText(v.title)).toBeTruthy();
     fireEvent.click(screen.getByText('Vacinas'));
-    expect(openUrl).toHaveBeenCalledWith('https://www.youtube.com/watch?v=n-Z6W7r9fHI');
+    expect(openUrl).toHaveBeenCalledWith('https://www.youtube.com/watch?v=N2_rnDPyFPA');
   });
   it('"Ver todos no canal" abre o canal; fechado não renderiza nada', () => {
     const { rerender } = render(<HowToSheet open onClose={() => {}} />);
