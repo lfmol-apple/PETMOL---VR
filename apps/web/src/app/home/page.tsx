@@ -1543,8 +1543,8 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     openShopping: () => setShoppingDeepLinkNonce((n) => n + 1),
     openFreeShortcut: () => {
       const st = startFreeShortcut(Date.now());
-      if (st.status === 'active') setFreeShortcutStartedAt(st.startedAt);
-      else showAppToast('Este atalho já foi encerrado. Você pode cadastrar a ração pelo cartão Alimentação.');
+      // Encerrado (outro toque, horas depois): abre o mesmo painel SEM contagem, em vez de largar a pessoa na Home.
+      setFreeShortcutStartedAt(st.status === 'active' ? st.startedAt : 0);
     },
     setShowVaccineSheet,
     setShowQuickAddVaccine,
@@ -2978,15 +2978,17 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         />
       )}
 
-      {freeShortcutStartedAt !== null && currentPet && (
+      {freeShortcutStartedAt !== null && (
         <FreeShortcutSheet
-          startedAt={freeShortcutStartedAt}
-          petName={currentPet.pet_name}
-          petSex={currentPet.sex}
-          hasFood={hasFoodData(feedingPlan[currentPet.pet_id] ?? null)}
+          startedAt={freeShortcutStartedAt === 0 ? null : freeShortcutStartedAt}
+          hasPet={!!currentPet}
+          onAddPet={openAddPetModal}
+          petName={currentPet?.pet_name ?? ''}
+          petSex={currentPet?.sex}
+          hasFood={currentPet ? hasFoodData(feedingPlan[currentPet.pet_id] ?? null) : false}
           onOpenFood={() => setShowFoodSheet(true)}
           onClose={() => setFreeShortcutStartedAt(null)}
-          suppressed={showFoodSheet}
+          suppressed={showFoodSheet || showAddPetModal}
         />
       )}
 

@@ -30,8 +30,11 @@ import { useNotificationPermissionController } from '@/features/interactions/use
 import { requestLocationAndPersist } from '@/features/interactions/requestCorePermissions';
 
 interface FreeShortcutSheetProps {
-  /** instante (ms) do primeiro toque, vindo de `openFreeShortcut` */
-  startedAt: number;
+  /** instante (ms) do primeiro toque, vindo de `openFreeShortcut`; null = atalho já encerrado: abre SEM contagem (sem urgência falsa) */
+  startedAt: number | null;
+  /** false = conta sem pet: o primeiro passo é cadastrar o pet */
+  hasPet?: boolean;
+  onAddPet?: () => void;
   petName: string;
   petSex?: 'male' | 'female' | null;
   hasFood: boolean;
@@ -52,7 +55,7 @@ function Step({ ok, label }: { ok: boolean; label: string }) {
   );
 }
 
-export function FreeShortcutSheet({ startedAt, petName, petSex, hasFood, onOpenFood, onClose, suppressed = false }: FreeShortcutSheetProps) {
+export function FreeShortcutSheet({ startedAt, hasPet = true, onAddPet, petName, petSex, hasFood, onOpenFood, onClose, suppressed = false }: FreeShortcutSheetProps) {
   const { tutor } = useAuth();
   const { permission, requestPermission, subscribeToPush } = useNotificationPermissionController();
   const hasPush = permission === 'granted';
@@ -60,7 +63,8 @@ export function FreeShortcutSheet({ startedAt, petName, petSex, hasFood, onOpenF
   const hasLocation = gpsDone || tutor?.location_source === 'gps';
 
   const [now, setNow] = useState(() => Date.now());
-  const remaining = remainingFrom(startedAt, now);
+  const hasClock = startedAt !== null;
+  const remaining = startedAt !== null ? remainingFrom(startedAt, now) : Number.POSITIVE_INFINITY;
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
@@ -75,7 +79,7 @@ export function FreeShortcutSheet({ startedAt, petName, petSex, hasFood, onOpenF
   }, [onClose]);
 
   // fim do tempo
-  useEffect(() => { if (remaining <= 0) finish('expired'); }, [remaining, finish]);
+  useEffect(() => { if (hasClock && remaining <= 0) finish('expired'); }, [remaining, hasClock, finish]);
 
   // cada passo concluído é celebrado e FICA marcado (a tela continua para os outros); tudo feito → agradece e fecha
   const initialRef = useRef({ hasFood, hasPush, hasLocation });
@@ -114,8 +118,8 @@ export function FreeShortcutSheet({ startedAt, petName, petSex, hasFood, onOpenF
 
   const name = petName || 'seu pet';
   const artigo = petName ? petDo({ sex: petSex }) : 'de';
-  const nothingLeft = hasFood && hasPush && hasLocation;
-  const missing = [!hasFood, !hasPush, !hasLocation].filter(Boolean).length;
+  const nothingLeft = hasPet && hasFood && hasPush && hasLocation;
+  const missing = [!hasPet, !hasFood, !hasPush, !hasLocation].filter(Boolean).length;
 
   return (
     <SheetShell open={!suppressed} onClose={() => finish('dismissed')} tone="grey" size="sm" z={SHEET_Z.raised} hideHandle>
@@ -126,15 +130,18 @@ export function FreeShortcutSheet({ startedAt, petName, petSex, hasFood, onOpenF
             ✓ Versão gratuita mantida
           </span>
           <h2 className="mt-3 text-[24px] font-extrabold leading-tight">Continue com o PETMOL gratuito</h2>
-          {!hasFood && (
+          {!hasPet && (
+            <p className="mt-2 text-[14px] leading-snug text-[#CFE0FF]">Falta cadastrar o seu pet.</p>
+          )}
+          {hasPet && !hasFood && (
             <p className="mt-2 text-[14px] leading-snug text-[#CFE0FF]">
               Falta só a ração {artigo} {name}.
             </p>
           )}
-          <div className="mx-auto mt-4 inline-block rounded-2xl bg-[#F5B73B] px-5 py-2 text-[#3B2A00]" aria-live="off">
+          {hasClock && <div className="mx-auto mt-4 inline-block rounded-2xl bg-[#F5B73B] px-5 py-2 text-[#3B2A00]" aria-live="off">
             <div className="text-[10.5px] font-extrabold uppercase tracking-[0.06em]">Este atalho some em</div>
             <div className="text-[30px] font-extrabold leading-none tabular-nums" data-testid="free-shortcut-countdown">{formatCountdown(remaining)}</div>
-          </div>
+          </div>}
         </div>
 
         <div className="space-y-3 px-5 pb-2 pt-4">
@@ -144,13 +151,19 @@ export function FreeShortcutSheet({ startedAt, petName, petSex, hasFood, onOpenF
             </p>
           )}
           <div className="flex rounded-2xl border border-slate-200 bg-white py-3">
-            <Step ok label="Pet" />
+            <Step ok={hasPet} label="Pet" />
             <Step ok={hasFood} label="Ração" />
             <Step ok={hasPush} label="Notificações" />
             <Step ok={hasLocation} label="Localização" />
           </div>
 
-          {!hasFood && (
+          {!hasPet && (
+            <button type="button" onClick={onAddPet}
+              className="w-full rounded-xl bg-[#0056D2] px-3 py-4 text-[15.5px] font-extrabold text-white active:scale-[0.99]">
+              Cadastrar o meu pet
+            </button>
+          )}
+          {hasPet && !hasFood && (
             <button type="button" onClick={onOpenFood}
               className="w-full rounded-xl bg-[#0056D2] px-3 py-4 text-[15.5px] font-extrabold text-white active:scale-[0.99]">
               Cadastrar a ração {artigo} {name}
@@ -171,8 +184,9 @@ export function FreeShortcutSheet({ startedAt, petName, petSex, hasFood, onOpenF
           {nothingLeft && <p className="text-center text-[14px] font-semibold text-slate-700">Tudo certo por aqui. Obrigado!</p>}
 
           <p className="text-center text-[12px] leading-relaxed text-slate-500">
-            Este atalho fica aberto por 20 minutos a partir do seu toque. Cada passo concluído fica marcado, e você pode seguir para os
-            outros. Ele fecha quando tudo estiver feito ou ao fim do tempo. Depois, você faz o mesmo no menu do app. Nenhuma conta ou cadastro é removido sem o seu consentimento.{' '}
+            {hasClock
+              ? 'Este atalho fica aberto por 20 minutos a partir do seu toque. Cada passo concluído fica marcado, e você pode seguir para os outros. Ele fecha quando tudo estiver feito ou ao fim do tempo. Depois, você faz o mesmo no menu do app.'
+              : 'Cada passo concluído fica marcado, e você pode seguir para os outros. Você também encontra tudo isso no menu do app.'} Nenhuma conta ou cadastro é removido sem o seu consentimento.{' '}
             {!hasLocation && 'A localização é opcional e você desativa quando quiser.'}
           </p>
           <button type="button" onClick={() => finish('dismissed')} className="mx-auto block px-4 py-2 text-[13px] font-bold text-slate-500">

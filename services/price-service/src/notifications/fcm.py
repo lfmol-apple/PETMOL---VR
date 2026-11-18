@@ -189,6 +189,8 @@ def send_fcm(device_token: str, payload: dict) -> Tuple[bool, bool]:
     message: dict = {"token": device_token, "notification": notification}
     if data:
         message["data"] = data
+    # Prioridade alta + som padrão: aparece na hora e toca (o som personalizado exigiria arquivo no app).
+    message["android"] = {"priority": "HIGH", "notification": {"sound": "default"}}
 
     try:
         client = _get_send_client()
