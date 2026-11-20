@@ -20,7 +20,7 @@ export const primeirosCuidadosGuides: Guide[] = [
       {
         type: 'callout',
         tone: 'info',
-        text: 'Sobre este guia: são orientações práticas e de cautela reunidas pelo PETMOL, sem uma fonte científica única e sem garantia de resultado. Para gatos, há dados de um estudo no guia específico, ligado ao final desta página.',
+        text: 'Sobre este guia: são orientações práticas e de cautela reunidas pelo PETMOL, sem uma fonte científica única e sem garantia de resultado.',
       },
       { type: 'h2', text: 'Na primeira hora: procure perto e avise quem está por perto', id: 'primeira-hora' },
       {
