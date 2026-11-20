@@ -1,13 +1,18 @@
 import { SITE_URL } from '@/lib/siteUrl';
 import type { Guide } from '@/features/guides';
 import { getGuideCategory } from '@/features/guides';
+import { ORG_ID } from '@/components/SiteJsonLd';
+import { BRAND_SAME_AS } from '@/lib/brandProfiles';
 
 
+// Mesma Organization do site (mesmo @id da home, ver SiteJsonLd): o Google funde as referências em uma entidade só.
 const ORG = {
   '@type': 'Organization',
+  '@id': ORG_ID,
   name: 'PETMOL',
   url: SITE_URL,
   logo: `${SITE_URL}/icons/icon-512.png`,
+  sameAs: [...BRAND_SAME_AS],
 };
 
 function JsonLdScript({ data }: { data: Record<string, unknown> | Record<string, unknown>[] }) {

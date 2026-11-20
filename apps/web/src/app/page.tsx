@@ -18,6 +18,8 @@ import Link from 'next/link';
 import { DownloadButton, DownloadCta } from '@/components/landing/DownloadButton';
 import { LandingGate } from '@/components/landing/LandingGate';
 import { AmazonFooterLink } from '@/components/landing/AmazonFooterLink';
+import { SocialLinks } from '@/components/landing/SocialLinks';
+import { SiteJsonLd } from '@/components/SiteJsonLd';
 
 // SEO: esta página é renderizada NO SERVIDOR — o HTML inicial já traz o título, o texto e as imagens (antes vinha só uma
 // tela de carregamento, e o Google via uma página praticamente vazia). Redirecionar quem já está logado (ou no app) é feito
@@ -73,6 +75,7 @@ const FEATURES: Feature[] = [
 export default function LandingPage() {
   return (
     <div className="landing-root min-h-dvh bg-white">
+      <SiteJsonLd />
       <LandingGate />
       {/* Cabeçalho: a marca "Petmol 🐾" (mesma identidade do app) */}
       <header
@@ -162,6 +165,7 @@ export default function LandingPage() {
           <Link href="/transparencia" className="hover:text-slate-600">Transparência</Link>
           <Link href="/legal/privacy" className="hover:text-slate-600">Privacidade</Link>
           <Link href="/legal/terms" className="hover:text-slate-600">Termos de Uso</Link>
+          <SocialLinks placement="home-rodape" className="hover:text-slate-600" />
         </div>
         <p className="mt-2 text-xs text-slate-400">© 2026 PETMOL</p>
       </footer>

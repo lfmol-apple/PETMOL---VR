@@ -153,6 +153,8 @@ _SAFE_EVENT_NAMES = {
     "landing_view",
     "landing_download_click",
     "landing_store_redirect",
+    # Clique nos links dos perfis oficiais (Instagram/YouTube) no rodapé do site — não é download, não entra no teste A/B.
+    "social_link_click",
     # Introdução em vídeo da landing (mobile) — ver admin/analytics/landing_intro_bi.py. "landing_intro_poster_view"
     # termina em "_view": sem estar aqui seria renomeado para "screen_view".
     "landing_intro_poster_view",
