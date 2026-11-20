@@ -1,0 +1,266 @@
+name: Protect stable release copy on VPS
+
+# Cópia PROTEGIDA de uma release estável, fora da rotina de exclusão das últimas
+# 5 releases (activate.sh só apaga dentro de /opt/petmol/releases).
+#
+# O que faz (tudo em /opt/petmol/protected-releases/, pasta nova):
+#   - confirma que releases/<sha> existe e que há espaço livre com folga;
+#   - copia releases/<sha> -> protected-releases/<sha> (cp -a: modos, tempos e
+#     links simbólicos preservados), primeiro numa pasta .incoming-* e só então
+#     renomeia (a pasta final nunca fica pela metade);
+#   - compara SHA-256 de todos os arquivos, links simbólicos e bits de execução
+#     entre origem e cópia; qualquer erro de leitura/hash ABORTA (sem || true);
+#   - protege o conteúdo contra escrita (chmod a-w, sem seguir links) e grava o
+#     manifesto + metadados (<sha>.manifest, <sha>.info com
+#     status=pending-verification) ANTES da promoção;
+#   - só então renomeia .incoming-* para <sha>/ (a pasta definitiva nunca existe
+#     sem manifesto e metadados) e RE-VERIFICA a pasta definitiva: só depois dessa
+#     verificação final o .info passa a status=complete; se falhar, status=invalid.
+# Idempotente: se o destino já existe, NÃO sobrescreve — só REVALIDA tudo (hashes e
+# metadados), sempre, mesmo com status=complete. Estado diferente de complete é
+# revalidado antes de ser declarado íntegro; divergência marca invalid. Destino sem
+# manifesto/info é INCOMPLETO (exit 3), nunca preservado. Sobras .incoming-* são avisadas e nunca tocadas.
+#
+# O que NÃO faz: não toca em current, releases/, serviços, banco, retenção,
+# .env nem segredos; não apaga nada; não cria nada fora de protected-releases/.
+#
+# Conexão: SSH com StrictHostKeyChecking=yes contra chave de host FIXADA
+# (segredo VPS_HOST_KEY ou deploy/vps_host_keys.pub). O script vai pelo STDIN
+# (bash -s): nada é copiado para a VPS nem criado em /tmp.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "SHA COMPLETO (40 hex) da release estável a proteger"
+        required: true
+        default: "41fe56a424025c38cde1698107bf64d7bd1bc566"
+
+permissions:
+  contents: read
+
+# Mesmo grupo do deploy: nunca roda junto de um deploy (o prune poderia apagar
+# a origem no meio da cópia).
+concurrency:
+  group: deploy-vps-atomic
+  cancel-in-progress: false
+
+jobs:
+  protect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate input
+        env:
+          SHA: ${{ github.event.inputs.sha }}
+        run: |
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "SHA inválido: precisa ter 40 hex minúsculos."; exit 1; }
+
+      - name: Write remote script (runner only)
+        run: |
+          cat > "$RUNNER_TEMP/protect_release.sh" <<'REMOTE_EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          SHA="${1:-}"
+          ROOT="${PETMOL_ROOT:-/opt/petmol}"
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "SHA inválido"; exit 2; }
+          SRC="$ROOT/releases/$SHA"
+          BASE="$ROOT/protected-releases"
+          DST="$BASE/$SHA"
+          MAN="$BASE/$SHA.manifest"
+          INFO="$BASE/$SHA.info"
+          TMP=""
+
+          if command -v sha256sum >/dev/null 2>&1; then HASHBIN="sha256sum"; else HASHBIN="shasum -a 256"; fi
+
+          fail() { echo "FALHA: $*" >&2; exit 1; }
+
+          # Em qualquer saída (erro, INT, TERM): remove só os temporários DESTA execução e
+          # avisa se ficou cópia parcial. Nunca apaga cópia, manifesto nem sobra anterior.
+          cleanup() {
+            local rc=$?
+            rm -f "$BASE/.v-dst.$$" "$BASE/.v-src.$$" "$BASE/.v-tmp.$$" "$BASE/.v-tmp2.$$" \
+                  "$BASE/.man.$$" "$BASE/.info.$$" 2>/dev/null || true
+            if [ "$rc" -ne 0 ] && [ -n "$TMP" ] && [ -d "$TMP" ]; then
+              echo "AVISO: cópia parcial deixada em $TMP — NÃO é uma cópia preservada; nada foi apagado." >&2
+            fi
+            exit "$rc"
+          }
+          trap cleanup EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM HUP
+
+          # Manifesto determinístico. Cada etapa é checada EXPLICITAMENTE (não depende de
+          # set -e, que o bash desliga dentro de funções chamadas com ||): qualquer erro de
+          # leitura ou de hash devolve status != 0, e o número de hashes tem de bater com o
+          # número de arquivos.
+          manifest() {
+            local dir="$1"
+            [ -d "$dir" ] || { echo "manifesto: $dir não é diretório" >&2; return 90; }
+            (
+              cd "$dir" || exit 90
+              nfiles=$(find . -type f -print0 | tr -cd '\0' | wc -c | tr -d ' ') || exit 91
+              [ "$nfiles" -gt 0 ] || { echo "manifesto: nenhum arquivo em $dir" >&2; exit 91; }
+              hashes=$(find . -type f -print0 | LC_ALL=C sort -z | xargs -0 $HASHBIN) || exit 92
+              nh=$(printf '%s\n' "$hashes" | grep -cE '^\\?[0-9a-f]{64}  ' || true)
+              [ "$nh" -eq "$nfiles" ] || { echo "manifesto: $nh hashes para $nfiles arquivos em $dir" >&2; exit 93; }
+              links=$(find . -type l -print0 | LC_ALL=C sort -z | while IFS= read -r -d '' l; do
+                        printf '%s -> %s\n' "$l" "$(readlink "$l")"; done) || exit 94
+              exes=$(find . -type f -perm -u+x -print0 | LC_ALL=C sort -z | tr '\0' '\n') || exit 95
+              dirs=$(find . -type d | LC_ALL=C sort) || exit 96
+              printf '## arquivos (sha256)\n%s\n## links simbolicos\n%s\n## executaveis\n%s\n## diretorios\n%s\n' \
+                "$hashes" "$links" "$exes" "$dirs"
+            )
+          }
+
+          # Estado da cópia no .info: pending-verification -> (verificação final OK) complete,
+          # ou invalid. "complete" só existe depois de uma verificação bem-sucedida.
+          set_status() {
+            local st="$1"
+            { grep -vE '^(status|verified_at)=' "$INFO"; echo "status=$st"; [ "$st" = complete ] && echo "verified_at=$(date -u +%FT%TZ)"; true; } > "$BASE/.info.$$" \
+              && mv "$BASE/.info.$$" "$INFO"
+          }
+
+          state() {
+            echo "current -> $(readlink -f "$ROOT/current" 2>/dev/null || echo MISSING)"
+            echo "releases/: $(ls -1 "$ROOT/releases" 2>/dev/null | tr '\n' ' ')"
+            for s in petmol-api petmol-web; do echo "$s: $(systemctl is-active "$s" 2>/dev/null || echo desconhecido)"; done
+          }
+
+          BEFORE="$(state)"; echo "=== ESTADO ANTES (somente leitura) ==="; echo "$BEFORE"
+
+          for d in "$BASE"/.incoming-*; do
+            [ -e "$d" ] && echo "AVISO: sobra de execução anterior (NÃO é cópia preservada, não foi tocada): $d"
+          done 2>/dev/null || true
+
+          # ── Já existe: só VERIFICAR (nunca sobrescreve) ──────────────────────────────
+          if [ -e "$DST" ] || [ -L "$DST" ]; then
+            echo "=== Destino já existe: apenas VERIFICANDO (sem sobrescrever) ==="
+            [ -d "$DST" ] && [ ! -L "$DST" ] || fail "$DST existe mas não é um diretório regular."
+            if [ ! -f "$MAN" ] || [ ! -f "$INFO" ]; then
+              echo "INCOMPLETA: faltam manifesto/metadados de $SHA. NÃO é considerada preservada. Nada foi alterado." >&2
+              exit 3
+            fi
+            expected="$(sed -n 's/^manifest_sha256=//p' "$INFO")"
+            actual="$($HASHBIN "$MAN" | cut -d' ' -f1)"
+            if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+              set_status invalid || true
+              fail "manifesto não confere com o registrado em $INFO (marcada como invalid)."
+            fi
+            status_now="$(sed -n 's/^status=//p' "$INFO")"
+            [ "$status_now" = complete ] || echo "AVISO: estado atual '$status_now' — revalidando por completo antes de declarar íntegra."
+            manifest "$DST" > "$BASE/.v-dst.$$" || { set_status invalid || true; fail "não foi possível examinar TODOS os arquivos da cópia; verificação inválida (marcada como invalid)."; }
+            if cmp -s "$BASE/.v-dst.$$" "$MAN"; then echo "OK: cópia idêntica ao manifesto gravado."; else set_status invalid || true; echo "DIVERGÊNCIA: a cópia difere do manifesto (marcada como invalid)." >&2; exit 1; fi
+            if [ -d "$SRC" ]; then
+              manifest "$SRC" > "$BASE/.v-src.$$" || { set_status invalid || true; fail "não foi possível examinar a origem (marcada como invalid)."; }
+              if cmp -s "$BASE/.v-dst.$$" "$BASE/.v-src.$$"; then echo "OK: cópia idêntica à release de origem."; else set_status invalid || true; echo "DIVERGÊNCIA: a cópia difere da origem (marcada como invalid)." >&2; exit 1; fi
+            else
+              echo "Origem releases/$SHA não existe mais (esperado após o prune)."
+            fi
+            if [ "$status_now" != complete ]; then set_status complete && echo "Revalidação completa OK: estado atualizado para complete."; fi
+            echo "VERIFICAÇÃO CONCLUÍDA. Nenhuma alteração feita."
+            exit 0
+          fi
+
+          # ── Nova cópia ───────────────────────────────────────────────────────────────
+          echo "=== Pré-condições ==="
+          [ -d "$SRC" ] && [ ! -L "$SRC" ] || fail "release $SRC não existe (ou é link). Nada foi feito."
+          need_kb=$(du -sk "$SRC" | cut -f1)
+          avail_kb=$(df -Pk "$ROOT" | awk 'NR==2{print $4}')
+          echo "origem: ${need_kb} KB | livre: ${avail_kb} KB"
+          [ "$avail_kb" -ge $(( need_kb * 2 + 1048576 )) ] || fail "espaço insuficiente (exige 2x + 1 GB). Nada foi feito."
+
+          mkdir -p "$BASE"
+          # Metadados órfãos (sem cópia correspondente) são preservados, não sobrescritos.
+          for f in "$MAN" "$INFO"; do
+            if [ -e "$f" ]; then
+              o="$BASE/.orphan-$(basename "$f")-$(date +%s)"; mv "$f" "$o"
+              echo "AVISO: metadado órfão preservado em $o"
+            fi
+          done
+
+          echo "=== Cópia para pasta temporária ==="
+          TMP="$BASE/.incoming-$SHA-$(date +%s)"
+          [ ! -e "$TMP" ] || fail "$TMP já existe."
+          cp -a "$SRC" "$TMP" || fail "a cópia falhou."
+
+          echo "=== Verificação 1: origem x cópia ==="
+          manifest "$SRC" > "$BASE/.v-src.$$" || fail "não foi possível examinar TODOS os arquivos da origem."
+          manifest "$TMP" > "$BASE/.v-tmp.$$" || fail "não foi possível examinar TODOS os arquivos da cópia."
+          cmp -s "$BASE/.v-src.$$" "$BASE/.v-tmp.$$" || fail "a cópia diverge da origem (pasta parcial mantida para inspeção)."
+          echo "OK: $(grep -cE '^\\?[0-9a-f]{64}  ' "$BASE/.v-src.$$") arquivos idênticos."
+
+          echo "=== Proteção contra escrita do CONTEÚDO e verificação 2 (ainda na pasta temporária) ==="
+          # Só o conteúdo (nunca segue links simbólicos). A pasta de topo fica gravável até
+          # depois da promoção: renomear diretório sem permissão de escrita falha em alguns
+          # sistemas, e a validade da cópia não depende desse último chmod.
+          find "$TMP" -mindepth 1 ! -type l -exec chmod a-w {} + || fail "não foi possível proteger contra escrita."
+          manifest "$TMP" > "$BASE/.v-tmp2.$$" || fail "não foi possível reexaminar a cópia protegida."
+          cmp -s "$BASE/.v-src.$$" "$BASE/.v-tmp2.$$" || fail "a cópia protegida diverge da origem."
+
+          echo "=== Gravando manifesto e metadados ==="
+          cp "$BASE/.v-src.$$" "$BASE/.man.$$"
+          {
+            echo "sha=$SHA"
+            echo "source=$SRC"
+            echo "protected_at=$(date -u +%FT%TZ)"
+            echo "manifest_sha256=$($HASHBIN "$BASE/.man.$$" | cut -d' ' -f1)"
+            echo "status=pending-verification"
+          } > "$BASE/.info.$$"
+          mv "$BASE/.man.$$" "$MAN"
+          mv "$BASE/.info.$$" "$INFO"
+
+          echo "=== Promoção FINAL (único passo que cria a pasta definitiva) ==="
+          [ ! -e "$DST" ] || fail "$DST apareceu durante a cópia."
+          mv "$TMP" "$DST" || fail "não foi possível promover a cópia."
+          TMP=""
+          chmod a-w "$DST" || echo "AVISO: não foi possível remover a escrita da pasta de topo (a cópia continua válida e verificada)."
+
+          echo "=== Verificação 3: pasta definitiva x manifesto ==="
+          manifest "$DST" > "$BASE/.v-dst.$$" || { set_status invalid || true; fail "não foi possível examinar a pasta definitiva (marcada como invalid)."; }
+          cmp -s "$BASE/.v-dst.$$" "$MAN" || { set_status invalid || true; fail "a pasta definitiva diverge do manifesto (marcada como invalid)."; }
+          echo "OK: cópia protegida confere com o manifesto."
+          set_status complete || fail "não foi possível registrar status=complete."
+          echo "Estado registrado: complete (somente após a verificação final)."
+
+          echo "=== ESTADO DEPOIS (deve ser igual ao ANTES) ==="
+          AFTER="$(state)"; echo "$AFTER"
+          if [ "$BEFORE" = "$AFTER" ]; then echo "OK: current, releases/ e serviços inalterados."; else echo "ATENÇÃO: o estado mudou (possível deploy concorrente); revisar."; fi
+          echo "Resumo: $(tr '\n' ' ' < "$INFO")"
+          REMOTE_EOF
+          bash -n "$RUNNER_TEMP/protect_release.sh"
+
+      - name: Run over SSH (script via stdin, pinned host key)
+        env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          VPS_HOST_KEY: ${{ secrets.VPS_HOST_KEY }}
+          SHA: ${{ github.event.inputs.sha }}
+        run: |
+          set -euo pipefail
+          VPS_PORT="${VPS_PORT:-22}"
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          HOSTSPEC="$VPS_IP"
+          [ "$VPS_PORT" = "22" ] || HOSTSPEC="[$VPS_IP]:$VPS_PORT"
+          : > ~/.ssh/known_hosts_pinned
+          if [ -n "${VPS_HOST_KEY:-}" ]; then
+            printf '%s\n' "$VPS_HOST_KEY" > ~/.ssh/known_hosts_pinned
+          else
+            while read -r ktype kblob; do
+              [ -n "$ktype" ] && printf '%s %s %s\n' "$HOSTSPEC" "$ktype" "$kblob" >> ~/.ssh/known_hosts_pinned
+            done < deploy/vps_host_keys.pub
+          fi
+          [ -s ~/.ssh/known_hosts_pinned ] || { echo "Nenhuma chave de host fixada — abortando."; exit 1; }
+
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o Port="$VPS_PORT" \
+              -o UserKnownHostsFile="$HOME/.ssh/known_hosts_pinned" \
+              -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=15 \
+              "$VPS_USER@$VPS_IP" "bash -s -- $SHA" < "$RUNNER_TEMP/protect_release.sh"
