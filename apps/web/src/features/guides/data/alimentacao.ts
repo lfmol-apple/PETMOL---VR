@@ -213,7 +213,7 @@ export const alimentacaoGuides: Guide[] = [
       { type: 'h2', text: 'Saco aberto: quanto dura o consumo e quanto dura a ração', id: 'saco-aberto' },
       {
         type: 'p',
-        text: 'São duas perguntas diferentes. A primeira é quanto tempo o saco leva para acabar (a conta acima). A segunda é por quanto tempo a ração aberta se mantém boa, e a recomendação que vale é a da embalagem do fabricante. Em geral, quanto mais tempo o saco fica aberto, mais a ração perde frescor, então saco muito maior do que o consumo do seu pet pode ser desperdício mesmo com preço por quilo menor. A orientação de armazenamento da FDA (fonte abaixo) recomenda guardar o alimento na embalagem original, para manter à mão o lote e a data de validade.',
+        text: 'São duas perguntas diferentes. A primeira é quanto tempo o saco leva para acabar (a conta acima). A segunda é por quanto tempo a ração aberta se mantém boa, e a recomendação que vale é a da embalagem do fabricante. A orientação de armazenamento da FDA (fonte abaixo) recomenda guardar o alimento na embalagem original, para manter à mão o lote e a data de validade.',
       },
       { type: 'h2', text: 'Erros comuns', id: 'erros' },
       {
@@ -246,7 +246,7 @@ export const alimentacaoGuides: Guide[] = [
       {
         question: 'A ração aberta dura quanto tempo?',
         answer:
-          'Depende do fabricante: siga a orientação da embalagem. Evite escolher um saco tão grande que o seu pet leve muito tempo para terminá-lo, e mantenha a ração bem fechada, longe de calor e umidade.',
+          'Depende do fabricante: siga a orientação da embalagem. A FDA recomenda guardar a ração na embalagem original, para manter à mão o lote e a data de validade.',
       },
       {
         question: 'A ração rende diferente do que a tabela diz?',
@@ -463,15 +463,15 @@ export const alimentacaoGuides: Guide[] = [
       { type: 'h2', text: 'Filhote: a porção muda conforme ele cresce', id: 'filhote' },
       {
         type: 'p',
-        text: 'Filhote não segue a tabela de cão adulto. Ele come uma ração própria para a fase de crescimento, e a tabela dessa embalagem costuma trazer a porção por idade e pelo peso que o cão deve ter quando adulto. Como o filhote ganha peso rápido, a porção sobe com o tempo e precisa ser revista com frequência, não só uma vez.',
+        text: 'Filhote não segue a tabela de cão adulto: use a ração indicada para a fase de crescimento e a tabela de porção da embalagem dessa ração (a idade e o peso a considerar são os que o fabricante indica). A porção muda conforme o filhote cresce, então volte à tabela a cada fase e converse com o veterinário.',
       },
       {
         type: 'ul',
         items: [
-          'Use a tabela da ração de filhote, na linha da idade e do porte esperado, e some todas as refeições do dia.',
-          'Divida em mais refeições pequenas do que um adulto (a pergunta frequente abaixo traz a divisão mais comum).',
-          'Pese o filhote com regularidade e acompanhe a curva de crescimento com o veterinário. Ganho rápido demais é tão ruim quanto ganho lento.',
-          'A troca da ração de filhote para a de adulto depende do porte e da raça: raças grandes crescem por mais tempo. Combine o momento com o veterinário.',
+          'Use a tabela da ração de filhote, conforme a indicação do fabricante, e some todas as refeições do dia.',
+          'A divisão em refeições segue a embalagem ou a orientação do veterinário (a pergunta frequente abaixo traz a divisão já citada neste guia).',
+          'Pese o filhote com regularidade e leve o peso às consultas.',
+          'A troca da ração de filhote para a de adulto deve ser combinada com o veterinário.',
         ],
       },
       {
@@ -479,10 +479,10 @@ export const alimentacaoGuides: Guide[] = [
         tone: 'vet',
         text: 'Verificado em fonte: a embalagem é só o ponto de partida. As diretrizes de avaliação nutricional da WSAVA dizem que as necessidades de energia podem variar em até 30% para mais ou para menos em cães. Depende do veterinário: o plano de crescimento do filhote, a escolha da ração e o momento da troca.',
       },
-      { type: 'h2', text: 'Por porte: por que 25 kg não é "o dobro" de 12 kg', id: 'por-porte' },
+      { type: 'h2', text: 'Por peso: use a linha certa da tabela da sua ração', id: 'por-porte' },
       {
         type: 'p',
-        text: 'A tabela da embalagem não cresce em proporção direta ao peso. Cães menores costumam gastar mais energia por quilo do que cães grandes, então a porção de um cão de 25 kg não é simplesmente o dobro da de um cão de 12 kg. Por isso, procure sempre a linha do peso do seu cão (ou do peso ideal, se ele estiver acima do peso), em vez de fazer uma regra de três.',
+        text: 'Cada ração tem a sua própria tabela. Por isso, procure sempre a linha do peso do seu cão (ou do peso ideal, se ele estiver acima do peso) na embalagem da ração que você usa, em vez de usar a porção de outra marca ou de outro cão.',
       },
       {
         type: 'table',
