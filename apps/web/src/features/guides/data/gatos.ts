@@ -2,6 +2,148 @@ import type { Guide } from '../types';
 
 export const gatosGuides: Guide[] = [
   {
+    slug: 'quanto-de-racao-dar-para-gato',
+    title: 'Quanto de ração dar para gato por dia',
+    category: 'gatos',
+    description:
+      'A embalagem é o ponto de partida, mas cada gato é diferente. Veja como usar a tabela, o que muda para filhote e castrado e quando levar ao veterinário.',
+    summary:
+      'Comece pela tabela de porção da embalagem, pelo peso do gato, e some todas as refeições do dia. Ela é uma referência: as necessidades de cada gato podem variar bastante, e a castração pode aumentar o apetite e reduzir a necessidade de energia. Por isso, pese a porção, observe a condição corporal e combine com o veterinário qualquer ajuste, principalmente para filhotes, gatos castrados ou com peso fora do ideal.',
+    publishedAt: '2026-11-20',
+    updatedAt: '2026-11-20',
+    readingTimeMinutes: 6,
+    blocks: [
+      {
+        type: 'p',
+        text: 'Uma dúvida comum de tutores de gato é: estou dando pouco, estou dando demais? Este guia organiza o que as fontes veterinárias dizem sobre o assunto e o que você, como tutor, consegue fazer em casa. Ele não substitui a avaliação de um veterinário, que é quem define a porção e a ração do seu gato em cada fase da vida.',
+      },
+      { type: 'h2', text: 'A resposta rápida: comece pela embalagem', id: 'resposta-rapida' },
+      {
+        type: 'p',
+        text: 'A tabela impressa na ração é o ponto de partida mais prático. Procure a linha do peso do seu gato (o peso ideal, se ele estiver acima do peso) e some todas as refeições do dia. A tabela já considera a densidade de energia daquela ração, e é por isso que marcas diferentes indicam quantidades diferentes para o mesmo gato.',
+      },
+      {
+        type: 'callout',
+        tone: 'info',
+        text: 'Verificado em fonte: as diretrizes de avaliação nutricional da WSAVA tratam a recomendação da embalagem como ponto de partida, porque as necessidades de energia podem variar em até 50% para mais ou para menos em gatos. Por isso a tabela sozinha não é a resposta final para o seu gato.',
+      },
+      { type: 'h2', text: 'Como pesar e acompanhar', id: 'pesar' },
+      {
+        type: 'ol',
+        items: [
+          'Pese a porção numa balança de cozinha pelo menos na primeira semana. O mesmo copo comporta pesos diferentes conforme o formato dos grãos.',
+          'Se o gato come mais de um tipo de alimento, converse com o veterinário sobre como dividir a porção do dia.',
+          'Pese o gato com regularidade (uma balança de banheiro, com você segurando o gato e descontando o seu peso, já ajuda) e anote.',
+          'Observe a condição corporal, explicada abaixo, a cada poucas semanas.',
+        ],
+      },
+      { type: 'h2', text: 'Gato castrado: atenção ao peso', id: 'castrado' },
+      {
+        type: 'p',
+        text: 'Segundo uma revisão publicada no Journal of Feline Medicine and Surgery, a castração pode aumentar o apetite e reduzir a necessidade de energia dos gatos. A mesma revisão orienta que o tutor seja aconselhado sobre a condição corporal ideal no momento da alta da cirurgia. Em vez de mudar a quantidade por conta própria, converse com o veterinário sobre a ração e a porção depois da cirurgia.',
+      },
+      { type: 'h2', text: 'Filhote: refeições pequenas e plano com o veterinário', id: 'filhote' },
+      {
+        type: 'p',
+        text: 'O filhote é uma fase em que a ração e a porção devem ser definidas com o veterinário. As fontes que consultei divergem quanto ao número exato de refeições em cada idade, então este guia não indica um número.',
+      },
+      {
+        type: 'ul',
+        items: [
+          'Use a ração de filhote indicada pelo veterinário e a tabela da embalagem como base.',
+          'Pese o filhote com frequência e leve a curva de crescimento às consultas.',
+          'A troca para a ração de adulto é um assunto a combinar com o veterinário. A mesma revisão do Journal of Feline Medicine and Surgery diz que o momento é debatido, e que de 9 a 12 meses é um período adequado para a maioria dos gatos.',
+        ],
+      },
+      { type: 'h2', text: 'Condição corporal: o que olhar no seu gato', id: 'condicao-corporal' },
+      {
+        type: 'p',
+        text: 'A balança sozinha não diz se o gato está bem. A WSAVA publica uma escala de condição corporal de 9 pontos para gatos, que veterinários usam para avaliar se o animal está magro, no peso ou acima dele. Peça ao veterinário que mostre, na consulta, como avaliar o seu gato.',
+      },
+      {
+        type: 'callout',
+        tone: 'vet',
+        text: 'Depende do veterinário: dizer se o seu gato está no peso ideal, definir a meta de peso e ajustar a porção. Mudanças de peso ou de apetite que você não saiba explicar também são assunto para o veterinário.',
+      },
+      { type: 'h2', text: 'Quantas refeições por dia', id: 'refeicoes' },
+      {
+        type: 'p',
+        text: 'O número de refeições por dia e a forma de oferecer a comida (porções medidas ou à disposição) variam de gato para gato. As fontes que consultei não trazem uma regra única, então o veterinário é quem orienta o melhor esquema para o seu.',
+      },
+      { type: 'h2', text: 'Ração de gato não é ração de cachorro', id: 'racao-de-gato' },
+      {
+        type: 'p',
+        text: 'Cães e gatos têm rações próprias, indicadas para cada espécie na embalagem. Pergunte ao veterinário antes de usar ração de cachorro como alimentação do gato (ou o contrário).',
+      },
+      { type: 'h2', text: 'Quanto tempo dura o saco de ração do gato', id: 'duracao' },
+      {
+        type: 'p',
+        text: 'A conta é a mesma de qualquer ração: peso do saco em gramas dividido pelo consumo diário em gramas. Um saco de 3 kg com 50 g por dia dura cerca de 60 dias. Para ração aberta, siga a orientação de armazenamento da embalagem.',
+      },
+      {
+        type: 'links',
+        title: 'Faça as contas e guarde a ração',
+        items: [
+          { slug: 'quanto-tempo-dura-saco-de-racao', label: 'Quanto tempo dura um saco de ração (calculadora e tabela)' },
+          { slug: 'como-armazenar-racao-depois-de-aberta', label: 'Como armazenar a ração depois de aberta' },
+        ],
+      },
+      { type: 'h2', text: 'Erros comuns', id: 'erros' },
+      {
+        type: 'ul',
+        items: [
+          'Medir por copo ou colher em vez de pesar.',
+          'Repetir a porção de outro gato sem conferir a tabela da ração e o peso do seu.',
+          'Esquecer petiscos e agrados na conta do dia.',
+          'Mudar a quantidade ou a ração de um gato doente sem falar com o veterinário.',
+        ],
+      },
+      {
+        type: 'checklist',
+        title: 'Para acertar a porção do seu gato',
+        items: [
+          'Peguei a porção na tabela da ração atual, pelo peso do gato?',
+          'Pesei a porção numa balança de cozinha?',
+          'Somei todas as refeições e os petiscos do dia?',
+          'Acompanho o peso e combinei com o veterinário como avaliar a condição corporal?',
+          'Combinei com o veterinário a porção do meu gato (principalmente se é filhote ou castrado)?',
+        ],
+      },
+    ],
+    faq: [
+      {
+        question: 'Quanto de ração dar para gato filhote?',
+        answer:
+          'Use a ração própria para filhotes e a tabela da embalagem como base, dividindo o total do dia em refeições pequenas. A quantidade muda conforme o gato cresce, então combine o plano de crescimento com o veterinário, que também orienta a troca para a ração de adulto.',
+      },
+      {
+        question: 'Quantas gramas de ração por dia para gato castrado?',
+        answer:
+          'Não existe um número único, porque cada ração tem uma densidade de energia diferente e cada gato, uma necessidade. Comece pela tabela da embalagem, observe o peso e a condição corporal e converse com o veterinário, já que, segundo uma revisão veterinária, a castração pode aumentar o apetite e reduzir a necessidade de energia.',
+      },
+    ],
+    sources: [
+      {
+        label: 'WSAVA Nutritional Assessment Guidelines (necessidades de energia variam entre gatos)',
+        publisher: 'WSAVA, Journal of Feline Medicine and Surgery (acesso aberto)',
+        url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC11107980/',
+      },
+      {
+        label: 'Nutritional assessment in the cat: practical recommendations for better medical care (castração e transição para ração adulta)',
+        publisher: 'Journal of Feline Medicine and Surgery (acesso aberto)',
+        url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC10814421/',
+      },
+      {
+        label: 'Diretrizes globais de nutrição e escalas de condição corporal',
+        publisher: 'WSAVA Global Nutrition Committee',
+        url: 'https://wsava.org/global-guidelines/global-nutrition-guidelines/',
+      },
+    ],
+    relatedSlugs: ['quanto-tempo-dura-saco-de-racao', 'como-armazenar-racao-depois-de-aberta', 'como-escolher-areia-higienica-para-gatos'],
+    vetContext: true,
+    searchTerms: ['ração de gato', 'quanto de ração dar para gato', 'gato filhote', 'gato castrado', 'gramas por dia', 'porção gato'],
+  },
+  {
     slug: 'como-escolher-areia-higienica-para-gatos',
     title: 'Como escolher areia higiênica para gatos',
     category: 'gatos',
