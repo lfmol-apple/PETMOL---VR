@@ -24,7 +24,7 @@ async function getPublicMissingPetUrls(): Promise<MetadataRoute.Sitemap> {
       .filter((item) => item.slug)
       .map((item) => ({
         url: `${SITE_URL}/pet-perdido/${item.slug}`,
-        lastModified: item.updated_at ? new Date(item.updated_at) : new Date(),
+        lastModified: item.updated_at ? new Date(item.updated_at) : undefined,
         changeFrequency: 'daily' as const,
         priority: 0.7,
       }));
@@ -68,16 +68,15 @@ function getGuideUrls(): MetadataRoute.Sitemap {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // Só páginas públicas que respondem 200 e podem ser indexadas. Datas de atualização: só onde há uma data real
+  // (as demais ficam sem lastModified — nunca `new Date()`, que mente a cada rastreamento).
   const staticPages: MetadataRoute.Sitemap = [
-    { url: SITE_URL, lastModified: new Date(), changeFrequency: 'daily', priority: 1 },
-    { url: `${SITE_URL}/achei-um-pet`, lastModified: new Date(), changeFrequency: 'daily', priority: 0.9 },
-    { url: `${SITE_URL}/reportar-pet-perdido`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 },
-    { url: `${SITE_URL}/emergency`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.9 },
-    { url: `${SITE_URL}/services`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 },
-    { url: `${SITE_URL}/privacy`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.3 },
-    { url: `${SITE_URL}/terms`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.3 },
-    { url: `${SITE_URL}/coverage`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.4 },
-    { url: `${SITE_URL}/recommendations`, lastModified: new Date('2026-09-01'), changeFrequency: 'weekly', priority: 0.8 },
+    { url: SITE_URL, changeFrequency: 'weekly', priority: 1 },
+    { url: `${SITE_URL}/achei-um-pet`, changeFrequency: 'monthly', priority: 0.8 },
+    { url: `${SITE_URL}/reportar-pet-perdido`, changeFrequency: 'monthly', priority: 0.7 },
+    { url: `${SITE_URL}/legal/privacy`, lastModified: new Date('2026-11-17'), changeFrequency: 'yearly', priority: 0.3 },
+    { url: `${SITE_URL}/legal/terms`, lastModified: new Date('2026-11-17'), changeFrequency: 'yearly', priority: 0.3 },
+    { url: `${SITE_URL}/recommendations`, lastModified: new Date('2026-09-01'), changeFrequency: 'weekly', priority: 0.6 },
   ];
 
   return [
