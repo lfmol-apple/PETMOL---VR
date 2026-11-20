@@ -8,14 +8,14 @@ export const primeirosCuidadosGuides: Guide[] = [
     description:
       'Seu cão ou gato sumiu? Veja o que fazer na primeira hora, como montar um aviso que funciona, onde divulgar e como evitar golpes.',
     summary:
-      'Nas primeiras horas, procure por perto com calma, avise vizinhos e porteiros e publique um aviso com foto nítida, região e um telefone seu. Divulgue em grupos do bairro e confira abrigos e clínicas da região. Nunca pague adiantado a quem diz ter o pet, e guarde um detalhe que só você sabe para confirmar a identidade de quem ligar.',
+      'Nas primeiras horas, procure por perto com calma, avise vizinhos e porteiros e publique um aviso com foto nítida, região e um telefone seu. Divulgue em grupos do bairro e confira abrigos e clínicas da região. Evite pagar adiantado a quem diz ter o pet, e guarde um detalhe que só você sabe para confirmar a identidade de quem ligar.',
     publishedAt: '2026-11-20',
     updatedAt: '2026-11-20',
     readingTimeMinutes: 6,
     blocks: [
       {
         type: 'p',
-        text: 'Quando um cão ou gato some, o primeiro impulso é sair correndo sem plano. A pressa é compreensível, mas as primeiras horas rendem mais quando você combina duas coisas: procurar perto de casa e já espalhar a informação certa para quem pode encontrar o pet. Este guia organiza os dois caminhos, na ordem em que costumam ajudar.',
+        text: 'Quando um cão ou gato some, o primeiro impulso é sair correndo sem plano. A pressa é compreensível, mas as primeiras horas rendem mais quando você combina duas coisas: procurar perto de casa e já espalhar a informação certa para quem pode encontrar o pet. Este guia organiza os dois caminhos, em uma ordem prática.',
       },
       {
         type: 'callout',
