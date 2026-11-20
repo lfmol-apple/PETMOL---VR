@@ -26,7 +26,6 @@ export default function robots(): MetadataRoute.Robots {
         '/saude/',
         '/cuidar/',
         '/auth/',
-        '/login',
         '/webhook',
         '/go/',
         '/handoff/',

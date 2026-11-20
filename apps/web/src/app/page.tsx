@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * Home pública (www.petmol.com.br) — versão oficial, sem alternância (dono, 27/09/2026: "vamos parar
  * com este teste A/B. Criar a home oficial assim").
@@ -14,20 +12,19 @@
  * Quem clica em "Baixar" no anúncio do Instagram nunca passa por aqui — vai direto pra loja por
  * /go/instalar (ver aquela rota). Esta Home é só para quem chega espontaneamente ao domínio.
  */
-import { useEffect, useRef, useState } from 'react';
+import type { Metadata } from 'next';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getToken } from '@/lib/auth-token';
-import { AppBootSplash } from '@/components/AppBootSplash';
-import { isNativeAppClient } from '@/lib/nativeApp';
 import { DownloadButton, DownloadCta } from '@/components/landing/DownloadButton';
-import { trackLandingEvent } from '@/lib/landingEvents';
-import type { VariantInfo } from '@/lib/landingExperiment';
+import { LandingGate } from '@/components/landing/LandingGate';
+import { AmazonFooterLink } from '@/components/landing/AmazonFooterLink';
 
-// Evento de visita sem passar pelo teste A/B: nenhuma variante é sorteada nem gravada — o experimento
-// `landing_imagem_2026_09` para de receber visitas novas a partir desta versão (fica só o histórico).
-const NO_EXPERIMENT: VariantInfo = { variant: 'A', preview: false, persisted: false };
+// SEO: esta página é renderizada NO SERVIDOR — o HTML inicial já traz o título, o texto e as imagens (antes vinha só uma
+// tela de carregamento, e o Google via uma página praticamente vazia). Redirecionar quem já está logado (ou no app) é feito
+// por <LandingGate/>, só no cliente; o app nativo nem chega aqui (o middleware o manda para /home).
+export const metadata: Metadata = {
+  alternates: { canonical: '/' },
+};
 
 interface Feature {
   tag: string;
@@ -74,38 +71,9 @@ const FEATURES: Feature[] = [
 ];
 
 export default function LandingPage() {
-  const router = useRouter();
-  const [hideAmazonPicks, setHideAmazonPicks] = useState(false);
-  const [phase, setPhase] = useState<'boot' | 'guest'>('boot');
-  const rootRef = useRef<HTMLDivElement>(null);
-  const viewSent = useRef(false);
-
-  useEffect(() => {
-    if (isNativeAppClient()) {
-      router.replace('/home');
-      return;
-    }
-    if (getToken()) {
-      router.replace('/home');
-    } else {
-      setPhase('guest');
-      if (!viewSent.current) {
-        viewSent.current = true;
-        trackLandingEvent('landing_view', {}, NO_EXPERIMENT);
-      }
-    }
-  }, [router]);
-
-  useEffect(() => {
-    setHideAmazonPicks(isNativeAppClient());
-  }, []);
-
-  if (phase === 'boot') {
-    return <AppBootSplash />;
-  }
-
   return (
-    <div ref={rootRef} className="min-h-dvh bg-white">
+    <div className="min-h-dvh bg-white">
+      <LandingGate />
       {/* Cabeçalho: a marca "Petmol 🐾" (mesma identidade do app) */}
       <header
         className="flex items-center justify-between bg-blue-50 px-5 pb-3"
@@ -188,9 +156,7 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-slate-100 px-5 py-5 text-center">
         <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-slate-400">
-          {!hideAmazonPicks && (
-            <Link href="/recommendations" className="hover:text-slate-600">Recommendations</Link>
-          )}
+          <AmazonFooterLink />
           <Link href="/sobre" className="hover:text-slate-600">Sobre</Link>
           <Link href="/politica-editorial" className="hover:text-slate-600">Política editorial</Link>
           <Link href="/transparencia" className="hover:text-slate-600">Transparência</Link>
