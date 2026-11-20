@@ -15,7 +15,7 @@ import { EXPERIMENT_ID, getLandingVariant, type VariantInfo } from '@/lib/landin
 import { getIntroCommercial, getIntroMode, saoPauloTime } from '@/lib/landingIntro';
 
 export type LandingEventName =
-  | 'landing_view' | 'landing_download_click' | 'landing_store_redirect'
+  | 'landing_view' | 'landing_download_click' | 'landing_store_redirect' | 'social_link_click'
   // Introdução em vídeo (mobile): funil próprio, nunca misturado com o teste A/B da landing.
   | 'landing_intro_poster_view' | 'landing_intro_watch_click' | 'landing_intro_video_start'
   | 'landing_intro_video_complete' | 'landing_intro_skip' | 'landing_intro_video_error';
@@ -23,6 +23,8 @@ export interface LandingEventExtra {
   button?: 'cta' | 'badge';
   placement?: string;
   store?: 'apple' | 'google' | 'auto';
+  /** Clique em link de perfil oficial (rodapé). */
+  network?: 'instagram' | 'youtube';
   /** Introdução em vídeo: segundos assistidos, duração, som ligado e motivo de falha/saída. */
   watched_s?: number;
   duration_s?: number;
@@ -65,6 +67,7 @@ export function buildLandingEvent(name: LandingEventName, info: VariantInfo, ext
       ...(extra.button ? { button: extra.button } : {}),
       ...(extra.placement ? { placement: extra.placement } : {}),
       ...(extra.store ? { store: extra.store } : {}),
+      ...(extra.network ? { network: extra.network } : {}),
       ...(typeof extra.watched_s === 'number' ? { watched_s: Math.round(extra.watched_s * 10) / 10 } : {}),
       ...(typeof extra.duration_s === 'number' ? { duration_s: Math.round(extra.duration_s * 10) / 10 } : {}),
       ...(typeof extra.muted === 'boolean' ? { muted: extra.muted } : {}),

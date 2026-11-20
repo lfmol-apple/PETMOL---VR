@@ -14,6 +14,7 @@ import { EditorialByline } from '@/components/guides/EditorialByline';
 import { SourcesList } from '@/components/guides/SourcesList';
 import { ReadAlso } from '@/components/guides/ReadAlso';
 import { ClusterNav } from '@/components/guides/ClusterNav';
+import { GuideInstallCta } from '@/components/guides/GuideInstallCta';
 import { GuideRelatedProducts } from '@/components/guides/GuideRelatedProducts';
 import { AffiliateDisclosure } from '@/components/guides/AffiliateDisclosure';
 import { GuideArticleJsonLd } from '@/components/guides/JsonLd';
@@ -145,6 +146,8 @@ export default async function GuidePage({ params }: GuidePageProps) {
             <SourcesList sources={guide.sources} />
           </div>
         )}
+
+        <GuideInstallCta slug={guide.slug} category={guide.category} />
 
         <ClusterNav slug={guide.slug} />
 

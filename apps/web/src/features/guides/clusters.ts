@@ -69,6 +69,7 @@ export const GUIDE_CLUSTERS: readonly GuideCluster[] = [
       'Como escolher tapete higiênico pela absorção real e pelo custo por dia — e como usar bem para gastar menos.',
     icon: '🧼',
     steps: [
+      'de-quanto-em-quanto-tempo-dar-banho-no-cachorro',
       'como-escolher-tapete-higienico-cachorro',
       'economizar-produtos-pet-sem-so-menor-preco',
     ],
@@ -81,6 +82,9 @@ export const GUIDE_CLUSTERS: readonly GuideCluster[] = [
     icon: '🐾',
     steps: [
       'checklist-adotou-cachorro',
+      'pet-perdido-o-que-fazer-nas-primeiras-horas',
+      'gato-fugiu-de-casa-volta-sozinho-o-que-fazer',
+      'achei-um-cachorro-o-que-fazer',
       'como-escolher-racao-ideal-cachorro',
       'coleira-ou-peitoral-qual-escolher',
       'brinquedos-para-caes-como-escolher-com-seguranca',
@@ -94,6 +98,7 @@ export const GUIDE_CLUSTERS: readonly GuideCluster[] = [
       'Gato não é cachorro pequeno. Areia, número de caixas, arranhador e transporte têm critérios próprios.',
     icon: '🐱',
     steps: [
+      'quanto-de-racao-dar-para-gato',
       'como-escolher-areia-higienica-para-gatos',
       'quantas-caixas-de-areia-para-gatos',
       'como-escolher-arranhador-para-gatos',

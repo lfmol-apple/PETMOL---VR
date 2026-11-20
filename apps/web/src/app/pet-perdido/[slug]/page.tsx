@@ -1,3 +1,4 @@
+import { notFound } from 'next/navigation';
 import { speciesLabel } from '@/lib/speciesCare';
 import { SITE_URL } from '@/lib/siteUrl';
 import type { Metadata } from 'next';
@@ -54,12 +55,14 @@ export async function generateMetadata({ params }: PetPerdidoPageProps): Promise
     return {
       title: 'Pet perdido | PETMOL',
       description: 'Alerta público de pet perdido no PETMOL.',
+      robots: { index: false },
     };
   }
   const region = pet.region ? ` em ${pet.region}` : '';
   return {
     title: `${pet.pet_name} perdido${region} | PETMOL`,
     description: `Ajude a encontrar ${pet.pet_name}${region}. Alerta público de pet perdido no PETMOL.`,
+    alternates: { canonical: `${SITE_URL}/pet-perdido/${slug}` },
     openGraph: {
       title: `${pet.pet_name} perdido${region}`,
       description: `Ajude a encontrar ${pet.pet_name}${region}.`,
@@ -72,17 +75,8 @@ export async function generateMetadata({ params }: PetPerdidoPageProps): Promise
 export default async function PetPerdidoPage({ params }: PetPerdidoPageProps) {
   const { slug } = await params;
   const pet = await getPublicPet(slug);
-  if (!pet) {
-    return (
-      <main className="min-h-screen bg-slate-50 px-4 py-10 text-slate-950">
-        <div className="mx-auto max-w-2xl rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <h1 className="text-2xl font-black">Alerta não encontrado</h1>
-          <p className="mt-2 text-slate-600">Este link pode ter expirado ou sido removido.</p>
-          <Link href="/achei-um-pet" className="mt-5 inline-flex rounded-full bg-blue-600 px-5 py-3 font-black text-white">Achei um pet</Link>
-        </div>
-      </main>
-    );
-  }
+  // Alerta inexistente/removido: 404 de verdade (antes era uma página "não encontrado" com HTTP 200 = soft 404 no Google).
+  if (!pet) notFound();
 
   const photoUrl = resolvePetPhotoUrl(pet.photo_url);
   const found = pet.status === 'found';
