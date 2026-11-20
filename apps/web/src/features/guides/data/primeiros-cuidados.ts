@@ -107,6 +107,7 @@ export const primeirosCuidadosGuides: Guide[] = [
         title: 'Leia também',
         items: [
           { slug: 'coleira-ou-peitoral-qual-escolher', label: 'Coleira ou peitoral: qual escolher para o seu cachorro?' },
+          { slug: 'gato-fugiu-de-casa-volta-sozinho-o-que-fazer', label: 'Gato fugiu de casa: ele volta sozinho? O que fazer' },
           { slug: 'checklist-adotou-cachorro', label: 'Checklist para quem acabou de adotar um cachorro' },
         ],
       },
@@ -130,6 +131,119 @@ export const primeirosCuidadosGuides: Guide[] = [
     ],
     relatedSlugs: ['coleira-ou-peitoral-qual-escolher', 'checklist-adotou-cachorro', 'como-transportar-gato-com-seguranca'],
     searchTerms: ['pet perdido', 'cachorro sumiu', 'gato sumiu', 'animal desaparecido', 'como achar pet', 'cartaz pet perdido', 'pet desaparecido'],
+  },
+  {
+    slug: 'gato-fugiu-de-casa-volta-sozinho-o-que-fazer',
+    title: 'Gato fugiu de casa: volta sozinho? O que fazer',
+    category: 'primeiros-cuidados',
+    description:
+      'O que um estudo com mais de mil gatos desaparecidos mostra sobre onde eles costumam ser encontrados e como organizar a busca nos primeiros dias.',
+    summary:
+      'Em um estudo com 1.210 gatos desaparecidos, baseado em relatos de tutores, 75% foram encontrados a até 500 metros de onde saíram, e cerca de um terço (34%) foi recuperado vivo em até 7 dias. Os autores sugerem a busca física no entorno logo na primeira semana. O estudo tem limites (participantes voluntários, fora do Brasil) e não garante que o gato volte sozinho.',
+    publishedAt: '2026-11-20',
+    updatedAt: '2026-11-20',
+    readingTimeMinutes: 6,
+    blocks: [
+      {
+        type: 'p',
+        text: 'Quando um gato some, uma dúvida comum é se ele volta sozinho. Este guia reúne o que a pesquisa disponível mostra sobre gatos desaparecidos e organiza uma busca prática. Para o que vale para qualquer pet (cartaz, divulgação e golpes), veja o guia geral de pet perdido, ligado abaixo.',
+      },
+      { type: 'h2', text: 'Ele volta sozinho? O que um estudo mostra', id: 'estudo' },
+      {
+        type: 'p',
+        text: 'Pesquisadores publicaram em 2018, na revista Animals, um levantamento com 1.210 gatos desaparecidos, a partir de um questionário online respondido por tutores. Os principais resultados:',
+      },
+      {
+        type: 'ul',
+        items: [
+          'Cerca de um terço dos gatos (34%) foi recuperado vivo pelo tutor em até 7 dias.',
+          'Só 61% dos gatos do estudo foram encontrados em até um ano. Poucos foram encontrados vivos depois de 90 dias.',
+          '75% dos gatos foram encontrados a até 500 metros do ponto de onde saíram.',
+          'Gatos que saem livremente percorreram distâncias maiores do que gatos de dentro de casa. Gatos considerados muito curiosos foram encontrados dentro da casa de outras pessoas com mais frequência.',
+          'A busca física, feita pelo tutor, pareceu aumentar as chances de encontrar o gato vivo (resultado no limite da significância estatística). Os autores sugerem fazê-la logo na primeira semana.',
+        ],
+      },
+      {
+        type: 'callout',
+        tone: 'info',
+        text: 'Limites do estudo: os participantes se voluntariaram (podem ter sido tutores mais engajados na busca) e a pesquisa não foi feita no Brasil. Os números ajudam a orientar a busca, mas não garantem o desfecho no seu caso.',
+      },
+      { type: 'h2', text: 'O que fazer nas primeiras horas', id: 'primeiras-horas' },
+      {
+        type: 'p',
+        text: 'Como os dados apontam para o entorno imediato, comece por perto. As dicas abaixo são práticas comuns entre tutores e não vêm do estudo, então use o que fizer sentido para o seu gato e a sua vizinhança.',
+      },
+      {
+        type: 'ul',
+        items: [
+          'Procure primeiro dentro de casa e no entorno: armários, atrás de móveis, garagem, quintal, telhados baixos e áreas cobertas.',
+          'Percorra os quarteirões próximos, a pé, num raio curto, e depois amplie. Peça a vizinhos e porteiros que olhem garagens, depósitos e áreas de serviço: o estudo encontrou gatos dentro da casa de outras pessoas.',
+          'Chame com a voz e os sons que ele conhece (o barulho do pote de ração ou do pacote de petisco), sem correr atrás dele.',
+          'Peça a alguém que fique em casa, com portas e janelas acessíveis ao gato, caso ele volte.',
+        ],
+      },
+      { type: 'h2', text: 'Nos dias seguintes', id: 'dias-seguintes' },
+      {
+        type: 'ul',
+        items: [
+          'Repita a busca física em horários diferentes do dia.',
+          'Anote os lugares já verificados, para não repetir e para dividir a busca com amigos e familiares.',
+          'Divulgue o desaparecimento com foto nítida e a região onde ele foi visto pela última vez (veja o guia geral de pet perdido, que também explica como evitar golpes).',
+          'Se o gato tem microchip, confirme que os seus dados de contato estão atualizados no cadastro do chip.',
+          'Mantenha o aviso e a busca ativos: no estudo, parte dos gatos foi encontrada depois da primeira semana, mas poucos foram encontrados vivos depois de 90 dias.',
+        ],
+      },
+      { type: 'h2', text: 'Quando o gato é encontrado', id: 'encontrado' },
+      {
+        type: 'p',
+        text: 'Avise os lugares onde você divulgou e atualize os avisos. Leve o gato ao veterinário para uma avaliação se ele ficou fora por muito tempo, parece ferido ou diferente do normal. O diagnóstico e o tratamento são do veterinário: o PETMOL é um app para tutores.',
+      },
+      { type: 'h2', text: 'Como reduzir o risco de fuga', id: 'prevenir' },
+      {
+        type: 'checklist',
+        items: [
+          'Telas de proteção em janelas e sacadas, e atenção às portas abertas.',
+          'Identificação no gato (coleira com plaquinha legível, quando ele aceitar) e o contato do tutor atualizado.',
+          'Fotos atuais e nítidas do gato, de frente e de lado, guardadas no celular.',
+          'Conversar com o veterinário sobre microchip.',
+        ],
+      },
+      {
+        type: 'links',
+        title: 'Leia também',
+        items: [
+          { slug: 'pet-perdido-o-que-fazer-nas-primeiras-horas', label: 'Pet perdido: o que fazer nas primeiras horas (cartaz, divulgação e golpes)' },
+          { slug: 'como-transportar-gato-com-seguranca', label: 'Como transportar gato com segurança' },
+        ],
+      },
+    ],
+    faq: [
+      {
+        question: 'Gato fugiu de casa, ele volta sozinho?',
+        answer:
+          'Alguns são encontrados, outros não. Em um estudo com 1.210 gatos desaparecidos, cerca de um terço foi recuperado vivo em até 7 dias, e a busca física feita pelo tutor pareceu aumentar as chances de encontrar o gato. Por isso, não vale só esperar: procure por perto e divulgue.',
+      },
+      {
+        question: 'Até que distância devo procurar?',
+        answer:
+          'No estudo citado, 75% dos gatos foram encontrados a até 500 metros do ponto de onde saíram. Comece pelo entorno imediato e amplie aos poucos. É um dado de uma pesquisa, e não uma garantia para o seu gato.',
+      },
+      {
+        question: 'Meu gato é só de dentro de casa. A busca muda?',
+        answer:
+          'O estudo indica que gatos que nunca saem tendem a percorrer distâncias menores do que gatos que circulam livremente, o que reforça começar pelo entorno bem próximo de casa.',
+      },
+    ],
+    sources: [
+      {
+        label: 'Search methods used to locate missing cats and locations where missing cats are found',
+        publisher: 'Huang et al., Animals (2018), acesso aberto',
+        url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC5789300/',
+      },
+    ],
+    relatedSlugs: ['pet-perdido-o-que-fazer-nas-primeiras-horas', 'como-transportar-gato-com-seguranca', 'checklist-adotou-cachorro'],
+    vetContext: true,
+    searchTerms: ['gato fugiu', 'gato desaparecido', 'gato perdido', 'gato sumiu', 'volta sozinho', 'procurar gato'],
   },
   {
     slug: 'checklist-adotou-cachorro',
