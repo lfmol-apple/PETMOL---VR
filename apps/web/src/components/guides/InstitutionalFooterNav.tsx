@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { isNativeAppClient } from '@/lib/nativeApp';
+import { SocialLinks } from '@/components/landing/SocialLinks';
 
 /** Nav do rodapé das páginas institucionais. O link "Recommendations"
  *  (área Amazon US pública) some no app nativo — é só para a web. */
@@ -29,6 +30,7 @@ export function InstitutionalFooterNav() {
       <Link href="/transparencia" className="font-semibold text-blue-600 hover:underline">
         Transparência
       </Link>
+      <SocialLinks placement="institucional-rodape" className="font-semibold text-blue-600 hover:underline" />
     </nav>
   );
 }
