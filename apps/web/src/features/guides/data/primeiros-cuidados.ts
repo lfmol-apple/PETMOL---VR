@@ -108,6 +108,7 @@ export const primeirosCuidadosGuides: Guide[] = [
         items: [
           { slug: 'coleira-ou-peitoral-qual-escolher', label: 'Coleira ou peitoral: qual escolher para o seu cachorro?' },
           { slug: 'gato-fugiu-de-casa-volta-sozinho-o-que-fazer', label: 'Gato fugiu de casa: ele volta sozinho? O que fazer' },
+          { slug: 'achei-um-cachorro-o-que-fazer', label: 'Achei um cachorro na rua: o que fazer' },
           { slug: 'checklist-adotou-cachorro', label: 'Checklist para quem acabou de adotar um cachorro' },
         ],
       },
@@ -244,6 +245,127 @@ export const primeirosCuidadosGuides: Guide[] = [
     relatedSlugs: ['pet-perdido-o-que-fazer-nas-primeiras-horas', 'como-transportar-gato-com-seguranca', 'checklist-adotou-cachorro'],
     vetContext: true,
     searchTerms: ['gato fugiu', 'gato desaparecido', 'gato perdido', 'gato sumiu', 'volta sozinho', 'procurar gato'],
+  },
+  {
+    slug: 'achei-um-cachorro-o-que-fazer',
+    title: 'Achei um cachorro na rua: o que fazer',
+    category: 'primeiros-cuidados',
+    description:
+      'Encontrou um cachorro sozinho? Veja como se aproximar com segurança, procurar identificação e microchip e ajudar a devolvê-lo ao tutor.',
+    summary:
+      'Antes de tudo, a sua segurança e a do cão: não force a aproximação e, se ele parecer agressivo, chame o órgão responsável. Se for seguro, procure coleira e plaquinha, leve o cão para ler o microchip e divulgue na região com uma foto, sem expor dados pessoais. As regras sobre animais encontrados variam por município: confirme com o órgão local. Este guia não é orientação jurídica nem veterinária.',
+    publishedAt: '2026-11-20',
+    updatedAt: '2026-11-20',
+    readingTimeMinutes: 6,
+    blocks: [
+      {
+        type: 'p',
+        text: 'Achar um cachorro sozinho na rua desperta vontade de ajudar, mas a melhor ajuda é organizada: proteger você e o cão, descobrir se ele tem identificação e fazer a informação chegar ao tutor. Este guia reúne passos práticos de organizações de proteção animal. Ele serve para tutores e para quem encontra, e não substitui orientação jurídica nem veterinária.',
+      },
+      {
+        type: 'callout',
+        tone: 'vet',
+        text: 'Importante: este guia não é orientação jurídica e não verificou a legislação local. As regras sobre animais encontrados (qual órgão procurar, prazos, o que acontece se ninguém reclamar o cão) podem variar conforme a cidade. As fontes citadas aqui são de outros países e foram usadas só para os passos práticos. Em caso de dúvida, consulte a prefeitura ou o órgão municipal de proteção animal.',
+      },
+      { type: 'h2', text: '1. Aproxime-se com cuidado', id: 'aproximar' },
+      {
+        type: 'p',
+        text: 'Nem todo cão perdido é amigável: ele pode estar assustado, estressado ou machucado. Segundo o American Kennel Club, não corra para pegar a coleira. Observe a linguagem corporal: se o cão parecer relaxado, aproxime-se devagar, de lado, e deixe que ele sinta o seu cheiro. Só segure a coleira quando ele parecer confortável ao seu lado.',
+      },
+      {
+        type: 'ul',
+        items: [
+          'Se o cão não se aproximar ou parecer agressivo (corpo rígido, dentes à mostra, pelos eriçados), não tente segurá-lo. Um rabo balançando não garante que o cão é amistoso.',
+          'Segundo o AKC, em caso de dúvida sobre o comportamento do cão, chame o controle animal ou a polícia local, para que ele seja retirado com segurança. No Brasil, o órgão responsável pode variar: consulte a prefeitura.',
+          'Se não puder se aproximar com segurança, fotografe ou filme o cão e anote o local exato: isso ajuda a descrevê-lo melhor e a avisar o tutor.',
+        ],
+      },
+      { type: 'h2', text: '2. Procure identificação', id: 'identificacao' },
+      {
+        type: 'p',
+        text: 'Com o cão sob controle, verifique se há coleira com plaquinha e telefone. Se houver, ligue e deixe mensagem. Se não houver identificação, ou se o telefone não funcionar, o cão pode ter microchip: clínicas veterinárias e abrigos podem ter leitor de microchip, e o número do chip leva a um cadastro com os dados do tutor, segundo o AKC.',
+      },
+      { type: 'h2', text: '3. Mantenha o cão em segurança', id: 'seguranca' },
+      {
+        type: 'ul',
+        items: [
+          'Se levar o cão para casa por um tempo, mantenha-o separado dos seus animais até um veterinário avaliar. Segundo o AKC, ele pode não estar com as vacinas em dia ou ter parasitas como pulgas.',
+          'Se ele parecer ferido ou doente, leve-o a uma clínica veterinária. Diagnóstico e tratamento são do veterinário.',
+        ],
+      },
+      {
+        type: 'callout',
+        tone: 'info',
+        text: 'Nota: os passos 4 e 5 são cuidados de privacidade e segurança sugeridos pelo PETMOL. Eles não vêm das fontes citadas e não são exigência legal.',
+      },
+      { type: 'h2', text: '4. Divulgue sem expor dados', id: 'divulgar' },
+      {
+        type: 'p',
+        text: 'Poste uma foto nítida do cão e a região onde ele foi encontrado (bairro ou ponto de referência), em grupos do bairro e perfis de pets perdidos da sua cidade. Para proteger a sua privacidade e a do tutor:',
+      },
+      {
+        type: 'ul',
+        items: [
+          'Não publique o seu endereço, e prefira receber contato por mensagem, não por ligação aberta ao público.',
+          'Não divulgue o endereço de ninguém: se alguém disser que o cão é dele, não peça documentos pessoais nem espalhe dados dessa pessoa.',
+          'Guarde de propósito um detalhe que não aparece nas fotos (uma marca, um hábito). Quando alguém disser que é o tutor, peça esse detalhe para confirmar que realmente é o dono.',
+        ],
+      },
+      { type: 'h2', text: '5. Quando alguém disser que é o tutor', id: 'devolver' },
+      {
+        type: 'ul',
+        items: [
+          'Peça fotos dessa pessoa com o cão, a descrição de detalhes que só o tutor sabe e, se houver, o registro do microchip ou a carteira de vacinação.',
+          'Combine a entrega em um local público e movimentado, de preferência com alguém junto.',
+          'Desconfie de pedidos de dinheiro, Pix ou depósito antes da entrega e de quem não consegue descrever o cão. Se houver dúvida, procure o órgão municipal.',
+        ],
+      },
+      { type: 'h2', text: 'No PETMOL: o recurso "Achei um pet"', id: 'petmol' },
+      {
+        type: 'p',
+        text: 'O PETMOL tem a página "Achei um pet", em que quem encontrou um animal pode enviar fotos e um contato para o tutor de um alerta de Pet Sumido ativo. O telefone do tutor não é exibido: o PETMOL entrega as informações, e o tutor decide se libera o contato. Esse caminho só ajuda quando o tutor criou um alerta no app, e complementa, não substitui, a divulgação local.',
+      },
+      {
+        type: 'links',
+        title: 'Leia também',
+        items: [
+          { slug: 'pet-perdido-o-que-fazer-nas-primeiras-horas', label: 'Pet perdido: o que fazer nas primeiras horas (cartaz, divulgação e golpes)' },
+          { slug: 'checklist-adotou-cachorro', label: 'Checklist para quem acabou de adotar um cachorro' },
+        ],
+      },
+    ],
+    faq: [
+      {
+        question: 'Achei um cachorro na rua. Posso ficar com ele?',
+        answer:
+          'O primeiro passo é procurar o tutor: verifique coleira e plaquinha, leia o microchip e divulgue na região. As regras sobre o que fazer com animais encontrados variam por município e este guia não é orientação jurídica. Consulte o órgão municipal de proteção animal ou a prefeitura.',
+      },
+      {
+        question: 'Como saber se o cachorro tem microchip?',
+        answer:
+          'Só um leitor de microchip identifica o chip. Segundo o AKC, clínicas veterinárias e abrigos podem ter o aparelho, e o número do chip leva a um cadastro com os dados do tutor.',
+      },
+      {
+        question: 'O cachorro parece agressivo. O que fazer?',
+        answer:
+          'Não tente segurá-lo. Segundo o AKC, mantenha distância, fotografe ou filme se for seguro e chame o controle animal ou a polícia local. No Brasil, o órgão responsável pode variar: consulte a prefeitura.',
+      },
+    ],
+    sources: [
+      {
+        label: 'What to do if you find a lost dog (como se aproximar, identificação e microchip, segurança dos outros animais)',
+        publisher: 'American Kennel Club (EUA)',
+        url: 'https://www.akc.org/expert-advice/advice/what-to-do-if-you-find-a-lost-dog/',
+      },
+      {
+        label: 'What do I do if I\u2019ve found a stray dog? (identificação, microchip e contato com as autoridades locais)',
+        publisher: 'Dogs Trust (Reino Unido). As regras legais citadas pela fonte valem no Reino Unido, não no Brasil.',
+        url: 'https://www.dogstrust.org.uk/help-advice/dog-care/found-a-dog',
+      },
+    ],
+    relatedSlugs: ['pet-perdido-o-que-fazer-nas-primeiras-horas', 'checklist-adotou-cachorro', 'coleira-ou-peitoral-qual-escolher'],
+    vetContext: true,
+    searchTerms: ['achei um cachorro', 'cachorro perdido na rua', 'encontrei um cachorro', 'cachorro abandonado', 'microchip', 'cachorro sem dono'],
   },
   {
     slug: 'checklist-adotou-cachorro',
