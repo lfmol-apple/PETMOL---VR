@@ -17,21 +17,26 @@ export const primeirosCuidadosGuides: Guide[] = [
         type: 'p',
         text: 'Quando um cão ou gato some, o primeiro impulso é sair correndo sem plano. A pressa é compreensível, mas as primeiras horas rendem mais quando você combina duas coisas: procurar perto de casa e já espalhar a informação certa para quem pode encontrar o pet. Este guia organiza os dois caminhos, na ordem em que costumam ajudar.',
       },
+      {
+        type: 'callout',
+        tone: 'info',
+        text: 'Sobre este guia: são orientações práticas e de cautela reunidas pelo PETMOL, sem uma fonte científica única e sem garantia de resultado.',
+      },
       { type: 'h2', text: 'Na primeira hora: procure perto e avise quem está por perto', id: 'primeira-hora' },
       {
         type: 'ul',
         items: [
-          'Comece pelo entorno imediato: quintal, garagem, escadas, áreas de serviço, embaixo de carros e arbustos. Muitos pets ficam escondidos a poucos metros de casa, assustados.',
-          'Chame com a voz e o som que ele conhece (a embalagem do petisco, o barulho do pote de ração). Evite gritar ou correr atrás dele: um pet com medo pode fugir mais.',
-          'Avise vizinhos, porteiros, vigias, entregadores e comerciantes da região. Quem circula todos os dias é quem mais provavelmente o viu.',
-          'Peça que alguém fique em casa: muitos pets voltam sozinhos ao lugar onde se sentem seguros.',
+          'Comece pelo entorno imediato: quintal, garagem, escadas, áreas de serviço, embaixo de carros e arbustos.',
+          'Chame com a voz e o som que ele conhece (a embalagem do petisco, o barulho do pote de ração). Evite gritar ou correr atrás dele.',
+          'Avise vizinhos, porteiros, vigias, entregadores e comerciantes da região.',
+          'Se possível, peça que alguém fique em casa, caso o pet volte.',
           'Leve uma guia, um petisco e uma foto no celular para mostrar a quem encontrar pelo caminho.',
         ],
       },
       { type: 'h2', text: 'Como montar um aviso que funciona', id: 'aviso' },
       {
         type: 'p',
-        text: 'Um aviso bom é lido em dois segundos. Informação demais esconde o que importa; informação de menos não permite que alguém reconheça o pet. O equilíbrio abaixo costuma funcionar em post de rede social, mensagem de grupo e cartaz impresso.',
+        text: 'Um aviso objetivo facilita que alguém reconheça o pet. A lista abaixo serve para post de rede social, mensagem de grupo e cartaz impresso.',
       },
       {
         type: 'checklist',
@@ -48,7 +53,7 @@ export const primeirosCuidadosGuides: Guide[] = [
       {
         type: 'callout',
         tone: 'tip',
-        text: 'Guarde de propósito um detalhe que não aparece no aviso (um apelido, um hábito, uma marca escondida pelo pelo). Quando alguém ligar dizendo que encontrou o pet, peça esse detalhe: é a forma mais simples de confirmar que a pessoa realmente está com ele.',
+        text: 'Guarde de propósito um detalhe que não aparece no aviso (um apelido, um hábito, uma marca escondida pelo pelo). Quando alguém ligar dizendo que encontrou o pet, peça esse detalhe: é uma forma de confirmar que a pessoa realmente está com ele.',
       },
       { type: 'h2', text: 'Onde divulgar', id: 'onde-divulgar' },
       {
@@ -57,7 +62,7 @@ export const primeirosCuidadosGuides: Guide[] = [
           'Grupos do bairro e do condomínio em aplicativos de mensagem e redes sociais, com o aviso completo.',
           'Perfis e grupos de pets perdidos da sua cidade ou região. Publique com a foto e a região logo na primeira linha.',
           'Clínicas veterinárias, pet shops e escolas de adestramento num raio de alguns quilômetros: deixe a foto e o telefone.',
-          'Órgãos e abrigos de proteção animal do seu município. Ligue e pergunte se há animais recolhidos com a descrição do seu pet; visitar pessoalmente costuma ser mais seguro do que confiar só em fotos.',
+          'Órgãos e abrigos de proteção animal do seu município. Ligue e pergunte se há animais recolhidos com a descrição do seu pet.',
           'Cartazes simples em postes, padarias e portarias, com autorização de quem administra o local.',
         ],
       },
@@ -65,16 +70,16 @@ export const primeirosCuidadosGuides: Guide[] = [
       {
         type: 'ul',
         items: [
-          'Volte a procurar nos horários mais calmos, como início da manhã e fim da tarde, quando há menos barulho e o pet tende a se sentir mais seguro para sair do esconderijo.',
+          'Repita a busca em horários diferentes do dia.',
           'Atualize o aviso se aparecer informação nova (um avistamento, uma região para reforçar).',
-          'Se você tem microchip registrado, ligue para o cadastro e confirme que o telefone está atualizado. Um chip só ajuda se os dados de contato estiverem corretos.',
+          'Se você tem microchip registrado, ligue para o cadastro e confirme que o telefone está atualizado. O número do chip leva a um cadastro, então os dados de contato nele precisam estar atualizados.',
           'Peça ajuda a amigos e familiares para dividir as tarefas: uns procuram, outros divulgam, outros atendem as mensagens.',
         ],
       },
       { type: 'h2', text: 'Cuidado com golpes', id: 'golpes' },
       {
         type: 'p',
-        text: 'Infelizmente, tutores aflitos viram alvo de golpe. Desconfie de quem pede dinheiro adiantado, depósito, Pix ou código por mensagem antes de mostrar o pet, e de quem se recusa a enviar uma foto ou vídeo atual. Combine a devolução em local público e movimentado, leve alguém junto e, se for recompensar, entregue só quando estiver com o pet nos braços.',
+        text: 'Por precaução, desconfie de quem pede dinheiro adiantado, depósito, Pix ou código por mensagem antes de mostrar o pet, e de quem se recusa a enviar uma foto ou vídeo atual. Combine a devolução em local público e movimentado, leve alguém junto e, se for recompensar, entregue só quando estiver com o pet nos braços.',
       },
       {
         type: 'callout',
@@ -85,10 +90,10 @@ export const primeirosCuidadosGuides: Guide[] = [
       {
         type: 'checklist',
         items: [
-          'Coleira com plaquinha legível: nome do pet e um telefone seu. É a identificação mais rápida para quem o encontra.',
+          'Coleira com plaquinha legível: nome do pet e um telefone seu.',
           'Fotos atuais de frente, de lado e de detalhes, guardadas em uma pasta fácil de achar no celular.',
           'Microchip implantado e com dados de contato atualizados, quando o veterinário recomendar.',
-          'Portões, janelas e telas conferidos, principalmente em dias de festa, barulho ou obras.',
+          'Portões, janelas e telas conferidos.',
           'Peso, porte, cor e marcas anotados, para descrever o pet sem depender da memória em um momento de nervoso.',
         ],
       },
@@ -135,14 +140,14 @@ export const primeirosCuidadosGuides: Guide[] = [
     description:
       'O que um estudo com mais de mil gatos desaparecidos mostra sobre onde eles costumam ser encontrados e como organizar a busca nos primeiros dias.',
     summary:
-      'Gatos que somem muitas vezes estão perto de casa. Um estudo com 1.210 gatos desaparecidos, baseado em relatos de tutores, encontrou 75% deles a até 500 metros de onde saíram, e cerca de um terço foi recuperado vivo em 7 dias. Por isso, a busca física no entorno, feita logo na primeira semana, costuma valer a pena. O estudo tem limites (participantes voluntários, fora do Brasil) e não promete que o gato volte sozinho.',
+      'Em um estudo com 1.210 gatos desaparecidos, baseado em relatos de tutores, 75% foram encontrados a até 500 metros de onde saíram, e cerca de um terço (34%) foi recuperado vivo em até 7 dias. Os autores sugerem a busca física no entorno logo na primeira semana. O estudo tem limites (participantes voluntários, fora do Brasil) e não garante que o gato volte sozinho.',
     publishedAt: '2026-11-20',
     updatedAt: '2026-11-20',
     readingTimeMinutes: 6,
     blocks: [
       {
         type: 'p',
-        text: 'Quando um gato some, muita gente ouve que "gato sempre volta". Às vezes volta, às vezes não, e esperar de braços cruzados é o que menos ajuda. Este guia reúne o que a pesquisa disponível mostra sobre gatos desaparecidos e organiza uma busca prática. Para o que vale para qualquer pet (cartaz, divulgação e golpes), veja o guia geral de pet perdido, ligado abaixo.',
+        text: 'Quando um gato some, uma dúvida comum é se ele volta sozinho. Este guia reúne o que a pesquisa disponível mostra sobre gatos desaparecidos e organiza uma busca prática. Para o que vale para qualquer pet (cartaz, divulgação e golpes), veja o guia geral de pet perdido, ligado abaixo.',
       },
       { type: 'h2', text: 'Ele volta sozinho? O que um estudo mostra', id: 'estudo' },
       {
@@ -172,8 +177,8 @@ export const primeirosCuidadosGuides: Guide[] = [
       {
         type: 'ul',
         items: [
-          'Procure primeiro dentro de casa e no entorno: armários, atrás de móveis, garagem, quintal, telhados baixos e áreas cobertas. Um gato assustado pode se esconder e ficar em silêncio mesmo que você o chame.',
-          'Percorra os quarteirões próximos, a pé, num raio curto, e depois amplie. Peça a vizinhos e porteiros que olhem garagens, áticos, depósitos e áreas de serviço, onde um gato pode ter entrado sem ser visto.',
+          'Procure primeiro dentro de casa e no entorno: armários, atrás de móveis, garagem, quintal, telhados baixos e áreas cobertas.',
+          'Percorra os quarteirões próximos, a pé, num raio curto, e depois amplie. Peça a vizinhos e porteiros que olhem garagens, depósitos e áreas de serviço: o estudo encontrou gatos dentro da casa de outras pessoas.',
           'Chame com a voz e os sons que ele conhece (o barulho do pote de ração ou do pacote de petisco), sem correr atrás dele.',
           'Peça a alguém que fique em casa, com portas e janelas acessíveis ao gato, caso ele volte.',
         ],
@@ -182,17 +187,17 @@ export const primeirosCuidadosGuides: Guide[] = [
       {
         type: 'ul',
         items: [
-          'Repita a busca física, em horários calmos, como início da manhã e fim da tarde.',
+          'Repita a busca física em horários diferentes do dia.',
           'Anote os lugares já verificados, para não repetir e para dividir a busca com amigos e familiares.',
           'Divulgue o desaparecimento com foto nítida e a região onde ele foi visto pela última vez (veja o guia geral de pet perdido, que também explica como evitar golpes).',
           'Se o gato tem microchip, confirme que os seus dados de contato estão atualizados no cadastro do chip.',
-          'Mantenha o aviso e a busca ativos por mais tempo do que parece necessário: o estudo mostra que alguns gatos só são recuperados semanas ou meses depois.',
+          'Mantenha o aviso e a busca ativos: no estudo, parte dos gatos foi encontrada depois da primeira semana, mas poucos foram encontrados vivos depois de 90 dias.',
         ],
       },
       { type: 'h2', text: 'Quando o gato é encontrado', id: 'encontrado' },
       {
         type: 'p',
-        text: 'Avise os lugares onde você divulgou e atualize os avisos. Leve o gato ao veterinário para uma avaliação se ele ficou fora por muito tempo, parece ferido, desidratado ou diferente do normal. O diagnóstico e o tratamento são do veterinário: o PETMOL é um app para tutores.',
+        text: 'Avise os lugares onde você divulgou e atualize os avisos. Leve o gato ao veterinário para uma avaliação se ele ficou fora por muito tempo, parece ferido ou diferente do normal. O diagnóstico e o tratamento são do veterinário: o PETMOL é um app para tutores.',
       },
       { type: 'h2', text: 'Como reduzir o risco de fuga', id: 'prevenir' },
       {
@@ -201,7 +206,7 @@ export const primeirosCuidadosGuides: Guide[] = [
           'Telas de proteção em janelas e sacadas, e atenção às portas abertas.',
           'Identificação no gato (coleira com plaquinha legível, quando ele aceitar) e o contato do tutor atualizado.',
           'Fotos atuais e nítidas do gato, de frente e de lado, guardadas no celular.',
-          'Conversar com o veterinário sobre microchip e sobre a castração, que é uma decisão da família com o profissional.',
+          'Conversar com o veterinário sobre microchip.',
         ],
       },
       {
@@ -217,7 +222,7 @@ export const primeirosCuidadosGuides: Guide[] = [
       {
         question: 'Gato fugiu de casa, ele volta sozinho?',
         answer:
-          'Alguns voltam, outros não. Em um estudo com 1.210 gatos desaparecidos, cerca de um terço foi recuperado vivo em até 7 dias, e a busca física feita pelo tutor pareceu aumentar as chances de encontrar o gato. Por isso, não vale só esperar: procure por perto e divulgue.',
+          'Alguns são encontrados, outros não. Em um estudo com 1.210 gatos desaparecidos, cerca de um terço foi recuperado vivo em até 7 dias, e a busca física feita pelo tutor pareceu aumentar as chances de encontrar o gato. Por isso, não vale só esperar: procure por perto e divulgue.',
       },
       {
         question: 'Até que distância devo procurar?',
@@ -227,7 +232,7 @@ export const primeirosCuidadosGuides: Guide[] = [
       {
         question: 'Meu gato é só de dentro de casa. A busca muda?',
         answer:
-          'O estudo indica que gatos que nunca saem tendem a percorrer distâncias menores do que gatos que circulam livremente, o que reforça começar pelo entorno bem próximo de casa, inclusive áreas escondidas.',
+          'O estudo indica que gatos que nunca saem tendem a percorrer distâncias menores do que gatos que circulam livremente, o que reforça começar pelo entorno bem próximo de casa.',
       },
     ],
     sources: [
