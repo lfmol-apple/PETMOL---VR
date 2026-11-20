@@ -135,14 +135,14 @@ export const alimentacaoGuides: Guide[] = [
 
   {
     slug: 'quanto-tempo-dura-saco-de-racao',
-    title: 'Quanto tempo dura um saco de ração?',
+    title: 'Quanto tempo dura um saco de ração? Calculadora e tabela',
     category: 'alimentacao',
     description:
       'Dá para calcular exatamente: peso do saco em gramas dividido pelo consumo diário. Use a calculadora e planeje a recompra antes de acabar.',
     summary:
       'A duração de um saco de ração é o peso dele em gramas dividido pelo consumo diário em gramas. Um saco de 7,5 kg com 200 g por dia dura cerca de 37 dias. Saber esse número evita ficar sem ração no fim de semana e ajuda a comprar o tamanho certo.',
     publishedAt: '2026-08-30',
-    updatedAt: '2026-08-30',
+    updatedAt: '2026-11-20',
     readingTimeMinutes: 4,
     blocks: [
       {
@@ -194,6 +194,27 @@ export const alimentacaoGuides: Guide[] = [
         type: 'p',
         text: 'A regra prática: escolha o tamanho de saco que o seu cão consome em até 5 ou 6 semanas. Isso equilibra preço por quilo e frescor.',
       },
+      { type: 'h2', text: 'Saco de 1 kg, 10 kg ou 20 kg: quanto dura', id: 'outros-tamanhos' },
+      {
+        type: 'table',
+        caption: 'A mesma conta para outros tamanhos de embalagem (peso do saco ÷ consumo diário)',
+        headers: ['Consumo diário', 'Saco 1 kg', 'Saco 10 kg', 'Saco 20 kg'],
+        rows: [
+          ['80 g/dia', '~12 dias', '~125 dias', '~250 dias'],
+          ['150 g/dia', '~7 dias', '~67 dias', '~133 dias'],
+          ['250 g/dia', '~4 dias', '~40 dias', '~80 dias'],
+          ['400 g/dia', '~2,5 dias', '~25 dias', '~50 dias'],
+        ],
+      },
+      {
+        type: 'p',
+        text: 'São contas de divisão simples, calculadas com os valores acima. Para o seu caso, use a calculadora com o peso real do saco e o consumo do seu pet. A mesma lógica vale para gatos: troque apenas o consumo diário pelo que o seu gato come.',
+      },
+      { type: 'h2', text: 'Saco aberto: quanto dura o consumo e quanto dura a ração', id: 'saco-aberto' },
+      {
+        type: 'p',
+        text: 'São duas perguntas diferentes. A primeira é quanto tempo o saco leva para acabar (a conta acima). A segunda é por quanto tempo a ração aberta se mantém boa, e a recomendação que vale é a da embalagem do fabricante. Em geral, quanto mais tempo o saco fica aberto, mais a ração perde frescor, então saco muito maior do que o consumo do seu pet pode ser desperdício mesmo com preço por quilo menor. A orientação de armazenamento da FDA (fonte abaixo) recomenda guardar o alimento na embalagem original, para manter à mão o lote e a data de validade.',
+      },
       { type: 'h2', text: 'Erros comuns', id: 'erros' },
       {
         type: 'ul',
@@ -212,6 +233,21 @@ export const alimentacaoGuides: Guide[] = [
     ],
     tool: 'duracao-saco-racao',
     faq: [
+      {
+        question: 'Quanto tempo dura 1 kg de ração?',
+        answer:
+          'Divida 1.000 g pelo consumo diário. Para um consumo de 150 g por dia, 1 kg dura cerca de 7 dias. Para um gato ou um cão pequeno que come 50 g por dia, dura cerca de 20 dias.',
+      },
+      {
+        question: 'Um saco de ração de 15 kg dura quanto tempo?',
+        answer:
+          'Divida 15.000 g pelo consumo diário. Com 250 g por dia, são cerca de 60 dias; com 400 g por dia, cerca de 37 dias. Veja a tabela do guia ou use a calculadora com o consumo real do seu pet.',
+      },
+      {
+        question: 'A ração aberta dura quanto tempo?',
+        answer:
+          'Depende do fabricante: siga a orientação da embalagem. Evite escolher um saco tão grande que o seu pet leve muito tempo para terminá-lo, e mantenha a ração bem fechada, longe de calor e umidade.',
+      },
       {
         question: 'A ração rende diferente do que a tabela diz?',
         answer:
@@ -353,7 +389,7 @@ export const alimentacaoGuides: Guide[] = [
     summary:
       'O ponto de partida é a tabela de porção da própria ração, na linha do peso ideal do cão, somando todas as refeições do dia. A partir daí, ajusta-se para cima ou para baixo conforme o cão está magro, no peso ou acima — reavaliando a cada duas ou três semanas. Petisco entra na conta.',
     publishedAt: '2026-09-04',
-    updatedAt: '2026-09-04',
+    updatedAt: '2026-11-20',
     readingTimeMinutes: 6,
     blocks: [
       {
@@ -424,6 +460,41 @@ export const alimentacaoGuides: Guide[] = [
           { slug: 'quanto-custa-alimentar-cachorro-por-mes', label: 'Quanto custa alimentar um cão por mês (calculadora)' },
         ],
       },
+      { type: 'h2', text: 'Filhote: a porção muda conforme ele cresce', id: 'filhote' },
+      {
+        type: 'p',
+        text: 'Filhote não segue a tabela de cão adulto. Ele come uma ração própria para a fase de crescimento, e a tabela dessa embalagem costuma trazer a porção por idade e pelo peso que o cão deve ter quando adulto. Como o filhote ganha peso rápido, a porção sobe com o tempo e precisa ser revista com frequência, não só uma vez.',
+      },
+      {
+        type: 'ul',
+        items: [
+          'Use a tabela da ração de filhote, na linha da idade e do porte esperado, e some todas as refeições do dia.',
+          'Divida em mais refeições pequenas do que um adulto (a pergunta frequente abaixo traz a divisão mais comum).',
+          'Pese o filhote com regularidade e acompanhe a curva de crescimento com o veterinário. Ganho rápido demais é tão ruim quanto ganho lento.',
+          'A troca da ração de filhote para a de adulto depende do porte e da raça: raças grandes crescem por mais tempo. Combine o momento com o veterinário.',
+        ],
+      },
+      {
+        type: 'callout',
+        tone: 'vet',
+        text: 'Verificado em fonte: a embalagem é só o ponto de partida. As diretrizes de avaliação nutricional da WSAVA dizem que as necessidades de energia podem variar em até 30% para mais ou para menos em cães. Depende do veterinário: o plano de crescimento do filhote, a escolha da ração e o momento da troca.',
+      },
+      { type: 'h2', text: 'Por porte: por que 25 kg não é "o dobro" de 12 kg', id: 'por-porte' },
+      {
+        type: 'p',
+        text: 'A tabela da embalagem não cresce em proporção direta ao peso. Cães menores costumam gastar mais energia por quilo do que cães grandes, então a porção de um cão de 25 kg não é simplesmente o dobro da de um cão de 12 kg. Por isso, procure sempre a linha do peso do seu cão (ou do peso ideal, se ele estiver acima do peso), em vez de fazer uma regra de três.',
+      },
+      {
+        type: 'table',
+        caption: 'Como usar a tabela da embalagem, passo a passo',
+        headers: ['Se o seu cão...', 'O que fazer'],
+        rows: [
+          ['Pesa 25 kg e está no peso ideal', 'Procure a linha de 25 kg na tabela da ração e some as refeições do dia.'],
+          ['Pesa 25 kg, mas deveria pesar 20 kg', 'Use a linha de 20 kg (o peso ideal) e reavalie a condição corporal a cada 2 ou 3 semanas.'],
+          ['Está entre duas linhas da tabela (por exemplo, 22 kg)', 'Comece pela linha mais próxima, pese a porção e ajuste pela condição corporal.'],
+          ['Come ração e também recebe petisco ou comida caseira', 'Desconte o petisco da ração do dia; sem isso, a porção real passa do planejado.'],
+        ],
+      },
       { type: 'h2', text: 'Petisco conta — e conta muito', id: 'petisco' },
       {
         type: 'p',
@@ -470,6 +541,21 @@ export const alimentacaoGuides: Guide[] = [
           'Para a maioria dos cães adultos, duas refeições por dia. Filhotes precisam de três a quatro. Cães de raças grandes e de peito profundo se beneficiam de duas ou mais refeições menores em vez de uma única grande. O total diário é o mesmo — muda só a divisão.',
       },
       {
+        question: 'Quanto de ração dar para cachorro filhote?',
+        answer:
+          'Use a tabela da ração de filhote, na linha da idade e do porte esperado, e divida o total do dia em mais refeições pequenas (em geral três a quatro). A porção sobe conforme ele cresce, então revise com frequência e combine o plano de crescimento com o veterinário.',
+      },
+      {
+        question: 'Quantas gramas por dia para um cachorro de 25 kg?',
+        answer:
+          'Não existe um número único: depende da ração (cada marca tem densidade calórica diferente), da atividade do cão e se ele está no peso ideal. Procure a linha de 25 kg na tabela da sua embalagem, pese a porção e ajuste pela condição corporal.',
+      },
+      {
+        question: 'Posso medir a ração com copo ou xícara?',
+        answer:
+          'Evite. O mesmo copo comporta pesos diferentes conforme o formato do croquete. Pese a porção numa balança de cozinha por pelo menos uma semana para calibrar e, depois, use sempre a mesma medida.',
+      },
+      {
         question: 'Posso confiar na tabela da embalagem?',
         answer:
           'Como ponto de partida, sim: ela é calculada para a densidade calórica daquela ração. Mas é uma média populacional. O ajuste pela condição corporal do seu cão é o que torna a porção correta para ele.',
@@ -486,10 +572,15 @@ export const alimentacaoGuides: Guide[] = [
         publisher: 'WSAVA Global Nutrition Committee',
         url: 'https://wsava.org/global-guidelines/global-nutrition-guidelines/',
       },
+      {
+        label: 'WSAVA Nutritional Assessment Guidelines (necessidades de energia variam entre indivíduos)',
+        publisher: 'WSAVA, Journal of Feline Medicine and Surgery (acesso aberto)',
+        url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC11107980/',
+      },
     ],
     relatedSlugs: ['como-escolher-racao-ideal-cachorro', 'quanto-tempo-dura-saco-de-racao', 'quanto-custa-alimentar-cachorro-por-mes'],
     vetContext: true,
-    searchTerms: ['porção', 'quantidade', 'gramas por dia', 'quanto comer', 'condição corporal', 'peso ideal', 'obesidade'],
+    searchTerms: ['filhote', '25 kg', 'quantas gramas', 'porção', 'quantidade', 'gramas por dia', 'quanto comer', 'condição corporal', 'peso ideal', 'obesidade'],
   },
 
   {
