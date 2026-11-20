@@ -2,6 +2,131 @@ import type { Guide } from '../types';
 
 export const primeirosCuidadosGuides: Guide[] = [
   {
+    slug: 'pet-perdido-o-que-fazer-nas-primeiras-horas',
+    title: 'Pet perdido: o que fazer nas primeiras horas',
+    category: 'primeiros-cuidados',
+    description:
+      'Seu cão ou gato sumiu? Veja o que fazer na primeira hora, como montar um aviso que funciona, onde divulgar e como evitar golpes.',
+    summary:
+      'Nas primeiras horas, procure por perto com calma, avise vizinhos e porteiros e publique um aviso com foto nítida, região e um telefone seu. Divulgue em grupos do bairro e confira abrigos e clínicas da região. Nunca pague adiantado a quem diz ter o pet, e guarde um detalhe que só você sabe para confirmar a identidade de quem ligar.',
+    publishedAt: '2026-11-20',
+    updatedAt: '2026-11-20',
+    readingTimeMinutes: 6,
+    blocks: [
+      {
+        type: 'p',
+        text: 'Quando um cão ou gato some, o primeiro impulso é sair correndo sem plano. A pressa é compreensível, mas as primeiras horas rendem mais quando você combina duas coisas: procurar perto de casa e já espalhar a informação certa para quem pode encontrar o pet. Este guia organiza os dois caminhos, na ordem em que costumam ajudar.',
+      },
+      { type: 'h2', text: 'Na primeira hora: procure perto e avise quem está por perto', id: 'primeira-hora' },
+      {
+        type: 'ul',
+        items: [
+          'Comece pelo entorno imediato: quintal, garagem, escadas, áreas de serviço, embaixo de carros e arbustos. Muitos pets ficam escondidos a poucos metros de casa, assustados.',
+          'Chame com a voz e o som que ele conhece (a embalagem do petisco, o barulho do pote de ração). Evite gritar ou correr atrás dele: um pet com medo pode fugir mais.',
+          'Avise vizinhos, porteiros, vigias, entregadores e comerciantes da região. Quem circula todos os dias é quem mais provavelmente o viu.',
+          'Peça que alguém fique em casa: muitos pets voltam sozinhos ao lugar onde se sentem seguros.',
+          'Leve uma guia, um petisco e uma foto no celular para mostrar a quem encontrar pelo caminho.',
+        ],
+      },
+      { type: 'h2', text: 'Como montar um aviso que funciona', id: 'aviso' },
+      {
+        type: 'p',
+        text: 'Um aviso bom é lido em dois segundos. Informação demais esconde o que importa; informação de menos não permite que alguém reconheça o pet. O equilíbrio abaixo costuma funcionar em post de rede social, mensagem de grupo e cartaz impresso.',
+      },
+      {
+        type: 'checklist',
+        title: 'O que colocar no aviso',
+        items: [
+          'Uma foto nítida e recente, de frente, mostrando o pet inteiro. Se tiver uma segunda foto, que mostre uma marca de identificação (mancha, cicatriz, cor das patas).',
+          'Nome do pet, espécie, porte e cor. Se atende pelo nome, diga.',
+          'Onde e quando foi visto pela última vez (rua, bairro, horário aproximado).',
+          'Se usava coleira, plaquinha ou tem microchip.',
+          'Um telefone seu com WhatsApp. Evite colocar o endereço completo de casa.',
+          'Uma frase curta pedindo que, se vir o pet, a pessoa não o persiga e avise você.',
+        ],
+      },
+      {
+        type: 'callout',
+        tone: 'tip',
+        text: 'Guarde de propósito um detalhe que não aparece no aviso (um apelido, um hábito, uma marca escondida pelo pelo). Quando alguém ligar dizendo que encontrou o pet, peça esse detalhe: é a forma mais simples de confirmar que a pessoa realmente está com ele.',
+      },
+      { type: 'h2', text: 'Onde divulgar', id: 'onde-divulgar' },
+      {
+        type: 'ul',
+        items: [
+          'Grupos do bairro e do condomínio em aplicativos de mensagem e redes sociais, com o aviso completo.',
+          'Perfis e grupos de pets perdidos da sua cidade ou região. Publique com a foto e a região logo na primeira linha.',
+          'Clínicas veterinárias, pet shops e escolas de adestramento num raio de alguns quilômetros: deixe a foto e o telefone.',
+          'Órgãos e abrigos de proteção animal do seu município. Ligue e pergunte se há animais recolhidos com a descrição do seu pet; visitar pessoalmente costuma ser mais seguro do que confiar só em fotos.',
+          'Cartazes simples em postes, padarias e portarias, com autorização de quem administra o local.',
+        ],
+      },
+      { type: 'h2', text: 'Nos dias seguintes: continue sem se desgastar', id: 'dias-seguintes' },
+      {
+        type: 'ul',
+        items: [
+          'Volte a procurar nos horários mais calmos, como início da manhã e fim da tarde, quando há menos barulho e o pet tende a se sentir mais seguro para sair do esconderijo.',
+          'Atualize o aviso se aparecer informação nova (um avistamento, uma região para reforçar).',
+          'Se você tem microchip registrado, ligue para o cadastro e confirme que o telefone está atualizado. Um chip só ajuda se os dados de contato estiverem corretos.',
+          'Peça ajuda a amigos e familiares para dividir as tarefas: uns procuram, outros divulgam, outros atendem as mensagens.',
+        ],
+      },
+      { type: 'h2', text: 'Cuidado com golpes', id: 'golpes' },
+      {
+        type: 'p',
+        text: 'Infelizmente, tutores aflitos viram alvo de golpe. Desconfie de quem pede dinheiro adiantado, depósito, Pix ou código por mensagem antes de mostrar o pet, e de quem se recusa a enviar uma foto ou vídeo atual. Combine a devolução em local público e movimentado, leve alguém junto e, se for recompensar, entregue só quando estiver com o pet nos braços.',
+      },
+      {
+        type: 'callout',
+        tone: 'info',
+        text: 'Se o pet for encontrado ferido, doente ou muito debilitado, leve-o a uma clínica veterinária. Avaliação e tratamento são decisões do médico-veterinário.',
+      },
+      { type: 'h2', text: 'Como se preparar antes que aconteça', id: 'preparar' },
+      {
+        type: 'checklist',
+        items: [
+          'Coleira com plaquinha legível: nome do pet e um telefone seu. É a identificação mais rápida para quem o encontra.',
+          'Fotos atuais de frente, de lado e de detalhes, guardadas em uma pasta fácil de achar no celular.',
+          'Microchip implantado e com dados de contato atualizados, quando o veterinário recomendar.',
+          'Portões, janelas e telas conferidos, principalmente em dias de festa, barulho ou obras.',
+          'Peso, porte, cor e marcas anotados, para descrever o pet sem depender da memória em um momento de nervoso.',
+        ],
+      },
+      { type: 'h2', text: 'Se o pet for encontrado', id: 'encontrado' },
+      {
+        type: 'p',
+        text: 'Quando o pet voltar, avise todos os lugares onde você divulgou e apague ou atualize os avisos, para que ninguém continue procurando e as informações não circulem desatualizadas. Leve-o ao veterinário se ficou fora por muito tempo, e revise a identificação para reduzir o risco de uma nova fuga.',
+      },
+      {
+        type: 'links',
+        title: 'Leia também',
+        items: [
+          { slug: 'coleira-ou-peitoral-qual-escolher', label: 'Coleira ou peitoral: qual escolher para o seu cachorro?' },
+          { slug: 'checklist-adotou-cachorro', label: 'Checklist para quem acabou de adotar um cachorro' },
+        ],
+      },
+    ],
+    faq: [
+      {
+        question: 'Quanto tempo depois posso considerar o pet perdido?',
+        answer:
+          'Não é preciso esperar. Se o pet não está nos lugares onde costuma ficar e não responde ao chamado, comece a procurar e a avisar quem está por perto logo na primeira hora.',
+      },
+      {
+        question: 'Vale divulgar o endereço de casa no aviso?',
+        answer:
+          'Prefira divulgar a região em que ele foi visto pela última vez e um telefone de contato. O endereço completo de casa não é necessário para quem encontra o pet e expõe você desnecessariamente.',
+      },
+      {
+        question: 'O que o PETMOL faz nesses casos?',
+        answer:
+          'O PETMOL tem o recurso Pet Sumido: com um toque, o tutor gera um alerta com card para Instagram e WhatsApp e um aviso para usuários do app na região. Ele complementa, e não substitui, a busca e a divulgação descritas neste guia.',
+      },
+    ],
+    relatedSlugs: ['coleira-ou-peitoral-qual-escolher', 'checklist-adotou-cachorro', 'como-transportar-gato-com-seguranca'],
+    searchTerms: ['pet perdido', 'cachorro sumiu', 'gato sumiu', 'animal desaparecido', 'como achar pet', 'cartaz pet perdido', 'pet desaparecido'],
+  },
+  {
     slug: 'checklist-adotou-cachorro',
     title: 'Checklist para quem acabou de adotar um cachorro',
     category: 'primeiros-cuidados',

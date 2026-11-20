@@ -24,7 +24,7 @@ import { PUBLIC_GUIDES_PAGE_ENABLED } from '../publicCommercePages';
 export const metadata: Metadata = {
   title: 'Guias PETMOL — decisões práticas para cães e gatos',
   description:
-    'Guias, comparações e calculadoras próprias para tutores de cães e gatos: como escolher ração, comparar produtos por custo real, alimentação, higiene, casa, passeio, transporte e primeiros cuidados. Conteúdo editorial com fontes citadas. Acesso livre, sem cadastro.',
+    'Guias, comparações e calculadoras para tutores de cães e gatos: ração, custo real, higiene, passeio, transporte e primeiros cuidados. Acesso livre, sem cadastro.',
   alternates: { canonical: `${SITE_URL}/guias` },
   openGraph: {
     title: 'Guias PETMOL — cães e gatos',

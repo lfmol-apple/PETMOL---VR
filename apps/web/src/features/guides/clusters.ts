@@ -81,6 +81,7 @@ export const GUIDE_CLUSTERS: readonly GuideCluster[] = [
     icon: '🐾',
     steps: [
       'checklist-adotou-cachorro',
+      'pet-perdido-o-que-fazer-nas-primeiras-horas',
       'como-escolher-racao-ideal-cachorro',
       'coleira-ou-peitoral-qual-escolher',
       'brinquedos-para-caes-como-escolher-com-seguranca',
