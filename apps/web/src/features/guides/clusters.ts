@@ -83,6 +83,7 @@ export const GUIDE_CLUSTERS: readonly GuideCluster[] = [
       'checklist-adotou-cachorro',
       'pet-perdido-o-que-fazer-nas-primeiras-horas',
       'gato-fugiu-de-casa-volta-sozinho-o-que-fazer',
+      'achei-um-cachorro-o-que-fazer',
       'como-escolher-racao-ideal-cachorro',
       'coleira-ou-peitoral-qual-escolher',
       'brinquedos-para-caes-como-escolher-com-seguranca',
