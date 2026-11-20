@@ -69,6 +69,7 @@ export const GUIDE_CLUSTERS: readonly GuideCluster[] = [
       'Como escolher tapete higiênico pela absorção real e pelo custo por dia — e como usar bem para gastar menos.',
     icon: '🧼',
     steps: [
+      'de-quanto-em-quanto-tempo-dar-banho-no-cachorro',
       'como-escolher-tapete-higienico-cachorro',
       'economizar-produtos-pet-sem-so-menor-preco',
     ],
