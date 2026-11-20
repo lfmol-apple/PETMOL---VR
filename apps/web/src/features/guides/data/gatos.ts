@@ -8,14 +8,14 @@ export const gatosGuides: Guide[] = [
     description:
       'A embalagem é o ponto de partida, mas cada gato é diferente. Veja como usar a tabela, o que muda para filhote e castrado e quando levar ao veterinário.',
     summary:
-      'Comece pela tabela de porção da embalagem, pelo peso do gato, e some todas as refeições do dia. Ela é uma referência: as necessidades de cada gato podem variar bastante, e a castração costuma aumentar o apetite e reduzir o gasto de energia. Por isso, pese a porção, observe a condição corporal e combine com o veterinário qualquer ajuste, principalmente para filhotes, gatos castrados ou com peso fora do ideal.',
+      'Comece pela tabela de porção da embalagem, pelo peso do gato, e some todas as refeições do dia. Ela é uma referência: as necessidades de cada gato podem variar bastante, e a castração pode aumentar o apetite e reduzir a necessidade de energia. Por isso, pese a porção, observe a condição corporal e combine com o veterinário qualquer ajuste, principalmente para filhotes, gatos castrados ou com peso fora do ideal.',
     publishedAt: '2026-11-20',
     updatedAt: '2026-11-20',
     readingTimeMinutes: 6,
     blocks: [
       {
         type: 'p',
-        text: 'Quase todo tutor de gato já ficou na dúvida: estou dando pouco, estou dando demais? Este guia organiza o que as fontes veterinárias dizem sobre o assunto e o que você, como tutor, consegue fazer em casa. Ele não substitui a avaliação de um veterinário, que é quem define a porção e a ração do seu gato em cada fase da vida.',
+        text: 'Uma dúvida comum de tutores de gato é: estou dando pouco, estou dando demais? Este guia organiza o que as fontes veterinárias dizem sobre o assunto e o que você, como tutor, consegue fazer em casa. Ele não substitui a avaliação de um veterinário, que é quem define a porção e a ração do seu gato em cada fase da vida.',
       },
       { type: 'h2', text: 'A resposta rápida: comece pela embalagem', id: 'resposta-rapida' },
       {
@@ -32,7 +32,7 @@ export const gatosGuides: Guide[] = [
         type: 'ol',
         items: [
           'Pese a porção numa balança de cozinha pelo menos na primeira semana. O mesmo copo comporta pesos diferentes conforme o formato dos grãos.',
-          'Se o gato come ração seca e úmida, siga a tabela de cada produto e some as duas partes, em vez de dar a porção cheia de cada uma.',
+          'Se o gato come mais de um tipo de alimento, converse com o veterinário sobre como dividir a porção do dia.',
           'Pese o gato com regularidade (uma balança de banheiro, com você segurando o gato e descontando o seu peso, já ajuda) e anote.',
           'Observe a condição corporal, explicada abaixo, a cada poucas semanas.',
         ],
@@ -40,12 +40,12 @@ export const gatosGuides: Guide[] = [
       { type: 'h2', text: 'Gato castrado: atenção ao peso', id: 'castrado' },
       {
         type: 'p',
-        text: 'Segundo uma revisão publicada no Journal of Feline Medicine and Surgery, a castração pode aumentar o apetite e reduzir a necessidade de energia dos gatos. Na prática, o gato castrado ganha peso com mais facilidade se a porção não for acompanhada. Em vez de mudar a quantidade por conta própria, converse com o veterinário sobre a ração e a porção depois da cirurgia.',
+        text: 'Segundo uma revisão publicada no Journal of Feline Medicine and Surgery, a castração pode aumentar o apetite e reduzir a necessidade de energia dos gatos. A mesma revisão orienta que o tutor seja aconselhado sobre a condição corporal ideal no momento da alta da cirurgia. Em vez de mudar a quantidade por conta própria, converse com o veterinário sobre a ração e a porção depois da cirurgia.',
       },
       { type: 'h2', text: 'Filhote: refeições pequenas e plano com o veterinário', id: 'filhote' },
       {
         type: 'p',
-        text: 'O filhote precisa de uma ração própria para a fase de crescimento e come mais vezes ao dia do que um gato adulto. A quantidade muda conforme ele cresce, e as fontes comerciais divergem quanto ao número exato de refeições em cada idade. Por isso, não existe uma tabela única que sirva para todos.',
+        text: 'O filhote é uma fase em que a ração e a porção devem ser definidas com o veterinário. As fontes que consultei divergem quanto ao número exato de refeições em cada idade, então este guia não indica um número.',
       },
       {
         type: 'ul',
@@ -58,35 +58,27 @@ export const gatosGuides: Guide[] = [
       { type: 'h2', text: 'Condição corporal: o que olhar no seu gato', id: 'condicao-corporal' },
       {
         type: 'p',
-        text: 'A balança sozinha não diz se o gato está bem. A WSAVA publica uma escala de condição corporal de 9 pontos para gatos, que veterinários usam para avaliar se o animal está magro, no peso ou acima dele. Em casa, você pode observar:',
-      },
-      {
-        type: 'ul',
-        items: [
-          'Costelas: devem ser sentidas com uma leve pressão da mão. Se for preciso apertar para achá-las, pode haver excesso de peso.',
-          'Cintura: vista de cima, deve existir uma leve cintura atrás das costelas.',
-          'Abdômen: visto de lado, não deve pender.',
-        ],
+        text: 'A balança sozinha não diz se o gato está bem. A WSAVA publica uma escala de condição corporal de 9 pontos para gatos, que veterinários usam para avaliar se o animal está magro, no peso ou acima dele. Peça ao veterinário que mostre, na consulta, como avaliar o seu gato.',
       },
       {
         type: 'callout',
         tone: 'vet',
-        text: 'Depende do veterinário: dizer se o seu gato está no peso ideal, definir a meta de peso e ajustar a porção. Procure atendimento se o gato perder ou ganhar peso rápido, comer muito menos que o normal ou parar de comer. Pode não ser só uma questão de porção.',
+        text: 'Depende do veterinário: dizer se o seu gato está no peso ideal, definir a meta de peso e ajustar a porção. Mudanças de peso ou de apetite que você não saiba explicar também são assunto para o veterinário.',
       },
       { type: 'h2', text: 'Quantas refeições por dia', id: 'refeicoes' },
       {
         type: 'p',
-        text: 'Gatos costumam preferir várias refeições pequenas ao longo do dia. Para gatos adultos, dividir o total em duas ou mais refeições é uma prática comum entre tutores, e há gatos que se dão bem com a comida à disposição. Já o gato que engorda com facilidade pode precisar de refeições medidas. Como isso varia de gato para gato, o veterinário é quem orienta o melhor esquema para o seu.',
+        text: 'O número de refeições por dia e a forma de oferecer a comida (porções medidas ou à disposição) variam de gato para gato. As fontes que consultei não trazem uma regra única, então o veterinário é quem orienta o melhor esquema para o seu.',
       },
       { type: 'h2', text: 'Ração de gato não é ração de cachorro', id: 'racao-de-gato' },
       {
         type: 'p',
-        text: 'Cães e gatos têm necessidades nutricionais diferentes, e as rações são formuladas para cada espécie. Por isso, não use ração de cachorro como alimentação principal do gato (nem o contrário). Se o seu gato dividir a casa com um cão, guarde cada ração separada e organize os horários das refeições.',
+        text: 'Cães e gatos têm rações próprias, indicadas para cada espécie na embalagem. Pergunte ao veterinário antes de usar ração de cachorro como alimentação do gato (ou o contrário).',
       },
       { type: 'h2', text: 'Quanto tempo dura o saco de ração do gato', id: 'duracao' },
       {
         type: 'p',
-        text: 'A conta é a mesma de qualquer ração: peso do saco em gramas dividido pelo consumo diário em gramas. Um saco de 3 kg com 50 g por dia dura cerca de 60 dias. Como a recomendação do fabricante para ração aberta é seguir a embalagem, sacos menores costumam fazer mais sentido para gatos que comem pouco.',
+        text: 'A conta é a mesma de qualquer ração: peso do saco em gramas dividido pelo consumo diário em gramas. Um saco de 3 kg com 50 g por dia dura cerca de 60 dias. Para ração aberta, siga a orientação de armazenamento da embalagem.',
       },
       {
         type: 'links',
@@ -101,8 +93,7 @@ export const gatosGuides: Guide[] = [
         type: 'ul',
         items: [
           'Medir por copo ou colher em vez de pesar.',
-          'Dar a porção cheia de ração seca e a porção cheia de úmida, somando mais do que o gato precisa.',
-          'Repetir a porção que o tutor anterior dava, ou a do gato da vizinha.',
+          'Repetir a porção de outro gato sem conferir a tabela da ração e o peso do seu.',
           'Esquecer petiscos e agrados na conta do dia.',
           'Mudar a quantidade ou a ração de um gato doente sem falar com o veterinário.',
         ],
@@ -113,8 +104,8 @@ export const gatosGuides: Guide[] = [
         items: [
           'Peguei a porção na tabela da ração atual, pelo peso do gato?',
           'Pesei a porção numa balança de cozinha?',
-          'Somei todas as refeições, inclusive a ração úmida e os petiscos?',
-          'Observo costelas e cintura a cada poucas semanas?',
+          'Somei todas as refeições e os petiscos do dia?',
+          'Acompanho o peso e combinei com o veterinário como avaliar a condição corporal?',
           'Combinei com o veterinário a porção do meu gato (principalmente se é filhote ou castrado)?',
         ],
       },
@@ -129,11 +120,6 @@ export const gatosGuides: Guide[] = [
         question: 'Quantas gramas de ração por dia para gato castrado?',
         answer:
           'Não existe um número único, porque cada ração tem uma densidade de energia diferente e cada gato, uma necessidade. Comece pela tabela da embalagem, observe o peso e a condição corporal e converse com o veterinário, já que a castração costuma aumentar o apetite e reduzir a necessidade de energia.',
-      },
-      {
-        question: 'Meu gato pede comida o tempo todo. Estou dando pouco?',
-        answer:
-          'Nem sempre. Pedir comida pode ser hábito ou busca por atenção. Verifique a condição corporal e o peso. Se o gato está bem de peso, a porção provavelmente está adequada. Se ele come muito e emagrece, bebe muito mais água ou mudou o comportamento, leve ao veterinário.',
       },
     ],
     sources: [
