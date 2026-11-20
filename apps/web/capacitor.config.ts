@@ -14,7 +14,13 @@ const config: CapacitorConfig = {
   // Marca o User-Agent do WebView para o site distinguir "rodando dentro do
   // app nativo" de "web/PWA" no servidor (ex.: esconder a área Amazon US
   // pública, que é só para a web). O front também tem Capacitor.isNativePlatform().
-  appendUserAgent: 'PetmolApp',
+  //
+  // Versão da CASCA (Nov/2026): `PetmolApp/2.0` identifica a casca da versão com planos; a casca antiga (versão atual,
+  // gratuita, já nas lojas) anexa só `PetmolApp`, SEM número — é assim que o servidor distingue as duas
+  // (services/price-service/src/user_auth/legacy_marker.py, plans/service.py e docs/PLANO_ASSINATURA.md §5).
+  // NUNCA remover o número em builds novos, nem anexar número em builds da versão atual.
+  // Só vale após `npx cap sync` + novo build nativo; não afeta quem está na versão antiga.
+  appendUserAgent: 'PetmolApp/2.0',
   // Raiz do site, sem path. O bridge nativo do Capacitor (WebViewDelegationHandler.swift
   // no iOS) só trata como navegação "do próprio app" a URL que comece literalmente com
   // esta string — é comparação de prefixo, não só de host. Com '/home' fixo aqui,
