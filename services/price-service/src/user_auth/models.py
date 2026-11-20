@@ -58,6 +58,14 @@ class User(Base):
     google_sub: Mapped[Optional[str]] = mapped_column(String(255), unique=True, nullable=True, index=True)
     apple_sub: Mapped[Optional[str]] = mapped_column(String(255), unique=True, nullable=True, index=True)
 
+    # Marcador de "versão atual" (Nov/2026) — ver user_auth/legacy_marker.py e
+    # docs/PLANO_ASSINATURA.md §5. Gravado UMA vez, na 1ª requisição autenticada vinda do app
+    # nativo. `legacy_app_user` = a 1ª vez que vimos o app foi na casca SEM versão no User-Agent
+    # (a versão atual, anterior à cobrança). Nunca é desfeito.
+    native_app_first_seen_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    native_app_first_version: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    legacy_app_user: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="0")
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

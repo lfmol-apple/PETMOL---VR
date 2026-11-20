@@ -119,6 +119,10 @@ def run_pg_migrations(engine: Engine) -> None:
         _pg_add_column_if_missing(conn, "users", "lng", "DOUBLE PRECISION")
         _pg_add_column_if_missing(conn, "users", "location_source", "TEXT")  # gps | city | ip
         _pg_add_column_if_missing(conn, "users", "location_updated_at", "TIMESTAMPTZ")
+        # users: marcador de versão atual do app nativo (Nov/2026) — aditivo, nulo/false p/ todos
+        _pg_add_column_if_missing(conn, "users", "native_app_first_seen_at", "TIMESTAMPTZ")
+        _pg_add_column_if_missing(conn, "users", "native_app_first_version", "TEXT")
+        _pg_add_column_if_missing(conn, "users", "legacy_app_user", "BOOLEAN DEFAULT FALSE NOT NULL")
 
         # users: login social web (Google/Apple) — Out/2026
         _pg_add_column_if_missing(conn, "users", "google_sub", "TEXT")
@@ -822,6 +826,9 @@ def run_sqlite_migrations(engine: Engine) -> None:
         changed |= _sqlite_add_column_if_missing(conn, "users", "lng", "REAL")
         changed |= _sqlite_add_column_if_missing(conn, "users", "location_source", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "users", "location_updated_at", "DATETIME")
+        changed |= _sqlite_add_column_if_missing(conn, "users", "native_app_first_seen_at", "DATETIME")
+        changed |= _sqlite_add_column_if_missing(conn, "users", "native_app_first_version", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "users", "legacy_app_user", "BOOLEAN DEFAULT 0 NOT NULL")
         changed |= _sqlite_add_column_if_missing(conn, "users", "google_sub", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "users", "apple_sub", "TEXT")
         conn.execute(text("""
