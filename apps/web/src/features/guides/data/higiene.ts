@@ -118,7 +118,7 @@ export const higieneGuides: Guide[] = [
     description:
       'Não existe um intervalo único. Entenda o que pesa na decisão (pelagem, atividade, pele), o que uma fonte veterinária diz e quando falar com o veterinário.',
     summary:
-      'Não há um intervalo de banho que sirva para todos os cães. Depende da raça, do tamanho e do tipo de pelo, da rotina do cão e da saúde da pele. Um hospital veterinário universitário afirma que, em geral, é seguro dar banho uma vez por semana com shampoo veterinário, mas que banho demais remove a oleosidade protetora do pelo. Se o cão tem coceira, feridas ou um problema de pele, o veterinário define o produto e a frequência.',
+      'Não há um intervalo de banho que sirva para todos os cães. Depende da raça, do tamanho e do tipo de pelo, da rotina do cão e da saúde da pele. Um hospital veterinário universitário afirma que, em geral, é seguro dar banho uma vez por semana com shampoo veterinário, mas que banho demais remove a oleosidade protetora do pelo. Se o cão tem um problema de pele, o veterinário define o produto e a frequência.',
     publishedAt: '2026-11-20',
     updatedAt: '2026-11-20',
     readingTimeMinutes: 6,
@@ -143,10 +143,9 @@ export const higieneGuides: Guide[] = [
         caption: 'Fatores que mudam a frequência de banho',
         headers: ['Fator', 'Por que importa'],
         rows: [
-          ['Raça e tipo de pelo', 'Pelos longos, densos ou cacheados acumulam sujeira e embaraçam mais. Pelos curtos costumam pedir menos manutenção.'],
-          ['Rotina do cão', 'Cães que brincam na terra, na lama ou na água sujam mais e podem precisar de banhos extras de vez em quando.'],
-          ['Saúde da pele', 'Cães com alergia ou problema de pele podem precisar de um plano próprio, com produto e frequência definidos pelo veterinário.'],
-          ['Cheiro e aparência do pelo', 'Cheiro forte, pelo oleoso ou sujeira visível indicam que é hora do banho. Mas cheiro muito forte e persistente, junto com coceira, pode ser sinal de problema e vale uma consulta.'],
+          ['Raça e comprimento do pelo', 'A fonte cita a raça e o comprimento do pelo como fatores que mudam a frequência.'],
+          ['Atividades do cão', 'A fonte cita as atividades do cão como fator. Ela também menciona o banho extra ocasional, por exemplo depois de rolar em algo malcheiroso.'],
+          ['Condições de saúde', 'Shampoos medicamentosos podem exigir frequência diferente: siga a orientação do veterinário.'],
         ],
       },
       { type: 'h2', text: 'Qual shampoo usar', id: 'shampoo' },
@@ -162,32 +161,32 @@ export const higieneGuides: Guide[] = [
       { type: 'h2', text: 'Filhote pode tomar banho?', id: 'filhote' },
       {
         type: 'p',
-        text: 'Essa é uma dúvida para o veterinário. O momento do primeiro banho e os cuidados com a temperatura e a secagem dependem da idade, da saúde e do esquema de vacinas do filhote. Pergunte na primeira consulta, quando o veterinário avalia o seu filhote.',
+        text: 'Essa é uma dúvida para o veterinário: as fontes que li não trazem uma regra para o primeiro banho do filhote, e este guia não indica um prazo. Pergunte na primeira consulta.',
       },
       { type: 'h2', text: 'Banho e tosa: não são a mesma coisa', id: 'banho-tosa' },
       {
         type: 'p',
-        text: 'O banho é a limpeza do pelo e da pele. A tosa é o corte do pelo, e a frequência dela depende do tipo de pelagem e da preferência do tutor. Muitos tutores marcam banho e tosa juntos em pet shops. Se você preferir fazer o banho em casa, use produtos próprios para cães e siga as orientações do veterinário.',
+        text: 'O banho é a limpeza do pelo e da pele. A tosa é o corte do pelo. Se você fizer o banho em casa, use produtos próprios para cães e siga as orientações do veterinário.',
       },
       { type: 'h2', text: 'E o gato? Em geral, não precisa', id: 'gato' },
       {
         type: 'p',
-        text: 'Uma veterinária do College of Veterinary Medicine da Texas A&M afirma que, em geral, gatos não precisam receber banho dos tutores, porque se limpam sozinhos. Uma boa escovação costuma bastar. Ela cita exceções, como gatos sem pelo (da raça Sphynx), e lembra que alguns problemas de saúde, como infecções fúngicas e alergias, podem ter banho com shampoo medicamentoso como parte do tratamento. Se o seu gato parar de se limpar, leve ao veterinário: pode haver dor, obesidade ou outra causa.',
+        text: 'Uma veterinária do College of Veterinary Medicine da Texas A&M afirma que, em geral, gatos não precisam receber banho dos tutores, porque se limpam sozinhos. Uma boa escovação pode ser suficiente. Ela cita exceções, como gatos sem pelo (da raça Sphynx), e lembra que alguns problemas de saúde, como infecções fúngicas e alergias, podem ter banho com shampoo medicamentoso como parte do tratamento. Segundo ela, alguns gatos não se limpam bem por causa de obesidade, artrite ou uma condição médica: se notar mudança no hábito de limpeza do seu gato, o veterinário pode ajudar a descobrir a causa.',
       },
       { type: 'h2', text: 'Quando falar com o veterinário', id: 'veterinario' },
       {
         type: 'callout',
         tone: 'vet',
-        text: 'Procure o veterinário se o cão tiver coceira intensa, feridas, vermelhidão, perda de pelo, caspa, cheiro forte que não passa depois do banho ou qualquer mudança que você não saiba explicar na pele. O PETMOL é um app para tutores e não faz diagnóstico: o veterinário avalia e indica o tratamento.',
+        text: 'Procure o veterinário diante de qualquer mudança na pele ou no pelo do seu cão que você não saiba explicar, e para saber o shampoo e a frequência de banho em casos de problema de pele. O PETMOL é um app para tutores e não faz diagnóstico: o veterinário avalia e indica o tratamento.',
       },
       { type: 'h2', text: 'Erros comuns', id: 'erros' },
       {
         type: 'ul',
         items: [
           'Usar shampoo humano ou sabão de louça no cachorro.',
-          'Dar banho com frequência demais sem orientação, para disfarçar o cheiro, em vez de investigar a causa.',
+          'Dar banhos frequentes demais: a fonte alerta que podem retirar a oleosidade protetora do pelo.',
           'Molhar o cão sem desembaraçar antes, quando ele tem pelo longo.',
-          'Usar shampoo medicamentoso por conta própria, sem receita.',
+          'Usar shampoo medicamentoso sem seguir a orientação do veterinário.',
         ],
       },
       {
@@ -214,12 +213,12 @@ export const higieneGuides: Guide[] = [
       {
         question: 'Cachorro filhote pode tomar banho?',
         answer:
-          'Pergunte ao veterinário. O momento do primeiro banho e os cuidados dependem da idade, da saúde e do esquema de vacinas do filhote.',
+          'Pergunte ao veterinário: as fontes que li não trazem uma regra para o primeiro banho do filhote.',
       },
       {
         question: 'Preciso dar banho no meu gato?',
         answer:
-          'Em geral, não. Gatos costumam se limpar sozinhos, e uma boa escovação costuma bastar. Há exceções, como gatos sem pelo ou problemas de saúde em que o veterinário indica banho, e o veterinário deve ser consultado se o gato deixar de se limpar.',
+          'Segundo uma veterinária da Texas A&M, em geral os gatos não precisam receber banho dos tutores, porque se limpam sozinhos, e uma boa escovação pode ser suficiente. Há exceções, como gatos sem pelo ou problemas de saúde em que o veterinário indica banho.',
       },
     ],
     sources: [
