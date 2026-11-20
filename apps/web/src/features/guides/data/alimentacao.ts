@@ -458,6 +458,7 @@ export const alimentacaoGuides: Guide[] = [
         items: [
           { slug: 'quanto-tempo-dura-saco-de-racao', label: 'Quanto tempo dura um saco de ração (calculadora)' },
           { slug: 'quanto-custa-alimentar-cachorro-por-mes', label: 'Quanto custa alimentar um cão por mês (calculadora)' },
+          { slug: 'quanto-de-racao-dar-para-gato', label: 'E para gatos? Quanto de ração dar para gato por dia' },
         ],
       },
       { type: 'h2', text: 'Filhote: a porção muda conforme ele cresce', id: 'filhote' },

@@ -94,6 +94,7 @@ export const GUIDE_CLUSTERS: readonly GuideCluster[] = [
       'Gato não é cachorro pequeno. Areia, número de caixas, arranhador e transporte têm critérios próprios.',
     icon: '🐱',
     steps: [
+      'quanto-de-racao-dar-para-gato',
       'como-escolher-areia-higienica-para-gatos',
       'quantas-caixas-de-areia-para-gatos',
       'como-escolher-arranhador-para-gatos',
