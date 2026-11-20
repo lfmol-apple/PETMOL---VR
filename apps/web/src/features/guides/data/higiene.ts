@@ -125,7 +125,7 @@ export const higieneGuides: Guide[] = [
     blocks: [
       {
         type: 'p',
-        text: 'A pergunta mais comum de quem acabou de adotar um cachorro costuma ser esta: de quanto em quanto tempo ele precisa tomar banho? A resposta honesta é que depende do cão. Este guia explica o que pesa na decisão e o que as fontes veterinárias dizem, sem prometer um calendário que valha para todos. Ele ajuda o tutor a se organizar e não substitui a orientação do veterinário.',
+        text: 'Uma dúvida comum de quem tem cachorro é: de quanto em quanto tempo ele precisa tomar banho? A resposta honesta é que depende do cão. Este guia explica o que pesa na decisão e o que as fontes veterinárias dizem, sem prometer um calendário que valha para todos. Ele ajuda o tutor a se organizar e não substitui a orientação do veterinário.',
       },
       { type: 'h2', text: 'A resposta rápida', id: 'resposta-rapida' },
       {
