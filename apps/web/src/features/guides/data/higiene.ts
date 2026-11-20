@@ -90,6 +90,13 @@ export const higieneGuides: Guide[] = [
           'Tenho onde fixar (bandeja ou abas) para não enrugar?',
         ],
       },
+      {
+        type: 'links',
+        title: 'Mais sobre a higiene do seu cão',
+        items: [
+          { slug: 'de-quanto-em-quanto-tempo-dar-banho-no-cachorro', label: 'De quanto em quanto tempo dar banho no cachorro' },
+        ],
+      },
       { type: 'h2', text: 'Conclusão', id: 'conclusao' },
       {
         type: 'p',

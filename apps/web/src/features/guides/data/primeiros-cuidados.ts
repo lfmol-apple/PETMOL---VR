@@ -426,12 +426,20 @@ export const primeirosCuidadosGuides: Guide[] = [
           'Se o cão veio sem histórico: o veterinário orienta os primeiros exames e o esquema de vacinas do zero.',
           'Microchip / identificação: verifique se tem, e se o cadastro está no seu nome e com contato atual. Se não tem, converse sobre implantar.',
           'Comece o registro de saúde (peso, vacinas, vermífugo, consultas) desde a primeira consulta — é mais fácil manter do que reconstruir depois.',
+          'Leve à consulta as dúvidas de higiene, como o shampoo e a frequência de banho (para filhote, pergunte quando começar).',
         ],
       },
       {
         type: 'callout',
         tone: 'vet',
         text: 'A consulta inicial não é opcional nem "só quando ficar doente". É o que define o calendário de vacinas, o antiparasitário certo para a região e o peso ideal do cão. Tudo o mais (dieta, adestramento, acessórios) fica mais fácil com essa base.',
+      },
+      {
+        type: 'links',
+        title: 'Sobre o banho do seu cão',
+        items: [
+          { slug: 'de-quanto-em-quanto-tempo-dar-banho-no-cachorro', label: 'De quanto em quanto tempo dar banho no cachorro' },
+        ],
       },
       { type: 'h2', text: 'O que pode esperar (compre ao longo das semanas)', id: 'pode-esperar' },
       {
