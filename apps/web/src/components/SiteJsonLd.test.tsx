@@ -47,3 +47,19 @@ describe('SocialLinks', () => {
     expect(screen.queryByRole('link')).toBeNull();
   });
 });
+
+describe('isolamento: eventos existentes não mudam', () => {
+  it('o payload de landing_download_click continua sem o campo novo; o evento social leva só network/placement', async () => {
+    const { buildLandingEvent } = await vi.importActual<typeof import('@/lib/landingEvents')>('@/lib/landingEvents');
+    const info = { variant: 'A' as const, preview: false, persisted: false };
+    const dl = buildLandingEvent('landing_download_click', info, { button: 'cta', placement: 'hero', store: 'apple' });
+    expect(Object.keys(dl.properties)).not.toContain('network');
+    const soc = buildLandingEvent('social_link_click', info, { network: 'youtube', placement: 'home-rodape' });
+    expect(soc.properties).toMatchObject({ network: 'youtube', placement: 'home-rodape' });
+  });
+  it('no primeiro quadro (antes de saber se é o app) os links sociais não são desenhados', async () => {
+    const { renderToStaticMarkup } = await import('react-dom/server');
+    const { createElement } = await import('react');
+    expect(renderToStaticMarkup(createElement(SocialLinks, { placement: 'x' }))).toBe('');
+  });
+});

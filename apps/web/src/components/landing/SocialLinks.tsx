@@ -7,9 +7,10 @@ import { trackLandingEvent } from '@/lib/landingEvents';
 
 /** Links discretos para os perfis oficiais (rodapé). Só na web; o clique é medido (`social_link_click`). */
 export function SocialLinks({ placement, className = '' }: { placement: string; className?: string }) {
-  const [hide, setHide] = useState(false);
-  useEffect(() => { setHide(isNativeAppClient()); }, []);
-  if (hide) return null;
+  // Começa ESCONDIDO: as páginas institucionais também abrem dentro do app, e o app nunca deve ver estes links, nem por um instante.
+  const [show, setShow] = useState(false);
+  useEffect(() => { setShow(!isNativeAppClient()); }, []);
+  if (!show) return null;
   const item = (network: 'instagram' | 'youtube', href: string, label: string) => (
     <a
       href={href}
