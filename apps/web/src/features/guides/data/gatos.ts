@@ -119,7 +119,7 @@ export const gatosGuides: Guide[] = [
       {
         question: 'Quantas gramas de ração por dia para gato castrado?',
         answer:
-          'Não existe um número único, porque cada ração tem uma densidade de energia diferente e cada gato, uma necessidade. Comece pela tabela da embalagem, observe o peso e a condição corporal e converse com o veterinário, já que a castração costuma aumentar o apetite e reduzir a necessidade de energia.',
+          'Não existe um número único, porque cada ração tem uma densidade de energia diferente e cada gato, uma necessidade. Comece pela tabela da embalagem, observe o peso e a condição corporal e converse com o veterinário, já que, segundo uma revisão veterinária, a castração pode aumentar o apetite e reduzir a necessidade de energia.',
       },
     ],
     sources: [
