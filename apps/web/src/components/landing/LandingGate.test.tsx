@@ -44,6 +44,7 @@ describe('LandingGate', () => {
     const js = container.querySelector('script')?.innerHTML ?? '';
     expect(js).toContain('petmol_token');
     expect(js).toContain('petmol_auth');
+    expect(js).toContain('PetmolApp');
     expect(container.querySelector('style')?.innerHTML).toContain('visibility:hidden');
   });
 });
