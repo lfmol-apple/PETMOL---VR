@@ -72,7 +72,7 @@ const FEATURES: Feature[] = [
 
 export default function LandingPage() {
   return (
-    <div className="min-h-dvh bg-white">
+    <div className="landing-root min-h-dvh bg-white">
       <LandingGate />
       {/* Cabeçalho: a marca "Petmol 🐾" (mesma identidade do app) */}
       <header

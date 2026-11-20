@@ -16,6 +16,14 @@ import type { VariantInfo } from '@/lib/landingExperiment';
 // Evento de visita sem passar pelo teste A/B: nenhuma variante é sorteada nem gravada.
 const NO_EXPERIMENT: VariantInfo = { variant: 'A', preview: false, persisted: false };
 
+/**
+ * Roda no HTML, antes do primeiro quadro: se há token (mesmas chaves do auth-token.ts: sessionStorage/localStorage
+ * `petmol_token` ou cookie `petmol_auth`), marca <html> e a regra abaixo esconde a landing — quem já está logado não vê
+ * a página pública piscar antes do redirecionamento. Visitante sem token e robôs de busca veem tudo normalmente.
+ */
+const EARLY_CHECK = `(function(){try{var d=document,t=null;try{t=sessionStorage.getItem('petmol_token')||localStorage.getItem('petmol_token')}catch(e){}if(!t&&/(?:^|;\\s*)petmol_auth=/.test(d.cookie))t='c';if(t)d.documentElement.setAttribute('data-landing-gate','1')}catch(e){}})();`;
+const HIDE_CSS = 'html[data-landing-gate] .landing-root{visibility:hidden}';
+
 export function LandingGate() {
   const router = useRouter();
   const [redirecting, setRedirecting] = useState(false);
@@ -33,5 +41,11 @@ export function LandingGate() {
     }
   }, [router]);
 
-  return redirecting ? <AppBootSplash /> : null;
+  return (
+    <>
+      <style dangerouslySetInnerHTML={{ __html: HIDE_CSS }} />
+      <script dangerouslySetInnerHTML={{ __html: EARLY_CHECK }} />
+      {redirecting ? <AppBootSplash /> : null}
+    </>
+  );
 }
