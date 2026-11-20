@@ -134,14 +134,14 @@ export const primeirosCuidadosGuides: Guide[] = [
     description:
       'O que um estudo com mais de mil gatos desaparecidos mostra sobre onde eles costumam ser encontrados e como organizar a busca nos primeiros dias.',
     summary:
-      'Gatos que somem muitas vezes estão perto de casa. Um estudo com 1.210 gatos desaparecidos, baseado em relatos de tutores, encontrou 75% deles a até 500 metros de onde saíram, e cerca de um terço foi recuperado vivo em 7 dias. Por isso, a busca física no entorno, feita logo na primeira semana, costuma valer a pena. O estudo tem limites (participantes voluntários, fora do Brasil) e não promete que o gato volte sozinho.',
+      'Em um estudo com 1.210 gatos desaparecidos, baseado em relatos de tutores, 75% foram encontrados a até 500 metros de onde saíram, e cerca de um terço (34%) foi recuperado vivo em até 7 dias. Os autores sugerem a busca física no entorno logo na primeira semana. O estudo tem limites (participantes voluntários, fora do Brasil) e não garante que o gato volte sozinho.',
     publishedAt: '2026-11-20',
     updatedAt: '2026-11-20',
     readingTimeMinutes: 6,
     blocks: [
       {
         type: 'p',
-        text: 'Quando um gato some, muita gente ouve que "gato sempre volta". Às vezes volta, às vezes não, e esperar de braços cruzados é o que menos ajuda. Este guia reúne o que a pesquisa disponível mostra sobre gatos desaparecidos e organiza uma busca prática. Para o que vale para qualquer pet (cartaz, divulgação e golpes), veja o guia geral de pet perdido, ligado abaixo.',
+        text: 'Quando um gato some, uma dúvida comum é se ele volta sozinho. Este guia reúne o que a pesquisa disponível mostra sobre gatos desaparecidos e organiza uma busca prática. Para o que vale para qualquer pet (cartaz, divulgação e golpes), veja o guia geral de pet perdido, ligado abaixo.',
       },
       { type: 'h2', text: 'Ele volta sozinho? O que um estudo mostra', id: 'estudo' },
       {
@@ -171,8 +171,8 @@ export const primeirosCuidadosGuides: Guide[] = [
       {
         type: 'ul',
         items: [
-          'Procure primeiro dentro de casa e no entorno: armários, atrás de móveis, garagem, quintal, telhados baixos e áreas cobertas. Um gato assustado pode se esconder e ficar em silêncio mesmo que você o chame.',
-          'Percorra os quarteirões próximos, a pé, num raio curto, e depois amplie. Peça a vizinhos e porteiros que olhem garagens, áticos, depósitos e áreas de serviço, onde um gato pode ter entrado sem ser visto.',
+          'Procure primeiro dentro de casa e no entorno: armários, atrás de móveis, garagem, quintal, telhados baixos e áreas cobertas.',
+          'Percorra os quarteirões próximos, a pé, num raio curto, e depois amplie. Peça a vizinhos e porteiros que olhem garagens, depósitos e áreas de serviço: o estudo encontrou gatos dentro da casa de outras pessoas.',
           'Chame com a voz e os sons que ele conhece (o barulho do pote de ração ou do pacote de petisco), sem correr atrás dele.',
           'Peça a alguém que fique em casa, com portas e janelas acessíveis ao gato, caso ele volte.',
         ],
@@ -181,17 +181,17 @@ export const primeirosCuidadosGuides: Guide[] = [
       {
         type: 'ul',
         items: [
-          'Repita a busca física, em horários calmos, como início da manhã e fim da tarde.',
+          'Repita a busca física em horários diferentes do dia.',
           'Anote os lugares já verificados, para não repetir e para dividir a busca com amigos e familiares.',
           'Divulgue o desaparecimento com foto nítida e a região onde ele foi visto pela última vez (veja o guia geral de pet perdido, que também explica como evitar golpes).',
           'Se o gato tem microchip, confirme que os seus dados de contato estão atualizados no cadastro do chip.',
-          'Mantenha o aviso e a busca ativos por mais tempo do que parece necessário: o estudo mostra que alguns gatos só são recuperados semanas ou meses depois.',
+          'Mantenha o aviso e a busca ativos: no estudo, parte dos gatos foi encontrada depois da primeira semana, mas poucos foram encontrados vivos depois de 90 dias.',
         ],
       },
       { type: 'h2', text: 'Quando o gato é encontrado', id: 'encontrado' },
       {
         type: 'p',
-        text: 'Avise os lugares onde você divulgou e atualize os avisos. Leve o gato ao veterinário para uma avaliação se ele ficou fora por muito tempo, parece ferido, desidratado ou diferente do normal. O diagnóstico e o tratamento são do veterinário: o PETMOL é um app para tutores.',
+        text: 'Avise os lugares onde você divulgou e atualize os avisos. Leve o gato ao veterinário para uma avaliação se ele ficou fora por muito tempo, parece ferido ou diferente do normal. O diagnóstico e o tratamento são do veterinário: o PETMOL é um app para tutores.',
       },
       { type: 'h2', text: 'Como reduzir o risco de fuga', id: 'prevenir' },
       {
@@ -200,7 +200,7 @@ export const primeirosCuidadosGuides: Guide[] = [
           'Telas de proteção em janelas e sacadas, e atenção às portas abertas.',
           'Identificação no gato (coleira com plaquinha legível, quando ele aceitar) e o contato do tutor atualizado.',
           'Fotos atuais e nítidas do gato, de frente e de lado, guardadas no celular.',
-          'Conversar com o veterinário sobre microchip e sobre a castração, que é uma decisão da família com o profissional.',
+          'Conversar com o veterinário sobre microchip.',
         ],
       },
       {
@@ -216,7 +216,7 @@ export const primeirosCuidadosGuides: Guide[] = [
       {
         question: 'Gato fugiu de casa, ele volta sozinho?',
         answer:
-          'Alguns voltam, outros não. Em um estudo com 1.210 gatos desaparecidos, cerca de um terço foi recuperado vivo em até 7 dias, e a busca física feita pelo tutor pareceu aumentar as chances de encontrar o gato. Por isso, não vale só esperar: procure por perto e divulgue.',
+          'Alguns são encontrados, outros não. Em um estudo com 1.210 gatos desaparecidos, cerca de um terço foi recuperado vivo em até 7 dias, e a busca física feita pelo tutor pareceu aumentar as chances de encontrar o gato. Por isso, não vale só esperar: procure por perto e divulgue.',
       },
       {
         question: 'Até que distância devo procurar?',
@@ -226,7 +226,7 @@ export const primeirosCuidadosGuides: Guide[] = [
       {
         question: 'Meu gato é só de dentro de casa. A busca muda?',
         answer:
-          'O estudo indica que gatos que nunca saem tendem a percorrer distâncias menores do que gatos que circulam livremente, o que reforça começar pelo entorno bem próximo de casa, inclusive áreas escondidas.',
+          'O estudo indica que gatos que nunca saem tendem a percorrer distâncias menores do que gatos que circulam livremente, o que reforça começar pelo entorno bem próximo de casa.',
       },
     ],
     sources: [
