@@ -30,9 +30,11 @@ const DEFAULT_COPY = {
 };
 
 export function GuideInstallCta({ slug, category }: { slug: string; category: GuideCategoryId }) {
-  const [hide, setHide] = useState(false);
-  useEffect(() => { setHide(isNativeAppClient()); }, []);
-  if (hide) return null;
+  // Começa ESCONDIDO e só aparece na web depois de confirmar que não é o app nativo (os guias também abrem dentro do app):
+  // o app nunca vê o convite, nem por um instante.
+  const [show, setShow] = useState(false);
+  useEffect(() => { setShow(!isNativeAppClient()); }, []);
+  if (!show) return null;
   const copy = COPY[category] ?? DEFAULT_COPY;
   return (
     <aside aria-label="Baixar o PETMOL" className="mt-10 rounded-2xl border border-blue-100 bg-blue-50/60 px-5 py-6 text-center">

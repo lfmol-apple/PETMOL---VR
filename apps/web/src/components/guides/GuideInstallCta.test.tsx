@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, act } from '@testing-library/react';
 
 const mocks = vi.hoisted(() => ({ native: false }));
 vi.mock('@/lib/nativeApp', () => ({ isNativeAppClient: () => mocks.native }));
 vi.mock('@/components/landing/DownloadButton', () => ({
   DownloadButton: ({ placement }: { placement: string }) => <div data-testid="dl" data-placement={placement} />,
 }));
+import { renderToStaticMarkup } from 'react-dom/server';
+import { createElement } from 'react';
 import { GuideInstallCta } from './GuideInstallCta';
 
 afterEach(() => { cleanup(); mocks.native = false; });
@@ -15,6 +17,10 @@ describe('GuideInstallCta', () => {
     render(<GuideInstallCta slug="quanto-tempo-dura-saco-de-racao" category="alimentacao" />);
     expect(screen.getByText('Saiba quando a ração vai acabar')).toBeTruthy();
     expect(screen.getByTestId('dl').getAttribute('data-placement')).toBe('guia-quanto-tempo-dura-saco-de-racao');
+  });
+  it('no primeiro quadro (antes de saber se é o app) nada é desenhado', () => {
+    const html = renderToStaticMarkup(createElement(GuideInstallCta, { slug: 'x', category: 'gatos' }));
+    expect(html).toBe('');
   });
   it('categorias sem texto próprio usam o texto padrão', () => {
     render(<GuideInstallCta slug="x" category="gatos" />);
