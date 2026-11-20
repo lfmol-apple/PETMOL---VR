@@ -71,7 +71,7 @@ describe('aba Gratuito', () => {
   it('notificação: texto fixo; o teste leva "TESTE." e vai para o atalho; "todos" usa o público faltam_passos e pede confirmação digitada', async () => {
     api.adminApi.mockImplementation(async (path: string) => {
       if (path === '/gratuito/summary') return base;
-      if (path === '/broadcast/preview') return { will_send: 3, sample: { title: 'Ana, continue com o PETMOL gratuito', body: 'x' }, test_accounts: [{ name: 'Leonardo', has_push: true }], destination_label: 'Atalho' };
+      if (path === '/broadcast/preview') return { will_send: 3, skipped: { opt_out: 1, weekly_cap: 233, segment: 0 }, sample: { title: 'Ana, continue com o PETMOL gratuito', body: 'x' }, test_accounts: [{ name: 'Leonardo', has_push: true }], destination_label: 'Atalho' };
       return { id: 'b1' };
     });
     render(<GratuitoTab />);
@@ -90,6 +90,9 @@ describe('aba Gratuito', () => {
     const all = JSON.parse(calls[calls.length - 1][1].body);
     expect(all).toMatchObject({ segment: 'faltam_passos', audience: { kind: 'all' } });
     expect(all.message).toBe(GRATUITO_PUSH_MESSAGE);                  // sem "TESTE." no envio real
+    expect(all.ignore_weekly_cap).toBe(false);                        // quem já recebeu nos últimos 7 dias fica de fora (retomar não duplica)
+    expect(b.ignore_weekly_cap).toBe(false);
+    expect(screen.getByTestId('push-skipped').textContent).toContain('233 que já receberam notificação nos últimos 7 dias');
     fireEvent.change(screen.getByLabelText('Para confirmar, digite 3'), { target: { value: '3' } });
     expect((screen.getByRole('button', { name: 'Enviar para 3' }) as HTMLButtonElement).disabled).toBe(false);
   });

@@ -28,7 +28,7 @@ interface Summary {
   baseline: { taken_at: string; taken_by: string | null; values: Record<string, number> } | null;
   now: Record<string, number>; cards?: CardData[]; situations: Situation[]; email: EmailBlock | null; email_groups: { dia0: number; dia3: number };
 }
-interface PushPreview { will_send: number; sample: { title: string; body: string } | null; test_accounts?: { name: string; has_push: boolean }[]; destination_label?: string }
+interface PushPreview { will_send: number; skipped?: { opt_out: number; weekly_cap: number; segment: number }; sample: { title: string; body: string } | null; test_accounts?: { name: string; has_push: boolean }[]; destination_label?: string }
 interface EmailPreview { will_send: number; sample: { subject: string; text: string } | null }
 
 /** Texto FIXO da notificação (aprovado pelo dono e pela revisão jurídica). No teste, entra "TESTE." na frente. */
@@ -170,7 +170,10 @@ function PushSend({ onDone }: { onDone: () => void }) {
 
   const body = () => ({
     message: kind === 'test' ? `TESTE. ${GRATUITO_PUSH_MESSAGE}` : GRATUITO_PUSH_MESSAGE, title: GRATUITO_PUSH_TITLE, destination: 'atalho', goal: 'atalho',
-    segment: kind === 'test' ? 'todos' : 'faltam_passos', audience: { kind }, ignore_weekly_cap: true,
+    segment: kind === 'test' ? 'todos' : 'faltam_passos', audience: { kind },
+    // Respeita o limite semanal no envio real: quem JÁ recebeu notificação nos últimos 7 dias (inclusive nesta mesma campanha, se o envio
+    // for interrompido e retomado) fica de fora, para ninguém receber duas vezes. O teste não gasta a cota.
+    ignore_weekly_cap: false,
   });
   const invalidate = () => { setPreview(null); setTyped(''); setMsg(null); };
   const run = async (fn: () => Promise<void>) => {
@@ -199,6 +202,7 @@ function PushSend({ onDone }: { onDone: () => void }) {
           {preview.sample && <p>Como chega: <strong>{preview.sample.title}</strong> — {preview.sample.body}</p>}
           {preview.destination_label && <p className="text-[12px] text-slate-500">Ao tocar abre: {preview.destination_label}</p>}
           <p>Vão receber: <strong>{numberFmt(preview.will_send)}</strong> {preview.will_send === 1 ? 'pessoa' : 'pessoas'}.</p>
+          {kind === 'all' && <p className="text-[12px] text-slate-500" data-testid="push-skipped">Ficam de fora: {numberFmt(preview.skipped?.weekly_cap ?? 0)} que já receberam notificação nos últimos 7 dias (ninguém recebe duas vezes) e {numberFmt(preview.skipped?.opt_out ?? 0)} que pediram para parar.</p>}
           {kind === 'test' && preview.test_accounts && (
             <ul className="space-y-0.5 text-[12.5px]">
               {preview.test_accounts.map((a) => <li key={a.name} className={a.has_push ? '' : 'text-amber-800'}>{a.has_push ? '✓' : '⚠'} {a.name}{a.has_push ? '' : ' — sem notificação ativa: não vai receber'}</li>)}
