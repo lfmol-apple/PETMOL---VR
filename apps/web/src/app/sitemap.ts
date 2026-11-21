@@ -2,16 +2,12 @@ import { SITE_URL } from '@/lib/siteUrl';
 import { MetadataRoute } from 'next';
 import { getAllGuides } from '@/features/guides';
 import { PUBLIC_GUIDES_PAGE_ENABLED } from './publicCommercePages';
+import { activeAlertUrls, type PublicCase } from '@/lib/sitemapAlerts';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 const SERVER_API_BASE_URL = API_BASE_URL.startsWith('http')
   ? API_BASE_URL.replace(/\/$/, '')
   : `${SITE_URL.replace(/\/$/, '')}${API_BASE_URL}`;
-
-type PublicCase = {
-  slug: string;
-  updated_at?: string | null;
-};
 
 async function getPublicMissingPetUrls(): Promise<MetadataRoute.Sitemap> {
   try {
@@ -20,14 +16,7 @@ async function getPublicMissingPetUrls(): Promise<MetadataRoute.Sitemap> {
     });
     if (!res.ok) return [];
     const cases = (await res.json()) as PublicCase[];
-    return cases
-      .filter((item) => item.slug)
-      .map((item) => ({
-        url: `${SITE_URL}/pet-perdido/${item.slug}`,
-        lastModified: item.updated_at ? new Date(item.updated_at) : undefined,
-        changeFrequency: 'daily' as const,
-        priority: 0.7,
-      }));
+    return activeAlertUrls(cases, SITE_URL);
   } catch {
     return [];
   }
