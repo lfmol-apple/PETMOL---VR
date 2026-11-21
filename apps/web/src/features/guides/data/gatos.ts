@@ -148,7 +148,7 @@ export const gatosGuides: Guide[] = [
     title: 'Como escolher areia higiênica para gatos',
     category: 'gatos',
     description:
-      'O que decide é o gato aceitar: textura fina, sem perfume, boa absorção e controle de odor. Aglomerante ou não, mineral ou vegetal, é escolha secundária. Veja como comparar.',
+      'O que decide é o gato aceitar: textura fina, sem perfume, boa absorção e controle de odor. Aglomerante ou não, mineral ou vegetal, é escolha secundária.',
     summary:
       'A areia que funciona é a que o gato usa sem hesitar: grão fino e macio nas patas, sem perfume forte, com boa absorção e controle de odor. A maioria dos gatos prefere areia aglomerante de grãos finos. Mineral e vegetal têm prós e contras práticos, mas a aceitação do gato vem antes de qualquer preferência do tutor. Compare pelo custo por semana de uso, não pelo preço do pacote.',
     publishedAt: '2026-09-04',
@@ -409,7 +409,7 @@ export const gatosGuides: Guide[] = [
     title: 'Como escolher arranhador para gatos',
     category: 'gatos',
     description:
-      'Arranhar é comportamento normal e necessário. O arranhador certo é alto e firme o bastante para o gato esticar o corpo todo, no material e na orientação que ele prefere, e no lugar certo da casa.',
+      'Arranhar é comportamento normal. O arranhador certo é alto e firme o bastante para o gato esticar o corpo, no material que ele prefere e no lugar certo.',
     summary:
       'Um bom arranhador é estável (não balança), alto ou longo o suficiente para o gato se esticar por inteiro, e feito de um material que ele goste de fincar as unhas — sisal, papelão ondulado ou madeira. Precisa ficar em local visível e de passagem, não escondido. Ter mais de um, em orientações diferentes (vertical e horizontal), aumenta a chance de o gato usar em vez do sofá.',
     publishedAt: '2026-09-04',
@@ -537,7 +537,7 @@ export const gatosGuides: Guide[] = [
     title: 'Como transportar gato com segurança',
     category: 'gatos',
     description:
-      'Caixa rígida com abertura por cima e pela frente, do tamanho certo, apresentada em casa com calma. A maior parte do estresse vem de a caixa só aparecer no dia do veterinário.',
+      'Caixa rígida com abertura por cima e pela frente, no tamanho certo e apresentada em casa com calma. Veja como reduzir o estresse do gato no transporte.',
     summary:
       'A melhor caixa para gato é rígida, com tampa removível ou abertura superior além da frontal, grande o bastante para o gato ficar em pé e se virar. No carro, ela vai presa pelo cinto, no chão atrás do banco ou no assento. O que mais reduz o estresse é deixar a caixa aberta em casa como um móvel comum, com forro e petisco, o ano inteiro — não só na véspera da consulta.',
     publishedAt: '2026-09-04',
