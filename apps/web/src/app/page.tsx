@@ -146,6 +146,13 @@ export default function LandingPage() {
         ))}
       </div>
 
+      {/* Guias: porta de entrada para o conteúdo que responde dúvidas de tutores (só texto; não compete com o CTA de instalação) */}
+      <p className="mx-auto max-w-md px-5 pb-8 text-center text-[14px] leading-relaxed text-slate-500">
+        Dúvidas do dia a dia? Veja os{' '}
+        <Link href="/guias" className="font-bold text-[#0056D2] underline-offset-2 hover:underline">guias do PETMOL</Link>
+        : quanto de ração dar, quanto tempo dura o saco, o que fazer se o pet sumir e mais.
+      </p>
+
       {/* CTA de fechamento */}
       <section className="flex flex-col items-center gap-3 border-t border-slate-100 bg-slate-50 px-5 py-12 text-center">
         <h2 className="text-2xl font-black text-slate-900">Baixe o PETMOL e comece agora.</h2>
@@ -160,6 +167,7 @@ export default function LandingPage() {
       <footer className="border-t border-slate-100 px-5 py-5 text-center">
         <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-slate-400">
           <AmazonFooterLink />
+          <Link href="/guias" className="hover:text-slate-600">Guias</Link>
           <Link href="/sobre" className="hover:text-slate-600">Sobre</Link>
           <Link href="/politica-editorial" className="hover:text-slate-600">Política editorial</Link>
           <Link href="/transparencia" className="hover:text-slate-600">Transparência</Link>

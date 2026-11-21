@@ -90,6 +90,13 @@ export const passeioTransporteGuides: Guide[] = [
         type: 'p',
         text: 'Peitoral para a segurança do passeio, coleira para a identificação e para cães que já andam calmos. O mais importante não é o tipo, é o ajuste correto e, se o cão puxa, o treino de guia frouxa em paralelo.',
       },
+      {
+        type: 'links',
+        title: 'Para completar o passeio',
+        items: [
+          { slug: 'como-escolher-guia-para-cachorro', label: 'Como escolher uma guia para cachorro' },
+        ],
+      },
     ],
     faq: [
       {
@@ -330,6 +337,15 @@ export const passeioTransporteGuides: Guide[] = [
         type: 'p',
         text: 'A viagem tranquila com cão é quase toda planejamento: confirmar o destino, manter a ração e a água da casa, garantir transporte seguro e levar um pedaço de casa junto. Para a viagem de carro especificamente, vale montar um kit fixo que fica pronto no porta-malas.',
       },
+      {
+        type: 'links',
+        title: 'Itens da lista em detalhe',
+        items: [
+          { slug: 'como-escolher-guia-para-cachorro', label: 'Como escolher uma guia para cachorro' },
+          { slug: 'como-escolher-tapete-higienico-cachorro', label: 'Como escolher tapete higiênico para cachorro' },
+          { slug: 'bebedouro-automatico-cachorro-vale-a-pena', label: 'Bebedouro automático para cachorro: vale a pena?' },
+        ],
+      },
     ],
     faq: [
       {
@@ -446,6 +462,14 @@ export const passeioTransporteGuides: Guide[] = [
       {
         type: 'p',
         text: 'O kit de carro resolve dois problemas de uma vez: segurança (o cão nunca viaja solto) e esquecimento (a lista está montada). Monte uma vez, confira antes de cada viagem, e viajar com o cão vira rotina em vez de operação.',
+      },
+      {
+        type: 'links',
+        title: 'Itens do kit em detalhe',
+        items: [
+          { slug: 'como-escolher-tapete-higienico-cachorro', label: 'Como escolher tapete higiênico para cachorro' },
+          { slug: 'bebedouro-automatico-cachorro-vale-a-pena', label: 'Bebedouro automático para cachorro: vale a pena?' },
+        ],
       },
     ],
     faq: [

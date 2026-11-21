@@ -181,6 +181,14 @@ export const comprasInteligentesGuides: Guide[] = [
         type: 'p',
         text: 'Economia sustentável em produto pet não é caçar o menor preço toda semana — é um punhado de hábitos: comparar por custo de uso, acertar o tamanho, evitar troca por impulso e usar recompra. Quem faz isso gasta menos no ano comprando produtos iguais ou melhores.',
       },
+      {
+        type: 'links',
+        title: 'Exemplos de itens',
+        items: [
+          { slug: 'como-escolher-tapete-higienico-cachorro', label: 'Como escolher tapete higiênico para cachorro' },
+          { slug: 'como-armazenar-racao-depois-de-aberta', label: 'Como armazenar ração depois de aberta' },
+        ],
+      },
     ],
     faq: [
       {
