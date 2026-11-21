@@ -98,6 +98,13 @@ export const alimentacaoGuides: Guide[] = [
         type: 'p',
         text: 'A ração ideal é uma decisão de encaixe, não de status: fase de vida certa, porte certo, rótulo claro, custo sustentável. Depois de escolher, o próximo passo é medir a porção direito e guardar o saco corretamente — é aí que a maioria dos problemas de alimentação realmente aparece.',
       },
+      {
+        type: 'links',
+        title: 'Depois de escolher a ração',
+        items: [
+          { slug: 'quanto-meu-cachorro-deve-comer-por-dia', label: 'Quanto o meu cachorro deve comer por dia?' },
+        ],
+      },
     ],
     tool: 'custo-mensal-racao',
     faq: [
@@ -230,6 +237,14 @@ export const alimentacaoGuides: Guide[] = [
         type: 'p',
         text: 'Uma divisão de 10 segundos por compra resolve o problema de ficar sem ração e ainda ajuda a escolher o tamanho de saco que faz sentido para o seu cão. Se quiser ir além e comparar o custo real entre marcas, o próximo passo é calcular o custo por dia.',
       },
+      {
+        type: 'links',
+        title: 'Antes e depois da conta',
+        items: [
+          { slug: 'quanto-meu-cachorro-deve-comer-por-dia', label: 'Quanto o meu cachorro deve comer por dia?' },
+          { slug: 'como-armazenar-racao-depois-de-aberta', label: 'Como armazenar ração depois de aberta' },
+        ],
+      },
     ],
     tool: 'duracao-saco-racao',
     faq: [
@@ -353,6 +368,13 @@ export const alimentacaoGuides: Guide[] = [
       {
         type: 'p',
         text: 'A ração é a despesa mais fácil de prever e a mais fácil de otimizar sem prejudicar o cão. O erro clássico é olhar só o preço do pacote: quem compara pelo custo por dia costuma gastar menos comprando uma ração igual ou melhor.',
+      },
+      {
+        type: 'links',
+        title: 'Para acertar o número de gramas',
+        items: [
+          { slug: 'quanto-meu-cachorro-deve-comer-por-dia', label: 'Quanto o meu cachorro deve comer por dia?' },
+        ],
       },
     ],
     tool: 'custo-mensal-racao',
@@ -589,7 +611,7 @@ export const alimentacaoGuides: Guide[] = [
     title: 'Como armazenar ração depois de aberta',
     category: 'alimentacao',
     description:
-      'Ração perde qualidade pelo contato com ar, luz, calor e umidade. Mantenha no saco original, dentro de um recipiente fechado, em local fresco — e consuma em 4 a 6 semanas.',
+      'Ração perde qualidade com ar, luz, calor e umidade. Mantenha no saco original, em recipiente fechado e em local fresco, e consuma em 4 a 6 semanas.',
     summary:
       'A gordura da ração oxida (rança) quando exposta ao ar, à luz e ao calor, e a umidade favorece fungos. O jeito certo é deixar a ração no saco original, fechar bem o saco, guardá-lo dentro de um pote ou balde com tampa, num lugar fresco e seco, e terminar em 4 a 6 semanas. Isso também orienta que tamanho de saco comprar.',
     publishedAt: '2026-09-04',
