@@ -430,10 +430,18 @@ def test_excluir_campanha_recusa_lote_em_andamento_e_preserva_o_historico_dos_lo
     assert error_of(svc.delete_campaign, env.sf, cid).code == "campaign_not_found"
 
 
-def test_campanha_sem_link_e_recusada(env):
-    e = error_of(svc.create_campaign, env.sf().__enter__(), name="Sem link", message="Mensagem boa", title=None, goal=None, destination="food",
-                 product_url=None, product_title=None, created_by=ADMIN)
-    assert e.code == "link_required"
+def test_campanha_sem_link_com_objetivo_e_destino_e_aceita(env):
+    with env.sf() as s:
+        c = svc.create_campaign(s, name="Sem link", message="Mensagem boa", title=None, goal="racao", destination="food",
+                                product_url=None, product_title=None, created_by=ADMIN)
+        assert c.goal == "racao" and c.destination == "food" and not c.product_url
+
+
+def test_campanha_com_link_sem_objetivo_assume_link_produto(env):
+    with env.sf() as s:
+        c = svc.create_campaign(s, name="Com link", message="Mensagem boa", title=None, goal=None, destination=None,
+                                product_url="https://amzn.to/abc", product_title="Ração", created_by=ADMIN)
+        assert c.goal == "link_produto" and c.destination == "produto"
 
 
 def test_excluir_campanha_sem_lotes(env):
