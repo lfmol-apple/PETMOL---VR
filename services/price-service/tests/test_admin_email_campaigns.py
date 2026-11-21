@@ -345,3 +345,21 @@ def test_identificacao_da_empresa_do_rodape_e_valida_e_libera_o_envio():
         r = sum(d * x for d, x in zip(digits[:n], w)) % 11
         assert digits[n] == (0 if r < 2 else 11 - r)
     assert g.ready_problems(g.COMPANY_LINE) == []
+
+
+def test_gratuito_reenvio_so_com_include_already_e_preview_conta_quem_ja_recebeu(client, admin, outbox):
+    db = SessionLocal()
+    try:
+        _user(db, "Bia Lima")
+    finally:
+        db.close()
+    g = _gratuito(client)
+    body = {"segment": "gratuito_dia0", "audience": {"kind": "all"}}
+    assert client.post(f"/v1/admin/email-campaigns/{g['id']}/send", json={**body, "confirm_count": 2}).status_code == 200
+    n = len(outbox)
+    prev = client.post(f"/v1/admin/email-campaigns/{g['id']}/preview", json=body).json()
+    assert prev["will_send"] == 0 and prev["already_received"] == 2 and prev["audience_total"] == 2
+    re = client.post(f"/v1/admin/email-campaigns/{g['id']}/preview", json={**body, "include_already": True}).json()
+    assert re["will_send"] == 2 and re["already_received"] == 2
+    assert client.post(f"/v1/admin/email-campaigns/{g['id']}/send", json={**body, "include_already": True, "confirm_count": 2}).status_code == 200
+    assert len(outbox) == n + 2

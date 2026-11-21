@@ -239,6 +239,8 @@ class SendIn(BaseModel):
     segment: Literal["todos", "sem_pet", "sem_racao", "sem_push", "sem_foto", "gratuito_dia0", "gratuito_dia3"] = "todos"
     audience: AudienceIn = AudienceIn()
     confirm_count: Optional[int] = None
+    # Painel Gratuito: reenviar de propósito a quem JÁ recebeu este e-mail (padrão: não repete).
+    include_already: bool = False
 
 
 def _get(db, c_id: str) -> EmailCampaign:
@@ -256,7 +258,7 @@ def _plan(db, c: EmailCampaign, payload: SendIn, admin_user) -> list[dict]:
         if payload.segment not in ("gratuito_dia0", "gratuito_dia3"):
             raise HTTPException(422, "Escolha o grupo do e-mail: dia 0 (quem a notificação não alcança) ou dia 3 (2º contato).")
         import random
-        already = {str(u) for (u,) in db.query(ActivationCampaignContact.user_id).filter(ActivationCampaignContact.campaign == _tag(c.id)).all()}
+        already = set() if payload.include_already else {str(u) for (u,) in db.query(ActivationCampaignContact.user_id).filter(ActivationCampaignContact.campaign == _tag(c.id)).all()}
         targets = [t for t in gratuito_targets(db, payload.segment.removeprefix("gratuito_")) if t["user_id"] not in already]
         if payload.audience.kind == "count" and payload.audience.count and payload.audience.count < len(targets):
             targets = random.sample(targets, payload.audience.count)
@@ -341,6 +343,12 @@ def preview(c_id: str, payload: SendIn, current=Depends(get_current_admin)):
         if ex and c.template in ("custom", "gratuito"):
             subject, text, _html = render_email(c, ex["name"], ex["pet_names"], ex["user_id"], extra=ex)
             sample = {"subject": subject, "text": text.split("\n\n--\n")[0]}
+        if c.template == "gratuito" and payload.audience.kind != "test" and payload.segment in ("gratuito_dia0", "gratuito_dia3"):
+            from .gratuito_router import gratuito_targets
+            pool = {t["user_id"] for t in gratuito_targets(db, payload.segment.removeprefix("gratuito_"))}
+            got = {str(u) for (u,) in db.query(ActivationCampaignContact.user_id).filter(ActivationCampaignContact.campaign == _tag(c.id)).all()}
+            return {"will_send": len(targets), "audience_total": len(pool), "already_received": len(pool & got), "include_already": payload.include_already,
+                    "sample": sample}
         total_all = len(targets) if (payload.audience.kind == "test" or c.template == "gratuito") else len(audience(db, payload.segment))
         return {"will_send": len(targets), "audience_total": total_all, "already_received": total_all - len(targets) if payload.audience.kind == "all" else 0,
                 "sample": sample}

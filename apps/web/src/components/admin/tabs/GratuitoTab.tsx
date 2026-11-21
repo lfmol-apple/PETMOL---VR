@@ -28,8 +28,9 @@ interface Summary {
   baseline: { taken_at: string; taken_by: string | null; values: Record<string, number> } | null;
   now: Record<string, number>; cards?: CardData[]; situations: Situation[]; email: EmailBlock | null; email_groups: { dia0: number; dia3: number };
 }
-interface PushPreview { will_send: number; sample: { title: string; body: string } | null; test_accounts?: { name: string; has_push: boolean }[]; destination_label?: string }
-interface EmailPreview { will_send: number; sample: { subject: string; text: string } | null }
+interface PushProgress { found: boolean; id?: string; phase?: string; total?: number; attempted?: number; delivered?: number; not_delivered?: number; created_at?: string; finished_at?: string | null }
+interface PushPreview { will_send: number; already_received?: number; sample: { title: string; body: string } | null; test_accounts?: { name: string; has_push: boolean }[]; destination_label?: string }
+interface EmailPreview { will_send: number; already_received?: number; audience_total?: number; sample: { subject: string; text: string } | null }
 
 /** Texto FIXO da notificação (aprovado pelo dono e pela revisão jurídica). No teste, entra "TESTE." na frente. */
 export const GRATUITO_PUSH_TITLE = '{tutor}, continue com o PETMOL gratuito';
@@ -161,8 +162,28 @@ function Quadro({ data }: { data: Summary }) {
 
 // ── Notificação ──────────────────────────────────────────────────────────────
 
+/** Andamento do último envio da notificação: quantas pessoas já receberam, ao vivo enquanto envia. */
+export function PushProgress({ refreshKey }: { refreshKey: number }) {
+  const { data } = useAsync<PushProgress>(() => adminApi('/broadcast/progress/latest?goal=atalho'), [refreshKey], { intervalMs: 3000 });
+  if (!data || !data.found) return null;
+  const total = data.total ?? 0; const attempted = data.attempted ?? 0; const delivered = data.delivered ?? 0;
+  const sending = data.phase === 'sending';
+  const widthPct = total > 0 ? Math.min(100, Math.round((attempted / total) * 100)) : 0;
+  return (
+    <div className="mt-3 rounded-xl border border-slate-200 p-3 text-[13px] text-slate-700" data-testid="push-progress">
+      <p className="font-bold text-slate-900">{sending ? 'Enviando a notificação…' : data.phase === 'error' ? 'Último envio parou com erro' : 'Último envio concluído'}{data.created_at ? <span className="font-normal text-slate-500"> · início {fmtDateTime(data.created_at)}</span> : null}</p>
+      <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={attempted}>
+        <div className={`h-full rounded-full ${sending ? 'bg-[#0056D2]' : 'bg-emerald-500'}`} style={{ width: `${widthPct}%` }} />
+      </div>
+      <p className="mt-2">Processadas: <strong>{numberFmt(attempted)}</strong> de <strong>{numberFmt(total)}</strong> ({widthPct}%) · <strong className="text-emerald-700">{numberFmt(delivered)}</strong> receberam{(data.not_delivered ?? 0) > 0 && <> · <strong className="text-amber-700">{numberFmt(data.not_delivered ?? 0)}</strong> não receberam (aparelho sem resposta)</>}</p>
+    </div>
+  );
+}
+
 function PushSend({ onDone }: { onDone: () => void }) {
   const [kind, setKind] = useState<'test' | 'all'>('test');
+  const [includeAlready, setIncludeAlready] = useState(false);
+  const [sentCount, setSentCount] = useState(0);
   const [preview, setPreview] = useState<PushPreview | null>(null);
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
@@ -171,6 +192,7 @@ function PushSend({ onDone }: { onDone: () => void }) {
   const body = () => ({
     message: kind === 'test' ? `TESTE. ${GRATUITO_PUSH_MESSAGE}` : GRATUITO_PUSH_MESSAGE, title: GRATUITO_PUSH_TITLE, destination: 'atalho', goal: 'atalho',
     segment: kind === 'test' ? 'todos' : 'faltam_passos', audience: { kind }, ignore_weekly_cap: true,
+    ...(kind === 'all' && !includeAlready ? { exclude_received_goal: 'atalho' } : {}),
   });
   const invalidate = () => { setPreview(null); setTyped(''); setMsg(null); };
   const run = async (fn: () => Promise<void>) => {
@@ -190,6 +212,12 @@ function PushSend({ onDone }: { onDone: () => void }) {
           <label key={k} className="flex items-center gap-1.5"><input type="radio" name="gratuito-push-kind" checked={kind === k} onChange={() => { setKind(k); invalidate(); }} /> {t}</label>
         ))}
       </div>
+      {kind === 'all' && (
+        <label className="mt-2 flex items-start gap-1.5 text-[12.5px] text-slate-700">
+          <input type="checkbox" className="mt-0.5" checked={includeAlready} onChange={(e) => { setIncludeAlready(e.target.checked); invalidate(); }} />
+          <span>Incluir quem <strong>já recebeu</strong> esta notificação (reenviar). Desmarcado, só quem ainda não recebeu.</span>
+        </label>
+      )}
       <div className="mt-3">
         <button type="button" disabled={busy} onClick={() => run(async () => setPreview(await adminApi<PushPreview>('/broadcast/preview', { method: 'POST', body: JSON.stringify(body()) })))}
           className="rounded-lg border border-[#0056D2] px-4 py-2 text-[13px] font-bold text-[#0056D2] disabled:opacity-40">Ver prévia e quantas pessoas</button>
@@ -199,6 +227,8 @@ function PushSend({ onDone }: { onDone: () => void }) {
           {preview.sample && <p>Como chega: <strong>{preview.sample.title}</strong> — {preview.sample.body}</p>}
           {preview.destination_label && <p className="text-[12px] text-slate-500">Ao tocar abre: {preview.destination_label}</p>}
           <p>Vão receber: <strong>{numberFmt(preview.will_send)}</strong> {preview.will_send === 1 ? 'pessoa' : 'pessoas'}.</p>
+          {kind === 'all' && !includeAlready && (preview.already_received ?? 0) > 0 && <p className="text-[12px] text-slate-500">{numberFmt(preview.already_received ?? 0)} já receberam antes e ficam de fora (marque a caixa acima para reenviar).</p>}
+          {kind === 'all' && includeAlready && <p className="rounded-lg bg-amber-50 p-2 text-[12px] text-amber-900" role="note">Reenvio: quem já recebeu esta notificação vai receber de novo.</p>}
           {kind === 'test' && preview.test_accounts && (
             <ul className="space-y-0.5 text-[12.5px]">
               {preview.test_accounts.map((a) => <li key={a.name} className={a.has_push ? '' : 'text-amber-800'}>{a.has_push ? '✓' : '⚠'} {a.name}{a.has_push ? '' : ' — sem notificação ativa: não vai receber'}</li>)}
@@ -213,7 +243,7 @@ function PushSend({ onDone }: { onDone: () => void }) {
           <button type="button" disabled={busy || preview.will_send === 0 || (kind === 'all' && typed !== String(preview.will_send))}
             onClick={() => run(async () => {
               await adminApi('/broadcast/send', { method: 'POST', body: JSON.stringify({ ...body(), confirm_count: preview.will_send }) });
-              setMsg({ ok: true, text: kind === 'test' ? 'Teste enviado. Confira no celular.' : 'Envio iniciado.' }); setPreview(null); setTyped(''); onDone();
+              setMsg({ ok: true, text: kind === 'test' ? 'Teste enviado. Confira no celular.' : 'Envio iniciado. Acompanhe o progresso abaixo.' }); setPreview(null); setTyped(''); setSentCount((n) => n + 1); onDone();
             })}
             className="rounded-lg bg-[#0056D2] px-4 py-2 text-[13px] font-bold text-white disabled:opacity-40">
             {kind === 'test' ? 'Enviar teste' : `Enviar para ${numberFmt(preview.will_send)}`}
@@ -222,6 +252,7 @@ function PushSend({ onDone }: { onDone: () => void }) {
         </div>
       )}
       {msg && <p className={`mt-3 text-[12.5px] font-semibold ${msg.ok ? 'text-emerald-600' : 'text-rose-600'}`}>{msg.text}</p>}
+      <PushProgress refreshKey={sentCount} />
     </Card>
   );
 }
@@ -235,12 +266,13 @@ function EmailSend({ data, onDone }: { data: Summary; onDone: () => void }) {
   const [count, setCount] = useState('');
   const [preview, setPreview] = useState<EmailPreview | null>(null);
   const [typed, setTyped] = useState('');
+  const [includeAlready, setIncludeAlready] = useState(false);
   const [html, setHtml] = useState<{ subject: string; html: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   if (!e) return null;
   const running = e.state?.phase === 'running';
-  const body = { segment: group, audience: { kind, count: kind === 'count' ? Number(count) || undefined : undefined } };
+  const body = { segment: group, audience: { kind, count: kind === 'count' ? Number(count) || undefined : undefined }, include_already: kind !== 'test' && includeAlready };
   const invalidate = () => { setPreview(null); setTyped(''); };
   const run = async (fn: () => Promise<void>) => {
     setBusy(true); setMsg(null);
@@ -272,6 +304,12 @@ function EmailSend({ data, onDone }: { data: Summary; onDone: () => void }) {
           ))}
           {kind === 'count' && <input className="w-24 rounded-md border border-slate-200 px-2 py-1" inputMode="numeric" placeholder="quantas" value={count} onChange={(ev) => { setCount(ev.target.value.replace(/\D/g, '')); invalidate(); }} />}
         </div>
+        {kind !== 'test' && (
+          <label className="flex items-start gap-1.5 text-[12.5px] text-slate-700">
+            <input type="checkbox" className="mt-0.5" checked={includeAlready} onChange={(ev) => { setIncludeAlready(ev.target.checked); invalidate(); }} />
+            <span>Incluir quem <strong>já recebeu</strong> este e-mail (reenviar). Desmarcado, quem já recebeu não repete.</span>
+          </label>
+        )}
         <div className="flex flex-wrap gap-2">
           <button type="button" disabled={busy} onClick={() => run(async () => setHtml(html ? null : await adminApi<{ subject: string; html: string }>(`/email-campaigns/${e.campaign_id}/html`)))}
             className="rounded-lg border border-slate-200 px-3 py-1.5 text-[12px] font-bold text-slate-600 disabled:opacity-40">{html ? 'Esconder o e-mail' : 'Ver como o e-mail fica'}</button>
@@ -289,7 +327,9 @@ function EmailSend({ data, onDone }: { data: Summary; onDone: () => void }) {
         )}
         {preview && (
           <div className="rounded-lg bg-slate-50 p-3 text-[13px] text-slate-700">
-            <p><strong>{numberFmt(preview.will_send)}</strong> {preview.will_send === 1 ? 'pessoa recebe' : 'pessoas recebem'} agora (quem já recebeu este e-mail não repete).</p>
+            <p><strong>{numberFmt(preview.will_send)}</strong> {preview.will_send === 1 ? 'pessoa recebe' : 'pessoas recebem'} agora{kind !== 'test' && !includeAlready ? ' (quem já recebeu este e-mail não repete)' : ''}.</p>
+            {kind !== 'test' && !includeAlready && (preview.already_received ?? 0) > 0 && <p className="text-[12px] text-slate-500">{numberFmt(preview.already_received ?? 0)} já receberam antes e ficam de fora (marque a caixa acima para reenviar).</p>}
+            {kind !== 'test' && includeAlready && <p className="mt-1 rounded-lg bg-amber-50 p-2 text-[12px] text-amber-900" role="note">Reenvio: quem já recebeu este e-mail vai receber de novo.</p>}
             {preview.sample && <p className="mt-1 text-[12px] text-slate-500">Exemplo de assunto: <strong>{preview.sample.subject}</strong></p>}
             {kind === 'test' ? (
               <button type="button" disabled={busy} onClick={() => run(async () => { await adminApi(`/email-campaigns/${e.campaign_id}/send`, { method: 'POST', body: JSON.stringify(body) }); setMsg({ ok: true, text: 'Enviado para você.' }); setPreview(null); })}
