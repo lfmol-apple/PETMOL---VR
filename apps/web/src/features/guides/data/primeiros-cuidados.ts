@@ -472,6 +472,15 @@ export const primeirosCuidadosGuides: Guide[] = [
         type: 'p',
         text: 'Adotar bem é menos sobre comprar tudo e mais sobre acertar a base: itens essenciais, casa segura, rotina calma e a consulta veterinária inicial na primeira semana. O resto entra aos poucos, conforme você conhece o cão.',
       },
+      {
+        type: 'links',
+        title: 'Itens do checklist em detalhe',
+        items: [
+          { slug: 'bebedouro-automatico-cachorro-vale-a-pena', label: 'Bebedouro automático para cachorro: vale a pena?' },
+          { slug: 'como-escolher-tapete-higienico-cachorro', label: 'Como escolher tapete higiênico para cachorro' },
+          { slug: 'quanto-meu-cachorro-deve-comer-por-dia', label: 'Quanto o meu cachorro deve comer por dia?' },
+        ],
+      },
     ],
     faq: [
       {

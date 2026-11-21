@@ -98,6 +98,13 @@ export const alimentacaoGuides: Guide[] = [
         type: 'p',
         text: 'A ração ideal é uma decisão de encaixe, não de status: fase de vida certa, porte certo, rótulo claro, custo sustentável. Depois de escolher, o próximo passo é medir a porção direito e guardar o saco corretamente — é aí que a maioria dos problemas de alimentação realmente aparece.',
       },
+      {
+        type: 'links',
+        title: 'Depois de escolher a ração',
+        items: [
+          { slug: 'quanto-meu-cachorro-deve-comer-por-dia', label: 'Quanto o meu cachorro deve comer por dia?' },
+        ],
+      },
     ],
     tool: 'custo-mensal-racao',
     faq: [
@@ -230,6 +237,14 @@ export const alimentacaoGuides: Guide[] = [
         type: 'p',
         text: 'Uma divisão de 10 segundos por compra resolve o problema de ficar sem ração e ainda ajuda a escolher o tamanho de saco que faz sentido para o seu cão. Se quiser ir além e comparar o custo real entre marcas, o próximo passo é calcular o custo por dia.',
       },
+      {
+        type: 'links',
+        title: 'Antes e depois da conta',
+        items: [
+          { slug: 'quanto-meu-cachorro-deve-comer-por-dia', label: 'Quanto o meu cachorro deve comer por dia?' },
+          { slug: 'como-armazenar-racao-depois-de-aberta', label: 'Como armazenar ração depois de aberta' },
+        ],
+      },
     ],
     tool: 'duracao-saco-racao',
     faq: [
@@ -353,6 +368,13 @@ export const alimentacaoGuides: Guide[] = [
       {
         type: 'p',
         text: 'A ração é a despesa mais fácil de prever e a mais fácil de otimizar sem prejudicar o cão. O erro clássico é olhar só o preço do pacote: quem compara pelo custo por dia costuma gastar menos comprando uma ração igual ou melhor.',
+      },
+      {
+        type: 'links',
+        title: 'Para acertar o número de gramas',
+        items: [
+          { slug: 'quanto-meu-cachorro-deve-comer-por-dia', label: 'Quanto o meu cachorro deve comer por dia?' },
+        ],
       },
     ],
     tool: 'custo-mensal-racao',
