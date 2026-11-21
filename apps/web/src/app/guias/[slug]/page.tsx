@@ -47,12 +47,14 @@ export async function generateMetadata({ params }: GuidePageProps): Promise<Meta
       publishedTime: guide.publishedAt,
       modifiedTime: guide.updatedAt,
       authors: [`${SITE_URL}/sobre`],
-      ...(guide.hero ? { images: [{ url: `${SITE_URL}${guide.hero}` }] } : {}),
+      // sem arte própria, usa a imagem de marca padrão: o link compartilhado (WhatsApp/Instagram) ganha prévia. Não é fator de ranking.
+      images: [{ url: `${SITE_URL}${guide.hero ?? '/og-image.png'}`, ...(guide.hero ? {} : { width: 1200, height: 630 }) }],
     },
     twitter: {
       card: 'summary_large_image',
       title: guide.title,
       description: guide.description,
+      images: [`${SITE_URL}${guide.hero ?? '/og-image.png'}`],
     },
   };
 }

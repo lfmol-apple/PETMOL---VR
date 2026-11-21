@@ -589,7 +589,7 @@ export const alimentacaoGuides: Guide[] = [
     title: 'Como armazenar ração depois de aberta',
     category: 'alimentacao',
     description:
-      'Ração perde qualidade pelo contato com ar, luz, calor e umidade. Mantenha no saco original, dentro de um recipiente fechado, em local fresco — e consuma em 4 a 6 semanas.',
+      'Ração perde qualidade com ar, luz, calor e umidade. Mantenha no saco original, em recipiente fechado e em local fresco, e consuma em 4 a 6 semanas.',
     summary:
       'A gordura da ração oxida (rança) quando exposta ao ar, à luz e ao calor, e a umidade favorece fungos. O jeito certo é deixar a ração no saco original, fechar bem o saco, guardá-lo dentro de um pote ou balde com tampa, num lugar fresco e seco, e terminar em 4 a 6 semanas. Isso também orienta que tamanho de saco comprar.',
     publishedAt: '2026-09-04',
