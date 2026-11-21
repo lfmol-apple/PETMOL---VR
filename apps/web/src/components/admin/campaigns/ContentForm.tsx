@@ -51,8 +51,12 @@ export function ContentReadOnly({ content, locked, destinations }: { content: Ca
 
 const LINK_GOAL = 'link_produto';
 
-/** Campanha SÓ de link (decisão do dono, 16/11/2026): o link do produto é obrigatório e o toque abre sempre o produto na loja. */
-export function ContentForm({ initial, onCreated }: {
+/**
+ * Campanha com objetivo e destino (compras/loja, alimentação, vacina…) OU com link de produto.
+ * Com link: o toque abre exatamente o link colado (o preenchimento automático pela oferta continua).
+ * Sem link: o dono escolhe o objetivo (texto sugerido) e a tela do app que abre ao tocar.
+ */
+export function ContentForm({ goals = [], destinations = {}, initial, onCreated }: {
   goals?: Goal[]; destinations?: Record<string, string>; initial: Draft; onCreated: (c: Campaign) => void;
 }) {
   const [d, setD] = useState<Draft>(initial);
@@ -62,6 +66,13 @@ export function ContentForm({ initial, onCreated }: {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const set = (p: Partial<Draft>) => setD((x) => ({ ...x, ...p }));
+  const otherGoals = goals.filter((g) => g.key !== LINK_GOAL);
+  const groups = Array.from(new Set(otherGoals.map((g) => g.group)));
+  const pickGoal = (key: string) => {
+    const g = goals.find((x) => x.key === key);
+    set(g ? { goal: key, title: g.title, message: g.message, destination: g.open || 'home' } : { goal: '' });
+    if (key === LINK_GOAL) setTimeout(() => document.getElementById('cp-link')?.focus(), 0);   // escolheu o link: já vai para o campo dele
+  };
 
   const checkLink = async (urlArg?: string) => {
     const url = (urlArg ?? d.productUrl).trim();
@@ -75,6 +86,8 @@ export function ContentForm({ initial, onCreated }: {
       setD((x) => ({
         ...x,
         productTitle: info.title ?? x.productTitle,
+        destination: 'produto',
+        goal: x.goal || LINK_GOAL,
         title: x.title.trim() ? x.title : auto.title,
         message: x.message.trim() ? x.message : (auto.message || x.message),
         name: x.name.trim() ? x.name : auto.name,
@@ -83,19 +96,24 @@ export function ContentForm({ initial, onCreated }: {
   };
 
   const hasLink = d.productUrl.trim() !== '';
-  const missing = !hasLink ? 'Cole o link do produto (com o seu afiliado).'
-    : !link && !initial.productUrl ? 'Confira o link do produto antes de continuar.'
-    : d.productTitle.trim().length < 2 ? 'Informe o nome do produto.'
-    : d.name.trim().length < 3 ? 'Dê um nome à campanha (mínimo 3 letras).'
-    : !d.message.trim() ? 'Escreva a mensagem principal.' : null;
+  const goalObj = goals.find((x) => x.key === d.goal);
+  const suggested = goalObj?.open || 'home';
+  const dest = (k: string) => destinations[k] ?? k;
+  const needsLink = !hasLink && (d.destination === 'produto' || d.goal === LINK_GOAL);   // abre "o produto", mas não há link
+  const missing = d.name.trim().length < 3 ? 'Dê um nome à campanha (mínimo 3 letras).'
+    : !d.message.trim() ? 'Escreva a mensagem principal.'
+    : needsLink ? 'Este objetivo abre o link do produto: cole o link acima (ou escolha outro objetivo / “Escrever livremente”).'
+    : hasLink && !link && !initial.productUrl ? 'Confira o link do produto antes de continuar.'
+    : hasLink && d.productTitle.trim().length < 2 ? 'Informe o nome do produto.' : null;
 
   const save = async () => {
     if (busy) return;                       // clique duplicado: um pedido por vez
     setBusy(true); setErr(null);
     try {
       const c = await call<Campaign>('/campaigns', {
-        name: d.name.trim(), message: d.message.trim(), title: d.title.trim() || null, goal: LINK_GOAL, destination: 'produto',
-        product_url: d.productUrl.trim(), product_title: d.productTitle.trim(),
+        name: d.name.trim(), message: d.message.trim(), title: d.title.trim() || null,
+        goal: d.goal || (hasLink ? LINK_GOAL : null), destination: hasLink ? 'produto' : d.destination || null,
+        product_url: hasLink ? d.productUrl.trim() : null, product_title: hasLink ? d.productTitle.trim() : null,
       });
       onCreated(c);
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
@@ -103,12 +121,25 @@ export function ContentForm({ initial, onCreated }: {
 
   return (
     <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (!missing) void save(); }}>
+      <div>
+        <label className={label} htmlFor="cp-goal">Esta campanha vai incentivar o tutor a: (opcional, preenche um texto sugerido)</label>
+        <select id="cp-goal" className={input} value={d.goal} onChange={(e) => pickGoal(e.target.value)}>
+          {goals.some((g) => g.key === LINK_GOAL) && <option value={LINK_GOAL}>{goals.find((g) => g.key === LINK_GOAL)?.label}</option>}
+          <option value="">Escrever livremente</option>
+          {groups.map((g) => <optgroup key={g} label={g}>{otherGoals.filter((x) => x.group === g).map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</optgroup>)}
+        </select>
+      </div>
       <div className="rounded-xl border border-slate-200 p-3">
-        <label className={label} htmlFor="cp-link">Link do produto: cole o link com o seu afiliado, o PETMOL não altera nada nele</label>
+        <label className={label} htmlFor="cp-link">Link do produto (opcional): cole o link com o seu afiliado, o PETMOL não altera nada nele</label>
         <div className="flex gap-2">
           <input id="cp-link" className={input} inputMode="url" autoComplete="off" value={d.productUrl} placeholder="Cole o link (Amazon, Cobasi, Shopee, Mercado Livre…)"
             onPaste={(e) => { const t = e.clipboardData?.getData('text')?.trim(); if (t && /^https:\/\//i.test(t)) setTimeout(() => void checkLink(t), 0); }}
-            onChange={(e) => { set({ productUrl: e.target.value }); setLink(null); setLinkErr(null); }} />
+            onChange={(e) => {
+              const v = e.target.value;
+              // tirou o link: o toque deixa de abrir "o produto" e volta ao destino do objetivo (nunca fica um destino sem link)
+              set({ productUrl: v, ...(v.trim() === '' && d.destination === 'produto' ? { destination: suggested } : {}) });
+              setLink(null); setLinkErr(null);
+            }} />
           <button type="button" disabled={checking || !hasLink} onClick={() => void checkLink()} className="shrink-0 rounded-lg bg-slate-800 px-3 text-[13px] font-bold text-white disabled:opacity-40">{checking ? 'Conferindo…' : 'Conferir'}</button>
         </div>
         {linkErr && <p role="alert" className="mt-2 text-[12.5px] text-rose-700">{linkErr}</p>}
@@ -139,7 +170,7 @@ export function ContentForm({ initial, onCreated }: {
       </div>
       <div>
         <label className={label} htmlFor="cp-name">Nome da campanha (só para você identificar)</label>
-        <input id="cp-name" className={input} maxLength={120} value={d.name} onChange={(e) => set({ name: e.target.value })} placeholder="Preenchido pelo nome do produto" />
+        <input id="cp-name" className={input} maxLength={120} value={d.name} onChange={(e) => set({ name: e.target.value })} placeholder="Ex.: Ração para gatos — fevereiro" />
       </div>
       <div>
         <label className={label} htmlFor="cp-title">Título</label>
@@ -158,9 +189,30 @@ export function ContentForm({ initial, onCreated }: {
           {(hasVariables(d.title) || hasVariables(d.message) || !d.title.trim()) && <p className="mt-1 text-[11.5px] text-slate-500">Cada tutor recebe com o próprio nome e os nomes dos pets dele.</p>}
         </div>
       )}
-      <p data-testid="ao-tocar" className="rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-[13px] leading-snug text-emerald-900">
-        Ao tocar na notificação, abre <strong>o produto direto na loja</strong>{link ? <> ({link.store})</> : null}, com o link exatamente como você colou.
-      </p>
+      <div data-testid="ao-tocar">
+        <label className={label} htmlFor="cp-dest">Ao tocar na notificação, abrir:</label>
+        {hasLink || d.goal === LINK_GOAL ? (
+          <p id="cp-dest" className="rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-[13px] leading-snug text-emerald-900">
+            <strong>O link do produto</strong>, direto na loja{link ? <> ({link.store})</> : null}. {hasLink ? 'O PETMOL abre exatamente o link colado acima; não abre a tela do objetivo.' : 'Cole o link acima: não há outra pergunta de destino.'}
+          </p>
+        ) : (
+          <select id="cp-dest" className={input} value={d.destination === 'produto' ? '' : d.destination} onChange={(e) => set({ destination: e.target.value })}>
+            {d.destination === 'produto' && <option value="" disabled>— cole o link acima —</option>}
+            {Object.entries(destinations).filter(([k]) => k !== 'produto').map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        )}
+        {!hasLink && goalObj && !needsLink && d.destination !== suggested && suggested !== 'produto' && (
+          <p role="note" className="mt-1.5 rounded-lg bg-amber-50 p-2 text-[12.5px] leading-snug text-amber-900">
+            Atenção: o objetivo “{goalObj.label}” costuma abrir <strong>{dest(suggested)}</strong>, e você escolheu <strong>{dest(d.destination)}</strong>. Confira se coincide com o que a mensagem promete.{' '}
+            <button type="button" className="font-bold underline" onClick={() => set({ destination: suggested })}>Usar {dest(suggested)}</button>
+          </p>
+        )}
+        {hasLink && goalObj && suggested !== 'produto' && (
+          <p role="note" className="mt-1.5 rounded-lg bg-amber-50 p-2 text-[12.5px] leading-snug text-amber-900">
+            Atenção: o objetivo “{goalObj.label}” abriria {dest(suggested)}, mas como há um link, o toque abre <strong>o link do produto</strong>. Confira se a mensagem combina com o link.
+          </p>
+        )}
+      </div>
       {err && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-[13px] text-rose-800">{err}</p>}
       {missing && <p className="text-[12.5px] text-amber-800">{missing}</p>}
       <button type="submit" disabled={busy || !!missing} className="rounded-lg bg-sky-700 px-4 py-2.5 text-[14px] font-bold text-white disabled:opacity-40">{busy ? 'Salvando…' : 'Salvar campanha e continuar'}</button>

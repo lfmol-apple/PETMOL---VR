@@ -10,8 +10,8 @@ let be: Backend;
 beforeEach(() => { be = new Backend(); be.install(); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
-describe('aba Push — só campanhas de link', () => {
-  it('não há envio avulso nem modo para escolher: só campanhas de link', async () => {
+describe('aba Push — campanhas com objetivo/destino ou link', () => {
+  it('não há envio avulso nem modo para escolher: só campanhas (com objetivo/destino ou link)', async () => {
     render(<PushTab />);
     expect(screen.queryByRole('tab')).toBeNull();
     expect(screen.queryByText(/Envio avulso/)).toBeNull();
