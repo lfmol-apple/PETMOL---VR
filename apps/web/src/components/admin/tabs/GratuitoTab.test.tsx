@@ -115,4 +115,59 @@ describe('aba Gratuito', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Enviar para 600' }));
     await waitFor(() => expect(api.adminApi.mock.calls.some(([p, i]) => p === '/email-campaigns/g1/send' && JSON.parse(i.body).confirm_count === 600 && JSON.parse(i.body).segment === 'gratuito_dia0')).toBe(true));
   });
+
+  it('notificação: por padrão quem já recebeu fica de fora; a caixa "incluir quem já recebeu" reenvia de propósito', async () => {
+    api.adminApi.mockImplementation(async (path: string) => {
+      if (path === '/gratuito/summary') return base;
+      if (path === '/broadcast/progress/latest?goal=atalho') return { found: false };
+      if (path === '/broadcast/preview') return { will_send: 3, already_received: 5, sample: null };
+      return { id: 'b1' };
+    });
+    render(<GratuitoTab />);
+    await screen.findByText(GRATUITO_PUSH_TITLE);
+    fireEvent.click(screen.getByLabelText(/Todos que falta algo/));
+    fireEvent.click(screen.getByRole('button', { name: 'Ver prévia e quantas pessoas' }));
+    await screen.findByText(/5 já receberam antes e ficam de fora/);
+    const last = () => { const c = api.adminApi.mock.calls.filter(([p]) => p === '/broadcast/preview'); return JSON.parse(c[c.length - 1][1].body); };
+    expect(last().exclude_received_goal).toBe('atalho');
+    fireEvent.click(screen.getByLabelText(/Incluir quem já recebeu esta notificação/));
+    expect(screen.queryByText(/ficam de fora/)).toBeNull();              // mudar a opção invalida a prévia
+    fireEvent.click(screen.getByRole('button', { name: 'Ver prévia e quantas pessoas' }));
+    await screen.findByText(/Reenvio: quem já recebeu esta notificação vai receber de novo/);
+    expect(last().exclude_received_goal).toBeUndefined();
+  });
+
+  it('notificação: mostra o progresso (quantos receberam) do último envio', async () => {
+    api.adminApi.mockImplementation(async (path: string) => {
+      if (path === '/gratuito/summary') return base;
+      if (path === '/broadcast/progress/latest?goal=atalho') return { found: true, id: 'b1', phase: 'sending', total: 200, attempted: 50, delivered: 45, not_delivered: 5, created_at: '2026-11-21T12:00:00Z' };
+      return {};
+    });
+    render(<GratuitoTab />);
+    const box = await screen.findByTestId('push-progress');
+    expect(box.textContent).toContain('Enviando a notificação');
+    expect(box.textContent).toContain('Processadas: 50 de 200 (25%)');
+    expect(box.textContent).toContain('45 receberam');
+    expect(box.textContent).toContain('5 não receberam');
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('50');
+  });
+
+  it('e-mail: "incluir quem já recebeu" vai como include_already e a prévia diz quantos já receberam', async () => {
+    api.adminApi.mockImplementation(async (path: string) => {
+      if (path === '/gratuito/summary') return base;
+      if (path === '/broadcast/progress/latest?goal=atalho') return { found: false };
+      if (path.endsWith('/preview')) return { will_send: 10, audience_total: 600, already_received: 590, sample: null };
+      return { started: true };
+    });
+    render(<GratuitoTab />);
+    await screen.findByText(/Dia 0: quem a notificação não alcança/);
+    fireEvent.click(screen.getByLabelText('Todos do grupo'));
+    fireEvent.click(screen.getByRole('button', { name: 'Ver quantos recebem' }));
+    await screen.findByText(/590 já receberam antes e ficam de fora/);
+    fireEvent.click(screen.getByLabelText(/Incluir quem já recebeu este e-mail/));
+    fireEvent.click(screen.getByRole('button', { name: 'Ver quantos recebem' }));
+    await screen.findByText(/Reenvio: quem já recebeu este e-mail vai receber de novo/);
+    const c = api.adminApi.mock.calls.filter(([p]) => String(p).endsWith('/preview'));
+    expect(JSON.parse(c[c.length - 1][1].body).include_already).toBe(true);
+  });
 });

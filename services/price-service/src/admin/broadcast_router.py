@@ -409,11 +409,30 @@ def _test_accounts_info(db, targets: list[dict]) -> list[dict]:
     return [{"name": first_name(t.get("name")) or "Conta sem nome", "has_push": t["user_id"] in with_push} for t in targets]
 
 
+def received_goal_ids(db, goal: str) -> set[str]:
+    """Quem já recebeu (push aceito) um envio real com esta meta. O teste "só eu" não conta."""
+    test_ids = {str(i) for (i,) in db.query(AdminBroadcast.id).filter(AdminBroadcast.audience_kind == "test").all()}
+    goal_ids = {str(i) for (i,) in db.query(AdminBroadcast.id).filter(AdminBroadcast.goal == goal).all()} - test_ids
+    if not goal_ids:
+        return set()
+    out: set[str] = set()
+    for part in _chunks(list(goal_ids)):
+        out |= {str(u) for (u,) in db.query(AdminBroadcastRecipient.user_id).filter(
+            AdminBroadcastRecipient.broadcast_id.in_(part), AdminBroadcastRecipient.delivered.is_(True)).all()}
+    return out
+
+
 def _select_targets(db, segment: str, kind: str, count: Optional[int], admin_user_id: str,
-                    ignore_weekly_cap: bool = False, care: Optional[str] = None) -> tuple[list[dict], dict]:
+                    ignore_weekly_cap: bool = False, care: Optional[str] = None,
+                    exclude_received_goal: Optional[str] = None) -> tuple[list[dict], dict]:
     if kind == "test":
         return _admin_target(db, admin_user_id), {"opt_out": 0, "weekly_cap": 0, "segment": 0}
     targets, skipped = eligible_users(db, segment, ignore_weekly_cap, care)
+    if exclude_received_goal:
+        got = received_goal_ids(db, exclude_received_goal)
+        kept = [t for t in targets if t["user_id"] not in got]
+        skipped["already_received"] = len(targets) - len(kept)
+        targets = kept
     if kind == "count" and count is not None and count < len(targets):
         targets = random.sample(targets, count)
     return targets, skipped
@@ -466,7 +485,7 @@ def _run_send(broadcast_id: str, message: str, targets: list[dict], title_templa
             delivered += 1 if ok else 0
             db.add(AdminBroadcastRecipient(broadcast_id=broadcast_id, user_id=t["user_id"],
                                            delivered=ok, title=title, body=body))
-            if (i + 1) % 20 == 0:
+            if (i + 1) % 10 == 0:
                 db.commit()
                 time.sleep(0.2)
         row = db.query(AdminBroadcast).filter(AdminBroadcast.id == broadcast_id).first()
@@ -630,6 +649,8 @@ class BroadcastIn(BaseModel):
     goal: Optional[str] = None   # chave do GOAL_CATALOG ("Esta notificação vai incentivar o usuário a…")
     # Decisão do dono (09/11/2026): o envio alcança SEMPRE todos com notificação ativa; sem limite semanal. Só opt-out fica de fora.
     ignore_weekly_cap: bool = True
+    # Painel Gratuito: por padrão quem JÁ recebeu esta meta não recebe de novo; o dono pode incluir de propósito ("reenviar").
+    exclude_received_goal: Optional[str] = None
 
     @model_validator(mode="after")
     def _goal_known(self):
@@ -659,7 +680,7 @@ class SendIn(BroadcastIn):
 def _plan(db, payload: BroadcastIn, admin_user_id: str) -> tuple[list[dict], dict, int]:
     care = (_GOAL.get(payload.goal or "") or {}).get("care")
     targets, skipped = _select_targets(db, payload.segment, payload.audience.kind, payload.audience.count,
-                                       admin_user_id, payload.ignore_weekly_cap, care)
+                                       admin_user_id, payload.ignore_weekly_cap, care, payload.exclude_received_goal)
     return targets, skipped, len(targets)
 
 
@@ -728,7 +749,7 @@ def preview(payload: BroadcastIn, current=Depends(get_current_admin)):
             title, body = personalize(payload.message, ex.get("name"), ex.get("pet_names") or [], payload.title)
             sample = {"title": title, "body": body}
         dest = payload.destination or (_GOAL.get(payload.goal or "") or {}).get("open") or "home"
-        result = {"will_send": will_send, "skipped": skipped, "sample": sample, "destination": dest,
+        result = {"will_send": will_send, "skipped": skipped, "already_received": skipped.get("already_received", 0), "sample": sample, "destination": dest,
                   "destination_label": DESTINATIONS.get(dest, dest)}
         if payload.audience.kind == "test":
             result["test_accounts"] = _test_accounts_info(db, targets)
@@ -766,6 +787,26 @@ def send(payload: SendIn, current=Depends(get_current_admin)):
         db.close()
     _spawn(_run_send, broadcast_id, payload.message.strip(), targets, payload.title, destination, payload.product_url)
     return {"id": broadcast_id, "will_send": will_send, "phase": "sending"}
+
+
+@router.get("/progress/latest")
+def progress_latest(goal: str, current=Depends(get_current_admin)):
+    """Andamento do ÚLTIMO envio real desta meta (para o painel mostrar "X de Y" enquanto envia). Leve: só contagens."""
+    db = SessionLocal()
+    try:
+        b = (db.query(AdminBroadcast).filter(AdminBroadcast.goal == goal, AdminBroadcast.audience_kind != "test")
+             .order_by(AdminBroadcast.created_at.desc()).first())
+        if not b:
+            return {"found": False}
+        attempted = db.query(func.count(AdminBroadcastRecipient.id)).filter(AdminBroadcastRecipient.broadcast_id == b.id).scalar() or 0
+        delivered = db.query(func.count(AdminBroadcastRecipient.id)).filter(
+            AdminBroadcastRecipient.broadcast_id == b.id, AdminBroadcastRecipient.delivered.is_(True)).scalar() or 0
+        return {"found": True, "id": b.id, "phase": b.phase, "total": int(b.recipients_total or 0), "attempted": int(attempted),
+                "delivered": int(delivered), "not_delivered": int(attempted) - int(delivered),
+                "created_at": b.created_at.isoformat() if b.created_at else None,
+                "finished_at": b.finished_at.isoformat() if getattr(b, "finished_at", None) else None}
+    finally:
+        db.close()
 
 
 @router.get("/history")
