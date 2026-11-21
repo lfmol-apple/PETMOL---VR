@@ -16,6 +16,6 @@ describe('pctOf (base = "Se cadastrou")', () => {
     expect(pctOf(6, 4)).toBe('150%');
   });
   it('downloads e cadastros não têm percentual', () => {
-    expect(PERCENT_KEYS).toEqual(['pets', 'alimentacao', 'notificacoes']);
+    expect(PERCENT_KEYS).toEqual(['pets', 'alimentacao', 'notificacoes', 'localizacao']);
   });
 });

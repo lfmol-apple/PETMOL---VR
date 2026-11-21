@@ -13,7 +13,7 @@ import { Card, adminApi } from '@/components/admin/AdminUi';
 import { ErrorBox, Loading, numberFmt, useAsync } from '@/components/admin/sections/sections';
 import { PERCENT_KEYS, pctOf, type PercentKey } from '@/lib/admin/percent';
 
-type Key = 'downloads' | 'cadastros' | 'pets' | 'alimentacao' | 'notificacoes';
+type Key = 'downloads' | 'cadastros' | 'pets' | 'alimentacao' | 'notificacoes' | 'localizacao';
 interface Block { totals: Record<Key, number>; series: ({ date: string } & Record<Key, number>)[] }
 interface Perf extends Block { platforms?: { ios: Block; android: Block } }
 type View = 'all' | 'ios' | 'android';
@@ -39,6 +39,7 @@ const METRICS: { key: Key; label: string; hint: string }[] = [
   { key: 'pets', label: 'Cadastrou o pet', hint: 'Cadastrou o primeiro pet' },
   { key: 'alimentacao', label: 'Cadastrou a alimentação', hint: 'Configurou a ração' },
   { key: 'notificacoes', label: 'Notificações ativas', hint: 'Ativou as notificações' },
+  { key: 'localizacao', label: 'Localização ativa', hint: 'Compartilha a localização' },
 ];
 
 type Preset = '7d' | '30d' | '90d' | 'all' | 'custom';
@@ -72,16 +73,16 @@ export function DesempenhoTab() {
     <div className="space-y-5">
       <Card title="Hoje × ontem" subtitle="Hoje ainda está em andamento; ontem já fechou. Percentuais sobre quem se cadastrou no mesmo dia: pode passar de 100% quando a pessoa se cadastrou antes e fez a ação agora.">
         {today.loading && !today.data ? <Loading /> : today.error || yesterday.error || !today.data ? <ErrorBox msg={today.error || yesterday.error} /> : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             {METRICS.map((m) => (
               <div key={m.key} className="rounded-xl border border-slate-200 p-4">
                 <p className="text-[12px] font-bold uppercase tracking-wide text-slate-400">{m.label}</p>
                 <p className="mt-1 text-[32px] font-black leading-none text-slate-900">{numberFmt(today.data!.totals[m.key])}</p>
                 <p className="mt-1.5 text-[12px] text-slate-500">hoje · ontem <strong className="text-slate-700">{numberFmt(yesterday.data?.totals[m.key])}</strong></p>
                 {hasPct(m.key) && (
-                  <p className="mt-0.5 text-[13px] font-extrabold text-[#0056D2]" data-testid={`pct-hoje-${m.key}`}>
+                  <p className="mt-1.5 text-[24px] font-black leading-none text-[#0056D2]" data-testid={`pct-hoje-${m.key}`}>
                     {pctOf(today.data!.totals[m.key], today.data!.totals.cadastros)}
-                    <span className="ml-1 text-[11.5px] font-semibold text-slate-400">dos cadastros hoje · ontem {pctOf(yesterday.data?.totals[m.key], yesterday.data?.totals.cadastros)}</span>
+                    <span className="mt-1 block text-[11.5px] font-semibold leading-tight text-slate-400">dos cadastros hoje · ontem {pctOf(yesterday.data?.totals[m.key], yesterday.data?.totals.cadastros)}</span>
                   </p>
                 )}
                 {m.key === 'cadastros' && <p className="mt-0.5 text-[11.5px] font-semibold text-slate-400">base dos percentuais</p>}
@@ -110,16 +111,16 @@ export function DesempenhoTab() {
         </div>
         {period.loading && !period.data ? <Loading /> : period.error || !period.data ? <ErrorBox msg={period.error} /> : (
           <>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               {METRICS.map((m) => (
                 <div key={m.key} className="rounded-xl bg-slate-50 p-4">
                   <p className="text-[12px] font-bold uppercase tracking-wide text-slate-400">{m.label}</p>
                   <p className="mt-1 text-[32px] font-black leading-none text-[#0056D2]">{numberFmt(period.data!.totals[m.key])}</p>
                   <p className="mt-1.5 text-[12px] text-slate-500">{m.hint}</p>
                   {hasPct(m.key) && (
-                    <p className="mt-0.5 text-[13px] font-extrabold text-[#0056D2]" data-testid={`pct-periodo-${m.key}`}>
+                    <p className="mt-1.5 text-[24px] font-black leading-none text-[#0056D2]" data-testid={`pct-periodo-${m.key}`}>
                       {pctOf(period.data!.totals[m.key], period.data!.totals.cadastros)}
-                      <span className="ml-1 text-[11.5px] font-semibold text-slate-400">dos cadastros</span>
+                      <span className="mt-1 block text-[11.5px] font-semibold leading-tight text-slate-400">dos cadastros</span>
                     </p>
                   )}
                   {m.key === 'cadastros' && <p className="mt-0.5 text-[11.5px] font-semibold text-slate-400">base dos percentuais</p>}
