@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { AcheiUmPetInfo } from '@/components/public-info/AcheiUmPetInfo';
 
 export const metadata: Metadata = {
   title: 'Achei um pet: avise o tutor | PETMOL',
@@ -7,5 +8,10 @@ export const metadata: Metadata = {
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return children;
+  return (
+    <>
+      {children}
+      <AcheiUmPetInfo />
+    </>
+  );
 }

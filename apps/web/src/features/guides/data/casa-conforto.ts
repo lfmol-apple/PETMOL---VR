@@ -406,6 +406,14 @@ export const casaConfortoGuides: Guide[] = [
         type: 'p',
         text: 'Inox ou cerâmica, tamanho da porção, base estável — e comedouro lento se o cão engole rápido. Comedouro elevado só com indicação. O item é barato; o que faz diferença é a higiene diária.',
       },
+      {
+        type: 'links',
+        title: 'Porção e higiene',
+        items: [
+          { slug: 'quanto-meu-cachorro-deve-comer-por-dia', label: 'Quanto o meu cachorro deve comer por dia?' },
+          { slug: 'como-escolher-tapete-higienico-cachorro', label: 'Como escolher tapete higiênico para cachorro' },
+        ],
+      },
     ],
     faq: [
       {
