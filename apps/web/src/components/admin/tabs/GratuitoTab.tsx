@@ -28,8 +28,16 @@ interface Summary {
   baseline: { taken_at: string; taken_by: string | null; values: Record<string, number> } | null;
   now: Record<string, number>; cards?: CardData[]; situations: Situation[]; email: EmailBlock | null; email_groups: { dia0: number; dia3: number };
 }
-interface PushProgress { found: boolean; id?: string; phase?: string; total?: number; attempted?: number; delivered?: number; not_delivered?: number; created_at?: string; finished_at?: string | null }
-interface PushPreview { will_send: number; already_received?: number; sample: { title: string; body: string } | null; test_accounts?: { name: string; has_push: boolean }[]; destination_label?: string }
+interface PushProgress {
+  found: boolean; id?: string; phase?: string; is_resend?: boolean; legacy?: boolean; created_at?: string; finished_at?: string | null;
+  total?: number; processed?: number; accepted?: number; failed?: number; uncertain?: number; queued?: number; in_flight?: number;
+  quiet_pending?: number; released?: number; quiet_next_open?: string | null; quiet_due_now?: number; can_resume?: boolean; can_release?: boolean;
+}
+interface QuietInfo { applies: boolean; send_now: number; pending: number; unknown_tz: number; next_open: string | null; rule: string }
+interface PushPreview {
+  will_send: number; already_received?: number; resend?: boolean; already_breakdown?: { accepted: number; uncertain: number; in_progress: number }; quiet?: QuietInfo;
+  sample: { title: string; body: string } | null; test_accounts?: { name: string; has_push: boolean }[]; destination_label?: string;
+}
 interface EmailPreview { will_send: number; already_received?: number; audience_total?: number; sample: { subject: string; text: string } | null }
 
 /** Texto FIXO da notificação (aprovado pelo dono e pela revisão jurídica). No teste, entra "TESTE." na frente. */
@@ -162,20 +170,57 @@ function Quadro({ data }: { data: Summary }) {
 
 // ── Notificação ──────────────────────────────────────────────────────────────
 
-/** Andamento do último envio da notificação: quantas pessoas já receberam, ao vivo enquanto envia. */
-export function PushProgress({ refreshKey }: { refreshKey: number }) {
-  const { data } = useAsync<PushProgress>(() => adminApi('/broadcast/progress/latest?goal=atalho'), [refreshKey], { intervalMs: 3000 });
+/** Andamento do último envio da notificação, com números do banco. "Aceita pelo provedor" NÃO é "entregue no aparelho". */
+const PHASE_LABEL: Record<string, string> = { sending: 'Enviando a notificação…', done: 'Último envio concluído', interrupted: 'Envio interrompido (nada foi reenviado)', waiting: 'Aguardando o fim do horário de silêncio', error: 'Último envio parou com erro' };
+
+export function PushProgress({ refreshKey, onChange }: { refreshKey: number; onChange?: () => void }) {
+  const [bump, setBump] = useState(0);
+  const { data } = useAsync<PushProgress>(() => adminApi('/broadcast/progress/latest?goal=atalho'), [refreshKey, bump], { intervalMs: 3000 });
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   if (!data || !data.found) return null;
-  const total = data.total ?? 0; const attempted = data.attempted ?? 0; const delivered = data.delivered ?? 0;
+  const total = data.total ?? 0; const processed = data.processed ?? 0; const accepted = data.accepted ?? 0;
+  const failed = data.failed ?? 0; const uncertain = data.uncertain ?? 0; const queued = data.queued ?? 0; const inFlight = data.in_flight ?? 0;
+  const quiet = data.quiet_pending ?? 0; const released = data.released ?? 0;
   const sending = data.phase === 'sending';
-  const widthPct = total > 0 ? Math.min(100, Math.round((attempted / total) * 100)) : 0;
+  const widthPct = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0;
+  const resumeN = queued + (data.quiet_due_now ?? 0);
+  const releaseN = queued + quiet;
+  const act = async (path: string, n: number, okText: string) => {
+    setBusy(true); setMsg(null);
+    try { await adminApi(`/broadcast/${data.id}/${path}`, { method: 'POST', body: JSON.stringify({ confirm_count: n }) }); setMsg({ ok: true, text: okText }); setTyped(''); setBump((b) => b + 1); onChange?.(); }
+    catch (e) { setMsg({ ok: false, text: e instanceof Error ? e.message : 'Não foi possível.' }); } finally { setBusy(false); }
+  };
+  const nxt = data.quiet_next_open ? fmtDateTime(data.quiet_next_open) : null;
   return (
     <div className="mt-3 rounded-xl border border-slate-200 p-3 text-[13px] text-slate-700" data-testid="push-progress">
-      <p className="font-bold text-slate-900">{sending ? 'Enviando a notificação…' : data.phase === 'error' ? 'Último envio parou com erro' : 'Último envio concluído'}{data.created_at ? <span className="font-normal text-slate-500"> · início {fmtDateTime(data.created_at)}</span> : null}</p>
-      <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={attempted}>
+      <p className="font-bold text-slate-900">{PHASE_LABEL[data.phase ?? ''] ?? 'Último envio'}{data.is_resend ? <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold text-amber-900">REENVIO</span> : null}{data.created_at ? <span className="font-normal text-slate-500"> · início {fmtDateTime(data.created_at)}</span> : null}</p>
+      <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={processed}>
         <div className={`h-full rounded-full ${sending ? 'bg-[#0056D2]' : 'bg-emerald-500'}`} style={{ width: `${widthPct}%` }} />
       </div>
-      <p className="mt-2">Processadas: <strong>{numberFmt(attempted)}</strong> de <strong>{numberFmt(total)}</strong> ({widthPct}%) · <strong className="text-emerald-700">{numberFmt(delivered)}</strong> receberam{(data.not_delivered ?? 0) > 0 && <> · <strong className="text-amber-700">{numberFmt(data.not_delivered ?? 0)}</strong> não receberam (aparelho sem resposta)</>}</p>
+      <p className="mt-2">Processadas: <strong>{numberFmt(processed)}</strong> de <strong>{numberFmt(total)}</strong> ({widthPct}%)</p>
+      <ul className="mt-1 grid gap-x-4 gap-y-0.5 text-[12.5px] sm:grid-cols-2">
+        <li><strong className="text-emerald-700">{numberFmt(accepted)}</strong> aceitas pelo provedor</li>
+        <li><strong className={failed ? 'text-rose-700' : ''}>{numberFmt(failed)}</strong> falhas (nenhum aparelho aceitou)</li>
+        <li><strong className={uncertain ? 'text-amber-700' : ''}>{numberFmt(uncertain)}</strong> resultados incertos (não serão reenviados sozinhos)</li>
+        <li><strong>{numberFmt(queued + inFlight)}</strong> na fila{inFlight > 0 ? ` (${numberFmt(inFlight)} em envio agora)` : ''}</li>
+        {quiet > 0 && <li className="sm:col-span-2"><strong className="text-sky-700">{numberFmt(quiet)}</strong> pendentes pelo horário de silêncio (22h–8h){nxt ? <>; a primeira janela abre em <strong>{nxt}</strong></> : null}</li>}
+        {released > 0 && <li>{numberFmt(released)} descartadas por você (nunca tentadas)</li>}
+      </ul>
+      <p className="mt-1.5 text-[11.5px] text-slate-500">“Aceita pelo provedor” significa que o serviço de notificações do celular recebeu o pedido; não confirma que chegou ao aparelho.{data.legacy ? ' Envio anterior à correção: só há o registro de aceita ou não.' : ''}</p>
+      {(data.can_resume || data.can_release) && (
+        <div className="mt-2 space-y-2 rounded-lg bg-slate-50 p-2.5">
+          {data.can_resume && resumeN > 0 && <p className="text-[12.5px]">Continuar envia <strong>só</strong> às <strong>{numberFmt(resumeN)}</strong> que nunca foram tentadas{(data.quiet_due_now ?? 0) > 0 ? ' (incluindo as pendentes cuja janela já abriu)' : ''}. Aceitas, falhas e incertas não são tentadas de novo.</p>}
+          <div className="flex flex-wrap items-center gap-2">
+            <input aria-label="Confirme digitando a quantidade" className="w-28 rounded-md border border-slate-300 px-2 py-1 text-[12px]" inputMode="numeric" placeholder="quantidade" value={typed} onChange={(e) => setTyped(e.target.value.replace(/\D/g, ''))} />
+            {data.can_resume && resumeN > 0 && <button type="button" disabled={busy || typed !== String(resumeN)} onClick={() => act('resume', resumeN, 'Continuando: só quem nunca foi tentado.')} className="rounded-lg bg-[#0056D2] px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-40">Continuar enviando {numberFmt(resumeN)}</button>}
+            {data.can_release && releaseN > 0 && <button type="button" disabled={busy || typed !== String(releaseN)} onClick={() => act('release', releaseN, 'Pendentes descartadas (ninguém foi notificado).')} className="rounded-lg border border-slate-300 px-3 py-1.5 text-[12px] font-bold text-slate-700 disabled:opacity-40">Descartar {numberFmt(releaseN)} pendentes</button>}
+          </div>
+          <p className="text-[11px] text-slate-500">Para confirmar, digite a quantidade do botão que quer usar (continuar: {numberFmt(resumeN)}; descartar: {numberFmt(releaseN)}).</p>
+        </div>
+      )}
+      {msg && <p className={`mt-2 text-[12px] font-semibold ${msg.ok ? 'text-emerald-600' : 'text-rose-600'}`}>{msg.text}</p>}
     </div>
   );
 }
@@ -183,6 +228,7 @@ export function PushProgress({ refreshKey }: { refreshKey: number }) {
 function PushSend({ onDone }: { onDone: () => void }) {
   const [kind, setKind] = useState<'test' | 'all'>('test');
   const [includeAlready, setIncludeAlready] = useState(false);
+  const [resendOk, setResendOk] = useState(false);
   const [sentCount, setSentCount] = useState(0);
   const [preview, setPreview] = useState<PushPreview | null>(null);
   const [typed, setTyped] = useState('');
@@ -192,9 +238,9 @@ function PushSend({ onDone }: { onDone: () => void }) {
   const body = () => ({
     message: kind === 'test' ? `TESTE. ${GRATUITO_PUSH_MESSAGE}` : GRATUITO_PUSH_MESSAGE, title: GRATUITO_PUSH_TITLE, destination: 'atalho', goal: 'atalho',
     segment: kind === 'test' ? 'todos' : 'faltam_passos', audience: { kind }, ignore_weekly_cap: true,
-    ...(kind === 'all' && !includeAlready ? { exclude_received_goal: 'atalho' } : {}),
+    ...(kind === 'all' && includeAlready ? { include_already: true } : {}),
   });
-  const invalidate = () => { setPreview(null); setTyped(''); setMsg(null); };
+  const invalidate = () => { setPreview(null); setTyped(''); setMsg(null); setResendOk(false); };
   const run = async (fn: () => Promise<void>) => {
     setBusy(true); setMsg(null);
     try { await fn(); } catch (e) { setMsg({ ok: false, text: e instanceof Error ? e.message : 'Não foi possível.' }); } finally { setBusy(false); }
@@ -215,7 +261,7 @@ function PushSend({ onDone }: { onDone: () => void }) {
       {kind === 'all' && (
         <label className="mt-2 flex items-start gap-1.5 text-[12.5px] text-slate-700">
           <input type="checkbox" className="mt-0.5" checked={includeAlready} onChange={(e) => { setIncludeAlready(e.target.checked); invalidate(); }} />
-          <span>Incluir quem <strong>já recebeu</strong> esta notificação (reenviar). Desmarcado, só quem ainda não recebeu.</span>
+          <span>Incluir quem <strong>já recebeu</strong> esta notificação (reenvio manual). Desmarcado, só quem ainda não foi tratado: aceitas, incertas e na fila ficam de fora.</span>
         </label>
       )}
       <div className="mt-3">
@@ -228,7 +274,21 @@ function PushSend({ onDone }: { onDone: () => void }) {
           {preview.destination_label && <p className="text-[12px] text-slate-500">Ao tocar abre: {preview.destination_label}</p>}
           <p>Vão receber: <strong>{numberFmt(preview.will_send)}</strong> {preview.will_send === 1 ? 'pessoa' : 'pessoas'}.</p>
           {kind === 'all' && !includeAlready && (preview.already_received ?? 0) > 0 && <p className="text-[12px] text-slate-500">{numberFmt(preview.already_received ?? 0)} já receberam antes e ficam de fora (marque a caixa acima para reenviar).</p>}
-          {kind === 'all' && includeAlready && <p className="rounded-lg bg-amber-50 p-2 text-[12px] text-amber-900" role="note">Reenvio: quem já recebeu esta notificação vai receber de novo.</p>}
+          {kind === 'all' && !includeAlready && preview.already_breakdown && (preview.already_breakdown.uncertain > 0 || preview.already_breakdown.in_progress > 0) && (
+            <p className="text-[12px] text-slate-500">Entre os que ficam de fora: {numberFmt(preview.already_breakdown.accepted)} aceitas, {numberFmt(preview.already_breakdown.uncertain)} incertas (não serão reenviadas sozinhas) e {numberFmt(preview.already_breakdown.in_progress)} ainda na fila de um envio anterior.</p>
+          )}
+          {kind === 'all' && includeAlready && (
+            <div className="space-y-1.5 rounded-lg bg-amber-50 p-2.5 text-[12.5px] text-amber-900" role="note">
+              <p><strong>Reenvio manual.</strong> Entre os {numberFmt(preview.will_send)}: {numberFmt(preview.already_breakdown?.accepted ?? 0)} já aceitaram esta notificação, {numberFmt(preview.already_breakdown?.uncertain ?? 0)} têm resultado incerto e {numberFmt(preview.already_breakdown?.in_progress ?? 0)} estão na fila de outro envio. Todos vão receber de novo, como um envio NOVO (não é uma retomada).</p>
+              <label className="flex items-start gap-1.5"><input type="checkbox" className="mt-0.5" checked={resendOk} onChange={(e) => setResendOk(e.target.checked)} /> <span>Confirmo que é um REENVIO e que quem já recebeu receberá outra vez.</span></label>
+            </div>
+          )}
+          {kind === 'all' && preview.quiet && (
+            <div className="rounded-lg bg-sky-50 p-2.5 text-[12.5px] text-sky-900" data-testid="push-quiet">
+              <p>Horário de silêncio (22h–8h no horário do aparelho): <strong>{numberFmt(preview.quiet.send_now)}</strong> podem receber agora e <strong>{numberFmt(preview.quiet.pending)}</strong> ficam <strong>pendentes</strong>{preview.quiet.next_open ? <> (a primeira janela abre em {fmtDateTime(preview.quiet.next_open)})</> : null}. Ninguém é descartado: os pendentes saem quando você continuar o envio depois da abertura.</p>
+              {preview.quiet.unknown_tz > 0 && <p className="mt-1 text-[11.5px]">{numberFmt(preview.quiet.unknown_tz)} sem fuso conhecido: para estes só enviamos entre 10h e 21h de Brasília (vale em qualquer fuso do Brasil).</p>}
+            </div>
+          )}
           {kind === 'test' && preview.test_accounts && (
             <ul className="space-y-0.5 text-[12.5px]">
               {preview.test_accounts.map((a) => <li key={a.name} className={a.has_push ? '' : 'text-amber-800'}>{a.has_push ? '✓' : '⚠'} {a.name}{a.has_push ? '' : ' — sem notificação ativa: não vai receber'}</li>)}
@@ -240,10 +300,10 @@ function PushSend({ onDone }: { onDone: () => void }) {
               <input id="gratuito-push-confirm" inputMode="numeric" className="w-32 rounded-lg border border-slate-300 px-3 py-2 text-[14px]" value={typed} onChange={(e) => setTyped(e.target.value.replace(/\D/g, ''))} />
             </div>
           )}
-          <button type="button" disabled={busy || preview.will_send === 0 || (kind === 'all' && typed !== String(preview.will_send))}
+          <button type="button" disabled={busy || preview.will_send === 0 || (kind === 'all' && typed !== String(preview.will_send)) || (kind === 'all' && includeAlready && !resendOk)}
             onClick={() => run(async () => {
-              await adminApi('/broadcast/send', { method: 'POST', body: JSON.stringify({ ...body(), confirm_count: preview.will_send }) });
-              setMsg({ ok: true, text: kind === 'test' ? 'Teste enviado. Confira no celular.' : 'Envio iniciado. Acompanhe o progresso abaixo.' }); setPreview(null); setTyped(''); setSentCount((n) => n + 1); onDone();
+              await adminApi('/broadcast/send', { method: 'POST', body: JSON.stringify({ ...body(), confirm_count: preview.will_send, ...(kind === 'all' && includeAlready ? { resend_confirmed: true } : {}) }) });
+              setMsg({ ok: true, text: kind === 'test' ? 'Teste enviado. Confira no celular.' : 'Envio iniciado. Acompanhe o progresso abaixo.' }); setPreview(null); setTyped(''); setResendOk(false); setSentCount((n) => n + 1); onDone();
             })}
             className="rounded-lg bg-[#0056D2] px-4 py-2 text-[13px] font-bold text-white disabled:opacity-40">
             {kind === 'test' ? 'Enviar teste' : `Enviar para ${numberFmt(preview.will_send)}`}
@@ -252,7 +312,7 @@ function PushSend({ onDone }: { onDone: () => void }) {
         </div>
       )}
       {msg && <p className={`mt-3 text-[12.5px] font-semibold ${msg.ok ? 'text-emerald-600' : 'text-rose-600'}`}>{msg.text}</p>}
-      <PushProgress refreshKey={sentCount} />
+      <PushProgress refreshKey={sentCount} onChange={onDone} />
     </Card>
   );
 }

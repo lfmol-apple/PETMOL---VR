@@ -53,6 +53,19 @@ def _pg_add_column_if_missing(conn, table: str, column: str, ddl_type: str) -> b
     return True
 
 
+def _pg_migrate_broadcast_safe(conn) -> None:
+    """Envio avulso SEGURO (admin/broadcast_safe.py): estado por destinatário + o que a retomada lê do banco. Tudo anulável e aditivo.
+    O índice único é PARCIAL (só linhas com estado): as linhas antigas têm state NULL, então nada pode falhar por duplicata histórica."""
+    for _col, _ddl in (("title_tpl", "VARCHAR(80)"), ("destination", "VARCHAR(16)"), ("respect_quiet", "BOOLEAN"),
+                       ("is_resend", "BOOLEAN"), ("heartbeat_at", "TIMESTAMP WITH TIME ZONE")):
+        _pg_add_column_if_missing(conn, "admin_broadcasts", _col, _ddl)
+    for _col, _ddl in (("state", "VARCHAR(16)"), ("attempts", "INTEGER"), ("attempted_at", "TIMESTAMP WITH TIME ZONE"),
+                       ("finished_at", "TIMESTAMP WITH TIME ZONE"), ("detail", "VARCHAR(200)"), ("not_before", "TIMESTAMP WITH TIME ZONE"),
+                       ("tz_name", "VARCHAR(64)"), ("tz_basis", "VARCHAR(10)")):
+        _pg_add_column_if_missing(conn, "admin_broadcast_recipients", _col, _ddl)
+    conn.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_broadcast_recipient_state ON admin_broadcast_recipients (broadcast_id, user_id) WHERE state IS NOT NULL'))
+
+
 def _pg_column_type(conn, table: str, column: str) -> str | None:
     row = conn.execute(text(
         "SELECT data_type FROM information_schema.columns "
@@ -705,8 +718,7 @@ def run_pg_migrations(engine: Engine) -> None:
         # Histórico de envios: "ocultar" é reversível e só afeta a lista (nada é apagado; cota semanal e métricas intactas).
         _pg_add_column_if_missing(conn, "admin_broadcasts", "hidden_at", "TIMESTAMP WITH TIME ZONE")
         conn.execute(text('CREATE INDEX IF NOT EXISTS ix_admin_broadcasts_campaign_id ON admin_broadcasts (campaign_id)'))
-        conn.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_broadcasts_idempotency_key ON admin_broadcasts (idempotency_key)'))
-        conn.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_broadcasts_campaign_batch ON admin_broadcasts (campaign_id, batch_no)'))
+        _pg_migrate_broadcast_safe(conn)
         _pg_add_column_if_missing(conn, "app_installs", "utm_source", "TEXT")
         _pg_add_column_if_missing(conn, "app_installs", "utm_medium", "TEXT")
         _pg_add_column_if_missing(conn, "app_installs", "utm_campaign", "TEXT")
@@ -812,6 +824,14 @@ def run_sqlite_migrations(engine: Engine) -> None:
             conn.execute(text('CREATE INDEX IF NOT EXISTS ix_admin_broadcasts_campaign_id ON admin_broadcasts (campaign_id)'))
             conn.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_broadcasts_idempotency_key ON admin_broadcasts (idempotency_key)'))
             conn.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_broadcasts_campaign_batch ON admin_broadcasts (campaign_id, batch_no)'))
+            for _col, _ddl in (("title_tpl", "VARCHAR(80)"), ("destination", "VARCHAR(16)"), ("respect_quiet", "BOOLEAN"),
+                               ("is_resend", "BOOLEAN"), ("heartbeat_at", "DATETIME")):
+                changed |= _sqlite_add_column_if_missing(conn, "admin_broadcasts", _col, _ddl)
+        if conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='admin_broadcast_recipients'")).fetchone():
+            for _col, _ddl in (("state", "VARCHAR(16)"), ("attempts", "INTEGER"), ("attempted_at", "DATETIME"), ("finished_at", "DATETIME"),
+                               ("detail", "VARCHAR(200)"), ("not_before", "DATETIME"), ("tz_name", "VARCHAR(64)"), ("tz_basis", "VARCHAR(10)")):
+                changed |= _sqlite_add_column_if_missing(conn, "admin_broadcast_recipients", _col, _ddl)
+            conn.execute(text('CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_broadcast_recipient_state ON admin_broadcast_recipients (broadcast_id, user_id) WHERE state IS NOT NULL'))
         changed |= _sqlite_add_column_if_missing(conn, "users", "terms_accepted", "BOOLEAN DEFAULT 0")
         changed |= _sqlite_add_column_if_missing(conn, "users", "terms_version", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "users", "terms_accepted_at", "DATETIME")
