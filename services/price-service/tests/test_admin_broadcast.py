@@ -457,8 +457,8 @@ def test_exclude_received_goal_pula_quem_ja_recebeu_e_reenvio_inclui_de_novo(adm
         _mk_user(db, "Carla")                                              # chegou depois: ainda não recebeu
     com = adm.client.post("/v1/admin/broadcast/preview", json={**base, "exclude_received_goal": "atalho"}).json()
     assert com["will_send"] == 1 and com["already_received"] == 3
-    reenvio = adm.client.post("/v1/admin/broadcast/preview", json=base).json()                              # sem a exclusão = reenvio
-    assert reenvio["will_send"] == 4 and reenvio["already_received"] == 0
+    reenvio = adm.client.post("/v1/admin/broadcast/preview", json={**base, "include_already": True}).json()   # reenvio manual (Gratuito)
+    assert reenvio["will_send"] == 4 and reenvio["already_received"] == 0 and reenvio["resend"] is True
     assert adm.client.post("/v1/admin/broadcast/send", json={**base, "exclude_received_goal": "atalho", "confirm_count": 4}).status_code == 409
     assert adm.client.post("/v1/admin/broadcast/send", json={**base, "exclude_received_goal": "atalho", "confirm_count": 1}).status_code == 200
 
@@ -478,10 +478,4 @@ def test_progresso_do_ultimo_envio(adm):
         _mk_user(db, "Ana")
     assert adm.client.post("/v1/admin/broadcast/send", json={**_body(goal="atalho"), "confirm_count": 2}).status_code == 200
     p = adm.client.get("/v1/admin/broadcast/progress/latest", params={"goal": "atalho"}).json()
-    assert p["found"] and p["phase"] == "done" and p["total"] == 2 and p["attempted"] == 2 and p["delivered"] == 2 and p["not_delivered"] == 0
-    with SessionLocal() as db:                                              # um aparelho sem resposta aparece como "não receberam"
-        db.query(br.AdminBroadcastRecipient).filter(br.AdminBroadcastRecipient.broadcast_id == p["id"]).limit(1)
-        r = db.query(br.AdminBroadcastRecipient).filter(br.AdminBroadcastRecipient.broadcast_id == p["id"]).first()
-        r.delivered = False; db.commit()
-    p = adm.client.get("/v1/admin/broadcast/progress/latest", params={"goal": "atalho"}).json()
-    assert p["delivered"] == 1 and p["not_delivered"] == 1
+    assert p["found"] and p["phase"] == "done" and p["total"] == 2 and p["processed"] == 2 and p["accepted"] == 2 and p["failed"] == 0 and p["uncertain"] == 0

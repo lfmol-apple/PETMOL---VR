@@ -31,7 +31,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text, UniqueConstraint, func, or_
+from sqlalchemy import Boolean, Column, DateTime, Index, Integer, String, Text, UniqueConstraint, func, or_, text
 
 from ..analytics.models import AnalyticsProductEvent
 from ..config import admin_allowed_emails, get_settings
@@ -209,6 +209,12 @@ class AdminBroadcast(Base):
     hidden_at = Column(DateTime(timezone=True), nullable=True)   # ocultado da lista de histórico (reversível; o registro e as métricas continuam)
     stop_requested_by = Column(String(36), nullable=True)
     stop_ack_at = Column(DateTime(timezone=True), nullable=True)   # quando o executor (ou a recuperação) reconheceu a parada
+    # Envio avulso SEGURO (admin/broadcast_safe.py): o que a execução/retomada precisa ler do banco, sinal de vida e tipo do envio. Todas anuláveis.
+    title_tpl = Column(String(80), nullable=True)
+    destination = Column(String(16), nullable=True)
+    respect_quiet = Column(Boolean, nullable=True)           # janela de silêncio 22h–8h (hoje: só a meta "atalho")
+    is_resend = Column(Boolean, nullable=True)               # REENVIO MANUAL confirmado (nunca um retry automático)
+    heartbeat_at = Column(DateTime(timezone=True), nullable=True)   # último sinal de vida da execução (recuperação de envio travado)
 
     __table_args__ = (
         UniqueConstraint("idempotency_key", name="uq_admin_broadcasts_idempotency_key"),
@@ -240,6 +246,22 @@ class AdminBroadcastRecipient(Base):
     delivered = Column(Boolean, nullable=False, default=False)   # push aceito por pelo menos 1 aparelho
     title = Column(Text, nullable=True)
     body = Column(Text, nullable=True)
+    # Estado persistido por destinatário (broadcast_safe): reserved | sending | accepted | failed | uncertain | pending_quiet | released.
+    # NULL = linha anterior a esta correção (vale `delivered`). "accepted" = aceito pelo provedor, NÃO entregue no aparelho.
+    state = Column(String(16), nullable=True)
+    attempts = Column(Integer, nullable=True)
+    attempted_at = Column(DateTime(timezone=True), nullable=True)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+    detail = Column(String(200), nullable=True)
+    not_before = Column(DateTime(timezone=True), nullable=True)   # silêncio: não enviar antes disto
+    tz_name = Column(String(64), nullable=True)
+    tz_basis = Column(String(10), nullable=True)                  # device | unknown | off
+
+    __table_args__ = (
+        # Uma linha por pessoa por envio (só para linhas com estado: as antigas ficam de fora e nada pode falhar na migração).
+        Index("uq_admin_broadcast_recipient_state", "broadcast_id", "user_id", unique=True,
+              postgresql_where=text("state IS NOT NULL"), sqlite_where=text("state IS NOT NULL")),
+    )
 
 
 # ── Personalização (pura, testável) ──────────────────────────────────────────
@@ -409,30 +431,22 @@ def _test_accounts_info(db, targets: list[dict]) -> list[dict]:
     return [{"name": first_name(t.get("name")) or "Conta sem nome", "has_push": t["user_id"] in with_push} for t in targets]
 
 
-def received_goal_ids(db, goal: str) -> set[str]:
-    """Quem já recebeu (push aceito) um envio real com esta meta. O teste "só eu" não conta."""
-    test_ids = {str(i) for (i,) in db.query(AdminBroadcast.id).filter(AdminBroadcast.audience_kind == "test").all()}
-    goal_ids = {str(i) for (i,) in db.query(AdminBroadcast.id).filter(AdminBroadcast.goal == goal).all()} - test_ids
-    if not goal_ids:
-        return set()
-    out: set[str] = set()
-    for part in _chunks(list(goal_ids)):
-        out |= {str(u) for (u,) in db.query(AdminBroadcastRecipient.user_id).filter(
-            AdminBroadcastRecipient.broadcast_id.in_(part), AdminBroadcastRecipient.delivered.is_(True)).all()}
-    return out
-
-
 def _select_targets(db, segment: str, kind: str, count: Optional[int], admin_user_id: str,
                     ignore_weekly_cap: bool = False, care: Optional[str] = None,
-                    exclude_received_goal: Optional[str] = None) -> tuple[list[dict], dict]:
+                    exclude_received_goal: Optional[str] = None, info_goal: Optional[str] = None) -> tuple[list[dict], dict]:
     if kind == "test":
         return _admin_target(db, admin_user_id), {"opt_out": 0, "weekly_cap": 0, "segment": 0}
     targets, skipped = eligible_users(db, segment, ignore_weekly_cap, care)
-    if exclude_received_goal:
-        got = received_goal_ids(db, exclude_received_goal)
-        kept = [t for t in targets if t["user_id"] not in got]
-        skipped["already_received"] = len(targets) - len(kept)
-        targets = kept
+    goal_ref = exclude_received_goal or info_goal
+    if goal_ref:
+        from . import broadcast_safe as bs
+        cats = bs.received_goal_ids(db, goal_ref)          # aceitos / incertos / em curso (reservados ou aguardando) de envios REAIS anteriores
+        skipped["already_breakdown"] = {k: sum(1 for t in targets if t["user_id"] in v) for k, v in cats.items()}
+        if exclude_received_goal:
+            got = cats["accepted"] | cats["uncertain"] | cats["in_progress"]
+            kept = [t for t in targets if t["user_id"] not in got]
+            skipped["already_received"] = len(targets) - len(kept)
+            targets = kept
     if kind == "count" and count is not None and count < len(targets):
         targets = random.sample(targets, count)
     return targets, skipped
@@ -468,44 +482,6 @@ def _push_payload(broadcast_id: str, title: str, body: str, destination: str = "
         "tag": f"broadcast-{broadcast_id}",
         "data": {"url": url},
     }
-
-
-def _run_send(broadcast_id: str, message: str, targets: list[dict], title_template: Optional[str] = None,
-              destination: str = "home", product_url: Optional[str] = None) -> None:
-    db = SessionLocal()
-    delivered = 0
-    try:
-        for i, t in enumerate(targets):
-            try:
-                title, body = personalize(message, t.get("name"), t.get("pet_names") or [], title_template)
-                ok = push_to_user(t["user_id"], _push_payload(broadcast_id, title, body, destination, product_url)) > 0
-            except Exception as exc:  # um tutor com problema nunca derruba o envio dos outros
-                logger.warning("broadcast %s: falha para %s: %s", broadcast_id, t.get("user_id"), exc)
-                title, body, ok = None, None, False
-            delivered += 1 if ok else 0
-            db.add(AdminBroadcastRecipient(broadcast_id=broadcast_id, user_id=t["user_id"],
-                                           delivered=ok, title=title, body=body))
-            if (i + 1) % 10 == 0:
-                db.commit()
-                time.sleep(0.2)
-        row = db.query(AdminBroadcast).filter(AdminBroadcast.id == broadcast_id).first()
-        if row:
-            row.recipients_total = len(targets)
-            row.delivered_total = delivered
-            row.phase = "done"
-            row.finished_at = datetime.now(timezone.utc)
-        db.commit()
-    except Exception as exc:
-        logger.error("broadcast %s falhou: %s", broadcast_id, exc)
-        db.rollback()
-        row = db.query(AdminBroadcast).filter(AdminBroadcast.id == broadcast_id).first()
-        if row:
-            row.phase = "error"
-            row.delivered_total = delivered
-            row.finished_at = datetime.now(timezone.utc)
-            db.commit()
-    finally:
-        db.close()
 
 
 # ── Êxito: o tutor fez algo no app? ──────────────────────────────────────────
@@ -651,6 +627,10 @@ class BroadcastIn(BaseModel):
     ignore_weekly_cap: bool = True
     # Painel Gratuito: por padrão quem JÁ recebeu esta meta não recebe de novo; o dono pode incluir de propósito ("reenviar").
     exclude_received_goal: Optional[str] = None
+    # Metas protegidas (Gratuito): quem já foi tratado NÃO repete, a não ser REENVIO MANUAL: `include_already` na prévia e, no envio,
+    # também `resend_confirmed` (confirmação explícita). Reenvio é sempre um envio novo; nunca é um retry automático.
+    include_already: bool = False
+    resend_confirmed: bool = False
 
     @model_validator(mode="after")
     def _goal_known(self):
@@ -680,8 +660,22 @@ class SendIn(BroadcastIn):
 def _plan(db, payload: BroadcastIn, admin_user_id: str) -> tuple[list[dict], dict, int]:
     care = (_GOAL.get(payload.goal or "") or {}).get("care")
     targets, skipped = _select_targets(db, payload.segment, payload.audience.kind, payload.audience.count,
-                                       admin_user_id, payload.ignore_weekly_cap, care, payload.exclude_received_goal)
+                                       admin_user_id, payload.ignore_weekly_cap, care, _effective_exclude(payload),
+                                       info_goal=payload.goal if _is_protected(payload) else None)
     return targets, skipped, len(targets)
+
+
+def _is_protected(payload: BroadcastIn) -> bool:
+    """Meta protegida (hoje: Gratuito) e envio real (o teste "só eu" não segue as regras de repetição nem a janela de silêncio)."""
+    from . import broadcast_safe as bs
+    return (payload.goal or "") in bs.PROTECTED_GOALS and payload.audience.kind != "test"
+
+
+def _effective_exclude(payload: BroadcastIn) -> Optional[str]:
+    """Meta protegida: quem já foi tratado NÃO repete, salvo reenvio manual (`include_already`). As demais metas seguem `exclude_received_goal`."""
+    if _is_protected(payload):
+        return None if payload.include_already else payload.goal
+    return payload.exclude_received_goal
 
 
 def _audience_summary(db) -> dict:
@@ -753,6 +747,11 @@ def preview(payload: BroadcastIn, current=Depends(get_current_admin)):
                   "destination_label": DESTINATIONS.get(dest, dest)}
         if payload.audience.kind == "test":
             result["test_accounts"] = _test_accounts_info(db, targets)
+        if _is_protected(payload):
+            from . import broadcast_safe as bs
+            result["resend"] = bool(payload.include_already)
+            result["already_breakdown"] = skipped.get("already_breakdown", {"accepted": 0, "uncertain": 0, "in_progress": 0})
+            result["quiet"] = bs.quiet_split(db, targets)
         if payload.product_url:
             result["product"] = {"title": payload.product_title, "url": payload.product_url}
         return result
@@ -760,53 +759,96 @@ def preview(payload: BroadcastIn, current=Depends(get_current_admin)):
         db.close()
 
 
-@router.post("/send")
-def send(payload: SendIn, current=Depends(get_current_admin)):
-    admin_user = current[0]
-    db = SessionLocal()
-    try:
-        running_since = datetime.now(timezone.utc) - timedelta(minutes=30)
-        if db.query(AdminBroadcast.id).filter(AdminBroadcast.phase == "sending",
-                                              AdminBroadcast.created_at >= running_since).first():
-            raise HTTPException(status_code=409, detail="Já existe um envio em andamento. Espere terminar.")
-        targets, _skipped, will_send = _plan(db, payload, str(admin_user.id))
-        if will_send == 0:
-            raise HTTPException(status_code=422, detail="Ninguém receberia esta mensagem agora.")
-        if payload.confirm_count != will_send:
-            raise HTTPException(status_code=409,
-                                detail=f"O número mudou: agora são {will_send} pessoas. Confira e confirme de novo.")
-        b = AdminBroadcast(
-            created_by=str(admin_user.id), message=payload.message.strip(), segment=payload.segment,
-            audience_kind=payload.audience.kind, audience_requested=payload.audience.count, goal=payload.goal,
-            recipients_total=will_send, phase="sending", link_url=payload.product_url, link_title=payload.product_title)
-        db.add(b)
-        db.commit()
-        broadcast_id = b.id
-        destination = payload.destination or (_GOAL.get(payload.goal or "") or {}).get("open") or "home"
-    finally:
-        db.close()
-    _spawn(_run_send, broadcast_id, payload.message.strip(), targets, payload.title, destination, payload.product_url)
-    return {"id": broadcast_id, "will_send": will_send, "phase": "sending"}
-
-
 @router.get("/progress/latest")
 def progress_latest(goal: str, current=Depends(get_current_admin)):
-    """Andamento do ÚLTIMO envio real desta meta (para o painel mostrar "X de Y" enquanto envia). Leve: só contagens."""
-    db = SessionLocal()
+    """Andamento do ÚLTIMO envio real desta meta, com números do banco: processadas, aceitas pelo provedor, falhas, incertas, na fila e
+    aguardando horário. "Aceita" NÃO é "entregue no aparelho". Também recupera, sem enviar nada, um envio travado por queda."""
+    from . import broadcast_safe as bs
+    return bs.progress(SessionLocal, goal)
+
+
+@router.post("/send")
+def send(payload: SendIn, current=Depends(get_current_admin)):
+    from . import broadcast_safe as bs
+    admin_user = current[0]
+    protected = _is_protected(payload)
+    resend = protected and payload.include_already
+    if resend and not payload.resend_confirmed:
+        raise HTTPException(status_code=409, detail={"code": "resend_not_confirmed",
+                            "message": "Reenvio manual precisa de confirmação explícita: quem já foi tratado receberá de novo."})
+    bs.recover_stale()                      # envio travado por queda vira "interrompido" (nunca reenvia) antes de checar se há um aberto
+    with bs.creation_lock():                # uma criação por vez (+ advisory lock no Postgres, dentro da transação)
+        db = SessionLocal()
+        try:
+            bs.serialize_creation(db)
+            if bs.open_broadcast(db, only_running=(payload.audience.kind == "test")) is not None:
+                raise HTTPException(status_code=409, detail="Já existe um envio em andamento, interrompido ou aguardando horário. "
+                                                            "Espere terminar, continue ou descarte os pendentes antes de iniciar outro.")
+            targets, _skipped, will_send = _plan(db, payload, str(admin_user.id))
+            if will_send == 0:
+                raise HTTPException(status_code=422, detail="Ninguém receberia esta mensagem agora.")
+            if payload.confirm_count != will_send:
+                raise HTTPException(status_code=409,
+                                    detail=f"O número mudou: agora são {will_send} pessoas. Confira e confirme de novo.")
+            destination = payload.destination or (_GOAL.get(payload.goal or "") or {}).get("open") or "home"
+            b = AdminBroadcast(
+                created_by=str(admin_user.id), message=payload.message.strip(), segment=payload.segment,
+                audience_kind=payload.audience.kind, audience_requested=payload.audience.count, goal=payload.goal,
+                recipients_total=will_send, phase="sending", link_url=payload.product_url, link_title=payload.product_title,
+                title_tpl=payload.title, destination=destination, respect_quiet=protected, is_resend=resend,
+                heartbeat_at=datetime.now(timezone.utc))
+            db.add(b)
+            db.flush()
+            bs.create_ledger(db, b, targets, quiet=protected)     # TODAS as linhas nascem `reserved` na mesma transação do envio
+            db.commit()
+            broadcast_id = b.id
+        finally:
+            db.close()
+    _spawn(bs.run_broadcast, broadcast_id)
+    return {"id": broadcast_id, "will_send": will_send, "phase": "sending", "resend": resend}
+
+
+class ConfirmIn(BaseModel):
+    confirm_count: int
+
+
+def _safe_call(fn, *a):
+    from . import broadcast_safe as bs
     try:
-        b = (db.query(AdminBroadcast).filter(AdminBroadcast.goal == goal, AdminBroadcast.audience_kind != "test")
-             .order_by(AdminBroadcast.created_at.desc()).first())
-        if not b:
-            return {"found": False}
-        attempted = db.query(func.count(AdminBroadcastRecipient.id)).filter(AdminBroadcastRecipient.broadcast_id == b.id).scalar() or 0
-        delivered = db.query(func.count(AdminBroadcastRecipient.id)).filter(
-            AdminBroadcastRecipient.broadcast_id == b.id, AdminBroadcastRecipient.delivered.is_(True)).scalar() or 0
-        return {"found": True, "id": b.id, "phase": b.phase, "total": int(b.recipients_total or 0), "attempted": int(attempted),
-                "delivered": int(delivered), "not_delivered": int(attempted) - int(delivered),
-                "created_at": b.created_at.isoformat() if b.created_at else None,
-                "finished_at": b.finished_at.isoformat() if getattr(b, "finished_at", None) else None}
-    finally:
-        db.close()
+        return fn(*a)
+    except bs.SafeError as e:
+        raise HTTPException(status_code=e.status, detail=e.detail())
+
+
+@router.post("/{broadcast_id}/resume")
+def resume_broadcast(broadcast_id: str, payload: ConfirmIn, current=Depends(get_current_admin)):
+    """CONTINUA um envio interrompido/aguardando horário: envia SÓ a quem nunca foi tentado (e cuja janela de silêncio já abriu).
+    Aceitos, falhos e incertos nunca são tentados de novo. Exige a contagem digitada."""
+    from . import broadcast_safe as bs
+    n = _safe_call(bs.prepare_resume, SessionLocal, broadcast_id, payload.confirm_count)
+    _spawn(bs.run_broadcast, broadcast_id)
+    return {"id": broadcast_id, "resuming": n, "phase": "sending"}
+
+
+@router.post("/{broadcast_id}/release")
+def release_broadcast(broadcast_id: str, payload: ConfirmIn, current=Depends(get_current_admin)):
+    """DESCARTA (sem enviar) quem nunca foi tentado. Nada é apagado; essas pessoas poderão entrar em um novo envio."""
+    from . import broadcast_safe as bs
+    n = _safe_call(bs.release, SessionLocal, broadcast_id, payload.confirm_count)
+    return {"id": broadcast_id, "released": n}
+
+
+@router.on_event("startup")
+def _recover_broadcasts_on_startup() -> None:
+    """Ao iniciar, nenhuma thread de envio sobrevive: reclassifica envios travados (sending→uncertain, fase 'interrompido'). NUNCA envia nada;
+    qualquer erro aqui é registrado e jamais impede o serviço de subir."""
+    try:
+        from . import broadcast_safe as bs
+        n = bs.recover_stale()
+        if n:
+            logger.warning("broadcast: %s envio(s) interrompido(s) reclassificado(s) na partida (nada foi reenviado)", n)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("broadcast: recuperação na partida falhou (não crítico): %s", exc)
 
 
 @router.get("/history")
